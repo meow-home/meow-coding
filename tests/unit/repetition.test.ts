@@ -1,0 +1,73 @@
+import { describe, expect, it } from 'vitest'
+import { loopDetector } from '../../src/main/agent/repetition'
+
+// A faithful mirror of the degenerate "thinking loop" from the bug report: the
+// model keeps re-emitting "let me look at the question tool's run and the
+// ctx.ask flow again" (with slight openers) without ever calling a tool.
+const LOOP_BASE = 'look at the `question` tool\'s `run` and the `ctx.ask` flow again'
+const LOOP_SENTENCES = [
+  `Let me ${LOOP_BASE}. `,
+  `Actually, let me ${LOOP_BASE}. `,
+  `OK, I need to actually ${LOOP_BASE}. `,
+  `I'm going to ${LOOP_BASE}. `
+]
+
+function feedChunks(detector: ReturnType<typeof loopDetector>, chunksLikeStream: (string | string[])[]) {
+  for (const c of chunksLikeStream) {
+    const text = typeof c === 'string' ? c : c.join(' ')
+    if (detector.next(text)) return true
+  }
+  return false
+}
+
+function seedRng(seed: number): () => number {
+  let s = seed >>> 0
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0
+    return s / 2 ** 32
+  }
+}
+
+function variedReasoningChunks(chunks: number, seed = 1): string[] {
+  const rnd = seedRng(seed)
+  const pool = Array.from({ length: 300 }, (_, i) => `w${i}`)
+  const out: string[] = []
+  for (let i = 0; i < chunks; i++) {
+    const n = 12 + Math.floor(rnd() * 10)
+    const words = Array.from({ length: n }, () => pool[Math.floor(rnd() * pool.length)])
+    out.push(words.join(' ') + '. ')
+  }
+  return out
+}
+
+describe('loopDetector', () => {
+  it('flags the exact thinking-loop pattern from the bug report', () => {
+    // Two sentences per "unit", like the observed output, streamed chunk-wise.
+    const units = Array.from({ length: 6 }, () => [LOOP_SENTENCES[0], LOOP_SENTENCES[1]])
+    const d = loopDetector()
+    expect(feedChunks(d, units)).toBe(true)
+  })
+
+  it('flags as soon as a verbatim 12-word phrase has repeated four times', () => {
+    const d = loopDetector()
+    // One sentence repeats the phrase once; 4 sentences → 4 occurrences.
+    for (let i = 0; i < 3; i++) {
+      expect(d.next(LOOP_SENTENCES[0])).toBe(false)
+    }
+    expect(d.next(LOOP_SENTENCES[0])).toBe(true)
+  })
+
+  it('does not flag a long but genuinely varied reasoning stream', () => {
+    const d = loopDetector()
+    for (const chunk of variedReasoningChunks(60)) {
+      if (d.next(chunk)) {
+        expect.fail('varied stream was flagged as a loop')
+      }
+    }
+  })
+
+  it('does not flag a short normal answer', () => {
+    const d = loopDetector()
+    expect(d.next('The function returns the resolved output, or an error if the tool failed.')).toBe(false)
+  })
+})

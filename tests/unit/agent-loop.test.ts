@@ -1823,3 +1823,100 @@ describe('loop Stop hooks', () => {
     expect(done && done.type === 'done' ? done.reason : '').toBe('max-steps')
   })
 })
+
+// Degenerate "thinking loop": a reasoning model that keeps re-emitting the same
+// phrases without ever calling a tool burns the whole output budget, and the
+// length-resume path then re-triggers the same loop up to three more times.
+// The runner must detect the repetition mid-stream, cut it short, nudge the
+// model, and give up with a distinct reason instead of reporting 'length'.
+const LOOP_BASE = 'look at the `question` tool\'s `run` and the `ctx.ask` flow again'
+const LOOP_SENTENCES = [
+  `Let me ${LOOP_BASE}. `,
+  `Actually, let me ${LOOP_BASE}. `,
+  `OK, I need to actually ${LOOP_BASE}. `,
+  `I'm going to ${LOOP_BASE}. `
+]
+
+// A stream of repeated reasoning (the first four sentences already contain the
+// repeated 12-word phrase), ending with a provider length-cutoff like the model
+// would hit if the loop were left to run.
+function thinkingLoopStream(): LlmStreamPart[] {
+  return [
+    ...Array.from({ length: 12 }, (_, i) => ({ kind: 'reasoning' as const, text: LOOP_SENTENCES[i % LOOP_SENTENCES.length] })),
+    { kind: 'finish' as const, finishReason: 'length' }
+  ]
+}
+
+function seedRng(seed: number): () => number {
+  let s = seed >>> 0
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0
+    return s / 2 ** 32
+  }
+}
+
+function variedReasoningStream(chunks: number): LlmStreamPart[] {
+  const rnd = seedRng(7)
+  const pool = Array.from({ length: 300 }, (_, i) => `w${i}`)
+  const out: LlmStreamPart[] = []
+  for (let i = 0; i < chunks; i++) {
+    const n = 12 + Math.floor(rnd() * 10)
+    const words = Array.from({ length: n }, () => pool[Math.floor(rnd() * pool.length)])
+    out.push({ kind: 'reasoning', text: words.join(' ') + '. ' })
+  }
+  out.push({ kind: 'finish' })
+  return out
+}
+
+describe('SessionRunner thinking-loop guard', () => {
+  it('cuts a looping reasoning stream short, steers the model, and recovers when it complies', async () => {
+    const h = makeHarness()
+    h.llm.queue = [thinkingLoopStream(), textParts('final answer')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 40))
+
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+    expect(done.reason).toBe('complete')
+    // One stream for the loop (cut short), one for the recovered answer — the
+    // length-resume path would have burned up to four streams instead.
+    expect(h.llm.calls.length).toBe(2)
+    // The loop was not persisted as an assistant message: garbage stays out of
+    // context so it cannot feed the next request.
+    expect(h.items.filter(i => i.kind === 'message' && i.message.role === 'assistant' && /question tool/.test(i.message.reasoning ?? ''))).toHaveLength(0)
+    // The next request carries the recovery nudge.
+    expect(JSON.stringify(h.llm.calls[1]?.messages ?? [])).toContain('single next concrete action')
+    // The nudge is persisted as a user message.
+    const userTexts = h.items
+      .filter((i): i is { kind: 'message'; message: ChatMessage } => i.kind === 'message' && i.message.role === 'user')
+      .map(i => i.message.text)
+    expect(userTexts.some(t => t.includes('single next concrete action'))).toBe(true)
+  })
+
+  it('ends the turn as stuck when the loop survives the recovery nudges', async () => {
+    const h = makeHarness()
+    h.llm.queue = [thinkingLoopStream(), thinkingLoopStream(), thinkingLoopStream(), thinkingLoopStream()]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 40))
+
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+    expect(done.reason).toBe('stuck')
+    // Two nudges are allowed; on the third detected loop we give up instead of
+    // consuming the queued fourth stream.
+    expect(h.llm.calls.length).toBeLessThan(4)
+  })
+
+  it('leaves a long but non-repetitive reasoning stream untouched', async () => {
+    const h = makeHarness()
+    h.llm.queue = [variedReasoningStream(80)]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 40))
+
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+    expect(done.reason).toBe('complete')
+    expect(h.llm.calls.length).toBe(1)
+    const userTexts = h.items
+      .filter((i): i is { kind: 'message'; message: ChatMessage } => i.kind === 'message' && i.message.role === 'user')
+      .map(i => i.message.text)
+    expect(userTexts.some(t => t.includes('single next concrete action'))).toBe(false)
+  })
+})

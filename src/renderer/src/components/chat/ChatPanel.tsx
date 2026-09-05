@@ -505,6 +505,12 @@ if (e.type === 'usage') {
           id: 'refusal-' + Date.now(),
           text: 'The model declined to answer.'
         }])
+      } else if (e.reason === 'stuck') {
+        setItems(prev => [...prev, {
+          kind: 'error',
+          id: 'stuck-' + Date.now(),
+          text: 'The model got stuck repeating itself and could not produce a final answer. Try rewording your request or sending a new message.'
+        }])
       }
       return
     }

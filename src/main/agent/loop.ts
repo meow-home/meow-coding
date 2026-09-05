@@ -16,6 +16,7 @@ import type { CompactionSettings, ResolvedCompaction } from './compact'
 import { estimateUsage } from './token'
 import { DEFAULT_MAX_CONTEXT_TOKENS } from './config'
 import { classifyContextOverflowError } from './limits'
+import { loopDetector } from './repetition'
 import type { TruncationStore } from './truncation'
 import type { SnapshotStore } from './snapshot'
 import type { HooksRunner } from './hooks'
@@ -98,6 +99,13 @@ export const MAX_STOP_BLOCKS = 8
 const CONTINUE_TRUNCATED_PROMPT =
   '<system-reminder>\nYour previous answer was cut off at the output token limit. ' +
   'Continue from where you stopped, without repeating what you already wrote.\n</system-reminder>'
+// A degenerate model caught re-emitting the same phrases gets one of these
+// instead of a "continue" nudge: continuing is exactly what keeps the loop going.
+const MAX_LOOP_BREAKS = 2
+const LOOP_RECOVERY_PROMPT =
+  '<system-reminder>\nYou keep repeating the same analysis without making progress or producing a final answer. ' +
+  'Stop re-examining your approach and take the single next concrete action now: call the tool you need, or ' +
+  'give your final answer directly. Do not restate what you already wrote.\n</system-reminder>'
 
 function classifyFinish(reason: string | undefined): 'complete' | 'length' | 'refusal' {
   if (reason === 'length' || reason === 'max_tokens') return 'length'
@@ -139,6 +147,9 @@ export class SessionRunner {
   // Truncation resumes in one run (not reset between tool steps); caps the cost
   // keeps hitting the output limit.
   private lengthResumesThisRun = 0
+  // Times the thinking-loop guard has nudged the model out of a repetition loop
+  // in this run; past MAX_LOOP_BREAKS the turn ends as 'stuck'.
+  private loopBreaksThisRun = 0
   // Provider-reported usage of the last LLM call; overflow detection trusts it
   // over the transcript char estimate because it includes the system prompt and
   // tool definitions (see maybeCompact).
@@ -164,6 +175,7 @@ export class SessionRunner {
     this.compactedThisRun = 0
     this.rejectRetriesThisRun = 0
     this.lengthResumesThisRun = 0
+    this.loopBreaksThisRun = 0
     this.stopBlocksThisRun = 0
     this.hooks = this.deps.hooks?.()
     this.compaction = resolveCompactionSettings(
@@ -209,6 +221,11 @@ export class SessionRunner {
       let tokens: MessageTokens | undefined
       let finishReason: string | undefined
       const calls: ToolCallData[] = []
+      // Watches the model's own words (text + reasoning) for the degenerate
+      // repetition pattern; once it fires we stop the stream before the output
+      // budget is wasted on the loop.
+      const loop = loopDetector()
+      let looping = false
       const persistPartial = () => {
         if (!textBuffer && !reasoningBuffer) return
         this.deps.appendMessage({
@@ -242,11 +259,19 @@ export class SessionRunner {
             const delta = next.slice(textBuffer.length)
             textBuffer = next
             this.deps.onEvent({ type: 'text-delta', agentId, delta })
+            if (loop.next(part.text ?? '')) {
+              looping = true
+              break
+            }
           } else if (part.kind === 'reasoning') {
             const next = appendStreamDelta(reasoningBuffer, part.text ?? '')
             const delta = next.slice(reasoningBuffer.length)
             reasoningBuffer = next
             this.deps.onEvent({ type: 'reasoning-delta', agentId, delta })
+            if (loop.next(part.text ?? '')) {
+              looping = true
+              break
+            }
           } else if (part.kind === 'tool-call') {
             hasToolCall = true
             const call: ToolCallData = {
@@ -306,6 +331,23 @@ export class SessionRunner {
         persistPartial()
         this.deps.onEvent({ type: 'done', agentId, reason: 'stopped' })
         return
+      }
+
+      if (looping) {
+        // The model re-emitted the same phrasing until the detector cut the
+        // stream off. Nudge it out of the loop (not "continue" — continuing is
+        // what feeds the loop) and retry the step. Past the cap, end the turn
+        // as 'stuck' instead of burning more budgets and reporting a bogus
+        // output-limit cut.
+        this.loopBreaksThisRun++
+        if (this.loopBreaksThisRun > MAX_LOOP_BREAKS) {
+          this.deps.onEvent({ type: 'done', agentId, reason: 'stuck' })
+          return
+        }
+        // The looped text is garbage: keep it out of the transcript so it
+        // cannot feed the next request (the UI already showed it streaming).
+        this.deps.appendMessage({ id: randomUUID(), role: 'user', text: LOOP_RECOVERY_PROMPT, createdAt: Date.now() })
+        continue
       }
 
       if (textBuffer || calls.length > 0 || reasoningBuffer) {
