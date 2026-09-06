@@ -23,6 +23,9 @@ export interface PaneModel {
   git: GitStatus | null
 }
 
+// Upper bound on how many projects stay mounted as keep-alives.
+export const MAX_KEEP_ALIVE = 5
+
 // One project's pane shell. Kept-alive projects are mounted but hidden via
 // `.workspace-hidden`; the app toggles which one is visible by swapping the
 // `workspace-active` wrapper, so hidden ChatPanels keep streaming events.
@@ -140,6 +143,8 @@ export default function App() {
   const runtimesRef = useRef<Record<string, WorkspaceRuntime>>({})
   const orderRef = useRef<string[]>([])
   const activePathRef = useRef<string | null>(null)
+  // agentIds with a turn in flight — eviction skips projects owning any of these.
+  const runningAgentsRef = useRef<Set<string>>(new Set())
 
   const setRuntimes = useCallback((updater: (prev: Record<string, WorkspaceRuntime>) => Record<string, WorkspaceRuntime>) => {
     setRuntimesState(prev => {
@@ -200,6 +205,8 @@ export default function App() {
       }
     })
     const offState = window.api.onAgentState(({ agentId, state }) => {
+      if (state.status === 'running') runningAgentsRef.current.add(agentId)
+      else runningAgentsRef.current.delete(agentId)
       const path = Object.keys(runtimesRef.current).find(p =>
         runtimesRef.current[p].workspace.agents.some(a => a.id === agentId))
       if (!path) return
@@ -327,6 +334,7 @@ export default function App() {
     for (const id of buffersRef.current.keys()) {
       if (!rt.workspace.agents.some(a => a.id === id)) buffersRef.current.delete(id)
     }
+    evictIfNeeded()
   }, [terminals])
 
   // Fast toggle for an already-loaded project: main only repoints activeProject +
@@ -343,6 +351,7 @@ export default function App() {
     setTerminals([])
     setActivePath(path)
     setKeepAliveOrder(prev => [path, ...prev.filter(p => p !== path)])
+    evictIfNeeded()
     void window.api.activateWorkspace(path).then(rt => {
       // Refresh the cached entry's agent states (statuses may have moved while hidden).
       setRuntimes(prev => (prev[path] ? { ...prev, [path]: { ...prev[path], agents: rt.agents } } : prev))
@@ -350,6 +359,51 @@ export default function App() {
   }, [openWorkspace, terminals])
   const activateRef = useRef(activate)
   activateRef.current = activate
+
+  // Keeps at most MAX_KEEP_ALIVE projects mounted. Only the single LRU project
+  // (tail of keepAliveOrder, never the active one) is a candidate; if its agent is
+  // still running the eviction waits — stepping aside means dropping the one
+  // project the user just switched away from, which is usually the least safe to
+  // unmount. Retry happens on 'done'/'error' via evictIfNeeded().
+  const evictIfNeeded = useCallback((): void => {
+    const victims: string[] = []
+    const order = [...orderRef.current]
+    for (let i = order.length - 1; i >= 0; i--) {
+      const p = order[i]
+      if (p === activePathRef.current) continue
+      const rt = runtimesRef.current[p]
+      if (rt && rt.workspace.agents.some(a => runningAgentsRef.current.has(a.id))) break
+      victims.push(p)
+      if (order.length - victims.length <= MAX_KEEP_ALIVE) break
+    }
+    if (victims.length === 0) return
+    for (const p of victims) {
+      for (const a of runtimesRef.current[p]?.workspace.agents ?? []) {
+        termsRef.current.delete(a.id)
+        buffersRef.current.delete(a.id)
+      }
+    }
+    const victimSet = new Set(victims)
+    setRuntimes(prev => {
+      const next = { ...prev }
+      for (const p of victimSet) delete next[p]
+      return next
+    })
+    setKeepAliveOrder(prev => prev.filter(p => !victimSet.has(p)))
+  }, [setRuntimes, setKeepAliveOrder])
+
+  // Retry eviction the moment a hidden project's turn ends (a running agent
+  // previously blocked its eviction).
+  useEffect(() => {
+    return window.api.onChatEvent((e) => {
+      if (e.agentId == null) return
+      if (e.type === 'turn-started') runningAgentsRef.current.add(e.agentId)
+      else if (e.type === 'done' || e.type === 'error') {
+        runningAgentsRef.current.delete(e.agentId)
+        evictIfNeeded()
+      }
+    })
+  }, [evictIfNeeded])
 
   const removeWorkspace = useCallback(async (path: string) => {
     const rt = runtimesRef.current[path]
