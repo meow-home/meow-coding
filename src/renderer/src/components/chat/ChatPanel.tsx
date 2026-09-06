@@ -49,6 +49,9 @@ interface PendingPrompt {
 const MENTION_SPLIT_RE = /(@[\w./\\-]+)/g
 // Leading slash command token ("/init", "/review", ...).
 const SLASH_RE = /^(\/[\w-]+)/
+// Auto-paging: when the feed scrolls within this many pixels of the top (or
+// cannot scroll at all), load the next older transcript page.
+const AUTOLOAD_INSET = 120
 
 function MentionText({ text, commands }: { text: string; commands: Command[] }) {
   const m = SLASH_RE.exec(text)
@@ -241,14 +244,16 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     })
   }, [agentId, scroll.pinSessionToEnd])
 
-  // Prepend the page before `items[0]`; guard against double-clicks and skip
-  // ids already in the feed (the tail window may overlap the pages).
+  // Prepend the page before `items[0]`; guard against double-clicks/repeats and
+  // skip ids already in the feed (the tail window may overlap the pages).
   const loadingOlderRef = useRef(false)
+  const [loadingOlder, setLoadingOlder] = useState(false)
   const loadOlder = useCallback(() => {
     if (loadingOlderRef.current) return
     const first = items.find(i => i.kind === 'message' || i.kind === 'tool')
     if (!first) return
     loadingOlderRef.current = true
+    setLoadingOlder(true)
     scroll.leaveFollowMode()
     const prevScrollHeight = scroll.feedRef.current?.scrollHeight ?? 0
     void window.api.listChatTranscript(agentId, { limit: 50, beforeId: first.id })
@@ -267,8 +272,30 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
           if (feed) feed.scrollTop += feed.scrollHeight - prevScrollHeight
         })
       })
-      .finally(() => { loadingOlderRef.current = false })
+      .finally(() => { loadingOlderRef.current = false; setLoadingOlder(false) })
   }, [agentId, items, scroll])
+
+  // Infinite-scroll trigger shared by scroll and wheel: page older history when
+  // the feed nears the top, or when it does not overflow at all (no scroll
+  // events fire, so wheel-up is the only remaining gesture).
+  const maybeLoadOlder = useCallback(() => {
+    if (loadingOlderRef.current || !hasMore) return
+    const feed = scroll.feedRef.current
+    if (!feed) return
+    if (feed.scrollTop <= AUTOLOAD_INSET || feed.scrollHeight <= feed.clientHeight) loadOlder()
+  }, [hasMore, scroll, loadOlder])
+
+  // Wrap the scroll-controller handlers so the paging check runs after the
+  // controller has applied its own scroll-mode logic.
+  const onFeedScroll = useCallback(() => {
+    scroll.onScroll()
+    maybeLoadOlder()
+  }, [scroll, maybeLoadOlder])
+
+  const onFeedWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    scroll.onWheel(event)
+    if (event.deltaY < 0) maybeLoadOlder()
+  }, [scroll, maybeLoadOlder])
 
   const reloadSessions = useCallback(() => {
     void window.api.listSessions(agentId).then(list => {
@@ -875,16 +902,16 @@ if (e.type === 'usage') {
           className="chat-feed"
           ref={scroll.feedRef}
           tabIndex={0}
-          onScroll={scroll.onScroll}
-          onWheel={scroll.onWheel}
+          onScroll={onFeedScroll}
+          onWheel={onFeedWheel}
           onTouchMove={scroll.onTouchMove}
           onPointerDown={scroll.onPointerDown}
           onPointerUp={scroll.onPointerUp}
           onKeyDown={scroll.onKeyDown}
         >
         <div className="chat-feed-content" ref={scroll.contentRef}>
-        {hasMore && (
-          <button className="chat-load-earlier" onClick={loadOlder}>Load earlier</button>
+        {loadingOlder && (
+          <div className="chat-loading-older">Loading earlier messages…</div>
         )}
         {items.map(item => {
           if (item.kind === 'compaction') {
