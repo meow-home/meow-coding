@@ -241,6 +241,35 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     })
   }, [agentId, scroll.pinSessionToEnd])
 
+  // Prepend the page before `items[0]`; guard against double-clicks and skip
+  // ids already in the feed (the tail window may overlap the pages).
+  const loadingOlderRef = useRef(false)
+  const loadOlder = useCallback(() => {
+    if (loadingOlderRef.current) return
+    const first = items.find(i => i.kind === 'message' || i.kind === 'tool')
+    if (!first) return
+    loadingOlderRef.current = true
+    scroll.leaveFollowMode()
+    const prevScrollHeight = scroll.feedRef.current?.scrollHeight ?? 0
+    void window.api.listChatTranscript(agentId, { limit: 50, beforeId: first.id })
+      .then(({ items: older, hasMore }) => {
+        setItems(prev => {
+          const existing = new Set(prev.map(i => `${i.kind}:${i.kind === 'subagent' ? i.taskId : i.id}`))
+          const fresh = older.map(toFeedItem).filter(i => !existing.has(`${i.kind}:${i.kind === 'subagent' ? i.taskId : i.id}`))
+          return [...fresh, ...prev]
+        })
+        setHasMore(hasMore)
+        // Everything below the insert point shifted down by the height of the
+        // prepended rows; move scrollTop by that amount to keep the viewport
+        // anchored to the same content.
+        requestAnimationFrame(() => {
+          const feed = scroll.feedRef.current
+          if (feed) feed.scrollTop += feed.scrollHeight - prevScrollHeight
+        })
+      })
+      .finally(() => { loadingOlderRef.current = false })
+  }, [agentId, items, scroll])
+
   const reloadSessions = useCallback(() => {
     void window.api.listSessions(agentId).then(list => {
       setSessions(list)
@@ -854,6 +883,9 @@ if (e.type === 'usage') {
           onKeyDown={scroll.onKeyDown}
         >
         <div className="chat-feed-content" ref={scroll.contentRef}>
+        {hasMore && (
+          <button className="chat-load-earlier" onClick={loadOlder}>Load earlier</button>
+        )}
         {items.map(item => {
           if (item.kind === 'compaction') {
             return (

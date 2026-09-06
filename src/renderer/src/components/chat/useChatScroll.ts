@@ -21,6 +21,9 @@ export interface ChatScrollController {
   replaceActiveAnchorId(messageId: string): void
   reconcile(): void
   pinSessionToEnd(): void
+  // Exit "following" mode so a DOM mutation that changes content height (e.g.
+  // prepending transcript pages) does not snap the scroll back to the bottom.
+  leaveFollowMode(): void
   jumpToEnd(): void
   onScroll(): void
   onWheel(event: WheelEvent<HTMLDivElement>): void
@@ -208,6 +211,8 @@ export function useChatScroll(): ChatScrollController {
     setShowJumpToEnd(true)
   }, [])
 
+  const leaveFollowMode = useCallback(() => { enterManual() }, [enterManual])
+
   const onWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
     if (event.deltaY < 0 || !isAtBottom()) enterManual()
   }, [enterManual, isAtBottom])
@@ -279,6 +284,7 @@ export function useChatScroll(): ChatScrollController {
     replaceActiveAnchorId,
     reconcile,
     pinSessionToEnd,
+    leaveFollowMode,
     jumpToEnd,
     onScroll,
     onWheel,
