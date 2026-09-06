@@ -18,4 +18,9 @@ Shared contract between main / preload / renderer.
   (`src/preload/index.ts`), renderer (`window.api`), and test `tests/unit/ipc-contract.test.ts`.
 - Adding a new push event: add an `Event*` channel + payload interface + subscribe method in `AgentApi`,
   then implement it in preload and forward it in main.
+- `Channels.WorkspaceActivate` (`workspace:activate`) is a lightweight re-activation
+  for an already-loaded workspace: repoints `activeProject` + git/file pollers and closes
+  terminals, but does NOT re-register agents or re-run workspace preparation.
+- `listChatTranscript(agentId, opts?)` returns `{ items, hasMore }` (a `TranscriptWindow`
+  tail of `limit`, default 50); pass `beforeId` to page older items.
 - Files here are used by the main, preload, renderer builds and tests → do not pull in external dependencies.
