@@ -456,6 +456,22 @@ export class MainApp {
     return rt
   }
 
+  // Lightweight activation for an already-open workspace: unlike openWorkspace,
+  // it does NOT re-register agents, re-run prepareWorkspace (tools/MCP), or start
+  // PTY processes — it only repoints activeProject and the git/file pollers so the
+  // UI toggles back instantly while the hidden project's agent loop keeps running.
+  async activateWorkspace(projectPath: string): Promise<WorkspaceRuntime> {
+    const ws = this.workspaces.get(projectPath)
+    if (!ws) throw new Error(`Workspace not found: ${projectPath}`)
+    this.closeAllTerminals()
+    this.activeProject = projectPath
+    this.meowAgent.setProjectPath(projectPath)
+    const rt = this.runtimeFor(ws)
+    this.startGitPoll(projectPath)
+    this.startFileWatcher(projectPath)
+    return rt
+  }
+
   private async prepareWorkspace(ws: Workspace): Promise<void> {
     await this.meowAgent.init(ws.agents)
     await Promise.all(ws.agents.map(a => this.startAgent(a.id)))
@@ -718,6 +734,9 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(Channels.WorkspaceOpen, (_e, projectPath: string) =>
     mainApp.openWorkspace(projectPath))
+
+  ipcMain.handle(Channels.WorkspaceActivate, (_e, projectPath: string) =>
+    mainApp.activateWorkspace(projectPath))
 
   ipcMain.handle(Channels.ProjectOpenInEditor, (_e, projectPath: string) =>
     openInEditor(projectPath))

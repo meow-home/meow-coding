@@ -20,6 +20,8 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.WorkspaceRemove, projectPath),
   openWorkspace: (projectPath: string) =>
     ipcRenderer.invoke(Channels.WorkspaceOpen, projectPath),
+  activateWorkspace: (projectPath: string) =>
+    ipcRenderer.invoke(Channels.WorkspaceActivate, projectPath),
   openInEditor: (projectPath: string) =>
     ipcRenderer.invoke(Channels.ProjectOpenInEditor, projectPath),
   openFolder: (projectPath: string) =>

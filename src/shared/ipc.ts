@@ -14,6 +14,7 @@ export const Channels = {
   WorkspaceAdd: 'workspace:add',
   WorkspaceRemove: 'workspace:remove',
   WorkspaceOpen: 'workspace:open',
+  WorkspaceActivate: 'workspace:activate',
   ProjectOpenFolder: 'project:open-folder',
   ProjectOpenInEditor: 'project:open-in-editor',
   FileOpen: 'file:open',
@@ -185,6 +186,10 @@ export interface AgentApi {
   addWorkspace(projectPath: string, name: string): Promise<WorkspaceRuntime | null>
   removeWorkspace(projectPath: string): Promise<void>
   openWorkspace(projectPath: string): Promise<WorkspaceRuntime>
+  // Lightweight re-activation of an already-open workspace: repoints main's
+  // activeProject + git/file pollers and closes terminals, but does NOT
+  // re-register agents or re-run workspace preparation.
+  activateWorkspace(projectPath: string): Promise<WorkspaceRuntime>
   openInEditor(projectPath: string): Promise<void>
   openFolder(projectPath: string): Promise<void>
   openFile(payload: FileViewerPayload): Promise<void>

@@ -7,7 +7,7 @@ import type { AgentConfig, ChatMessage, MeowSettings } from '../../src/shared/ty
 describe('IPC contract', () => {
   it('defines all channels used by the preload api', () => {
     const required: (keyof AgentApi)[] = [
-      'listWorkspaces', 'addWorkspace', 'removeWorkspace', 'openWorkspace', 'openInEditor',
+      'listWorkspaces', 'addWorkspace', 'removeWorkspace', 'openWorkspace', 'activateWorkspace', 'openInEditor',
       'openFolder', 'openTerminal', 'closeTerminal', 'openSystemTerminal',
       'gitOpenViewer', 'gitGetBranches', 'gitCreateBranch', 'gitCheckout', 'gitStash', 'gitStashPop',
       'gitGetStatusDetail', 'gitGetDiff', 'gitGetCommits', 'gitGetCommitDiff', 'gitCompareCommits', 'gitGetBlame', 'gitGetFileHistory', 'gitDiscard',
@@ -38,6 +38,7 @@ describe('IPC contract', () => {
       addWorkspace: async () => null,
       removeWorkspace: async () => {},
       openWorkspace: async () => ({ workspace: { projectPath: '', name: '', agents: [] }, agents: [], git: null }),
+      activateWorkspace: async () => ({ workspace: { projectPath: '', name: '', agents: [] }, agents: [], git: null }),
       openInEditor: async () => {},
       openFolder: async () => {},
       gitOpenViewer: async () => {},
@@ -166,6 +167,7 @@ describe('IPC contract', () => {
 
   it('maps event channel names to the AgentApi method names', () => {
     expect(Channels.EventPtyData).toBe('pty:data')
+    expect(Channels.WorkspaceActivate).toBe('workspace:activate')
     expect(Channels.EventAgentState).toBe('agent:state')
     expect(Channels.EventGitStatus).toBe('git:status')
     expect(Channels.PtyInput).toBe('pty:input')
