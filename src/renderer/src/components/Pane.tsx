@@ -4,6 +4,7 @@ import type { PaneModel } from '../App'
 import XtermHost from './XtermHost'
 import PaneHeader from './PaneHeader'
 import ChatPanel from './chat/ChatPanel'
+import ChatErrorBoundary from './chat/ChatErrorBoundary'
 import TracePanel from './trace/TracePanel'
 
 interface Props {
@@ -81,14 +82,16 @@ export default function Pane({
           traceEnabled && tab === 'trace' ? (
             <TracePanel agentId={id} />
           ) : (
-            <ChatPanel
-              agentId={id}
-              cwd={pane.agent.cwd}
-              mode={pane.agent.mode ?? 'build'}
-              variant={pane.agent.variant}
-              onModeChange={handleModeChange}
-              onVariantChange={handleVariantChange}
-            />
+            <ChatErrorBoundary agentId={id}>
+              <ChatPanel
+                agentId={id}
+                cwd={pane.agent.cwd}
+                mode={pane.agent.mode ?? 'build'}
+                variant={pane.agent.variant}
+                onModeChange={handleModeChange}
+                onVariantChange={handleVariantChange}
+              />
+            </ChatErrorBoundary>
           )
         ) : (
           <XtermHost

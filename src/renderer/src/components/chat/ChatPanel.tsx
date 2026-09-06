@@ -857,16 +857,20 @@ if (e.type === 'usage') {
             )
           }
           if (item.kind === 'message') {
-            if (item.role === 'assistant' && item.text.trim() === '' && !item.reasoning) return null
+            // text can be absent on legacy/malformed stored messages; treat it
+            // as empty so the feed never throws mid-render (that used to
+            // unmount the whole app into a black window).
+            const text = item.text ?? ''
+            if (item.role === 'assistant' && text.trim() === '' && !item.reasoning) return null
             // The truncation-resume nudge is a persisted user message; keep it
             // out of the feed so the assistant bubble reads as one answer.
-            if (item.role === 'user' && item.text.startsWith('<system-reminder>')) return null
+            if (item.role === 'user' && text.startsWith('<system-reminder>')) return null
             return (
               <FeedMessage
                 key={item.id}
                 messageId={item.id}
                 role={item.role}
-                text={item.text}
+                text={text}
                 reasoning={item.reasoning}
                 images={item.images}
                 commands={commands}

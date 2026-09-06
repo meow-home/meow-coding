@@ -660,6 +660,21 @@ function createWindow(): void {
   })
   win.on('maximize', () => win?.webContents.send(Channels.EventWindowMaximizedChange, { maximized: true }))
   win.on('unmaximize', () => win?.webContents.send(Channels.EventWindowMaximizedChange, { maximized: false }))
+  // Crash/hang observability: a dead renderer paints the window background
+  // (#1e1e1e — near black) and freezes all interaction, which looks exactly
+  // like a "black screen, must restart the app" fault. Log the renderer's
+  // death reason/exit code and unresponsiveness so those episodes are
+  // actionable instead of invisible. A dead renderer cannot log for itself,
+  // so the main process must.
+  win.webContents.on('render-process-gone', (_event, details) => {
+    mainApp.systemLogger.log('ERROR', 'render', `render-process-gone: ${JSON.stringify(details)}`)
+  })
+  win.webContents.on('unresponsive', () => {
+    mainApp.systemLogger.log('WARN', 'render', 'window unresponsive (main thread blocked)')
+  })
+  win.webContents.on('responsive', () => {
+    mainApp.systemLogger.log('WARN', 'render', 'window responsive again')
+  })
 }
 
 function isExternalUrl(url: string): boolean {

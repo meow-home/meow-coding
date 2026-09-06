@@ -864,6 +864,28 @@ select.input { width: 100%; }
   font-size: var(--fs-sm);
 }
 .chat-error-copy:hover { background: var(--bg-hover); border-color: var(--accent-dim); color: var(--text-strong); }
+
+/* Chat pane error boundary: contains a render failure to the pane instead of
+   letting React unmount the whole app (which left a black, unresponsive
+   window). The host div is display:contents so it never affects layout. */
+.chat-error-boundary-host { display: contents; }
+.chat-error-boundary {
+  display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
+  padding: 18px; margin: 12px;
+  background: var(--bg-raised); border: 1px solid var(--hairline);
+  border-left: 2px solid var(--red); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+.chat-error-boundary-title {
+  font-family: var(--font-display); font-weight: var(--fw-semibold);
+  color: var(--text-strong); font-size: var(--fs-lg);
+}
+.chat-error-boundary-detail {
+  font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--text-dim);
+  white-space: pre-wrap; word-break: break-word; user-select: text;
+  max-height: 200px; overflow: auto;
+}
+.chat-error-boundary-actions { display: flex; gap: 8px; }
 .subagent {
   margin-right: auto; width: 100%; max-width: 92%;
   background: var(--bg-raised); border: 1px solid var(--hairline); border-left: 2px solid var(--blue);

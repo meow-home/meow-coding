@@ -7,6 +7,9 @@ handlers and the app lifecycle.
 
 - `index.ts` — `MainApp` coordinates everything: setState, forwards `pty:data`/`agent:state`/
   `git:status` events to the renderer; `registerIpcHandlers`; window lifecycle; `before-quit` → `pty.stopAll()`.
+  The main window logs `render-process-gone` (reason/exitCode), `unresponsive` and `responsive` to the
+  system log — a dead renderer paints the near-black window background and freezes interaction, so these
+  events are the only way to capture that failure (a crashed renderer cannot log for itself).
 - `meow-agent-manager.ts` — `MeowAgentManager`: orchestrates the agent chat loop, sessions, commands,
   permissions, subagents, MCP/user tools, stats, settings. The only place that orchestrates the native agent.
   In-flight permission/question prompts are stored (with their content) so a remounted chat panel can restore

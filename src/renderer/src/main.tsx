@@ -9,7 +9,7 @@ import './styles.css'
 import { applyTheme, watchTheme } from './theme'
 import { applyFontSize, watchFontSize } from './font'
 import type { LogLevel } from '@shared/types'
-import { formatLogArg } from '@shared/log-helpers'
+import { formatConsoleArgs } from '@shared/log-helpers'
 
 // Every renderer (main window, Git viewer, FileViewer popup) applies the
 // persisted theme before first paint, and re-applies it when the user toggles
@@ -39,10 +39,34 @@ function patchConsoleLogging(): void {
     const original = c[name].bind(console)
     c[name] = (...args: unknown[]) => {
       original(...args)
-      const message = args.map(formatLogArg).join(' ')
+      // printf substitution (React/devtools log '%s' format strings): without
+      // it a render error like "An error occurred in the <X> component" would
+      // hide the actual exception text, so the real stack is lost.
+      const message = formatConsoleArgs(args)
       void window.api.writeSystemLog(levelOf[name], message || name).catch(() => {})
     }
   }
+}
+
+// Exceptions React can't route to an error boundary still reach the window;
+// log them with full stacks so the daily log records the true failure even
+// when the boundary did not (or could not) catch it. Guarded against HMR
+// re-registration like patchConsoleLogging above.
+const g2 = window as unknown as { __meowUncaughtPatched?: boolean }
+if (!window.api || !g2.__meowUncaughtPatched) {
+  g2.__meowUncaughtPatched = true
+  window.addEventListener('error', (event) => {
+    const err = event.error ?? event.message
+    void window.api.writeSystemLog('ERROR', `window error: ${formatConsoleArgs([err instanceof Error ? err.stack ?? err.message : err])}`).catch(() => {})
+  })
+  window.addEventListener('unhandledrejection', (event) => {
+    const err = event.reason
+    const text = err instanceof Error ? (err.stack ?? err.message) : formatConsoleArgs([err])
+    void window.api.writeSystemLog('ERROR', `unhandledrejection: ${text}`).catch(() => {})
+    // Swallow so Electron devtools does not additionally spam stderr; the log
+    // line above is the record.
+    event.preventDefault()
+  })
 }
 
 patchConsoleLogging()

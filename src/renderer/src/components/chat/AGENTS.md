@@ -23,6 +23,7 @@ pushed from main over IPC (`window.api.onChatEvent`).
 | `Dropdown.tsx` | Reusable dropdown menu (used by ModelPicker/VariantPicker/ModePicker). |
 | `questionAnswer.ts` | `buildQuestionAnswer` — helper for permission/question answers. |
 | `markdownTable.ts` | `normalizeMarkdownTables` — repairs markdown table pipes before rendering. |
+| `ChatErrorBoundary.tsx` | Error boundary wrapping `<ChatPanel>` in `Pane.tsx` (a render/lifecycle error in the chat pane used to unmount the whole React root — a black, unresponsive window). Catches it to a contained card (Reload remounts ChatPanel via a bumped key) and logs the full stack to the system log. |
 
 ## Conventions
 
