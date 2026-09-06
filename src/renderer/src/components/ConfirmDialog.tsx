@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
 interface Props {
   title: string
@@ -21,7 +22,7 @@ export default function ConfirmDialog({
     return () => window.removeEventListener('keydown', onKey)
   }, [onCancel])
 
-  return (
+  return createPortal(
     <div className="dialog-backdrop" onClick={onCancel}>
       <div className="dialog" role="alertdialog" aria-modal="true" onClick={e => e.stopPropagation()}>
         <h3>{title}</h3>
@@ -34,6 +35,7 @@ export default function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
