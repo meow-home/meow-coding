@@ -817,6 +817,10 @@ select.input { width: 100%; }
 /* Keep-alive workspace panes that stay mounted but hidden; they stream
    ChatEvents in the background and toggle back instantly. */
 .workspace-hidden { display: none; }
+/* The active project's wrapper must fill .main the same way the pane shell
+   used to, or the chat panel loses its flex height (input scrolls out of view
+   with a long feed, or hugs the tab bar when empty). */
+.workspace-active { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .chat-msg { display: flex; flex-direction: column; gap: 4px; content-visibility: auto; contain-intrinsic-size: auto 80px; }
 .chat-compacted {
   display: flex; align-items: center; gap: 10px;
