@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { JsonStore } from '../json-store'
-import type { ChatMessage, ChatTranscriptItem, SessionSummary, TodoItem, ToolCallData, UsageSummary } from '../../shared/types'
+import type { ChatMessage, ChatTranscriptItem, SessionSummary, TodoItem, ToolCallData, TranscriptWindow, TranscriptWindowOpts, UsageSummary } from '../../shared/types'
 
 export const DEFAULT_SESSION_TITLE = 'New session'
 
@@ -135,6 +135,28 @@ export class SessionStore {
 
   transcript(id: string): ChatTranscriptItem[] {
     return this.get(id)?.items ?? []
+  }
+
+  // Windowed read for paged feed rendering: `beforeId` matches a ChatMessage or
+  // ToolCallData id, and the returned window runs up to AND INCLUDING that item,
+  // with `hasMore` true when older items exist before the window.
+  transcriptWindow(
+    id: string,
+    opts?: TranscriptWindowOpts
+  ): TranscriptWindow {
+    const items = this.get(id)?.items ?? []
+    const limit = Math.max(1, opts?.limit ?? 50)
+    if (!opts?.beforeId) {
+      return { items: items.slice(-limit), hasMore: items.length > limit }
+    }
+    const index = items.findIndex(it =>
+      (it.kind === 'message' ? it.message.id : it.tool.id) === opts.beforeId
+    )
+    if (index < 0) {
+      return { items: items.slice(-limit), hasMore: items.length > limit }
+    }
+    const start = Math.max(0, index - limit + 1)
+    return { items: items.slice(start, index + 1), hasMore: start > 0 }
   }
 
   todos(id: string): TodoItem[] {

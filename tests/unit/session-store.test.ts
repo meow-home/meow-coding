@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createJsonStore } from '../../src/main/json-store'
 import { SessionStore } from '../../src/main/agent/session'
-import type { ChatMessage } from '../../src/shared/types'
+import type { ChatMessage, ToolCallData } from '../../src/shared/types'
 
 function makeStore(file: string) {
   return new SessionStore(createJsonStore(file))
@@ -223,5 +223,87 @@ describe('SessionStore flush', () => {
     store.flush()
 
     expect(new SessionStore(createJsonStore(file)).transcript(session.id)).toHaveLength(1)
+  })
+})
+
+describe('transcriptWindow', () => {
+  let dir: string
+  let file: string
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), 'meow-sess-window-'))
+    file = path.join(dir, 'sessions.json')
+  })
+
+  afterEach(() => rmSync(dir, { recursive: true, force: true }))
+
+  const msg = (id: string, role: 'user' | 'assistant' = 'user') =>
+    ({ id, role, text: `msg-${id}`, createdAt: Date.now() })
+  const tool = (id: string): ToolCallData =>
+    ({ id, tool: 'bash', input: {}, permission: 'approved' })
+
+  it('returns the last `limit` items in order with hasMore when older exist', () => {
+    const store = makeStore(file)
+    const s = store.create('agent1', '/p')
+    for (let i = 0; i < 12; i++) store.appendMessage(s.id, msg(`m${i}`))
+    const w = store.transcriptWindow(s.id, { limit: 5 })
+    expect(w.hasMore).toBe(true)
+    expect(w.items.map(it => it.message.id)).toEqual(['m7', 'm8', 'm9', 'm10', 'm11'])
+  })
+
+  it('defaults to a 50-item tail window', () => {
+    const store = makeStore(file)
+    const s = store.create('agent1', '/p')
+    for (let i = 0; i < 51; i++) store.appendMessage(s.id, msg(`m${i}`))
+    const w = store.transcriptWindow(s.id)
+    expect(w.items).toHaveLength(50)
+    expect(w.hasMore).toBe(true)
+    expect(w.items[0]?.message.id).toBe('m1')
+  })
+
+  it('window ends at beforeId inclusive and flags hasMore only when older items exist', () => {
+    const store = makeStore(file)
+    const s = store.create('agent1', '/p')
+    for (let i = 0; i < 10; i++) store.appendMessage(s.id, msg(`m${i}`))
+    const mid = store.transcriptWindow(s.id, { beforeId: 'm7', limit: 4 })
+    expect(mid.items.map(it => it.message.id)).toEqual(['m4', 'm5', 'm6', 'm7'])
+    expect(mid.hasMore).toBe(true)
+    const head = store.transcriptWindow(s.id, { beforeId: 'm2', limit: 4 })
+    expect(head.items.map(it => it.message.id)).toEqual(['m0', 'm1', 'm2'])
+    expect(head.hasMore).toBe(false)
+    const tail = store.transcriptWindow(s.id, { beforeId: 'm9', limit: 4 })
+    expect(tail.items.map(it => it.message.id)).toEqual(['m6', 'm7', 'm8', 'm9'])
+    expect(tail.hasMore).toBe(true)
+  })
+
+  it('matches beforeId against tool items too', () => {
+    const store = makeStore(file)
+    const s = store.create('agent1', '/p')
+    store.appendMessage(s.id, msg('m0'))
+    store.appendTool(s.id, tool('t1'))
+    store.appendMessage(s.id, msg('m2'))
+    const w = store.transcriptWindow(s.id, { beforeId: 't1', limit: 2 })
+    expect(w.items).toHaveLength(2)
+    expect(w.items[1].kind === 'tool' && w.items[1].tool.id).toBe('t1')
+    expect(w.hasMore).toBe(false)
+  })
+
+  it('unknown beforeId falls back to the tail window', () => {
+    const store = makeStore(file)
+    const s = store.create('agent1', '/p')
+    for (let i = 0; i < 6; i++) store.appendMessage(s.id, msg(`m${i}`))
+    const w = store.transcriptWindow(s.id, { beforeId: 'nope', limit: 3 })
+    expect(w.items.map(it => it.message.id)).toEqual(['m3', 'm4', 'm5'])
+    expect(w.hasMore).toBe(true)
+  })
+
+  it('shorter transcript returns everything with hasMore=false; empty returns empty', () => {
+    const store = makeStore(file)
+    const s = store.create('agent1', '/p')
+    expect(store.transcriptWindow(s.id, { limit: 50 })).toEqual({ items: [], hasMore: false })
+    store.appendMessage(s.id, msg('m0'))
+    const w = store.transcriptWindow(s.id, { limit: 50 })
+    expect(w.items).toHaveLength(1)
+    expect(w.hasMore).toBe(false)
   })
 })

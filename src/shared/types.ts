@@ -174,6 +174,16 @@ export type ChatTranscriptItem =
   | { kind: 'message'; message: ChatMessage }
   | { kind: 'tool'; tool: ToolCallData }
 
+export interface TranscriptWindowOpts {
+  limit?: number
+  beforeId?: string
+}
+
+export interface TranscriptWindow {
+  items: ChatTranscriptItem[]
+  hasMore: boolean
+}
+
 export interface SessionSummary {
   id: string
   agentId: string
