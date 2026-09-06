@@ -814,6 +814,9 @@ select.input { width: 100%; }
   box-shadow: var(--shadow-3); z-index: 5;
 }
 .chat-jump-to-end:hover { background: var(--bg-hover); border-color: var(--accent-border); color: var(--text-strong); }
+/* Keep-alive workspace panes that stay mounted but hidden; they stream
+   ChatEvents in the background and toggle back instantly. */
+.workspace-hidden { display: none; }
 .chat-msg { display: flex; flex-direction: column; gap: 4px; content-visibility: auto; contain-intrinsic-size: auto 80px; }
 .chat-compacted {
   display: flex; align-items: center; gap: 10px;

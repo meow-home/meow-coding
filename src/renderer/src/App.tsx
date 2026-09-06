@@ -23,12 +23,85 @@ export interface PaneModel {
   git: GitStatus | null
 }
 
+// One project's pane shell. Kept-alive projects are mounted but hidden via
+// `.workspace-hidden`; the app toggles which one is visible by swapping the
+// `workspace-active` wrapper, so hidden ChatPanels keep streaming events.
+function WorkspaceView({
+  runtime, terminals, backgrounds, activeTabByPath,
+  onActiveChange, onRemovePane, onRegisterTerminal, onUnregisterTerminal, isTerminal
+}: {
+  runtime: WorkspaceRuntime
+  terminals: TerminalInfo[]
+  backgrounds: Record<string, boolean>
+  activeTabByPath: Record<string, string>
+  onActiveChange: (path: string, id: string) => void
+  onRemovePane: (path: string, id: string) => void
+  onRegisterTerminal: (agentId: string, term: Terminal) => void
+  onUnregisterTerminal: (agentId: string) => void
+  isTerminal: (id: string) => boolean
+}) {
+  const panes: PaneModel[] = useMemo(() => {
+    const agentPanes = runtime.workspace.agents.map(agent => ({
+      agent,
+      state: runtime.agents.find(s => s.agentId === agent.id) ?? {
+        agentId: agent.id, status: 'spawning', exitCode: null, lastOutputAt: null, alert: 'normal'
+      },
+      git: runtime.git
+    }))
+    const terminalPanes: PaneModel[] = terminals.map(term => ({
+      agent: { id: term.id, name: term.name, templateId: '__terminal__', cwd: term.cwd, kind: 'pty' as const },
+      state: { agentId: term.id, status: 'running' as const, exitCode: null, lastOutputAt: null, alert: 'normal' as const },
+      git: runtime.git
+    }))
+    return [...agentPanes, ...terminalPanes]
+  }, [runtime, terminals])
+
+  const activeId = useMemo(() => {
+    if (panes.length === 0) return null
+    const remembered = activeTabByPath[runtime.workspace.projectPath]
+    return remembered && panes.some(p => p.agent.id === remembered) ? remembered : (panes[0]?.agent.id ?? null)
+  }, [panes, runtime.workspace.projectPath, activeTabByPath])
+
+  if (panes.length === 0) return <EmptyState hasWorkspace />
+
+  return (
+    <>
+      <PaneTabs
+        panes={panes}
+        activeId={activeId}
+        onActiveChange={id => onActiveChange(runtime.workspace.projectPath, id)}
+        backgrounds={backgrounds}
+        isTerminal={isTerminal}
+        onRemove={id => onRemovePane(runtime.workspace.projectPath, id)}
+        onRegisterTerminal={onRegisterTerminal}
+        onUnregisterTerminal={onUnregisterTerminal}
+      />
+      <BackgroundPanel
+        panes={panes}
+        backgrounds={backgrounds}
+        onOpen={agentId => void window.api.setAgentBackground(agentId, false)}
+        onStop={agentId => {
+          const pane = panes.find(p => p.agent.id === agentId)
+          if (pane?.agent.kind === 'native') void window.api.stopChat(agentId)
+          else void window.api.stopAgent(agentId)
+        }}
+        onRemove={id => onRemovePane(runtime.workspace.projectPath, id)}
+      />
+    </>
+  )
+}
+
 export default function App() {
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
   const [showSettings, setShowSettings] = useState(false)
   const [settingsTab, setSettingsTab] = useState<TabId>('agents')
-  const [runtime, setRuntime] = useState<WorkspaceRuntime | null>(null)
+  // Every loaded project's workspace stays mounted (hidden via CSS display:none)
+  // so switching back is instant and hidden agents keep streaming into their feed.
+  const [runtimes, setRuntimesState] = useState<Record<string, WorkspaceRuntime>>({})
+  const [activePath, setActivePathState] = useState<string | null>(null)
+  // Most recently used at the head; bounds keep-alive memory (LRU eviction).
+  const [keepAliveOrder, setKeepAliveOrderState] = useState<string[]>([])
   const [backgrounds, setBackgrounds] = useState<Record<string, boolean>>({})
   const [browser, setBrowser] = useState<BrowserStatusInfo | null>(null)
   const [browserDialogOpen, setBrowserDialogOpen] = useState(false)
@@ -62,9 +135,32 @@ export default function App() {
   })
   const termsRef = useRef<Map<string, Terminal>>(new Map())
   const buffersRef = useRef<Map<string, string>>(new Map())
-  // Latest values for use inside stable effect subscriptions.
-  const runtimeRef = useRef(runtime)
-  runtimeRef.current = runtime
+  // Refs mirror the state so stable mount-once subscriptions and callbacks never
+  // read a stale value (state updates run at commit, refs update synchronously).
+  const runtimesRef = useRef<Record<string, WorkspaceRuntime>>({})
+  const orderRef = useRef<string[]>([])
+  const activePathRef = useRef<string | null>(null)
+
+  const setRuntimes = useCallback((updater: (prev: Record<string, WorkspaceRuntime>) => Record<string, WorkspaceRuntime>) => {
+    setRuntimesState(prev => {
+      const next = updater(prev)
+      runtimesRef.current = next
+      return next
+    })
+  }, [])
+
+  const setKeepAliveOrder = useCallback((updater: (prev: string[]) => string[]) => {
+    setKeepAliveOrderState(prev => {
+      const next = updater(prev)
+      orderRef.current = next
+      return next
+    })
+  }, [])
+
+  const setActivePath = useCallback((path: string | null) => {
+    activePathRef.current = path
+    setActivePathState(path)
+  }, [])
 
   const refreshWorkspaces = useCallback(async () => {
     setWorkspaces(await window.api.listWorkspaces())
@@ -104,28 +200,34 @@ export default function App() {
       }
     })
     const offState = window.api.onAgentState(({ agentId, state }) => {
-      setRuntime(prev => prev
-        ? { ...prev, agents: prev.agents.map(a => (a.agentId === agentId ? state : a)) }
-        : prev)
+      const path = Object.keys(runtimesRef.current).find(p =>
+        runtimesRef.current[p].workspace.agents.some(a => a.id === agentId))
+      if (!path) return
+      setRuntimes(prev => ({
+        ...prev,
+        [path]: { ...prev[path], agents: prev[path].agents.map(a => (a.agentId === agentId ? state : a)) }
+      }))
     })
     const offGit = window.api.onGitStatus(({ projectPath, git }) => {
-      setRuntime(prev => prev && prev.workspace.projectPath === projectPath
-        ? { ...prev, git }
-        : prev)
+      setRuntimes(prev => (prev[projectPath] ? { ...prev, [projectPath]: { ...prev[projectPath], git } } : prev))
     })
     const offBg = window.api.onAgentBackground(({ agentId, background }) => {
       setBackgrounds(prev => ({ ...prev, [agentId]: background }))
     })
     const offConfig = window.api.onAgentConfig(({ agentId, config }) => {
-      setRuntime(prev => prev && prev.workspace.agents.some(a => a.id === agentId)
-        ? {
-            ...prev,
-            workspace: {
-              ...prev.workspace,
-              agents: prev.workspace.agents.map(a => a.id === agentId ? config : a)
-            }
+      const path = Object.keys(runtimesRef.current).find(p =>
+        runtimesRef.current[p].workspace.agents.some(a => a.id === agentId))
+      if (!path) return
+      setRuntimes(prev => ({
+        ...prev,
+        [path]: {
+          ...prev[path],
+          workspace: {
+            ...prev[path].workspace,
+            agents: prev[path].workspace.agents.map(a => a.id === agentId ? config : a)
           }
-        : prev)
+        }
+      }))
     })
     const offBrowser = window.api.onBrowserStatus((info) => {
       setBrowser(info)
@@ -193,8 +295,8 @@ export default function App() {
     // OS notification click -> jump to the project + tab of the waiting agent.
     const offActivate = window.api.onActivateAgent(({ projectPath, agentId }) => {
       setActiveTabByPath(prev => (prev[projectPath] === agentId ? prev : { ...prev, [projectPath]: agentId }))
-      if (runtimeRef.current?.workspace.projectPath !== projectPath) {
-        void openWorkspaceRef.current(projectPath)
+      if (activePathRef.current !== projectPath) {
+        void activateRef.current(projectPath)
       }
     })
     return () => {
@@ -215,7 +317,10 @@ export default function App() {
     }
     const rt = await window.api.openWorkspace(path)
     const list = await window.api.listArtifacts(path)
-    setRuntime(rt)
+    setRuntimes(prev => ({ ...prev, [path]: rt }))
+    setActivePath(path)
+    // Most recently used at the head of keepAliveOrder.
+    setKeepAliveOrder(prev => [path, ...prev.filter(p => p !== path)])
     setTerminals([])
     setArtifacts(prev => ({ ...prev, [path]: list }))
     setBackgrounds(Object.fromEntries(rt.workspace.agents.map(a => [a.id, a.background ?? false])))
@@ -223,12 +328,33 @@ export default function App() {
       if (!rt.workspace.agents.some(a => a.id === id)) buffersRef.current.delete(id)
     }
   }, [terminals])
-  const openWorkspaceRef = useRef(openWorkspace)
-  openWorkspaceRef.current = openWorkspace
+
+  // Fast toggle for an already-loaded project: main only repoints activeProject +
+  // pollers and closes terminals (closed terminals clear their xterm state here).
+  const activate = useCallback((path: string) => {
+    if (!runtimesRef.current[path]) {
+      void openWorkspace(path)
+      return
+    }
+    for (const t of terminals) {
+      termsRef.current.delete(t.id)
+      buffersRef.current.delete(t.id)
+    }
+    setTerminals([])
+    setActivePath(path)
+    setKeepAliveOrder(prev => [path, ...prev.filter(p => p !== path)])
+    void window.api.activateWorkspace(path).then(rt => {
+      // Refresh the cached entry's agent states (statuses may have moved while hidden).
+      setRuntimes(prev => (prev[path] ? { ...prev, [path]: { ...prev[path], agents: rt.agents } } : prev))
+    })
+  }, [openWorkspace, terminals])
+  const activateRef = useRef(activate)
+  activateRef.current = activate
 
   const removeWorkspace = useCallback(async (path: string) => {
-    if (runtime?.workspace.projectPath === path) {
-      for (const agent of runtime.workspace.agents) {
+    const rt = runtimesRef.current[path]
+    if (rt) {
+      for (const agent of rt.workspace.agents) {
         termsRef.current.delete(agent.id)
         buffersRef.current.delete(agent.id)
       }
@@ -238,19 +364,30 @@ export default function App() {
     } catch {
       /* surface via sidebar later; still refresh list */
     }
-    setRuntime(prev => prev && prev.workspace.projectPath === path ? null : prev)
+    setRuntimes(prev => {
+      if (!(path in prev)) return prev
+      const next = { ...prev }
+      delete next[path]
+      return next
+    })
+    setKeepAliveOrder(prev => prev.filter(p => p !== path))
     setActiveTabByPath(prev => {
       if (!(path in prev)) return prev
       const next = { ...prev }
       delete next[path]
       return next
     })
+    if (activePathRef.current === path) {
+      // Main already reset activeProject (WorkspaceRemove). Repoint at the next
+      // most recently used remaining project, or clear.
+      const next = (orderRef.current.filter(p => p !== path))[0] ?? null
+      setActivePath(next)
+      if (next) void window.api.activateWorkspace(next)
+    }
     void refreshWorkspaces()
-  }, [runtime, refreshWorkspaces])
+  }, [refreshWorkspaces])
 
-  const removeAgent = useCallback(async (agentId: string) => {
-    const path = runtime?.workspace.projectPath
-    if (!path) return
+  const removeAgent = useCallback(async (path: string, agentId: string) => {
     try {
       await window.api.removeAgent(path, agentId)
     } catch {
@@ -259,9 +396,13 @@ export default function App() {
     termsRef.current.delete(agentId)
     buffersRef.current.delete(agentId)
     const rt = await window.api.openWorkspace(path)
-    setRuntime(rt)
+    // Merge the fresh runtime in, but keep the cached git snapshot (runtimeFor
+    // returns git:null — do not clobber a real status we already show).
+    setRuntimes(prev => (prev[path]
+      ? { ...prev, [path]: { ...prev[path], ...rt, git: rt.git ?? prev[path].git } }
+      : { ...prev, [path]: rt }))
     setWorkspaces(await window.api.listWorkspaces())
-  }, [runtime])
+  }, [])
 
   const removeTerminal = useCallback((id: string) => {
     void window.api.closeTerminal(id)
@@ -270,16 +411,14 @@ export default function App() {
     buffersRef.current.delete(id)
   }, [])
 
-  const handleRemovePane = useCallback((id: string) => {
+  const handleRemovePane = useCallback((path: string, id: string) => {
     if (terminals.some(t => t.id === id)) removeTerminal(id)
-    else void removeAgent(id)
+    else void removeAgent(path, id)
   }, [terminals, removeTerminal, removeAgent])
 
-  const handleActiveChange = useCallback((id: string) => {
-    const path = runtime?.workspace.projectPath
-    if (!path) return
+  const handleWorkspaceActiveChange = useCallback((path: string, id: string) => {
     setActiveTabByPath(prev => (prev[path] === id ? prev : { ...prev, [path]: id }))
-  }, [runtime?.workspace.projectPath])
+  }, [])
 
   const registerTerminal = useCallback((agentId: string, term: Terminal) => {
     termsRef.current.set(agentId, term)
@@ -295,32 +434,7 @@ export default function App() {
     buffersRef.current.delete(agentId)
   }, [])
 
-  const panes: PaneModel[] = useMemo(() => {
-    if (!runtime) return []
-    const agentPanes = runtime.workspace.agents.map(agent => ({
-      agent,
-      state: runtime.agents.find(s => s.agentId === agent.id) ?? {
-        agentId: agent.id, status: 'spawning', exitCode: null, lastOutputAt: null, alert: 'normal'
-      },
-      git: runtime.git
-    }))
-    const terminalPanes: PaneModel[] = terminals.map(term => ({
-      agent: { id: term.id, name: term.name, templateId: '__terminal__', cwd: term.cwd, kind: 'pty' as const },
-      state: { agentId: term.id, status: 'running' as const, exitCode: null, lastOutputAt: null, alert: 'normal' as const },
-      git: runtime.git
-    }))
-    return [...agentPanes, ...terminalPanes]
-  }, [runtime, terminals])
-
-  // Effective active tab for the current project: the remembered one when it
-  // still exists among the panes, otherwise the first pane (PaneTabs syncs the
-  // stored value back via onActiveChange).
-  const activeId = useMemo(() => {
-    if (panes.length === 0) return null
-    const path = runtime?.workspace.projectPath
-    const remembered = path ? activeTabByPath[path] : undefined
-    return remembered && panes.some(p => p.agent.id === remembered) ? remembered : (panes[0]?.agent.id ?? null)
-  }, [panes, runtime?.workspace.projectPath, activeTabByPath])
+  const activeRuntime = activePath ? (runtimes[activePath] ?? null) : null
 
   return (
     <div className="app">
@@ -330,7 +444,7 @@ export default function App() {
           workspaces={workspaces}
           templates={templates}
           needsInput={needsInput}
-          activePath={runtime?.workspace.projectPath ?? null}
+          activePath={activePath}
           onOpen={openWorkspace}
           onRemove={removeWorkspace}
           onRefresh={refreshWorkspaces}
@@ -341,56 +455,63 @@ export default function App() {
           updateChecking={updateChecking}
         />
         <main className="main">
-          {panes.length > 0 ? (
-            <>
-              <PaneTabs
-                panes={panes}
-                activeId={activeId}
-                onActiveChange={handleActiveChange}
+          {activePath && runtimes[activePath] && (
+            <div className="workspace-active">
+              <WorkspaceView
+                runtime={runtimes[activePath]}
+                terminals={terminals}
                 backgrounds={backgrounds}
-                isTerminal={id => terminals.some(t => t.id === id)}
-                onRemove={handleRemovePane}
+                activeTabByPath={activeTabByPath}
+                onActiveChange={handleWorkspaceActiveChange}
+                onRemovePane={handleRemovePane}
                 onRegisterTerminal={registerTerminal}
                 onUnregisterTerminal={unregisterTerminal}
+                isTerminal={id => terminals.some(t => t.id === id)}
               />
-              <BackgroundPanel
-                panes={panes}
-                backgrounds={backgrounds}
-                onOpen={agentId => void window.api.setAgentBackground(agentId, false)}
-                onStop={agentId => {
-                  const pane = panes.find(p => p.agent.id === agentId)
-                  if (pane?.agent.kind === 'native') void window.api.stopChat(agentId)
-                  else void window.api.stopAgent(agentId)
-                }}
-                onRemove={handleRemovePane}
-              />
-            </>
-          ) : (
-            <EmptyState hasWorkspace={runtime !== null} />
+            </div>
           )}
+          {/* Hidden projects stay mounted (display:none) so their ChatPanels keep
+              consuming ChatEvents and the transcript stays live. No terminals: they
+              are closed on switch and never kept alive. */}
+          {keepAliveOrder
+            .filter(p => p !== activePath && runtimes[p])
+            .map(p => (
+              <div className="workspace-hidden" key={p} aria-hidden="true">
+                <WorkspaceView
+                  runtime={runtimes[p]}
+                  terminals={[]}
+                  backgrounds={backgrounds}
+                  activeTabByPath={activeTabByPath}
+                  onActiveChange={handleWorkspaceActiveChange}
+                  onRemovePane={handleRemovePane}
+                  onRegisterTerminal={registerTerminal}
+                  onUnregisterTerminal={unregisterTerminal}
+                  isTerminal={() => false}
+                />
+              </div>
+            ))}
         </main>
         {rightOpen && (
           <RightPanel
-            root={runtime?.workspace.projectPath ?? null}
+            root={activePath ?? null}
             tab={rightTab}
             width={rightWidth}
-            artifacts={artifacts[runtime?.workspace.projectPath ?? ''] ?? []}
+            artifacts={artifacts[activePath ?? ''] ?? []}
             onTabChange={setRightTab}
             onWidthChange={setRightWidth}
             onClearArtifacts={() => {
-              const p = runtime?.workspace.projectPath
-              if (p) void window.api.clearArtifacts(p)
+              if (activePath) void window.api.clearArtifacts(activePath)
             }}
           />
         )}
       </div>
       <StatusBar
-        workspaceName={runtime?.workspace.name ?? null}
-        git={runtime?.git ?? null}
-        agents={runtime?.agents ?? []}
+        workspaceName={activeRuntime?.workspace.name ?? null}
+        git={activeRuntime?.git ?? null}
+        agents={activeRuntime?.agents ?? []}
         browser={browser}
         onBrowserClick={() => setBrowserDialogOpen(true)}
-        onGitClick={runtime ? () => void window.api.gitOpenViewer(runtime.workspace.projectPath) : undefined}
+        onGitClick={activeRuntime ? () => void window.api.gitOpenViewer(activeRuntime.workspace.projectPath) : undefined}
       />
       {browserDialogOpen && (
         <BrowserDialog status={browser} onClose={() => setBrowserDialogOpen(false)} />
@@ -411,11 +532,11 @@ export default function App() {
       {showSettings && (
         <SettingsDialog
           onClose={() => setShowSettings(false)}
-          projectPath={runtime?.workspace.projectPath ?? undefined}
+          projectPath={activePath ?? undefined}
           templates={templates}
           onTemplatesChange={setTemplates}
           initialTab={settingsTab}
-          agentId={runtime?.workspace.agents[0]?.id}
+          agentId={activeRuntime?.workspace.agents[0]?.id}
         />
       )}
     </div>
