@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
 import type { ArtifactsChangedEvent } from '../shared/ipc'
-import type { ChatEvent, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, Template, TraceEvent, UpdaterStatusEvent } from '../shared/types'
+import type { ChatEvent, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, Template, TraceEvent, TranscriptWindowOpts, UpdaterStatusEvent } from '../shared/types'
 import type { ActivateAgentEvent, AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, GitStatusEvent, PromptStateEvent, PtyDataEvent, TerminalExitEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 import type { BrowserStatusInfo } from '../shared/browser-types'
 import type { RemoteStatus } from '../shared/remote-types'
@@ -131,7 +131,8 @@ const api: AgentApi = {
   redoChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatRedo, agentId),
   newChatSession: (agentId: string) => ipcRenderer.invoke(Channels.ChatNewSession, agentId),
   listChatMessages: (agentId: string) => ipcRenderer.invoke(Channels.ChatListMessages, agentId),
-  listChatTranscript: (agentId: string) => ipcRenderer.invoke(Channels.ChatListTranscript, agentId),
+  listChatTranscript: (agentId: string, opts?: TranscriptWindowOpts) =>
+    ipcRenderer.invoke(Channels.ChatListTranscript, agentId, opts),
   getChatTodos: (agentId: string) => ipcRenderer.invoke(Channels.ChatGetTodos, agentId),
   isChatRunning: (agentId: string) => ipcRenderer.invoke(Channels.ChatIsRunning, agentId),
   getPendingPrompt: (agentId: string) => ipcRenderer.invoke(Channels.ChatGetPendingPrompt, agentId),

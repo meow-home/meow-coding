@@ -53,7 +53,7 @@ import { RemoteSettingsStore } from './remote/remote-settings'
 import { RemotePairing } from './remote/remote-pairing'
 import { Channels } from '../shared/ipc'
 import { formatLogArg, safeJson } from '../shared/log-helpers'
-import type { AgentState, Command, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, Template, TerminalInfo, Workspace, WorkspaceRuntime } from '../shared/types'
+import type { AgentState, Command, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, Template, TerminalInfo, TranscriptWindowOpts, Workspace, WorkspaceRuntime } from '../shared/types'
 
 let win: BrowserWindow | null = null
 let isQuitting = false
@@ -885,7 +885,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.ChatRedo, (_e, agentId: string) => mainApp.meowAgent.redo(agentId))
   ipcMain.handle(Channels.ChatNewSession, (_e, agentId: string) => mainApp.meowAgent.newSession(agentId))
   ipcMain.handle(Channels.ChatListMessages, (_e, agentId: string) => mainApp.meowAgent.listMessages(agentId))
-  ipcMain.handle(Channels.ChatListTranscript, (_e, agentId: string) => mainApp.meowAgent.listTranscript(agentId))
+  ipcMain.handle(Channels.ChatListTranscript, (_e, agentId: string, opts?: TranscriptWindowOpts) =>
+    mainApp.meowAgent.listTranscriptWindow(agentId, opts))
   ipcMain.handle(Channels.ChatGetTodos, (_e, agentId: string) => mainApp.meowAgent.getTodos(agentId))
   ipcMain.handle(Channels.ChatIsRunning, (_e, agentId: string) => mainApp.meowAgent.isRunning(agentId))
   ipcMain.handle(Channels.ChatGetPendingPrompt, (_e, agentId: string) => mainApp.meowAgent.getPendingPrompt(agentId))

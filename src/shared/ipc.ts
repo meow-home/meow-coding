@@ -1,9 +1,10 @@
 import type {
-  AgentConfig, AgentState, ArtifactEntry, CatalogProviderSummary, ChatEvent, ChatMessage, ChatTranscriptItem, Command,
+  AgentConfig, AgentState, ArtifactEntry, CatalogProviderSummary, ChatEvent, ChatMessage, Command,
   ConnectionAccount, ContextChangedEvent, ContextInfo, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload,
   GitActionResult, GitBlameLine, GitBranch, GitCommit, GitDiffResult, GitStatus, GitStatusDetail,
   ImageAttachment, LogLevel, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PendingPromptInfo, PromptResponse,
-  SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, TraceEvent, TraceSummary, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
+  SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, TraceEvent, TraceSummary, TranscriptWindow, TranscriptWindowOpts,
+  UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 import type { BrowserStatusInfo, PairingInfo } from './browser-types'
 import type { RemoteStatus } from './remote-types'
@@ -256,7 +257,7 @@ export interface AgentApi {
   redoChat(agentId: string): Promise<boolean>
   newChatSession(agentId: string): Promise<SessionSummary>
   listChatMessages(agentId: string): Promise<ChatMessage[]>
-  listChatTranscript(agentId: string): Promise<ChatTranscriptItem[]>
+  listChatTranscript(agentId: string, opts?: TranscriptWindowOpts): Promise<TranscriptWindow>
   getChatTodos(agentId: string): Promise<TodoItem[]>
   isChatRunning(agentId: string): Promise<boolean>
   getPendingPrompt(agentId: string): Promise<PendingPromptInfo | null>

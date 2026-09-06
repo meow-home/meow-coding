@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import type { AgentMode, ChatEvent, ChatMessage, Command, ImageAttachment, QuestionOption, QueuedMessage, SessionSummary, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
+import type { AgentMode, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ImageAttachment, QuestionOption, QueuedMessage, SessionSummary, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
 import { appendStreamDelta } from '@shared/text'
 import { contextTokens } from '@shared/usage'
 import ChatInput from './ChatInput'
@@ -21,6 +21,18 @@ type FeedItem =
   | { kind: 'compaction'; id: string; running?: boolean; failed?: boolean }
   | { kind: 'retry'; id: string; attempt: number; maxAttempts: number; delayMs: number; unbounded?: boolean }
   | { kind: 'subagent'; taskId: string; subagentType?: string; text: string; reasoning?: string; result?: string; background?: boolean; tools: string[]; state: 'running' | 'completed' | 'cancelled' | 'error' }
+
+// Transcript items (message/tool from the windowed IPC read) share a common
+// shape with the row-level FeedItem so paging and live events merge cleanly.
+function toFeedItem(it: ChatTranscriptItem): FeedItem {
+  return it.kind === 'message'
+    ? {
+        kind: 'message', id: it.message.id, role: it.message.role,
+        text: it.message.displayText ?? it.message.text,
+        reasoning: it.message.reasoning, images: it.message.images
+      }
+    : { kind: 'tool', id: it.tool.id, call: { ...it.tool } }
+}
 
 interface PendingPrompt {
   promptId: string
@@ -90,6 +102,8 @@ const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, c
                   src={img.dataUrl}
                   alt={img.name}
                   className="chat-thumb"
+                  loading="lazy"
+                  decoding="async"
                   onClick={() => onOpenImage?.(img.dataUrl)}
                 />
               ))}
@@ -143,6 +157,9 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const [questionIndex, setQuestionIndex] = useState(0)
   const [promptCollapsed, setPromptCollapsed] = useState(false)
   const [contextUsed, setContextUsed] = useState<number | null>(null)
+  // True when the transcript tail window we loaded is not the whole transcript
+  // (older items exist before it) — drives the "Load earlier" affordance.
+  const [hasMore, setHasMore] = useState(false)
   const [sessionCost, setSessionCost] = useState(0)
   const [sessionTokens, setSessionTokens] = useState<{ input: number; output: number } | null>(null)
   const [contextLimit, setContextLimit] = useState<number | null>(null)
@@ -207,20 +224,14 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   }, [pendingPrompt])
 
   const loadTranscript = useCallback(() => {
-    void window.api.listChatTranscript(agentId).then(items => {
-      setItems(items.map(it => it.kind === 'message'
-        ? {
-            kind: 'message', id: it.message.id, role: it.message.role,
-            text: it.message.displayText ?? it.message.text,
-            reasoning: it.message.reasoning, images: it.message.images
-          }
-        : { kind: 'tool', id: it.tool.id, call: { ...it.tool } }
-      ))
+    void window.api.listChatTranscript(agentId).then(({ items: tail, hasMore }) => {
+      setItems(tail.map(toFeedItem))
+      setHasMore(hasMore)
       // Mức chiếm dụng context = token của assistant message cuối cùng có output,
-      // giống cách opencode chọn (subagent-footer.tsx:35).
+      // giống cách opencode chọn (subagent-footer.tsx:35). Scans the loaded tail.
       let used: number | null = null
-      for (let i = items.length - 1; i >= 0; i--) {
-        const it = items[i]
+      for (let i = tail.length - 1; i >= 0; i--) {
+        const it = tail[i]
         if (it.kind !== 'message') continue
         const t = it.message.tokens
         if (it.message.role === 'assistant' && t && t.output > 0) { used = contextTokens(t); break }

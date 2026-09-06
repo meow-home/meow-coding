@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
-import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, NotificationsSettings, PendingPromptInfo, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TraceEvent, UsageSummary } from '../shared/types'
+import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, NotificationsSettings, PendingPromptInfo, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TraceEvent, TranscriptWindow, TranscriptWindowOpts, UsageSummary } from '../shared/types'
 import type { AgentConfig, AgentMode, ArtifactEntry, CatalogProviderSummary, Command, ModelRef, SubagentType } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, resolveApiKey, settingsToConfig, writeMeowConfig,
@@ -534,6 +534,10 @@ export class MeowAgentManager {
 
   listTranscript(agentId: string): ChatTranscriptItem[] {
     return this.deps.store.transcript(this.activeSessionId(agentId))
+  }
+
+  listTranscriptWindow(agentId: string, opts?: TranscriptWindowOpts): TranscriptWindow {
+    return this.deps.store.transcriptWindow(this.activeSessionId(agentId), opts)
   }
 
   getTodos(agentId: string): TodoItem[] {
