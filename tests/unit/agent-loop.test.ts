@@ -10,6 +10,7 @@ import type { ToolDefinition, ToolRunResult } from '../../src/main/agent/tools/t
 import type { HooksRunner, PostToolUseResult, PreToolUseResult, StopResult } from '../../src/main/agent/hooks'
 import type { TranscriptItem } from '../../src/main/agent/message'
 import type { ChatEvent, ChatMessage, ToolCallData } from '../../src/shared/types'
+import { questionTool } from '../../src/main/agent/tools/question'
 
 class StubLlm implements LlmClient {
   queue: LlmStreamPart[][] = []
@@ -321,6 +322,41 @@ describe('SessionRunner', () => {
     expect(promptEvt.kind).toBe('question')
     const resultEvent = h.events.find(e => e.type === 'tool-result') as Extract<ChatEvent, { type: 'tool-result' }>
     expect(resultEvent.call.output).toBe('got: yes')
+  })
+  it('normalizes malformed question options so they never reach the UI as a non-array', async () => {
+    const h = makeHarness({
+      tools: new Map([['question', questionTool]])
+    })
+    h.ask.mockImplementation(async () => ({ allow: true, text: 'yes' }))
+    // The model returns `options` as a string instead of an array — the exact
+    // shape that used to crash the renderer (`options.map is not a function`).
+    h.llm.queue = [
+      [{ kind: 'tool-call', toolCallId: 'tc1', toolName: 'question', toolInput: { question: 'pick', options: 'not-an-array' } }, { kind: 'finish' }],
+      textParts('thanks')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    const promptEvt = h.events.find(e => e.type === 'prompt-request') as Extract<ChatEvent, { type: 'prompt-request' }>
+    expect(promptEvt.kind).toBe('question')
+    // The malformed options must be coerced to a valid array (or dropped), never
+    // passed through as a string that the renderer would call `.map` on.
+    expect(promptEvt.options === undefined || Array.isArray(promptEvt.options)).toBe(true)
+  })
+  it('coerces plain-string question options into { label } objects so they render', async () => {
+    const h = makeHarness({
+      tools: new Map([['question', questionTool]])
+    })
+    h.ask.mockImplementation(async () => ({ allow: true, text: 'yes' }))
+    // The model returns `options` as an array of plain strings — a shape the
+    // renderer would otherwise render no choices for (no `.label`).
+    h.llm.queue = [
+      [{ kind: 'tool-call', toolCallId: 'tc1', toolName: 'question', toolInput: { question: 'pick', options: ['Yes', 'No'] } }, { kind: 'finish' }],
+      textParts('thanks')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    const promptEvt = h.events.find(e => e.type === 'prompt-request') as Extract<ChatEvent, { type: 'prompt-request' }>
+    expect(promptEvt.options).toEqual([{ label: 'Yes' }, { label: 'No' }])
   })
 
   it('does not loop re-reading a large plan', async () => {

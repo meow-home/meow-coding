@@ -18,7 +18,7 @@ The tool registry for the native Meow agent. Each file exports a `ToolDefinition
 | `glob.ts` | Glob file listing. |
 | `grep.ts` | Text search with regex. |
 | `git.ts` | Git operations (status/diff/commit...). |
-| `question.ts` | Ask the user a question (blocks on `prompt-request`). |
+| `question.ts` | Ask the user a question (blocks on `prompt-request`). Normalizes malformed `options` (e.g. a string instead of an array) to a valid array or drops it so the renderer never receives a non-array to `.map` over. |
 | `todowrite.ts` | Persist a todo list for the session (`todo-updated` events). |
 | `task.ts` | Spawn a subagent (`createTaskTool`). Runs under a permission context derived from the parent (narrow-only), bubbles `ask` decisions to the parent UI, denies them when running in background, snapshots its edits under the parent's agent id, and reports `state="incomplete"` when it runs out of steps. |
 | `revert.ts` | Revert files via snapshot store. |

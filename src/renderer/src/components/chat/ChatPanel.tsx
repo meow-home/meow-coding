@@ -1080,7 +1080,7 @@ if (e.type === 'usage') {
                   {pendingPrompt.question}
                   {pendingPrompt.multiple && <span className="chat-prompt-multi-hint"> (select all that apply)</span>}
                 </div>
-                {pendingPrompt.options && pendingPrompt.options.length > 0 && (
+                {Array.isArray(pendingPrompt.options) && pendingPrompt.options.length > 0 && (
                   <div className="chat-options">
                     {pendingPrompt.options.map((opt, i) => {
                       const selected = selectedOptions.includes(opt.label)
