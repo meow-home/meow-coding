@@ -18,6 +18,23 @@ import type { SavedPermission } from '../../src/main/agent/saved-permissions'
 import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/agent/llm'
 import type { AgentConfig, ChatEvent, PromptResponse } from '../../src/shared/types'
 import type { ToolDefinition } from '../../src/main/agent/tools/types'
+import type { Vault } from '../../src/main/vault'
+
+/** In-memory Vault stand-in so provider tests can exercise keyRef storage. */
+class FakeVault implements Vault {
+  private map = new Map<string, string>()
+  isAvailable(): boolean { return true }
+  saveSecret(ref: string, secret: string): void { this.map.set(ref, secret) }
+  saveSecretObject(ref: string, secret: unknown): void { this.map.set(ref, JSON.stringify(secret)) }
+  getSecret(ref: string): string | null { return this.map.get(ref) ?? null }
+  getSecretObject<T>(ref: string): T | null {
+    const raw = this.getSecret(ref)
+    return raw === null ? null : JSON.parse(raw) as T
+  }
+  hasSecret(ref: string): boolean { return this.map.has(ref) }
+  deleteSecret(ref: string): void { this.map.delete(ref) }
+  mask(secret: string): string { return secret.length <= 8 ? '••••' : `${secret.slice(0, 4)}…${secret.slice(-4)}` }
+}
 
 const MEOW_AGENT: AgentConfig = {
   id: 'a1', name: 'meow', templateId: 'meow', cwd: '/proj', kind: 'native'
@@ -55,6 +72,7 @@ async function makeManager(opts: StubLlmOptions & {
   onPromptStateChange?: (agentId: string, pending: boolean) => void
   notify?: { notify: (opts: { title: string; body: string; agentId?: string; onActivate?: () => void }) => void }
   notifications?: { needsInput?: boolean; onDone?: boolean }
+  vault?: Vault
 } = {}) {
   const cfgDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-cfg-'))
   const defaultCfg = path.join(cfgDir, 'meow.json')
@@ -140,6 +158,7 @@ async function makeManager(opts: StubLlmOptions & {
     onPromptStateChange: opts.onPromptStateChange,
     notify: opts.notify as never,
     notifications: opts.notifications as never,
+    vault: opts.vault,
     env: { ANTHROPIC_API_KEY: 'sk-test' } as NodeJS.ProcessEnv
   })
   manager.setOnEvent(e => events.push(e))
@@ -999,6 +1018,102 @@ describe('MeowAgentManager', () => {
       expect(settings.providers.find(p => p.id === 'myapi')?.providerType).toBe('anthropic')
       // And survive a fresh read from disk (normalizeProvider must not drop it).
       expect(manager.getSettings().providers.find(p => p.id === 'myapi')?.providerType).toBe('anthropic')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('editing one provider key does not clobber another provider keyRef (Bug 1)', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-bug1-'))
+    try {
+      const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async () =>
+        ({ ok: true, json: async () => ({
+          opencode: { name: 'opencode', api: 'https://opencode.ai', models: { a: {} } },
+          ollama: { name: 'ollama', api: 'https://ollama.com', models: { b: {} } }
+        }) }) as unknown as Response)
+      const vault = new FakeVault()
+      const { manager } = await makeManager({ configPath: path.join(dir, 'meow.json'), catalog, vault })
+      // Connect two providers, both vaulted.
+      await manager.connectProvider('opencode', 'sk-opencode')
+      await manager.connectProvider('ollama', 'sk-ollama')
+      expect(vault.getSecret('provider:opencode')).toBe('sk-opencode')
+      expect(vault.getSecret('provider:ollama')).toBe('sk-ollama')
+      // Edit opencode's key only.
+      await manager.connectProvider('opencode', 'sk-opencode-new')
+      // ollama's vaulted key must be untouched.
+      expect(vault.getSecret('provider:ollama')).toBe('sk-ollama')
+      expect(vault.getSecret('provider:opencode')).toBe('sk-opencode-new')
+      // And both providers resolve their own keys.
+      const settings = manager.getSettings()
+      const ollama = settings.providers.find(p => p.id === 'ollama')
+      expect(ollama?.keyRef).toBe('provider:ollama')
+      expect(ollama?.apiKey).toBe('')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('editing one provider key survives a saveSettings round-trip for other providers (Bug 1 full flow)', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-bug1b-'))
+    try {
+      const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async () =>
+        ({ ok: true, json: async () => ({
+          opencode: { name: 'opencode', api: 'https://opencode.ai', models: { a: {} } },
+          ollama: { name: 'ollama', api: 'https://ollama.com', models: { b: {} } }
+        }) }) as unknown as Response)
+      const vault = new FakeVault()
+      const { manager } = await makeManager({ configPath: path.join(dir, 'meow.json'), catalog, vault })
+      await manager.connectProvider('opencode', 'sk-opencode')
+      await manager.connectProvider('ollama', 'sk-ollama')
+      // Renderer flow: getSettings → edit opencode key → saveSettings(result).
+      const before = manager.getSettings()
+      const edited = await manager.connectProvider('opencode', 'sk-opencode-new')
+      const saved = await manager.saveSettings(edited)
+      // ollama's keyRef + vault secret must survive the whole round-trip.
+      expect(vault.getSecret('provider:ollama')).toBe('sk-ollama')
+      expect(saved.providers.find(p => p.id === 'ollama')?.keyRef).toBe('provider:ollama')
+      expect(saved.providers.find(p => p.id === 'opencode')?.keyRef).toBe('provider:opencode')
+      // And a fresh read from disk still resolves ollama's key.
+      const fresh = manager.getSettings()
+      expect(fresh.providers.find(p => p.id === 'ollama')?.keyRef).toBe('provider:ollama')
+      expect(vault.getSecret('provider:ollama')).toBe('sk-ollama')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('editing opencode-go with real-world 4-provider config keeps ollama-cloud keyRef (Bug 1 real data)', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-bug1c-'))
+    try {
+      const cfgPath = path.join(dir, 'meow.json')
+      writeFileSync(cfgPath, JSON.stringify({
+        provider: {
+          deepseek: { keyRef: 'provider:deepseek', baseUrl: 'https://api.deepseek.com', models: ['deepseek-v4-flash'] },
+          'meow-gateway': { keyRef: 'provider:meow-gateway', baseUrl: 'http://127.0.0.1:8317/v1', models: ['meow-model'] },
+          'opencode-go': { keyRef: 'provider:opencode-go', baseUrl: 'https://opencode.ai/zen/go/v1', models: ['glm-5.2', 'kimi-k3'] },
+          'ollama-cloud': { keyRef: 'provider:ollama-cloud', baseUrl: 'https://ollama.com/v1', models: ['glm-5.2', 'kimi-k3'] }
+        },
+        model: 'ollama-cloud',
+        agents: { meow: { systemPrompt: 'x' } }
+      }))
+      const vault = new FakeVault()
+      vault.saveSecret('provider:deepseek', 'sk-ds')
+      vault.saveSecret('provider:meow-gateway', 'sk-gw')
+      vault.saveSecret('provider:opencode-go', 'sk-og')
+      vault.saveSecret('provider:ollama-cloud', 'sk-oc')
+      const { manager } = await makeManager({ configPath: cfgPath, vault })
+      // Edit opencode-go's key only (renderer passes the full model list).
+      const edited = await manager.connectProvider('opencode-go', 'sk-og-new', 'https://opencode.ai/zen/go/v1', ['glm-5.2', 'kimi-k3'])
+      // ollama-cloud's keyRef + vault secret must survive.
+      expect(vault.getSecret('provider:ollama-cloud')).toBe('sk-oc')
+      expect(edited.providers.find(p => p.id === 'ollama-cloud')?.keyRef).toBe('provider:ollama-cloud')
+      expect(edited.providers.find(p => p.id === 'opencode-go')?.keyRef).toBe('provider:opencode-go')
+      // Default provider must stay ollama-cloud.
+      expect(edited.defaultProvider).toBe('ollama-cloud')
+      // Fresh read from disk.
+      const fresh = manager.getSettings()
+      expect(fresh.providers.find(p => p.id === 'ollama-cloud')?.keyRef).toBe('provider:ollama-cloud')
+      expect(vault.getSecret('provider:ollama-cloud')).toBe('sk-oc')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

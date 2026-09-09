@@ -150,10 +150,14 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
     try {
       const live = await window.api.fetchProviderModels(id)
       // Live-sync the stored list too, so the model picker sees it immediately.
-      const p = connected.find(x => x.id === id)
+      // Re-read the persisted settings from main first: the draft may be stale
+      // (e.g. a provider edit saved in the meantime), and saving a stale draft
+      // would clobber other providers' keys/keyRefs.
+      const fresh = await window.api.getSettings()
+      const p = fresh.providers.find(x => x.id === id)
       if (p) {
-        const next = connected.map(c => (c.id === id ? { ...c, models: live.length > 0 ? live : c.models } : c))
-        const result = await window.api.saveSettings({ ...settings, defaultProvider: settings.defaultProvider, providers: next })
+        const next = fresh.providers.map(c => (c.id === id ? { ...c, models: live.length > 0 ? live : c.models } : c))
+        const result = await window.api.saveSettings({ ...fresh, defaultProvider: fresh.defaultProvider, providers: next })
         onPersisted(result)
         onChange({ providers: result.providers })
       }
@@ -167,7 +171,10 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
   const setDefault = async (id: string) => {
     // Persist immediately (like connect/disconnect) instead of patching the
     // draft: onRefresh would re-fetch the unsaved value and clobber the change.
-    const result = await window.api.saveSettings({ ...settings, defaultProvider: id })
+    // Re-read the persisted settings from main so a stale draft can't drop
+    // other providers' keys/keyRefs.
+    const fresh = await window.api.getSettings()
+    const result = await window.api.saveSettings({ ...fresh, defaultProvider: id })
     onPersisted(result)
     onChange({ defaultProvider: id })
   }

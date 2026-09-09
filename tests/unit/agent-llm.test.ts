@@ -305,6 +305,32 @@ describe('DeepSeek usage capture', () => {
     expect(createOpenAICompatibleMock.mock.calls[0][0].includeUsage).toBeUndefined()
   })
 
+  it('sends an x-opencode-session header for the opencode-go endpoint (Bug 2)', async () => {
+    streamTextMock.mockReturnValue({
+      fullStream: fakeFullStream([{ type: 'finish', finishReason: 'stop' }])
+    })
+    await streamOnce(createLlm('opencode-go', 'k', 'https://opencode.ai/zen/go/v1'))
+    const opts = createOpenAICompatibleMock.mock.calls[0][0]
+    expect(opts.headers?.['x-opencode-session']).toMatch(/^ses_/)
+  })
+
+  it('detects opencode by baseUrl hostname even with a custom provider id', async () => {
+    streamTextMock.mockReturnValue({
+      fullStream: fakeFullStream([{ type: 'finish', finishReason: 'stop' }])
+    })
+    await streamOnce(createLlm('my-gateway', 'k', 'https://opencode.ai/zen/go/v1'))
+    const opts = createOpenAICompatibleMock.mock.calls[0][0]
+    expect(opts.headers?.['x-opencode-session']).toMatch(/^ses_/)
+  })
+
+  it('does not send an x-opencode-session header for non-opencode endpoints', async () => {
+    streamTextMock.mockReturnValue({
+      fullStream: fakeFullStream([{ type: 'finish', finishReason: 'stop' }])
+    })
+    await streamOnce(createLlm('ollama', 'k', 'http://localhost:11434/v1'))
+    expect(createOpenAICompatibleMock.mock.calls[0][0].headers).toBeUndefined()
+  })
+
   it('maps prompt_cache_hit_tokens into cacheRead and reasoning tokens', async () => {
     streamTextMock.mockReturnValue({
       fullStream: fakeFullStream([{ type: 'finish', finishReason: 'stop' }])

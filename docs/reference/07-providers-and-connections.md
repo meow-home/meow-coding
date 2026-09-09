@@ -44,6 +44,11 @@ reads cache hits from `prompt_cache_hit_tokens` rather than OpenAI's
 `reasoning_content` back in subsequent requests for reasoning models that require it
 (`agent/message.ts` emits a `reasoning` assistant part).
 
+**opencode handling** is triggered when the provider id is `opencode`/`opencode-go` or the base URL
+hostname ends with `opencode.ai`. The Zen/Go gateway routes requests by session and rejects them with
+"Request is missing x-opencode-session" when the header is absent, so `createLlm` mints a per-client
+`ses_` session id and sends it as the `x-opencode-session` header on every request from that agent.
+
 **Anthropic prompt caching** is explicit: `providerOptions.anthropic.cacheControl = ephemeral` caches
 the system prompt, and `withCacheBreakpoints` tags the end of the stable prefix plus the last message
 so the cache grows one turn at a time (0.1× input price instead of 1.0×). For a compacted transcript

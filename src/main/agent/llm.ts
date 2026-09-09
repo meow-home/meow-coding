@@ -114,6 +114,31 @@ function isDeepSeekEndpoint(baseUrl?: string): boolean {
   }
 }
 
+// opencode's Zen/Go gateway routes requests by session and rejects them with
+// "Request is missing x-opencode-session" when the header is absent. The
+// header value is a session id in the same `ses_` shape the opencode CLI
+// generates (prefix + 6 hex time bytes + base62 entropy). We mint one per
+// LLM client (i.e. per agent) so every request from that agent shares a
+// session the gateway can route.
+function isOpencodeEndpoint(baseUrl?: string): boolean {
+  if (!baseUrl) return false
+  try {
+    return new URL(baseUrl).hostname.endsWith('opencode.ai')
+  } catch {
+    return false
+  }
+}
+
+function opencodeSessionId(): string {
+  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+  const timeBytes = Buffer.alloc(6)
+  const now = BigInt(Date.now()) * BigInt(0x1000) + 1n
+  for (let i = 0; i < 6; i++) timeBytes[i] = Number((now >> BigInt(40 - 8 * i)) & BigInt(0xff))
+  let entropy = ''
+  for (let i = 0; i < 14; i++) entropy += chars[Math.floor(Math.random() * 62)]
+  return `ses_${timeBytes.toString('hex')}${entropy}`
+}
+
 const ANTHROPIC_CACHE_BREAKPOINT = { anthropic: { cacheControl: { type: 'ephemeral' } } } as const
 
 // Anthropic needs explicit cache breakpoints to reuse the prompt prefix across
@@ -153,6 +178,8 @@ export function createOpenAICompatibleLlm(opts: { apiKey: string; baseUrl?: stri
 
 export function createLlm(provider: string, apiKey: string, baseUrl?: string, retry?: RetryOptions, providerType?: string): LlmClient {
   const isDeepSeek = provider === 'deepseek' || providerType === 'deepseek' || isDeepSeekEndpoint(baseUrl)
+  const isOpencode = provider === 'opencode' || provider === 'opencode-go' || isOpencodeEndpoint(baseUrl)
+  const opencodeSession = isOpencode ? opencodeSessionId() : undefined
   const model = (modelId: string) => {
     if (provider === 'anthropic') {
       const anthropicClient = createAnthropic({
@@ -172,6 +199,7 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string, re
       name: provider,
       baseURL: baseUrl ?? 'https://api.openai.com/v1',
       apiKey,
+      ...(isOpencode ? { headers: { 'x-opencode-session': opencodeSession! } } : {}),
       ...(isDeepSeek
         ? { includeUsage: true, convertUsage: (usage: unknown) => convertDeepSeekUsage(usage) }
         : {})
