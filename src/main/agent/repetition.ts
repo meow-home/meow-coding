@@ -57,3 +57,53 @@ export function loopDetector(opts?: {
     }
   }
 }
+
+/**
+ * Degenerate "tool loop" guard.
+ *
+ * Complements {@link loopDetector}, which only watches the model's own words:
+ * a model can also get stuck calling the *same tool with the same input* over
+ * and over (re-read one file, re-run one command) with genuinely varied text
+ * in between, so the phrase-repetition detector never fires. This tracks a
+ * short history of `toolName + input` fingerprints across steps and flags the
+ * loop once the same fingerprint repeats too many times.
+ */
+const DEFAULT_TOOL_HISTORY = 8
+const DEFAULT_TOOL_MIN_REPEATS = 3
+
+export interface ToolLoopDetector {
+  /** Record the tool calls made in one step; returns true if the step loops. */
+  next(calls: Array<{ tool: string; input: unknown }>): boolean
+}
+
+export function toolLoopDetector(opts?: {
+  history?: number
+  minRepeats?: number
+}): ToolLoopDetector {
+  const history = opts?.history ?? DEFAULT_TOOL_HISTORY
+  const minRepeats = opts?.minRepeats ?? DEFAULT_TOOL_MIN_REPEATS
+  const recent: string[] = []
+  const fingerprint = (call: { tool: string; input: unknown }): string => {
+    let inputJson: string
+    try {
+      inputJson = JSON.stringify(call.input ?? {})
+    } catch {
+      inputJson = String(call.input)
+    }
+    return `${call.tool}:${inputJson}`
+  }
+  return {
+    next(calls): boolean {
+      for (const call of calls) {
+        recent.push(fingerprint(call))
+        if (recent.length > history) recent.shift()
+      }
+      const counts = new Map<string, number>()
+      for (const key of recent) counts.set(key, (counts.get(key) ?? 0) + 1)
+      for (const n of counts.values()) {
+        if (n >= minRepeats) return true
+      }
+      return false
+    }
+  }
+}

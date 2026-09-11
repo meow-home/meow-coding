@@ -16,7 +16,8 @@ import type { CompactionSettings, ResolvedCompaction } from './compact'
 import { estimateUsage } from './token'
 import { DEFAULT_MAX_CONTEXT_TOKENS } from './config'
 import { classifyContextOverflowError } from './limits'
-import { loopDetector } from './repetition'
+import { loopDetector, toolLoopDetector } from './repetition'
+import type { LoopDetector, ToolLoopDetector } from './repetition'
 import type { TruncationStore } from './truncation'
 import type { SnapshotStore } from './snapshot'
 import type { HooksRunner } from './hooks'
@@ -163,6 +164,12 @@ export class SessionRunner {
   private hooks: HooksRunner | undefined
   // Consecutive Stop-hook blocks in this run; capped by MAX_STOP_BLOCKS.
   private stopBlocksThisRun = 0
+  // Text/reasoning + tool-call repetition guards, per-run (not per-step): a
+  // loop that spans several steps — same sentence, tool call, same sentence
+  // again — never accumulates enough repetition inside any single step for a
+  // per-step detector to catch it.
+  private loop: LoopDetector = loopDetector()
+  private toolLoop: ToolLoopDetector = toolLoopDetector()
 
   constructor(private deps: LoopDeps) {
     this.maxSteps = deps.maxSteps ?? DEFAULT_MAX_STEPS
@@ -177,6 +184,8 @@ export class SessionRunner {
     this.lengthResumesThisRun = 0
     this.loopBreaksThisRun = 0
     this.stopBlocksThisRun = 0
+    this.loop = loopDetector()
+    this.toolLoop = toolLoopDetector()
     this.hooks = this.deps.hooks?.()
     this.compaction = resolveCompactionSettings(
       this.deps.compaction ?? { auto: false, tailTurns: 2 },
@@ -221,10 +230,6 @@ export class SessionRunner {
       let tokens: MessageTokens | undefined
       let finishReason: string | undefined
       const calls: ToolCallData[] = []
-      // Watches the model's own words (text + reasoning) for the degenerate
-      // repetition pattern; once it fires we stop the stream before the output
-      // budget is wasted on the loop.
-      const loop = loopDetector()
       let looping = false
       const persistPartial = () => {
         if (!textBuffer && !reasoningBuffer) return
@@ -238,18 +243,28 @@ export class SessionRunner {
         })
       }
       let recover = false
+      // Each step gets its own controller chained to the run's. Aborting it
+      // when the loop guard cuts a stream short actually cancels the
+      // provider's HTTP/SSE request — a `break` out of the `for await` only
+      // stops consuming parts; it does not guarantee the underlying stream
+      // (and its token bill) stops.
+      const stepController = new AbortController()
+      const stepSignal = stepController.signal
+      const onRunAbort = (): void => stepController.abort()
+      if (signal?.aborted) stepController.abort()
+      else signal?.addEventListener('abort', onRunAbort, { once: true })
       try {
         const stream = this.deps.llm.stream({
           model: this.deps.model,
           system,
           messages: llmMessages,
           tools: isLastStep ? [] : this.visibleToolDefs(),
-          signal,
+          signal: stepSignal,
           maxOutputTokens: this.deps.maxOutputTokensWire,
           variantOptions: this.deps.variantOptions
         })
         for await (const part of stream) {
-          if (signal?.aborted) {
+          if (stepSignal.aborted) {
             persistPartial()
             this.deps.onEvent({ type: 'done', agentId, reason: 'stopped' })
             return
@@ -259,7 +274,7 @@ export class SessionRunner {
             const delta = next.slice(textBuffer.length)
             textBuffer = next
             this.deps.onEvent({ type: 'text-delta', agentId, delta })
-            if (loop.next(part.text ?? '')) {
+            if (this.loop.next(part.text ?? '')) {
               looping = true
               break
             }
@@ -268,7 +283,7 @@ export class SessionRunner {
             const delta = next.slice(reasoningBuffer.length)
             reasoningBuffer = next
             this.deps.onEvent({ type: 'reasoning-delta', agentId, delta })
-            if (loop.next(part.text ?? '')) {
+            if (this.loop.next(part.text ?? '')) {
               looping = true
               break
             }
@@ -292,13 +307,9 @@ export class SessionRunner {
               runUsage.total += part.tokens.total
               runUsage.cacheRead += part.tokens.cacheRead ?? 0
               runUsage.cacheWrite += part.tokens.cacheWrite ?? 0
-              // Báo usage ngay mỗi step: nếu user bấm Stop hoặc gặp lỗi giữa
-              // chừng, chi phí đã tiêu vẫn được ghi nhận.
               this.deps.onUsage?.(part.tokens)
             }
           } else if (part.kind === 'error') {
-            // Thử tự sửa trước; persistPartial chỉ khi không recover — retry
-            // dựng lại transcript từ đầu, persist trước sẽ nhân đôi text.
             if (await this.tryRecoverFromReject(llmMessages, part.error, signal)) {
               steps--
               recover = true
@@ -313,6 +324,8 @@ export class SessionRunner {
         const message = formatLlmError(err)
         if (await this.tryRecoverFromReject(llmMessages, message, signal)) {
           steps--
+          stepController.abort()
+          signal?.removeEventListener('abort', onRunAbort)
           continue
         }
         persistPartial()
@@ -322,10 +335,15 @@ export class SessionRunner {
           this.deps.onEvent({ type: 'error', agentId, message })
         }
         return
+      } finally {
+        signal?.removeEventListener('abort', onRunAbort)
       }
       // Recover thành công ở error-part → retry step (đã steps--). Nếu signal
       // aborted giữa chừng, vòng while kiểm tra lại ở đầu và emit 'stopped'.
-      if (recover) continue
+      if (recover) {
+        stepController.abort()
+        continue
+      }
 
       if (signal?.aborted) {
         persistPartial()
@@ -340,6 +358,14 @@ export class SessionRunner {
         // as 'stuck' instead of burning more budgets and reporting a bogus
         // output-limit cut.
         this.loopBreaksThisRun++
+        // Cut the provider's stream for real — `break` above only stopped
+        // consuming parts, the HTTP/SSE request (and its token bill) may still
+        // be running.
+        stepController.abort()
+        // Reset the text detector: it now lives across steps, so without this
+        // the looped phrase still in its tail would re-trip on the model's
+        // next (clean) answer and report 'stuck' even though it complied.
+        this.loop = loopDetector()
         if (this.loopBreaksThisRun > MAX_LOOP_BREAKS) {
           this.deps.onEvent({ type: 'done', agentId, reason: 'stuck' })
           return
@@ -359,6 +385,26 @@ export class SessionRunner {
           tokens,
           createdAt: Date.now()
         })
+      }
+
+      // A model can loop by re-calling the same tool with the same input over
+      // and over, with genuinely varied text in between, so the phrase-level
+      // loop detector never fires. Track call fingerprints across steps too.
+      if (calls.length > 0 && this.toolLoop.next(calls.map(c => ({ tool: c.tool, input: c.input })))) {
+        looping = true
+        stepController.abort()
+        this.loopBreaksThisRun++
+        // Give the model a clean slate after the nudge, like the text detector
+        // above; the repeated fingerprints stay in the window otherwise and
+        // would re-trip on the next step regardless of what it does.
+        this.toolLoop = toolLoopDetector()
+        this.loop = loopDetector()
+        if (this.loopBreaksThisRun > MAX_LOOP_BREAKS) {
+          this.deps.onEvent({ type: 'done', agentId, reason: 'stuck' })
+          return
+        }
+        this.deps.appendMessage({ id: randomUUID(), role: 'user', text: LOOP_RECOVERY_PROMPT, createdAt: Date.now() })
+        continue
       }
 
       // PreToolUse hooks gate each call before the permission decision, and run
@@ -385,7 +431,7 @@ export class SessionRunner {
         this.deps.onEvent({ type: 'tool-result', agentId, call: d.call })
       }
 
-      // Parallel tool execution like opencode: run auto-approved calls
+      // Parallel tool execution like : run auto-approved calls
       // concurrently; permission-asking calls run serially afterwards to avoid
       // two prompts at once.
       const runnable = decided.filter(d => !d.blocked)

@@ -1955,4 +1955,90 @@ describe('SessionRunner thinking-loop guard', () => {
       .map(i => i.message.text)
     expect(userTexts.some(t => t.includes('single next concrete action'))).toBe(false)
   })
+
+  it('aborts the underlying provider stream when it breaks out of a loop', async () => {
+    // A `break` out of `for await` does not guarantee the provider's HTTP/SSE
+    // request is cancelled (AsyncGenerator.return() timing is not a hard
+    // guarantee). Without an explicit abort, the cut-off stream keeps billing
+    // tokens after the runner already moved on — the "still repeating even
+    // though it should have stopped" symptom.
+    let sawAbort = false
+    const h = makeHarness({
+      llm: {
+        async *stream(opts: LlmStreamOptions) {
+          opts.signal?.addEventListener('abort', () => { sawAbort = true }, { once: true })
+          // Keep emitting the looping phrases forever; the runner's detector
+          // must cut us off and abort this stream rather than just stop reading.
+          for (let i = 0; ; i++) {
+            if (opts.signal?.aborted) return
+            yield { kind: 'reasoning', text: LOOP_SENTENCES[i % LOOP_SENTENCES.length] }
+            await new Promise(r => setTimeout(r, 1))
+          }
+        }
+      } as LlmClient
+    })
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 60))
+
+    expect(sawAbort).toBe(true)
+  })
+
+  it('catches a repetition loop spread across steps, not just within one', async () => {
+    // The detector used to reset on every step, so a model that repeats the
+    // same sentence -> calls a tool -> repeats it again (never dense enough to
+    // trip the within-step threshold) sailed through to maxSteps.
+    const h = makeHarness({
+      tools: new Map([['read', stubTool('read')]]),
+      maxSteps: 10
+    })
+    const loopStep = (): LlmStreamPart[] => [
+      { kind: 'reasoning', text: LOOP_SENTENCES[0] },
+      { kind: 'tool-call', toolCallId: 'tc-' + Math.random(), toolName: 'read', toolInput: { file_path: 'a.ts' } },
+      { kind: 'finish' }
+    ]
+    h.llm.queue = Array.from({ length: 10 }, loopStep)
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 60))
+
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+    expect(['stuck', 'max-steps']).toContain(done.reason)
+    expect(h.llm.calls.length).toBeLessThan(10)
+  })
+
+  it('flags repeated identical tool calls across steps as a loop', async () => {
+    const h = makeHarness({
+      tools: new Map([['read', stubTool('read')]]),
+      maxSteps: 10
+    })
+    const sameCallStep = (): LlmStreamPart[] => [
+      { kind: 'tool-call', toolCallId: 'tc-' + Math.random(), toolName: 'read', toolInput: { file_path: 'a.ts' } },
+      { kind: 'finish' }
+    ]
+    h.llm.queue = Array.from({ length: 10 }, sameCallStep)
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 60))
+
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+    expect(['stuck', 'max-steps']).toContain(done.reason)
+    expect(h.llm.calls.length).toBeLessThan(10)
+  })
+
+  it('does not flag varied tool calls as a loop', async () => {
+    const h = makeHarness({
+      tools: new Map([['read', stubTool('read')]]),
+      maxSteps: 10
+    })
+    h.llm.queue = [
+      ...Array.from({ length: 4 }, (_, i): LlmStreamPart[] => [
+        { kind: 'tool-call', toolCallId: `tc-${i}`, toolName: 'read', toolInput: { file_path: `file${i}.ts` } },
+        { kind: 'finish' }
+      ]),
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 60))
+
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+    expect(done.reason).toBe('complete')
+  })
 })

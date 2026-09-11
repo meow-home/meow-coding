@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loopDetector } from '../../src/main/agent/repetition'
+import { loopDetector, toolLoopDetector } from '../../src/main/agent/repetition'
 
 // A faithful mirror of the degenerate "thinking loop" from the bug report: the
 // model keeps re-emitting "let me look at the question tool's run and the
@@ -69,5 +69,39 @@ describe('loopDetector', () => {
   it('does not flag a short normal answer', () => {
     const d = loopDetector()
     expect(d.next('The function returns the resolved output, or an error if the tool failed.')).toBe(false)
+  })
+})
+
+describe('toolLoopDetector', () => {
+  it('flags the same tool+input repeated three times', () => {
+    const d = toolLoopDetector()
+    expect(d.next([{ tool: 'read', input: { file_path: 'a.ts' } }])).toBe(false)
+    expect(d.next([{ tool: 'read', input: { file_path: 'a.ts' } }])).toBe(false)
+    expect(d.next([{ tool: 'read', input: { file_path: 'a.ts' } }])).toBe(true)
+  })
+
+  it('does not flag the same tool with different input', () => {
+    const d = toolLoopDetector()
+    expect(d.next([{ tool: 'read', input: { file_path: 'a.ts' } }])).toBe(false)
+    expect(d.next([{ tool: 'read', input: { file_path: 'b.ts' } }])).toBe(false)
+    expect(d.next([{ tool: 'read', input: { file_path: 'c.ts' } }])).toBe(false)
+    expect(d.next([{ tool: 'read', input: { file_path: 'd.ts' } }])).toBe(false)
+  })
+
+  it('does not flag different tools', () => {
+    const d = toolLoopDetector()
+    expect(d.next([{ tool: 'read', input: { file_path: 'a.ts' } }])).toBe(false)
+    expect(d.next([{ tool: 'grep', input: { pattern: 'x' } }])).toBe(false)
+    expect(d.next([{ tool: 'bash', input: { command: 'ls' } }])).toBe(false)
+  })
+
+  it('forgets old fingerprints once they slide out of the window', () => {
+    const d = toolLoopDetector({ history: 2, minRepeats: 3 })
+    expect(d.next([{ tool: 'read', input: { file_path: 'a.ts' } }])).toBe(false)
+    expect(d.next([{ tool: 'read', input: { file_path: 'a.ts' } }])).toBe(false)
+    // Two distinct calls push the repeated one out of the 2-slot window.
+    expect(d.next([{ tool: 'read', input: { file_path: 'b.ts' } }])).toBe(false)
+    expect(d.next([{ tool: 'read', input: { file_path: 'c.ts' } }])).toBe(false)
+    expect(d.next([{ tool: 'read', input: { file_path: 'a.ts' } }])).toBe(false)
   })
 })
