@@ -115,14 +115,15 @@ test('the project row "+" creates a session that appears in the session list', a
     try {
       await openProject(window)
       await expect(window.locator('.session-list .session-row')).toHaveCount(1)
-      await expect(window.locator('.project-count')).toContainText('1 Session')
+      // The project row is a lightweight group header: the path moved onto the
+      // row's `title` (there is no path line and no session count any more).
+      await expect(window.locator('.project-row')).toHaveAttribute('title', project)
 
-      // The "+" is a `.btn.ghost.small` in the row's `.project-actions`, keyed by
+      // The "+" is a `Plus` icon button in the row's `.project-actions`, keyed by
       // aria-label `new session <project name>` (Sidebar.tsx project-actions).
       await window.getByRole('button', { name: 'new session E2E Project', exact: true }).click()
 
       await expect(window.locator('.session-list .session-row')).toHaveCount(2)
-      await expect(window.locator('.project-count')).toContainText('2 Sessions')
       // onNewSession makes the new session the project's active one.
       await expect(window.locator('.session-row.active .session-name')).toHaveText('New session')
     } finally {
@@ -153,17 +154,27 @@ test('switching sessions does not stop the running one, and only one pane is sho
       await window.locator('.chat-input-field').press('Enter')
       await expect(window.locator('.chat-msg.user').last()).toContainText('hold the line')
       const alphaRow = window.locator('.session-row', { hasText: 'Alpha' })
-      await expect(alphaRow.locator('.status-dot')).toHaveClass(/session-status-running/)
+      await expect(alphaRow.locator('.session-dot')).toHaveClass(/session-status-running/)
       await firstCall
 
       // Create + activate a second session. Alpha's pane must stay mounted and
       // its turn must keep running: Goal 1 is "switching a session must NOT stop
       // or pause any other session's run".
       await window.getByRole('button', { name: 'new session E2E Project', exact: true }).click()
+      const newRow = window.locator('.session-row', { hasText: 'New session' })
       await expect(window.locator('.session-row.active .session-name')).toHaveText('New session')
-      await expect(alphaRow.locator('.status-dot')).toHaveClass(/session-status-running/)
-      await expect(window.locator('.session-row', { hasText: 'New session' }).locator('.status-dot'))
-        .toHaveClass(/session-status-idle/)
+      await expect(alphaRow.locator('.session-dot')).toHaveClass(/session-status-running/)
+      await expect(newRow.locator('.session-dot')).toHaveClass(/session-status-idle/)
+
+      // Switch back by clicking the pre-existing row — the `onSelectSession` path
+      // rather than `onNewSession` — so the row-click route is exercised too and a
+      // *pre-existing* session is shown to survive a switch. Then return to the new
+      // session so Alpha is the hidden one for the pane assertions below.
+      await alphaRow.click()
+      await expect(window.locator('.session-row.active .session-name')).toHaveText('Alpha')
+      await expect(alphaRow.locator('.session-dot')).toHaveClass(/session-status-running/)
+      await newRow.click()
+      await expect(window.locator('.session-row.active .session-name')).toHaveText('New session')
 
       // Exactly one pane is visible. The inactive slots carry `hidden`, hidden by
       // the CSS rule `.pane-slot[hidden] { display: none !important }`; without it
@@ -177,7 +188,7 @@ test('switching sessions does not stop the running one, and only one pane is sho
       release()
       await expect(window.locator('.session-panes .pane-slot[hidden] .chat-msg.assistant'))
         .toContainText('held answer')
-      await expect(alphaRow.locator('.status-dot')).toHaveClass(/session-status-idle/)
+      await expect(alphaRow.locator('.session-dot')).toHaveClass(/session-status-idle/)
     } finally {
       await app.close()
     }
@@ -201,7 +212,7 @@ test('session status dot reflects idle, running and waiting', async () => {
     try {
       await openProject(window)
       const row = window.locator('.session-row', { hasText: 'Alpha' })
-      const dot = row.locator('.status-dot')
+      const dot = row.locator('.session-dot')
 
       // At rest a native session is idle.
       await expect(dot).toHaveClass(/session-status-idle/)

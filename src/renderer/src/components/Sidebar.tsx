@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Ellipsis, GitBranch, Moon, PanelLeft, RefreshCw, Settings, Server, Sun } from 'lucide-react'
+import { ChevronDown, ChevronRight, GitBranch, Moon, MoreVertical, PanelLeft, Plus, RefreshCw, Settings, Server, Sun } from 'lucide-react'
 import type { WorkspaceRuntime, WorkspaceSummary } from '@shared/types'
 import AddProjectDialog from './AddProjectDialog'
 import { applyTheme, type Theme } from '../theme'
 
 function MoreIcon() {
-  return <Ellipsis size={14} aria-hidden="true" />
+  return <MoreVertical size={14} aria-hidden="true" />
 }
 
 type SessionStatus = 'running' | 'waiting' | 'idle'
@@ -170,12 +170,14 @@ export default function Sidebar({
             <div
               className="project-row"
               onClick={() => onOpen(ws.projectPath)}
+              title={ws.projectPath}
               onContextMenu={e => {
                 e.preventDefault()
                 setProjectMenuPos({ x: e.clientX, y: e.clientY })
                 setOpenProjectMenu(ws.projectPath)
               }}
             >
+              <span className="project-name">{ws.name}</span>
               <button
                 className="project-expand"
                 aria-label={expanded[ws.projectPath] ? 'Collapse' : 'Expand'}
@@ -184,25 +186,18 @@ export default function Sidebar({
                   setExpanded(p => ({ ...p, [ws.projectPath]: !p[ws.projectPath] }))
                 }}
               >
-                {expanded[ws.projectPath] ? '▾' : '▸'}
+                {expanded[ws.projectPath]
+                  ? <ChevronDown size={13} aria-hidden="true" />
+                  : <ChevronRight size={13} aria-hidden="true" />}
               </button>
-              <div className="project-info">
-                <span className="project-name-row">
-                  <span className="project-name">{ws.name}</span>
-                  {inputCount > 0 && (
-                    <span
-                      className="project-badge"
-                      title={`${inputCount} session(s) need your reply/approval`}
-                    >
-                      {inputCount}
-                    </span>
-                  )}
+              {inputCount > 0 && (
+                <span
+                  className="project-badge"
+                  title={`${inputCount} session(s) need your reply/approval`}
+                >
+                  {inputCount}
                 </span>
-                <span className="project-path" title={ws.projectPath}>{ws.projectPath}</span>
-                <span className="project-count">
-                  {ws.sessions.length} Session{ws.sessions.length === 1 ? '' : 's'}
-                </span>
-              </div>
+              )}
               <div className="project-menu project-actions" onClick={e => e.stopPropagation()}>
                 <button
                   className="btn ghost small"
@@ -210,7 +205,7 @@ export default function Sidebar({
                   aria-label={`new session ${ws.name}`}
                   onClick={() => onNewSession(ws.projectPath)}
                 >
-                  +
+                  <Plus size={14} aria-hidden="true" />
                 </button>
                 <button
                   className="btn ghost small"
@@ -287,7 +282,7 @@ export default function Sidebar({
                       className={`session-row ${activeSession ? 'active' : ''}`}
                       onClick={() => onSelectSession(ws.projectPath, s.id)}
                     >
-                      <span className={`status-dot session-status-${status}`} />
+                      <span className={`session-dot session-status-${status}`} aria-label={status} />
                       <span className="session-name">{s.name}</span>
                       <SessionRowMenu
                         running={running}
@@ -412,7 +407,7 @@ function SessionRowMenu({ running, onRename, onDelete, onStop }: {
         aria-label="Session menu"
         onClick={() => setOpen(v => !v)}
       >
-        <Ellipsis size={12} aria-hidden="true" />
+        <MoreVertical size={13} aria-hidden="true" />
       </button>
       {open && (
         <div className="sidebar-menu-dropdown session-menu-dropdown">

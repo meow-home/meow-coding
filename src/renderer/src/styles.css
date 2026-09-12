@@ -314,30 +314,16 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   list-style: none; margin: 0; padding: 0;
   flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
 }
-.project-row {
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px 8px; cursor: pointer; font-size: var(--fs-md);
-  border-radius: var(--radius);
-  border-left: 2px solid transparent;
-  transition: background 120ms ease, border-color 120ms ease;
-}
-.project-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.project-path {
-  color: var(--text-faint);
-  font-size: var(--fs-sm);
-  font-family: var(--font-mono);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.project-row:hover { background: var(--bg-hover); }
-.project-list li.active .project-row {
-  background: var(--bg-active);
-  border-left-color: var(--accent);
-}
-.project-row { position: relative; }
-.project-name-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.project-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-strong); font-weight: var(--fw-medium); }
+/* Project = lightweight group header; actions reveal on hover / when current */
+.project-row { display: flex; align-items: center; gap: 5px; padding: 5px 8px; cursor: pointer; border-radius: var(--radius); }
+.project-row:hover { background: var(--bg-raised); }
+.project-name { color: var(--text-dim); font-weight: var(--fw-medium); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-list li.active .project-name { color: var(--text-strong); }
+.project-expand { display: inline-flex; align-items: center; background: none; border: none; color: var(--text-faint); cursor: pointer; padding: 0; }
+.project-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; opacity: 0; transition: opacity 120ms ease; }
+.project-row:hover .project-actions, .project-list li.active .project-actions { opacity: 1; }
+.project-actions .btn { border: none; background: transparent; padding: 2px 4px; color: var(--text-faint); }
+.project-actions .btn:hover { background: var(--bg-hover); color: var(--text); }
 .project-badge {
   flex: 0 0 auto; min-width: 16px; height: 16px; padding: 0 4px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -349,9 +335,6 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   background: var(--red); border: 2px solid var(--bg-panel); border-radius: 50%;
 }
 .project-avatar { position: relative; }
-.project-count { color: var(--text-faint); font-size: var(--fs-sm); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-.project-menu .btn { border: none; background: transparent; padding: 2px 4px; color: var(--text-dim); }
-.project-menu .btn:hover { background: var(--bg-hover); color: var(--text-strong); }
 .sidebar-error { color: var(--red); font-size: var(--fs-md); padding: 4px 8px; }
 
 /* Buttons & inputs */
@@ -1436,7 +1419,6 @@ select.input { width: 100%; }
 .menu-item:hover { background: var(--bg-hover); color: var(--text-strong); }
 
 /* Project row menu */
-.project-menu { position: relative; flex: 0 0 auto; }
 .project-menu-dropdown { min-width: 150px; }
 .menu-item.danger { color: var(--red); }
 .sidebar-footer-menu { display: flex; align-items: center; gap: 6px; width: fit-content; }
@@ -1454,26 +1436,26 @@ select.input { width: 100%; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .menu-item.danger:hover { background: rgba(255, 95, 86, 0.12); color: var(--red); }
-.project-row { position: relative; }
 
-/* Sidebar session rows (one row per session of a project) */
-.project-expand {
-  background: none; border: none; color: var(--text-faint);
-  cursor: pointer; padding: 0 4px; font-size: 10px;
-}
-.project-actions { display: flex; align-items: center; gap: 2px; }
-.session-list { list-style: none; margin: 0; padding: 0 0 4px 18px; display: flex; flex-direction: column; }
-.session-row {
-  display: flex; align-items: center; gap: 6px; padding: 3px 8px;
-  cursor: pointer; border-radius: var(--radius); color: var(--text-dim);
-}
-.session-row:hover { background: var(--bg-hover); color: var(--text); }
-.session-row.active { background: var(--bg-active); color: var(--text); }
-.session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); }
-.session-status-running { background: var(--green); }
-.session-status-waiting { background: var(--yellow); }
-.session-status-idle { background: var(--text-faint); }
-.session-menu { position: relative; }
+/* Sidebar session rows (one row per session of a project) — indented so the
+   ring sits under the project name */
+.session-list { list-style: none; margin: 0 0 6px; padding: 0 0 0 16px; display: flex; flex-direction: column; gap: 1px; }
+.session-row { display: flex; align-items: center; gap: 8px; padding: 4px 8px; cursor: pointer; border-radius: var(--radius); color: var(--text-dim); }
+.session-row:hover { background: var(--bg-raised); color: var(--text); }
+.session-row.active { background: var(--bg-hover); color: var(--text); }
+.session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); }
+
+/* Status glyph: idle = hollow ring; running/waiting = solid + glow */
+.session-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; box-sizing: border-box; border: 1.5px solid var(--text-faint); background: transparent; }
+.session-dot.session-status-running { border-color: var(--green); background: var(--green); box-shadow: 0 0 7px rgba(74, 222, 159, 0.45); }
+.session-dot.session-status-waiting { border-color: var(--yellow); background: var(--yellow); box-shadow: 0 0 7px rgba(255, 180, 84, 0.4); }
+.session-dot.session-status-idle { border-color: var(--text-faint); background: transparent; }
+
+/* Session menu button: hidden until hover / active */
+.session-menu { position: relative; display: inline-flex; }
+.session-menu .btn { opacity: 0; border: none; background: transparent; padding: 2px 3px; color: var(--text-faint); transition: opacity 120ms ease; }
+.session-row:hover .session-menu .btn, .session-row.active .session-menu .btn { opacity: 1; }
+.session-menu .btn:hover { background: var(--bg-active); color: var(--text); }
 .session-menu-dropdown { position: absolute; right: 0; top: 100%; z-index: 1000; }
 .session-rename-input { position: absolute; right: 0; top: 100%; z-index: 1001; width: 160px; }
 
