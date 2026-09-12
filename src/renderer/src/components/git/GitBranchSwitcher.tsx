@@ -71,8 +71,10 @@ export default function GitBranchSwitcher({ projectPath, branches, current, busy
               disabled={busy}
               onClick={() => { setOpen(false); onSwitch(b.name) }}
             >
-              <span className="git-branch-check">{b.name === current ? <Check size={13} /> : null}</span>
-              {b.name}
+              <span className="menu-item-label">{b.name}</span>
+              <span className="menu-item-check">
+                {b.name === current && <Check size={16} aria-hidden="true" />}
+              </span>
             </button>
           ))}
           <div className="git-branch-section">Remote</div>
@@ -84,8 +86,8 @@ export default function GitBranchSwitcher({ projectPath, branches, current, busy
               disabled={busy}
               onClick={() => { setOpen(false); onSwitch(b.name) }}
             >
-              <span className="git-branch-check" />
-              {b.name}
+              <span className="menu-item-label">{b.name}</span>
+              <span className="menu-item-check" />
             </button>
           ))}
           <div className="git-branch-create">

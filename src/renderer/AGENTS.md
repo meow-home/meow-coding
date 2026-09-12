@@ -73,6 +73,10 @@ Lessons learned from the Git viewer screen (don't repeat them):
   34 × 25 with the `.btn` 6px radius before the dedicated class existed).
 - **Dropdowns share the `--menu-*` metric tokens** (`--menu-radius`, `--menu-pad`, `--menu-item-h`,
   `--menu-item-pad-x`, `--menu-icon`). New menu surfaces must consume them, not hardcode padding.
+- **Selector rows use `.menu-item-label` + `.menu-item-check`**, and triggers use `.dropdown-caret`.
+  A selector trigger must set `aria-expanded={open}` (the caret's rotation is CSS off that attribute;
+  `Dropdown.tsx` does it for `ModePicker`/`VariantPicker`, the other two set it themselves). The check
+  column is fixed-width and present on unselected rows too — dropping it there makes labels shift.
   Action menus (project / session / footer / pane / file context) carry a 16px `aria-hidden` icon per
   item plus `.menu-sep` dividers; pickers stay icon-free by design. `Sidebar.tsx`'s `MENU_WIDTH`
   constant must stay in sync with the `.project-menu-dropdown` / `.sidebar-footer-dropdown` CSS

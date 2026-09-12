@@ -157,6 +157,16 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   `--menu-icon` 16px. Rows are **contiguous** (`gap: 0`) and each is `min-height: 32px` with
   `padding: 0 10px`. `.menu-sep` is an inset hairline between groups; `.menu-head` is a muted
   non-interactive context row.
+- **Selector triggers** carry one shared caret, `.dropdown-caret` (lucide `ChevronDown`, 14px), which
+  rotates 180° while its menu is open. Rotation is driven purely by the trigger's
+  `[aria-expanded="true"]`, so any new select trigger gets it by setting that attribute (`Dropdown.tsx`
+  sets it; `ModelPicker` and `GitBranchSwitcher` set it on their own buttons).
+- **A selected selector row** is `background: var(--bg-active)` + accent label + a trailing tick, never a
+  left accent bar. Rows are `[.menu-item-label][.menu-item-check]`: the label grows and ellipsizes, the
+  check column is a fixed `var(--menu-icon)` (16px) and is rendered on **every** row (empty when
+  unselected) so labels do not shift when selection moves. The slash-command palette
+  (`.command-item.selected`) and the settings nav (`.settings-nav-item`) are not selectors and still use
+  the left-bar idiom.
 - **Action menus get icons and dividers; pickers get metrics only.** The action menus (project,
   session row, sidebar footer, pane header, right-panel file context) lead every item with a 16px
   lucide icon and separate groups with `.menu-sep`. The pickers (mode, variant, model, git branch)

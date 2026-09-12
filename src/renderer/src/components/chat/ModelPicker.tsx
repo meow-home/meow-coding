@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { Check, ChevronDown } from 'lucide-react'
 import type { ModelRef } from '@shared/types'
 
 interface Props {
@@ -112,7 +112,12 @@ export default function ModelPicker({ agentId }: Props) {
                     className={`model-item ${current?.provider === m.provider && current?.model === m.model && current?.accountId === m.accountId ? 'active' : ''}`}
                     onClick={() => pick(m)}
                   >
-                    {m.model}
+                    <span className="menu-item-label">{m.model}</span>
+                    <span className="menu-item-check">
+                      {current?.provider === m.provider &&
+                        current?.model === m.model &&
+                        current?.accountId === m.accountId && <Check size={16} aria-hidden="true" />}
+                    </span>
                   </button>
                 ))}
               </div>

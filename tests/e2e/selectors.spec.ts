@@ -107,3 +107,97 @@ test('selector triggers carry one shared caret that rotates while open', async (
     cleanupDir(project)
   }
 })
+
+/** Resolves a CSS variable to a concrete rgb() string for comparison. */
+function resolveVar(page: Page, name: string): Promise<string> {
+  return page.evaluate((n: string) => {
+    const probe = document.createElement('div')
+    probe.style.background = `var(${n})`
+    document.body.appendChild(probe)
+    const value = getComputedStyle(probe).backgroundColor
+    probe.remove()
+    return value
+  }, name)
+}
+
+test('a selected row is bg-active with a trailing tick in a reserved column', async () => {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    initRepo(project)
+    seedWorkspaces(userData, project)
+    const { app, window } = await launch(userData)
+    try {
+      await openProject(window)
+      const bgActive = await resolveVar(window, '--bg-active')
+
+      await window.getByRole('button', { name: 'Mode', exact: true }).click()
+      await expect(window.locator('.mode-menu')).toBeVisible()
+
+      // No blue left bar anywhere in this menu.
+      const borderWidths = await window.locator('.mode-item').evaluateAll(
+        els => els.map(e => getComputedStyle(e).borderLeftWidth)
+      )
+      expect(borderWidths.every(w => w === '0px')).toBe(true)
+
+      const activeMode = window.locator('.mode-item.active')
+      await expect(activeMode).toHaveCount(1)
+      const activeBg = await activeMode.evaluate(e => getComputedStyle(e).backgroundColor)
+      expect(activeBg).toBe(bgActive)
+
+      // The tick is the row's LAST child (not a leading marker) and carries an icon.
+      const tickIsLast = await activeMode.evaluate(
+        e => e.lastElementChild?.classList.contains('menu-item-check') ?? false
+      )
+      expect(tickIsLast).toBe(true)
+      await expect(activeMode.locator('.menu-item-check svg')).toHaveCount(1)
+
+      // Right-aligned: the tick's right edge sits at the row's padding edge.
+      const { tickRight, rowRight } = await activeMode.evaluate(e => ({
+        tickRight: e.lastElementChild!.getBoundingClientRect().right,
+        rowRight: e.getBoundingClientRect().right
+      }))
+      expect(Math.round(rowRight - tickRight)).toBe(10)
+
+      // Reserved column: an UNSELECTED row still has a 16px check slot, so labels
+      // do not shift when selection moves.
+      const inactiveTick = await window.locator('.mode-item:not(.active) .menu-item-check')
+        .evaluate(e => Math.round(e.getBoundingClientRect().width))
+      expect(inactiveTick).toBe(16)
+      await expect(window.locator('.mode-item:not(.active) .menu-item-check svg')).toHaveCount(0)
+
+      // The label is the FIRST child — pickers have no leading action icon.
+      const labelFirst = await window.locator('.mode-item').evaluateAll(
+        els => els.every(e => e.firstElementChild?.classList.contains('menu-item-label'))
+      )
+      expect(labelFirst).toBe(true)
+
+      // NOT COVERED HERE: the VariantPicker and the ModelPicker's rows. Both are
+      // unreachable with a bare userData — the variant picker only renders when
+      // availableVariants is non-empty (needs a resolved provider+model AND a
+      // populated model catalog), and an unconfigured model menu renders
+      // "No providers configured". Both components were changed to the exact same
+      // two shared classes asserted above, in the same commit.
+
+      // GitBranchSwitcher: popup window; its active row previously had NO background.
+      const popup = app.waitForEvent('window', { timeout: 20000 })
+      await window.getByRole('button', { name: 'menu E2E Project', exact: true }).click()
+      await window.getByRole('button', { name: 'Git', exact: true }).click()
+      const gitWindow = await popup
+      await gitWindow.waitForLoadState('domcontentloaded')
+      await gitWindow.locator('.git-branch-current').click()
+      await expect(gitWindow.locator('.git-branch-dropdown')).toBeVisible()
+      const activeBranch = gitWindow.locator('.git-branch-item.active')
+      await expect(activeBranch).toHaveCount(1)
+      const branchBg = await activeBranch.evaluate(e => getComputedStyle(e).backgroundColor)
+      const gitBgActive = await resolveVar(gitWindow, '--bg-active')
+      expect(branchBg).toBe(gitBgActive)
+      await expect(activeBranch.locator('.menu-item-check svg')).toHaveCount(1)
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+  }
+})

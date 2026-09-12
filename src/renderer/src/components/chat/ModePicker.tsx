@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Check } from 'lucide-react'
 import type { AgentMode } from '@shared/types'
 import Dropdown from './Dropdown'
 
@@ -35,8 +36,10 @@ export default function ModePicker({ value, onChange }: ModePickerProps) {
             className={`mode-item ${m.className} ${m.value === value ? 'active' : ''}`}
             onClick={() => { onChange(m.value); setOpen(false) }}
           >
-            <span className="mode-check">{m.value === value ? '✓' : ''}</span>
-            {m.label}
+            <span className="menu-item-label">{m.label}</span>
+            <span className="menu-item-check">
+              {m.value === value && <Check size={16} aria-hidden="true" />}
+            </span>
           </button>
         ))}
       </div>

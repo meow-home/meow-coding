@@ -482,7 +482,15 @@ test('a selected row is bg-active with a trailing tick in a reserved column', as
 })
 ```
 
-`ModelPicker` is not asserted here: a fresh `userData` has no providers, so its menu renders `No providers configured` and has no rows. Its caret/`aria-expanded` are covered by Task 1; its row markup uses the same two shared classes, and Task 2 Step 4 changes it to match the other three.
+**Execution deviation (discovered while running this step):** the `VariantPicker` block below is
+**removed** from the test. The variant picker only renders when `availableVariants.length > 0`, which
+`meow-agent-manager.allowedVariantsFor` derives from a resolved provider+model *and* a populated model
+catalog — not seedable from a bare `userData`. (The original step also used the wrong trigger name; the
+real accessible name is `Model effort` via `Dropdown`'s `aria-label={ariaLabel ?? title}`.) The
+`ModelPicker` is likewise unasserted: a fresh `userData` has no providers, so its menu renders `No
+providers configured` with no rows. Both were changed to the identical two shared classes in the same
+commit; the test file carries an explicit "NOT COVERED HERE" note so the gap is visible rather than
+silently assumed covered.
 
 - [ ] **Step 2: Run it to verify it fails**
 

@@ -147,12 +147,17 @@ test('action menus carry icons, a divider and a path header; pickers do not', as
       await expect(sessionMenu.locator('.menu-item svg')).toHaveCount(2)
       await expect(sessionMenu.locator('.menu-sep')).toHaveCount(1)
 
-      // A picker stays icon-free and separator-free — the scope split is deliberate.
+      // A picker stays leading-icon-free and separator-free — the scope split is
+      // deliberate. A picker row is [label][trailing selection tick], never
+      // [icon][label], so the leading-icon check is what this assertion guards.
       await window.keyboard.press('Escape')
       await window.getByRole('button', { name: 'Mode', exact: true }).click()
       const modeMenu = window.locator('.mode-menu')
       await expect(modeMenu).toBeVisible()
-      await expect(modeMenu.locator('svg')).toHaveCount(0)
+      const labelFirst = await modeMenu.locator('.mode-item').evaluateAll(
+        els => els.every(e => e.firstElementChild?.classList.contains('menu-item-label'))
+      )
+      expect(labelFirst).toBe(true)
       await expect(modeMenu.locator('.menu-sep')).toHaveCount(0)
     } finally {
       await app.close()
