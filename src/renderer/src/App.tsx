@@ -392,10 +392,6 @@ export default function App() {
     setWorkspaces(await window.api.listWorkspaces())
   }, [])
 
-  const handleRemovePane = useCallback((path: string, id: string) => {
-    void removeAgent(path, id)
-  }, [removeAgent])
-
   const handleWorkspaceActiveChange = useCallback((path: string, id: string) => {
     setActiveSessionByPath(prev => (prev[path] === id ? prev : { ...prev, [path]: id }))
   }, [])
@@ -433,13 +429,16 @@ export default function App() {
     await refreshWorkspaces()
   }, [refreshWorkspaces])
 
-  // A project must always own at least one session. When the deleted session is
-  // the project's last, create its replacement **first** (create-then-delete): the
-  // project is never left at zero sessions, and a failed create aborts the delete
-  // instead of destroying the last session. "Last" is detected from local state
-  // before touching main — the mounted runtime when the project is open, else the
-  // sidebar summary (a project need not be opened to list and delete a session).
-  const onDeleteSession = useCallback(async (path: string, id: string) => {
+  // The single enforcement point for the "a project always has ≥ 1 session"
+  // invariant: every removal path (sidebar session-row menu, pane header menu,
+  // background panel) goes through here, so a future entry point cannot silently
+  // bypass it. When the removed session is the project's last, its replacement is
+  // created **first** (create-then-delete): the project is never left at zero
+  // sessions, and a failed create aborts the removal instead of destroying the
+  // last session. "Last" is detected from local state before touching main — the
+  // mounted runtime when the project is open, else the sidebar summary (a project
+  // need not be opened to have its sessions listed and deleted).
+  const removeSessionGuarded = useCallback(async (path: string, id: string) => {
     const rt = runtimesRef.current[path]
     const knownIds = rt
       ? rt.workspace.agents.map(a => a.id)
@@ -448,6 +447,17 @@ export default function App() {
     if (isLastSession && !(await onNewSession(path))) return
     await removeAgent(path, id)
   }, [onNewSession, removeAgent, workspaces])
+
+  // Sidebar session-row `Delete`.
+  const onDeleteSession = useCallback((path: string, id: string) => {
+    void removeSessionGuarded(path, id)
+  }, [removeSessionGuarded])
+
+  // Pane header menu + background panel — both funnel through WorkspaceView's
+  // `onRemovePane`, so they share the same guard.
+  const handleRemovePane = useCallback((path: string, id: string) => {
+    void removeSessionGuarded(path, id)
+  }, [removeSessionGuarded])
 
   const onStopSession = useCallback((id: string) => {
     void window.api.stopChat(id)
