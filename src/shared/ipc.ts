@@ -3,7 +3,7 @@ import type {
   ConnectionAccount, ContextChangedEvent, ContextInfo, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload,
   GitActionResult, GitBlameLine, GitBranch, GitCommit, GitDiffResult, GitStatus, GitStatusDetail,
   ImageAttachment, LogLevel, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PendingPromptInfo, PromptResponse,
-  SessionSummary, StatsSummary, Template, TodoItem, TranscriptWindow, TranscriptWindowOpts,
+  SessionSummary, StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts,
   UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 import type { BrowserStatusInfo, PairingInfo } from './browser-types'
@@ -54,9 +54,6 @@ export const Channels = {
   ConnectionDisconnect: 'connections:disconnect',
   ConnectionSetActive: 'connections:set-active',
   ConnectionGetModels: 'connections:get-models',
-  TemplateList: 'template:list',
-  TemplateSave: 'template:save',
-  TemplateRemove: 'template:remove',
   PickFolder: 'dialog:pick-folder',
   PtyStart: 'pty:start',
   PtyStop: 'pty:stop',
@@ -223,9 +220,6 @@ export interface AgentApi {
   disconnectConnection(accountId: string): Promise<ConnectionAccount[]>
   setActiveConnection(accountId: string): Promise<ConnectionAccount[]>
   getConnectionModels(): Promise<ModelRef[]>
-  listTemplates(): Promise<Template[]>
-  saveTemplate(template: Template): Promise<Template>
-  removeTemplate(id: string): Promise<void>
   pickFolder(): Promise<string | null>
   startAgent(agentId: string): Promise<void>
   stopAgent(agentId: string): Promise<void>

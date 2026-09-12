@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
 import type { ArtifactsChangedEvent } from '../shared/ipc'
-import type { ChatEvent, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, Template, TranscriptWindowOpts, UpdaterStatusEvent } from '../shared/types'
+import type { ChatEvent, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, TranscriptWindowOpts, UpdaterStatusEvent } from '../shared/types'
 import type { ActivateAgentEvent, AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, GitStatusEvent, PromptStateEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 import type { BrowserStatusInfo } from '../shared/browser-types'
 import type { RemoteStatus } from '../shared/remote-types'
@@ -101,9 +101,6 @@ const api: AgentApi = {
   setActiveConnection: (accountId: string) =>
     ipcRenderer.invoke(Channels.ConnectionSetActive, accountId),
   getConnectionModels: () => ipcRenderer.invoke(Channels.ConnectionGetModels),
-  listTemplates: () => ipcRenderer.invoke(Channels.TemplateList),
-  saveTemplate: (template: Template) => ipcRenderer.invoke(Channels.TemplateSave, template),
-  removeTemplate: (id: string) => ipcRenderer.invoke(Channels.TemplateRemove, id),
   pickFolder: () => ipcRenderer.invoke(Channels.PickFolder),
   startAgent: (agentId: string) => ipcRenderer.invoke(Channels.PtyStart, agentId),
   stopAgent: (agentId: string) => ipcRenderer.invoke(Channels.PtyStop, agentId),

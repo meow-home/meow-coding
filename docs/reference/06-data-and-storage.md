@@ -24,7 +24,6 @@ in `src/main/index.ts`).
 |---|---|---|---|
 | `meow.json` | `agent/config.ts` `writeMeowConfig` | object | The whole agent configuration; see [6.3](#63-meowjson-reference) |
 | `workspaces.json` | `workspace-store.ts` | `Workspace[]` | Project path, name, agents (id, name, templateId, cwd, kind, mode, variant, model, accountId, background) |
-| `templates.json` | `template-manager.ts` | `Template[]` | User templates; defaults are merged in from code and cannot be deleted |
 | `sessions.json` | `agent/session.ts` | `StoredSession[]` | **Hot file** — debounced 250ms. See [6.4](#64-session-format) |
 | `snapshots.json` | `agent/snapshot.ts` | `SnapshotTurn[]` | `{ agentId, ts, before: {path: content}, after: {path: content} }`, max 50 turns |
 | `permissions.json` | `agent/saved-permissions.ts` | `SavedPermission[]` | "Always allow" decisions per (project, tool) |

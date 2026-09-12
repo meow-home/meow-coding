@@ -37,8 +37,7 @@ straight to the code.
 | Capability | Behavior | Implementation |
 |---|---|---|
 | Add workspace | Pick a folder; persisted in `userData/workspaces.json`; a native `meow` agent is auto-created if the workspace has none | `src/main/workspace-store.ts`, `Channels.WorkspaceAdd` |
-| Open workspace | Registers native agents synchronously (so chat mounts instantly), then loads tools/MCP and starts PTY agents off the critical path | `MainApp.openWorkspace` / `prepareWorkspace` |
-| Launch templates | Defaults: `meow` (native), `opencode`, `claude code`, `aider --auto-commits`; user templates are CRUD-able | `src/main/default-templates.ts`, `template-manager.ts` |
+| Open workspace | Registers native agents synchronously (so chat mounts instantly), then loads tools/MCP off the critical path | `MainApp.openWorkspace` / `prepareWorkspace` |
 | Pane grid | 1–2 columns; click a pane to zoom full window, `Esc` to exit | `PaneGrid.tsx` |
 | Pane status | Status dot (spawning/running/idle/exited/stopped/error), git branch, dirty-file count | `PaneHeader.tsx`, `git-status-service.ts` |
 | Background agents | An agent can be moved out of the grid and keeps running; listed in a background panel | `Channels.AgentSetBackground`, `BackgroundPanel.tsx` |

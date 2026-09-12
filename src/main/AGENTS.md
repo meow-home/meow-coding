@@ -20,10 +20,8 @@ handlers and the app lifecycle.
 - `pty-manager.ts` — node-pty wrapper, emits `data`/`exit` events. `buildSpawnCommand` wraps non-`.exe`
   commands through `cmd.exe` on Windows (ConPTY cannot spawn `.cmd` shims directly). Uses `tree-kill`
   to kill the entire process tree on stop.
-- `workspace-store.ts` / `template-manager.ts` — CRUD on `JsonStore<T>` (`userData/workspaces.json`,
-  `userData/templates.json`). TemplateManager keeps default templates from being deleted.
+- `workspace-store.ts` — CRUD on `JsonStore<T>` (`userData/workspaces.json`).
 - `json-store.ts` — `JsonStore<T>` interface + `createJsonStore` (in-memory cache, atomic temp+rename write, retries the rename on transient Windows locks then falls back to an in-place write, optional `debounceMs` batching with `flush()`, parse error → `[]` after parking the file as `.corrupt`).
-- `default-templates.ts` — default templates: opencode, claude, aider.
 - `log-manager.ts` — appends each agent's output to `userData/logs/<agentId>.log`.
 - `system-logger.ts` — appends app-wide logs (main/render/agent, INFO/WARN/ERROR) to `userData/logs/<YYYY-MM-DD>-log.txt`, prunes files older than 7 days on startup.
 - `git-status-service.ts` — `git status --porcelain=v2 -b` (5s timeout), parses branch + dirty count.
@@ -57,7 +55,7 @@ handlers and the app lifecycle.
 
 - Unit: `tests/unit/` — one test file per module: pty-spawn-command,
   window-chrome, updater, models-catalog, model-variants, notification-service, file-suggest,
-  file-watcher, git-status-service, alert-service, json-store, log-manager, template-manager,
+  file-watcher, git-status-service, alert-service, json-store, log-manager,
   workspace-store, meow-agent-manager, ipc-contract, ...
 - Integration: `tests/integration/pty-manager.test.ts` (real spawn via ConPTY, uses fixture CLI),
   `agent-stream-overlap.test.ts`, `browser/bridge-flow.test.ts`.

@@ -5,8 +5,6 @@ import { stat } from 'node:fs/promises'
 import path from 'node:path'
 import { createJsonStore } from './json-store'
 import { resetToSingleSession } from './fresh-start'
-import { TemplateManager } from './template-manager'
-import { DEFAULT_TEMPLATES } from './default-templates'
 import { WorkspaceStore } from './workspace-store'
 import { PtyManager } from './pty-manager'
 import { LogManager } from './log-manager'
@@ -51,7 +49,7 @@ import { RemoteSettingsStore } from './remote/remote-settings'
 import { RemotePairing } from './remote/remote-pairing'
 import { Channels } from '../shared/ipc'
 import { formatLogArg, safeJson } from '../shared/log-helpers'
-import type { AgentState, Command, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, Template, TranscriptWindowOpts, Workspace, WorkspaceRuntime } from '../shared/types'
+import type { AgentState, Command, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, TranscriptWindowOpts, Workspace, WorkspaceRuntime } from '../shared/types'
 
 let win: BrowserWindow | null = null
 let isQuitting = false
@@ -109,10 +107,6 @@ function openSystemTerminal(cwd: string): void {
 }
 
 export class MainApp {
-  templates = new TemplateManager(
-    createJsonStore<Template>(path.join(app.getPath('userData'), 'templates.json')),
-    DEFAULT_TEMPLATES
-  )
   workspaces = new WorkspaceStore(
     createJsonStore<Workspace>(path.join(app.getPath('userData'), 'workspaces.json'))
   )
@@ -250,8 +244,7 @@ export class MainApp {
       if (code !== 0 && !this.logs.exists(agentId)) {
         const ws = this.findWorkspaceByAgent(agentId)
         const agent = ws?.agents.find(a => a.id === agentId)
-        const tmpl = agent ? this.templates.list().find(t => t.id === agent.templateId) : undefined
-        const label = tmpl ? `${tmpl.command} ${tmpl.args.join(' ')}`.trim() : (agent?.name ?? agentId)
+        const label = agent?.name ?? agentId
         const hint = `[meow] Agent exited with code ${code} and produced no output. Check that "${label}" is on your PATH, then use restart.\n`
         this.logs.append(agentId, hint)
       }
@@ -353,29 +346,10 @@ export class MainApp {
     }
   }
 
-  async startAgent(agentId: string): Promise<void> {
-    if (this.pty.isRunning(agentId)) return
-    const ws = this.findWorkspaceByAgent(agentId)
-    const agent = ws?.agents.find(a => a.id === agentId)
-    if (!agent) return
-    if (agent.kind === 'native') return
-    const tmpl = this.templates.list().find(t => t.id === agent.templateId)
-    if (!tmpl) {
-      const message = `[meow] Template "${agent.templateId}" not found for agent "${agent.name}". Add that template or remove this agent.\n`
-      this.logs.append(agentId, message)
-      this.setState(agentId, { status: 'error', alert: 'error' })
-      return
-    }
-    this.setState(agentId, { status: 'spawning', exitCode: null, alert: 'normal' })
-    try {
-      this.pty.start(agentId, agent.name, tmpl.command, tmpl.args, agent.cwd)
-      this.alerts.track(agentId)
-    } catch (err) {
-      const message = `[meow] Could not start agent "${agent.name}" (${tmpl.command} ${tmpl.args.join(' ')}): ${String(err)}\n`
-      this.logs.append(agentId, message)
-      this.setState(agentId, { status: 'error', alert: 'error' })
-    }
-  }
+  // Native agents are managed by meowAgent.addAgent and never spawn a PTY, so
+  // there is no template-driven CLI spawn path left to run here; kept wired for
+  // Channels.PtyStart.
+  async startAgent(_agentId: string): Promise<void> {}
 
   async stopAgent(agentId: string): Promise<void> {
     await this.pty.stop(agentId)
@@ -395,14 +369,14 @@ export class MainApp {
     // Register native agents synchronously (cheap) so the chat panel mounts
     // with its real transcript immediately; full tools/MCP come from init below.
     for (const agent of ws.agents) {
-      if (agent.kind === 'native') this.meowAgent.addAgent(agent)
+      this.meowAgent.addAgent(agent)
     }
     const rt = this.runtimeFor(ws)
     this.startGitPoll(projectPath)
     this.startFileWatcher(projectPath)
-    // Tools/MCP sync, model catalog refresh and PTY startup run off the
-    // critical path so the pane shell paints instantly instead of waiting for
-    // all of them (measured ~0.5s+ on first open).
+    // Tools/MCP sync and model catalog refresh run off the critical path so the
+    // pane shell paints instantly instead of waiting for them (measured ~0.5s+
+    // on first open).
     void this.prepareWorkspace(ws).catch(err => console.error('[meow] prepareWorkspace:', err))
     return rt
   }
@@ -424,7 +398,6 @@ export class MainApp {
 
   private async prepareWorkspace(ws: Workspace): Promise<void> {
     await this.meowAgent.init(ws.agents)
-    await Promise.all(ws.agents.map(a => this.startAgent(a.id)))
   }
 
   private startFileWatcher(projectPath: string): void {
@@ -761,12 +734,14 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.SystemTerminalOpen, (_e, cwd: string) => openSystemTerminal(cwd))
 
   ipcMain.handle(Channels.AgentAdd, async (_e, projectPath: string, input: NewAgentInput) => {
-    const tmpl = mainApp.templates.list().find(t => t.id === input.templateId)
-    const agentInput = tmpl?.kind ? { ...input, kind: tmpl.kind } : input
-    const ws = mainApp.workspaces.addAgent(projectPath, agentInput)
+    const ws = mainApp.workspaces.addAgent(projectPath, {
+      name: input.name,
+      templateId: 'meow',
+      cwd: input.cwd,
+      kind: 'native'
+    })
     const added = ws.agents[ws.agents.length - 1]
     mainApp.meowAgent.addAgent(added)
-    await mainApp.startAgent(added.id)
     return mainApp.runtimeFor(ws)
   })
 
@@ -820,10 +795,6 @@ export function registerIpcHandlers(): void {
     return connectionBackend.setActive(accountId)
   })
   ipcMain.handle(Channels.ConnectionGetModels, () => connectionBackend.getActiveCodexModels())
-
-  ipcMain.handle(Channels.TemplateList, () => mainApp.templates.list())
-  ipcMain.handle(Channels.TemplateSave, (_e, t: Template) => mainApp.templates.save(t))
-  ipcMain.handle(Channels.TemplateRemove, (_e, id: string) => mainApp.templates.remove(id))
 
   ipcMain.handle(Channels.PickFolder, async () => {
     const result = await dialog.showOpenDialog(win!, { properties: ['openDirectory'] })

@@ -129,7 +129,6 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `ConnectionGetModels` | `connections:get-models` | `getConnectionModels(): ModelRef[]` |
 | `SettingsGet` / `SettingsSave` | `settings:get` / `settings:save` | `getSettings()` / `saveSettings(settings)` |
 | `CommandList` / `CommandSave` / `CommandRemove` | `commands:*` | `listCommands(projectPath)` / `saveCommand(command)` / `removeCommand(name)` |
-| `TemplateList` / `TemplateSave` / `TemplateRemove` | `template:*` | `listTemplates` / `saveTemplate` / `removeTemplate` |
 | `StatsGet` | `stats:get` | `getStats(): StatsSummary` |
 | `McpStatus` / `McpReconnect` | `mcp:status` / `mcp:reconnect` | `getMcpStatus()` / `reconnectMcp()` |
 

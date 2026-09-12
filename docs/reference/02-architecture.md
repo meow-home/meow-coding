@@ -80,7 +80,6 @@ and the tsconfigs.
 |---|---|---|
 | `json-store.ts` | — | `createJsonStore<T>()`: in-memory cache is authoritative, atomic temp+rename write with retry on Windows lock errors then in-place fallback, optional `debounceMs` batching with `flush()`, corrupt files parked as `*.corrupt`. |
 | `workspace-store.ts` | `workspaces.json` | Workspaces + their agents. |
-| `template-manager.ts` | `templates.json` | Templates; defaults cannot be deleted. |
 | `agent/session.ts` | `sessions.json` (debounce 250ms) | Sessions with transcript, todos, usage. Normalized once then cached. |
 | `agent/snapshot.ts` | `snapshots.json` | Per-turn before/after file contents for undo/redo, capped at 50 turns. |
 | `agent/saved-permissions.ts` | `permissions.json` | "Always allow" decisions per (project, tool). |
