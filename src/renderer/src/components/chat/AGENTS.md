@@ -12,7 +12,6 @@ pushed from main over IPC (`window.api.onChatEvent`).
 | `useChatScroll.ts` | Feed scroll controller: follow/anchored/manual modes, turn-top anchoring, jump-to-end, jump button. `chat-scroll-geometry.ts` holds the pure geometry helpers. |
 | `ChatInput.tsx` | Composer: textarea (Enter to send), paste/drop image chips (≤4, ≤5MB), `@` file-mention dropdown + chips, edit-queued flow. Memoized. |
 | `parseCommandInput.ts` | `parseCommandInput(raw)` → `{ isCommand, prefix }` for the `/`-command menu. |
-| `SessionBar.tsx` | Session list bar (create/switch/rename/delete sessions). |
 | `ToolCallCard.tsx` | Renders a tool call: input JSON, diff (for edit/apply-patch), output/error. Memoized. |
 | `MarkdownText.tsx` | Markdown rendering via `marked` + `DOMPurify.sanitize`. |
 | `DiffView.tsx` | Inline diff view for edit tool calls. |
