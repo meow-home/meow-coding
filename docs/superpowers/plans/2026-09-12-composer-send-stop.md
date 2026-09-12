@@ -1,5 +1,7 @@
 # Composer Send / Stop Button — Implementation Plan
 
+Status: implemented — merged into `feat/sessions-in-sidebar` as `00a41ff`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Turn the composer card's bottom into one row — a one-line-tall auto-growing textarea with a single square icon button at the card's right edge (Send at rest, Stop while a turn runs).
@@ -49,7 +51,7 @@ Seven tests that lock the whole design, written first and observed failing. Test
 - Consumes: nothing from the repo. The helpers below are copied from `tests/e2e/sidebar-sessions.spec.ts` (`startGatedMockLlm`, `cleanupDir`, `seedWorkspaces`, `seedMeowConfig`, `launch`, `openProject`) with the seeded session named `Alpha` in project `E2E Project`.
 - Produces: the selector contract every later task must satisfy — `.chat-input-row`, `.chat-input-send` (`aria-label` `Send` / `Save edit`, 24 × 24, inside the card at its right edge), `.chat-input-stop` (24 × 24, red), `placeholder` `Type a message... (/ for commands)` when idle and `Processing...` while running, and **no** `.chat-input-toolbar`.
 
-- [ ] **Step 1: Write the failing spec**
+- [x] **Step 1: Write the failing spec**
 
 Create `tests/e2e/composer.spec.ts`:
 
@@ -484,12 +486,12 @@ test('stop ends the turn and brings the send button back', async () => {
 })
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `npm run build && npx playwright test tests/e2e/composer.spec.ts`
 Expected: **7 failed**. The first failures are the geometry ones — `Expected: 0, Received: 1` for `.chat-input-toolbar` (still rendered) and `.chat-input-send` not found (no Send button exists yet). If instead the whole file errors before any test runs, the compile error is in this spec, not the app.
 
-- [ ] **Step 3: Commit the failing spec**
+- [x] **Step 3: Commit the failing spec**
 
 ```bash
 git add tests/e2e/composer.spec.ts
@@ -510,7 +512,7 @@ Removes the toolbar line and puts the textarea and the Stop button on one row. N
 - Consumes: nothing from Task 1 (the test is already committed).
 - Produces: `.chat-input-row` (flex, `align-items: flex-end`, `gap: 0.5rem`), a `.chat-input-field` that grows via `field-sizing: content` with `max-height: 13rem`, `overflow-y: auto`, and a `.chat-input-stop` that is a `2rem × 2rem` icon button carrying a `Square` glyph. Task 3 adds `.chat-input-send` next to the Stop rules.
 
-- [ ] **Step 1: Replace the composer CSS block**
+- [x] **Step 1: Replace the composer CSS block**
 
 In `src/renderer/src/styles.css`, replace this exact block (the `.chat-input-main` rule down to `.chat-input-stop:hover`):
 
@@ -569,7 +571,7 @@ with:
 Run: `grep -rn "chat-input-toolbar" src/ ; echo "exit=$?"`
 Expected: no output, exit 1.
 
-- [ ] **Step 2: Add the `Square` icon import**
+- [x] **Step 2: Add the `Square` icon import**
 
 In `src/renderer/src/components/chat/ChatInput.tsx`, add the import directly under the existing type import on line 3:
 
@@ -577,7 +579,7 @@ In `src/renderer/src/components/chat/ChatInput.tsx`, add the import directly und
 import { Square } from 'lucide-react'
 ```
 
-- [ ] **Step 3: Replace the toolbar with a row around the textarea**
+- [x] **Step 3: Replace the toolbar with a row around the textarea**
 
 Two edits in the same file. First, open the row — the textarea's opening tag plus its `placeholder` and `rows` currently reads:
 
@@ -655,24 +657,24 @@ Verify the JSX balances:
 Run: `npm run typecheck`
 Expected: exit 0. A stray `</div>` fails here as `TS17008: JSX element 'div' has no corresponding closing tag` or `TS1382`.
 
-- [ ] **Step 4: Run the tests this task must flip green**
+- [x] **Step 4: Run the tests this task must flip green**
 
 Run: `npm run build && npx playwright test tests/e2e/composer.spec.ts -g "grows with the text|Enter sends|button becomes stop"`
 Expected: **3 passed**. These are the growth/cap/shrink test, the Enter/Shift+Enter test, and the running/queue test.
 
-- [ ] **Step 5: Confirm the Send tests are still red, for the right reason**
+- [x] **Step 5: Confirm the Send tests are still red, for the right reason**
 
 Run: `npx playwright test tests/e2e/composer.spec.ts -g "one line tall|send submits|save button|brings the send button back"`
 Expected: **4 failed**, each because `.chat-input-send` is not found (the Send button is Task 3), not because of geometry — read one failure's output to confirm.
 
 If the geometry test (`.chat-input-send` aside) shows a card height mismatch, stop: the `field-sizing` route is not holding and the spec's `autoGrow` fallback is needed. Read the failure before continuing — the fallback changes Task 3's shape.
 
-- [ ] **Step 6: Check the neighbouring composer consumers**
+- [x] **Step 6: Check the neighbouring composer consumers**
 
 Run: `npx playwright test tests/e2e/smoke.spec.ts tests/e2e/prompt.spec.ts tests/e2e/context-footer.spec.ts`
 Expected: all pass. `smoke.spec.ts` sends through the composer, `prompt.spec.ts` asserts the prompt sits inside `.chat-input`, `context-footer.spec.ts` sends real turns.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git status --short
@@ -699,7 +701,7 @@ Adds the Send button in the same slot as Stop, and the `hasText` flag that drive
 - Consumes: Task 2's `.chat-input-row` and the shared square-button geometry.
 - Produces: `.chat-input-send` — `2rem × 2rem`, `--accent`, `--accent-dim` + `--text-faint` when `:disabled`, `aria-label` `Send` (or `Save edit` while `editTarget` is set), which calls the existing `submit()`. And the `hasText` boolean, whose invariant is "true iff the trimmed field value is non-empty".
 
-- [ ] **Step 1: Add the icon and the state**
+- [x] **Step 1: Add the icon and the state**
 
 Extend the lucide import from Task 2:
 
@@ -716,7 +718,7 @@ Add the state next to the other `useState` calls (after `const [mentions, setMen
   const [hasText, setHasText] = useState(false)
 ```
 
-- [ ] **Step 2: Keep the flag true through every programmatic write**
+- [x] **Step 2: Keep the flag true through every programmatic write**
 
 Programmatic `field.value` writes do not fire `onInput`, so each site that sets the value must set the flag too. Apply all five:
 
@@ -763,7 +765,7 @@ In `removeMention`, after the `field.value = field.value.replace(...)` line, ins
     setHasText(field.value.trim().length > 0)
 ```
 
-- [ ] **Step 3: Render the Send button in the row**
+- [x] **Step 3: Render the Send button in the row**
 
 Add `showSend` / `showStop` next to the `filtered` memo (the button slot must render exactly one of them):
 
@@ -798,7 +800,7 @@ Then, in the row, replace the `{running && (...)}` Stop block from Task 2 with b
 
 `onMouseDown={e => e.preventDefault()}` keeps the caret in the field when the button is pressed, so clicking Send never blurs the composer.
 
-- [ ] **Step 4: Style the Send button**
+- [x] **Step 4: Style the Send button**
 
 In `src/renderer/src/styles.css`, replace the `.chat-input-stop` geometry rule written in Task 2:
 
@@ -829,17 +831,17 @@ with the shared rule plus the two colour sets:
 
 Leave `.chat-input-stop:hover { background: #ff7479; }` (written in Task 2) in place, directly after.
 
-- [ ] **Step 5: Run the whole composer spec**
+- [x] **Step 5: Run the whole composer spec**
 
 Run: `npm run build && npx playwright test tests/e2e/composer.spec.ts`
 Expected: **7 passed**. Test 1 (`one line tall`) is the one that proves the button is inside the frame at the right edge and centred on the single line; test 2 is the one that proves the field both grows *and* shrinks back.
 
-- [ ] **Step 6: Verify the surrounding specs**
+- [x] **Step 6: Verify the surrounding specs**
 
 Run: `npx playwright test`
 Expected: all pass. If `menus.spec.ts` or `context-footer.spec.ts` fails, check whether the shared checkout carries foreign uncommitted edits to `src/renderer/src/styles.css` (`git diff src/renderer/src/styles.css`) before attributing the failure to this task.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git status --short
@@ -868,7 +870,7 @@ Five prose places describe the old composer (Enter-only, no button) or the old t
 - Consumes: the final class names and behaviour from Tasks 2-3.
 - Produces: nothing importable.
 
-- [ ] **Step 1: Update the `ChatInput.tsx` row in the UI guide**
+- [x] **Step 1: Update the `ChatInput.tsx` row in the UI guide**
 
 `docs/reference/09-ui-guide.md` line 94 currently reads:
 
@@ -878,11 +880,11 @@ Five prose places describe the old composer (Enter-only, no button) or the old t
 
 Replace it with a row that names the new shape: the composer card's bottom is one row (`chat-input-row`) holding the auto-growing field (`rows=1`, `field-sizing: content`, capped at 8 lines then scrolling) and a single `24 × 24` square button at the card's trailing edge — Send at rest (disabled while the field is empty), Stop while a turn runs, Send again while a queued message is edited; placeholder `Type a message... (/ for commands)`, or `Processing...` while running. Keep the existing clauses (`Enter to send` becomes "Enter sends, Shift+Enter inserts a newline"), the image-chip limits, the `@`-mention dropdown, the `/` command menu, the edit-queued flow, and `Memoized, **uncontrolled**`.
 
-- [ ] **Step 2: Update the `ChatPanel.tsx` row**
+- [x] **Step 2: Update the `ChatPanel.tsx` row**
 
 `docs/reference/09-ui-guide.md` line 93 describes "The composer's bottom row (`chat-footer`)". That is still true, but it now sits under a composer card whose own bottom is the input row. Extend the sentence so the two rows are distinguishable: the input row is inside the card, the `chat-footer` row is below it. Do not restate the whole row description — change only what is now incomplete or wrong.
 
-- [ ] **Step 3: Add the spec to the e2e inventory**
+- [x] **Step 3: Add the spec to the e2e inventory**
 
 `docs/reference/09-ui-guide.md` lines 268-270 list the Playwright specs:
 
@@ -900,14 +902,14 @@ That list is already missing `selectors.spec.ts` and `menus.spec.ts` (both exist
   `chat-scrollbar.spec.ts`, `sidebar-sessions.spec.ts`, `selectors.spec.ts`, `menus.spec.ts`
 ```
 
-- [ ] **Step 4: Check the product overview for a stale composer claim**
+- [x] **Step 4: Check the product overview for a stale composer claim**
 
 `docs/reference/01-product-overview.md` was checked while writing this plan: its capability table has **no** row describing how a message is submitted (the composer appears only inside the `@`-mentions and Images rows, both of which stay true), so it should need no edit. Verify rather than assume:
 
 Run: `grep -n "Enter\|Send\|composer" docs/reference/01-product-overview.md`
 Expected: only the `@`-mentions and Images rows ("`@path` in the composer…", "Paste/drop … into the composer…"). If an Enter-only or "no send button" claim appears, fix that sentence and add the file to the commit; if not, this file stays untouched — do not invent a new table row for a button.
 
-- [ ] **Step 5: Update the chat module's AGENTS.md**
+- [x] **Step 5: Update the chat module's AGENTS.md**
 
 `src/renderer/src/components/chat/AGENTS.md` line 13 reads:
 
@@ -917,16 +919,16 @@ Expected: only the `@`-mentions and Images rows ("`@path` in the composer…", "
 
 Update only this row, in the same style as Step 1: the one-row card, the auto-growing field, and the Send/Stop/`Save edit` button slot. Leave every other row and the Conventions section untouched.
 
-- [ ] **Step 6: Add the row to tests/e2e/AGENTS.md**
+- [x] **Step 6: Add the row to tests/e2e/AGENTS.md**
 
 In the key-files table of `tests/e2e/AGENTS.md`, add a row for `composer.spec.ts` in the same format as its neighbours, naming what it locks: the card's one-line rest height with the button inside its right edge and centred on the text line; growth to the 8-line cap, scrolling past it, and shrinking back; Send disabled/enabled/click; Enter vs Shift+Enter; the running state (Stop, `Processing...`, Enter still queues); editing a queued message while running (Save edit only); and Stop ending the turn. Also mention (as its neighbours do) that it copies `sidebar-sessions.spec.ts`'s gated mock LLM, which holds the response open so the running state is real rather than raced.
 
-- [ ] **Step 7: Verify no stale composer description survives**
+- [x] **Step 7: Verify no stale composer description survives**
 
 Run: `grep -rn "Message Meow" docs/ src/ tests/ ; echo "exit=$?"`
 Expected: no output (exit 1) — the old placeholder is gone from code and docs. Hits inside `docs/superpowers/specs/` or `plans/` that quote the old placeholder as history are acceptable; a hit in `src/` is a miss.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git status --short
@@ -944,27 +946,27 @@ git commit -m "docs: sync the one-row composer, its send/stop button and the new
 - Consumes: every prior task.
 - Produces: nothing.
 
-- [ ] **Step 1: Typecheck and unit suite**
+- [x] **Step 1: Typecheck and unit suite**
 
 Run: `npm run typecheck && npm test`
 Expected: typecheck exit 0; Vitest all passing.
 
-- [ ] **Step 2: Full e2e suite**
+- [x] **Step 2: Full e2e suite**
 
 Run: `npm run build && npx playwright test`
 Expected: all pass.
 
-- [ ] **Step 3: Confirm the composer spec is not flaky**
+- [x] **Step 3: Confirm the composer spec is not flaky**
 
 Run: `for i in 1 2 3 4 5; do npx playwright test tests/e2e/composer.spec.ts 2>&1 | grep -E "[0-9]+ passed|[0-9]+ failed"; done`
 Expected: 5 × `7 passed`. The height polls (`expect.poll`) and the turn-completion waits are the parts most likely to be timing-sensitive; a single flake here means a wait needs a real condition, not a longer timeout.
 
-- [ ] **Step 4: Confirm only intended paths are committed**
+- [x] **Step 4: Confirm only intended paths are committed**
 
 Run: `git status --short && git log --oneline -8`
 Expected: no file this plan touched is still dirty. Other dirty/uncommitted paths belong to the parallel session — leave them alone.
 
-- [ ] **Step 5: Record the visual result for the record**
+- [x] **Step 5: Record the visual result for the record**
 
 Run: `npx playwright test tests/e2e/composer.spec.ts --grep "one line tall"`
 
