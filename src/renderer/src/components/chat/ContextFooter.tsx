@@ -10,8 +10,8 @@ interface Props {
 }
 
 // Ring geometry — kept in sync with .context-ring in styles.css.
-const SIZE = 20
-const STROKE = 2.5
+const SIZE = 16
+const STROKE = 2
 const R = (SIZE - STROKE) / 2
 const C = 2 * Math.PI * R
 

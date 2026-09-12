@@ -1006,7 +1006,7 @@ select.input { width: 100%; }
   position: absolute; bottom: calc(100% + 0.5rem); right: 0; left: auto; z-index: 100;
   display: none; width: max-content; min-width: 18rem; padding: 0.666667rem 0.833333rem;
   flex-direction: column; gap: 0.5rem;
-  background: var(--bg-raised); border: 0.083333rem solid var(--hairline); border-radius: var(--radius);
+  background: var(--bg-chat); border: 0.083333rem solid var(--hairline); border-radius: var(--menu-radius);
   box-shadow: var(--shadow-3); font-family: var(--font-mono); font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums;
 }
