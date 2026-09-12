@@ -7,7 +7,7 @@ React renderer (no direct Node/Electron access).
 - `index.html` + `src/main.tsx` — entry; render `<App>`; if `window.api` is missing, show a guidance
   fallback (preload not loaded). `main.tsx` also patches `console.log/info/warn/error` to forward
   each call to the system logger via `window.api.writeSystemLog` (no-op when `window.api` is missing).
-- `src/App.tsx` — state hub: workspaces, templates, the mounted `WorkspaceRuntime` per kept-alive
+- `src/App.tsx` — state hub: workspaces, the mounted `WorkspaceRuntime` per kept-alive
   project; defines `PaneModel` (agent + state + git) for each pane; owns the active session per
   project path (`activeSessionByPath`, persisted to localStorage `meow.activeSessionByPath`) so
   switching workspaces restores the previously active session. Also tracks `needsInput`
@@ -30,7 +30,7 @@ React renderer (no direct Node/Electron access).
   renderer — including the Git viewer and FileViewer popup windows (separate BrowserWindows) — so
   they inherit the theme from the main window automatically.
 - `src/font.ts` — shared font-size helpers: `applyFontSize` (set `font-size` on `<html>`/`<body>`,
-  default 14, range 8-40px, dispatches a `meow:fontsize` CustomEvent) and `watchFontSize` (re-apply
+  default 14, range 8-40px) and `watchFontSize` (re-apply
   on `storage` events). `main.tsx` calls both for EVERY renderer (main window + Git viewer +
   FileViewer popups) so they inherit the persisted font size.
 

@@ -1,9 +1,8 @@
 # Meow Coding
 
-**Meow Coding** is a desktop app for running multiple CLI coding agents side by side — opencode,
-Claude Code, aider, and any other CLI agent you put on `PATH` — in parallel terminal panes inside a
-single window. It also ships a built-in **native "Meow" agent** with its own chat UI, tool registry,
-sessions, permissions, and skill system.
+**Meow Coding** is a desktop app for running a built-in **native "Meow" agent** across multiple coding
+**sessions** side by side — each session its own chat, in its own pane — inside a single window. The
+agent ships with a chat UI, tool registry, permissions, and skill system.
 
 <p align="center">
   <img src="media/meow-app-screen-light-mode.png" alt="Meow Coding — multiple CLI coding agents in parallel panes (light mode)" width="720">
@@ -15,8 +14,8 @@ sessions, permissions, and skill system.
 
 ## Highlights
 
-- **Multi-agent panes** — spawn several CLI coding agents in one window, each in its own terminal
-  pane. Stop / restart / inject / zoom per pane; process trees are killed on exit (no orphans).
+- **Parallel sessions** — run several coding sessions in one window, each in its own pane, and switch
+  between them from the sidebar. A session you are not looking at stays mounted and keeps running.
 - **Native Meow agent** — a first-party coding agent with chat UI, streaming output, markdown
   rendering, tool-call cards, image attachments, and undo/redo.
 - **Slash commands** — `/init`, `/review`, `/new`, `/frontend-design`, and Superpowers workflows
@@ -25,8 +24,8 @@ sessions, permissions, and skill system.
 - **Bundled skills** — 19 skills loadable by the agent: 14 Superpowers workflow skills and 5
   Anthropic front-end/design skills (`frontend-design`, `canvas-design`, `theme-factory`,
   `brand-guidelines`, `web-artifacts-builder`).
-- **Sessions** — create / switch / rename / delete conversations per agent, with auto-title and
-  per-session undo/redo through file snapshots.
+- **Sessions** — create / switch / rename / delete conversations from the sidebar, with auto-title
+  and per-session undo/redo through file snapshots.
 - **MCP & LSP** — stdio and HTTP MCP servers, plus language-server diagnostics surfaced in the
   agent's edit tools.
 - **Cost tracking** — token and dollar usage per session and per model via the models.dev catalog.
@@ -63,10 +62,9 @@ Meow Coding is built on open-source technology and openly credits its design inf
 ### Workspaces & panes
 
 - Add git project folders as workspaces (persisted in `userData/workspaces.json`).
-- Launch agents from templates — defaults for **meow** (native), **opencode**, **claude code**,
-  and **aider**; add your own custom launch templates.
+- Every project starts with a native **meow** session; add more with the sidebar `+`.
 - Per-pane status badge shows agent state, git branch, and dirty-file count.
-- Zoom a pane to full window; agents can run in the background.
+- Agents can run in the background.
 
 ### Native agent
 
@@ -105,9 +103,9 @@ Meow Coding is built on open-source technology and openly credits its design inf
 
 - Frameless custom title bar (min / max / close) with lucide-react icons.
 - Light & dark themes (VSCode Light+ / Studio Dark palettes) with a Sun/Moon toggle in the sidebar;
-  popups and terminal colors re-theme live, and the choice persists across restarts.
-- Settings dialog covering connections, providers, agents, permissions, MCP, context, commands,
-  templates, and remote control.
+  popups re-theme live, and the choice persists across restarts.
+- Settings dialog covering connections, providers, agents, permissions, MCP, context, commands, and
+  remote control.
 - Idle/exit alert notifications; per-agent logs written to `userData/logs/<agentId>.log`.
 
 ### Right panel (explorer & artifacts)
@@ -116,7 +114,7 @@ Meow Coding is built on open-source technology and openly credits its design inf
   refreshes in the background when the project changes. Expanded folders and scroll position
   survive switching between the Tree and Artifacts tabs.
 - **Artifacts** — lists only the `.md` files agents created or edited (via write/edit/apply-patch
-  tools, or file-watcher attribution for external CLI agents). Spurious watcher events — reads,
+  tools, or file-watcher attribution). Spurious watcher events — reads,
   AV scans, indexer touches — are filtered out by comparing `(mtime, size)` against a baseline, so
   files an agent merely read never appear.
 - Resizable panel with a fixed header; both tabs stay mounted for instant switching.
@@ -135,10 +133,10 @@ companion pieces:
 
 - **`src/main`** — Electron main process: PTY management, stores, services, IPC handlers, and app
   lifecycle. The only place that spawns/kills processes. Also hosts the Chrome browser bridge
-  (`src/main/browser`) and the file watcher that attributes external agent edits to artifacts.
+  (`src/main/browser`) and the file watcher that attributes agent edits to artifacts.
 - **`src/preload`** — context bridge exposing a typed `window.api` (implements `AgentApi`).
-- **`src/renderer`** — React UI: sidebar, pane grid, terminal, native-agent chat panel, and the
-  right-panel explorer/artifacts.
+- **`src/renderer`** — React UI: sidebar with per-project session rows, session panes with the
+  native-agent chat panel, and the right-panel explorer/artifacts.
 - **`src/shared`** — shared types and the IPC contract (`Channels` + `AgentApi`); no Node/Electron
   imports here.
 - **`src/browser-extension`** — Chrome MV3 extension (built separately with esbuild) that pairs
@@ -155,7 +153,7 @@ Electron directly.
 
 - Node.js 20+
 - Git
-- The CLI agents you want to run available on `PATH` (e.g. `opencode`, `claude`, `aider`)
+- A provider API key (Anthropic, or any OpenAI-compatible endpoint), or a Codex account to connect
 
 ## Development
 
@@ -192,8 +190,8 @@ npm run build && npm run e2e # Playwright smoke test
 ## Notes
 
 - Quitting the app kills every running agent, including child processes (tree-kill).
-- Persistent data lives under `userData/`: templates, workspaces, sessions, logs, commands,
-  permissions, and snapshots.
+- Persistent data lives under `userData/`: workspaces, sessions, logs, commands, permissions, and
+  snapshots.
 - Bundled skill assets (Anthropic skills) are Apache-2.0 and ship with their original license files
   under `resources/skills/`.
 - The browser bridge binds `127.0.0.1` only and requires a pairing code before accepting commands;

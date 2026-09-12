@@ -140,6 +140,10 @@ and the tsconfigs.
 
 ## 2.5 Data flow: a PTY agent
 
+The PTY runtime is **parked**: `pty-manager.ts`, the `Pty*` channels and `@lydell/node-pty` still
+ship, but the UI no longer creates `pty` agents (removing it is a separate, deferred plan), so the
+flow below is reachable only from the legacy IPC surface.
+
 ```
 renderer: injectPrompt(agentId, text)
    → window.api.injectPrompt(agentId, text)        [Channels.PtyInject]

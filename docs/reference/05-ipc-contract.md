@@ -80,6 +80,7 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 |---|---|---|
 | `AgentAdd` | `agent:add` | `addAgent(projectPath, input: NewAgentInput): WorkspaceRuntime` |
 | `AgentRemove` | `agent:remove` | `removeAgent(projectPath, agentId)` |
+| `AgentRename` | `agent:rename` | `renameAgent(projectPath, agentId, name)` — renames the session (the UI term for the agent) |
 | `AgentSetMode` | `agent:set-mode` | `setAgentMode(agentId, 'build' \| 'plan')` |
 | `AgentSetVariant` | `agent:set-variant` | `setAgentVariant(agentId, variant \| null)` |
 | `AgentGetVariants` | `agent:get-variants` | `getAgentVariants(agentId): string[]` |
@@ -181,7 +182,7 @@ captured in preload).
 | `EventBrowserOpenInstallGuide` | `browser:install-guide` | `BrowserInstallGuideEvent { extensionDir }` | `onBrowserOpenInstallGuide` |
 | `EventRemoteStatus` | `remote:status` | `RemoteStatus` | `onRemoteStatus` |
 | `EventPromptState` | `prompt:state-changed` | `PromptStateEvent { projectPath, agentId, pending }` — fires when an agent starts (`pending: true`) or stops (`pending: false`) waiting on user input | `onPromptState` |
-| `EventActivateAgent` | `agent:activate` | `ActivateAgentEvent { projectPath, agentId }` — sent when the user clicks an OS notification; the renderer opens that workspace and activates the agent's tab | `onActivateAgent` |
+| `EventActivateAgent` | `agent:activate` | `ActivateAgentEvent { projectPath, agentId }` — sent when the user clicks an OS notification; the renderer opens that workspace and activates the agent's session | `onActivateAgent` |
 | `EventUpdaterStatus` | `updater:status` | `UpdaterStatusEvent` | `onUpdaterStatus` |
 | `EventWindowMaximizedChange` | `window:maximized-change` | `{ maximized }` | `onWindowMaximizedChange` |
 

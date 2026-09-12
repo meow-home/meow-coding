@@ -16,7 +16,7 @@ handlers and the app lifecycle.
   them via `getPendingPrompt` instead of leaving the agent waiting forever. Emits `onPromptStateChange`
   (agent started/stopped waiting on input) and exposes `listPendingPrompts()` for the sidebar "needs input"
   badges; notification clicks call `onActivateAgent(agentId)` so the renderer can jump to the agent's
-  project + tab.
+  project + session.
 - `pty-manager.ts` — node-pty wrapper, emits `data`/`exit` events. `buildSpawnCommand` wraps non-`.exe`
   commands through `cmd.exe` on Windows (ConPTY cannot spawn `.cmd` shims directly). Uses `tree-kill`
   to kill the entire process tree on stop.
@@ -29,7 +29,7 @@ handlers and the app lifecycle.
 - `notification-service.ts` — native Electron `Notification` for events that need input/done. Throttles
   per (agent × `kind`) — a fresh "needs input" is never suppressed by a recent "done" for the same agent.
   The "Input needed" notification click is wired in `index.ts` (`onActivateAgent`) to focus the window and
-  send `Channels.EventActivateAgent` so the renderer navigates to the waiting agent's project + tab.
+  send `Channels.EventActivateAgent` so the renderer navigates to the waiting agent's project + session.
 - `file-suggest.ts` — file suggestions for `@`-mentions (deep search across the entire project tree, ignores
   node_modules/.git/out/dist).
 - `file-watcher.ts` — recursively watches the project, filters text files, batches changes (debounce 500ms).

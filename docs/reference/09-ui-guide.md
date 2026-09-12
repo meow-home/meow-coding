@@ -39,7 +39,7 @@ Overlays: `SettingsDialog` (full-screen tabbed), `AddProjectDialog`,
 
 ## 9.3 `App.tsx` — the state hub
 
-Owns: workspaces, templates, the mounted `WorkspaceRuntime`s (one per kept-alive project),
+Owns: workspaces, the mounted `WorkspaceRuntime`s (one per kept-alive project),
 background flags, browser status, update status, right-panel state, artifacts, and the active
 session per project (`activeSessionByPath`).
 
@@ -127,7 +127,6 @@ normalized settings).
 | `McpTab` | MCP server configs + connection status |
 | `ContextTab` | Basic: max steps, auto-compact, MCP output max tokens. Advanced (collapsible): buffer / keepTokens / tailTurns / toolOutputMaxChars / maxBytes / maxLines + Notifications. **Empty optional fields mean auto**, and the placeholder shows the auto value for the active agent |
 | `CommandsTab` | Slash-command editor ("+ Add command" in the header) |
-| `TemplatesTab` | Agent template CRUD |
 | `UpdatesTab` | Update channel, check, install |
 | `RemoteTab` | Remote control enable, relay URL, pairing, revoke |
 | `Modal.tsx` | Reusable modal shell |
@@ -190,8 +189,7 @@ string edits fail. Edit them with a script (e.g. python) if the edit tool cannot
 - `watchTheme()` listens for `storage` events, which fire across same-origin windows — this is how
   the Git viewer and File viewer popups re-theme when the main window toggles.
 - App-wide font size persists in `localStorage` under `meow.fontSize` (default 14, range 8–40px,
-  integer). `applyFontSize()` in `font.ts` sets `font-size` on `<html>`/`<body>` and dispatches a
-  `meow:fontsize` CustomEvent for same-window listeners that must re-layout; `watchFontSize()`
+  integer). `applyFontSize()` in `font.ts` sets `font-size` on `<html>`/`<body>`; `watchFontSize()`
   re-applies on `storage` events across same-origin popups. The control lives in the
   Settings → Personalize tab.
 

@@ -9,8 +9,9 @@ windows, six sets of logs, and no shared view of what changed.
 
 **Meow Coding** solves that by making the agent the unit of work instead of the terminal:
 
-1. **A single window hosting many agents.** Each agent occupies a pane. Panes can be started,
-   stopped, restarted, injected with a prompt, zoomed to full window, or pushed to the background.
+1. **A single window hosting many sessions.** Each session occupies a pane; create, rename, stop or
+   delete one from its sidebar row, or push it to the background. Every session stays mounted, so the
+   ones you are not looking at keep running.
 2. **A first-party agent that is not a black box.** Because most CLI agents cannot be instrumented,
    Meow ships its **native "Meow" agent**: the same class of coding agent, but implemented in-app so
    its transcript, tool calls, permissions, cost, context usage and file edits are all visible and
@@ -22,7 +23,7 @@ windows, six sets of logs, and no shared view of what changed.
 
 | User | What they do with it |
 |---|---|
-| Solo developer | Runs the native Meow agent on one project; occasionally opens a second pane with `opencode` for comparison |
+| Solo developer | Runs the native Meow agent on one project; occasionally keeps a second session running in parallel |
 | Multi-project developer | Keeps several workspaces; switches between them; leaves background agents working |
 | Agent power user | Configures providers, model variants, permissions, MCP servers, custom slash commands, custom subagent roles and custom tools |
 | Team lead / reviewer | Uses plan mode, the `/review` command and the `reviewer` subagent for read-only analysis |
@@ -38,7 +39,7 @@ straight to the code.
 |---|---|---|
 | Add workspace | Pick a folder; persisted in `userData/workspaces.json`; a native `meow` agent is auto-created if the workspace has none | `src/main/workspace-store.ts`, `Channels.WorkspaceAdd` |
 | Open workspace | Registers native agents synchronously (so chat mounts instantly), then loads tools/MCP off the critical path | `MainApp.openWorkspace` / `prepareWorkspace` |
-| Pane grid | 1–2 columns; click a pane to zoom full window, `Esc` to exit | `PaneGrid.tsx` |
+| Session panes | Every session of the active project has a pane and stays mounted; the selected one is shown (inactive ones are hidden, never unmounted) | `SessionPanes.tsx` |
 | Pane status | Status dot (spawning/running/idle/exited/stopped/error), git branch, dirty-file count | `PaneHeader.tsx`, `git-status-service.ts` |
 | Background agents | An agent can be moved out of the grid and keeps running; listed in a background panel | `Channels.AgentSetBackground`, `BackgroundPanel.tsx` |
 | Idle / exit alerts | Idle alert after 5 minutes without output; exit alert classified by exit code | `alert-service.ts` |
@@ -81,7 +82,7 @@ straight to the code.
 | Capability | Behavior | Implementation |
 |---|---|---|
 | Directory tree | Lazy-loaded on expand, ignores `node_modules`/`.git`/`out`/`dist`/…, expansion state survives tab switches | `RightPanelTree.tsx`, `dir-lister.ts` |
-| Artifacts | Lists `.md` files agents created/edited; external CLI agents are attributed via a file watcher that filters spurious events by comparing `(mtime, size)` | `artifact-store.ts`, `file-watcher.ts` |
+| Artifacts | Lists `.md` files agents created/edited; the file watcher filters spurious events by comparing `(mtime, size)` | `artifact-store.ts`, `file-watcher.ts` |
 | Git viewer | Separate window: changes, diff, history, blame, branch switcher, stash/discard | `git-viewer.ts`, `components/git/` |
 | File viewer | Separate window with syntax highlighting; binaries open with the system app | `file-viewer.ts`, `FileViewer.tsx` |
 
@@ -101,8 +102,7 @@ straight to the code.
 | Term | Meaning |
 |---|---|
 | **Workspace** | A git project folder registered in the app, with a list of agents. Persisted in `workspaces.json`. |
-| **Agent** | A configured worker inside a workspace. Two kinds: `pty` (an external CLI process) and `native` (the in-app Meow agent). |
-| **Template** | A named launch recipe (`command` + `args` + `kind`) used to create agents. |
+| **Agent** | A configured worker inside a workspace, backing exactly one session. `native` (the in-app Meow agent) is the only kind the UI creates; the legacy `pty` kind remains in the `AgentKind` type and its runtime still ships, parked. |
 | **Pane** | The UI slot rendering one session — its `PaneHeader` plus the `ChatPanel`. One pane exists per session of the active project; the ones not selected are hidden, not unmounted. |
 | **Session** | The unit of work the UI shows: one chat, listed per project in the sidebar and rendered in its pane. One session per agent — creating a session adds an agent. |
 | **Transcript item** | The persisted unit of a session: either a `message` (user/assistant) or a `tool` (a tool call with input/output/permission). It is the single source of truth for what the LLM sees. |

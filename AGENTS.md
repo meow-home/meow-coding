@@ -1,12 +1,16 @@
 # AGENTS.md
 
-Meow Coding — desktop app (Electron + React) that manages multiple CLI coding agents (opencode, Claude Code,
-aider, ...) running in parallel across terminal panes within a single window.
+Meow Coding — desktop app (Electron + React) built around a single native "meow" coding agent. The
+parallel unit is a **session** (the UI term): one chat per session, listed per project in the sidebar
+and rendered in its pane, with only the selected session shown while the others keep running. Sessions
+are backed by the internal `agent` runtime — the backend keeps the identifier `agent`, the UI
+vocabulary is "session".
 
 ## Technology
 
 - Electron 41 + electron-vite 5 + React 19 + TypeScript (strict).
-- PTY: `@lydell/node-pty`; terminal UI: `@xterm/xterm` + `@xterm/addon-fit`.
+- PTY: `@lydell/node-pty` (runtime parked, still shipped); terminal UI: `@xterm/xterm` +
+  `@xterm/addon-fit` — declared but unused by `src/` (the in-app terminals were removed).
 - Test: Vitest (unit + integration), Playwright (e2e).
 
 ## Structure
@@ -15,7 +19,7 @@ aider, ...) running in parallel across terminal panes within a single window.
 
 - `src/main` — main process: PTY, stores, services, IPC handlers, app lifecycle.
 - `src/preload` — contextBridge, expose `window.api` (implement `AgentApi`).
-- `src/renderer` — React UI: sidebar, pane grid, xterm + native-agent chat.
+- `src/renderer` — React UI: sidebar with per-project session rows, session panes + native-agent chat.
 - `src/shared` — shared types + IPC contract. **DO NOT** import Node/Electron here.
 - `src/browser-extension` — Chrome MV3 extension (built separately with esbuild → `out/browser-extension`,
   copy to `userData/browser-extension/` to Load unpacked on a real Chrome profile).
@@ -45,8 +49,10 @@ Alias `@shared` → `src/shared` (configured in electron.vite.config.ts, vitest.
 ## Conventions
 
 - IPC: **do not hardcode** channel strings; only use `Channels` from `src/shared/ipc.ts`.
-- Persistent data: `userData/templates.json`, `userData/workspaces.json`; per-agent logs in
-  `userData/logs/<agentId>.log`.
+- Persistent data: `userData/workspaces.json`; per-agent logs in `userData/logs/<agentId>.log`.
+- The native "meow" agent is the only agent kind the UI creates; in-app terminals (xterm panes) and the
+  CLI/template agent system were removed. The parked PTY runtime (`src/main/pty-manager.ts`, the `Pty*`
+  IPC channels, `@lydell/node-pty`) still ships — its removal is a separate, deferred plan.
 - Only the main process may spawn/kill processes; the renderer accesses everything via `window.api`.
 - Security: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: false`. Do not expose
   `ipcRenderer` to the window.

@@ -265,6 +265,8 @@ Everything else: $ARGUMENTS
 | `meow.rightpanel.open` | `'1'` / `'0'` |
 | `meow.rightpanel.tab` | `'tree'` / `'artifacts'` |
 | `meow.rightpanel.width` | number, clamped to 240–600 |
+| `meow.sidebar.expanded` | JSON map of project path → expanded (bool) |
+| `meow.activeSessionByPath` | JSON map of project path → active session id |
 
 `src/renderer/src/theme.ts` exposes `applyTheme()` and `watchTheme()`; `main.tsx` calls both for
 *every* renderer entry point — including the Git viewer and File viewer popup windows — so popups
