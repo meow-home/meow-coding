@@ -1498,10 +1498,10 @@ select.input { width: 100%; }
 .session-row.active { background: var(--bg-hover); color: var(--text); }
 .session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); }
 
-/* Status glyph: idle = hollow ring; running/waiting = solid + glow */
+/* Status glyph: idle = hollow ring; running/waiting = solid fill */
 .session-dot { width: 0.75rem; height: 0.75rem; margin-left: 0.666667rem; border-radius: 50%; flex: 0 0 auto; box-sizing: border-box; border: 0.125rem solid var(--text-faint); background: transparent; }
-.session-dot.session-status-running { border-color: var(--green); background: var(--green); box-shadow: 0 0 0.583333rem rgba(74, 222, 159, 0.45); }
-.session-dot.session-status-waiting { border-color: var(--yellow); background: var(--yellow); box-shadow: 0 0 0.583333rem rgba(255, 180, 84, 0.4); }
+.session-dot.session-status-running { border-color: var(--green); background: var(--green); }
+.session-dot.session-status-waiting { border-color: var(--yellow); background: var(--yellow); }
 .session-dot.session-status-idle { border-color: var(--text-faint); background: transparent; }
 
 /* Session menu button: hidden until hover / active */
