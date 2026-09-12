@@ -110,19 +110,27 @@ Pure rename, no behaviour change: 7 occurrences in `styles.css`, 3 in `Sidebar.t
 
 - [ ] **Step 1: Rename in styles.css**
 
-Run:
+Rename every occurrence in the file (a script in `tmp-rename.py`, because the
+nested heredoc/quotes in a one-liner are easy to get wrong):
 
-```bash
-cd /e/Git/GitHub/meow-coding && python - <<'PYEOF'
+```python
 import io
 p = 'src/renderer/src/styles.css'
 s = io.open(p, encoding='utf-8', newline='').read()
 n = s.count('sidebar-icon-btn')
-assert n == 7, f'expected 7 occurrences, found {n}'
+assert n > 0, 'nothing to rename — wrong file?'
 io.open(p, 'w', encoding='utf-8', newline='').write(s.replace('sidebar-icon-btn', 'icon-btn'))
 print(f'renamed {n} occurrences in styles.css')
-PYEOF
 ```
+
+At plan-writing time the working tree held **7** occurrences: 6 in committed code
+plus one in the PARALLEL SESSION's uncommitted `.add-dropdown` comment
+(`the project/session row ... menu (.sidebar-icon-btn), caret hidden.`). That
+comment sits inside a 16-line added block that git cannot split, so staging it
+would drag their half-finished composer button change into this commit. It is
+text in their hunk, so it renames along with the rest of the file in the working
+tree — but it must NOT be staged here. See Step 6, which stages by path and
+leaves any `.add-dropdown` hunk unstaged.
 
 - [ ] **Step 2: Update the class comment**
 
@@ -156,7 +164,9 @@ PYEOF
 - [ ] **Step 4: Verify no stale reference remains**
 
 Run: `grep -rn "sidebar-icon-btn" src/ ; echo "exit=$?"`
-Expected: **no output** (grep exits 1). Any hit is a missed occurrence — fix it before continuing. Note `docs/reference/09-ui-guide.md` and `src/renderer/AGENTS.md` still name the old class; Task 5 owns those.
+Expected: **no output** (grep exits 1). Any hit is a missed occurrence — fix it
+before continuing. Note `docs/reference/09-ui-guide.md` and
+`src/renderer/AGENTS.md` still name the old class; Task 5 owns those.
 
 - [ ] **Step 5: Verify typecheck, build, and that the sidebar still renders**
 
@@ -168,15 +178,33 @@ Expected: the pre-existing tests pass — in particular `sidebar icon buttons ar
 
 - [ ] **Step 6: Commit**
 
-Stage only these two paths — both carry foreign edits elsewhere in the file:
+Stage only these two paths, and only the hunks that are yours — both files carry
+foreign edits elsewhere (see the plan's Global Constraints):
 
 ```bash
-git add src/renderer/src/styles.css src/renderer/src/components/Sidebar.tsx
+git add src/renderer/src/components/Sidebar.tsx
+git add -p src/renderer/src/styles.css   # take only the .sidebar-icon-btn -> .icon-btn hunks
+git diff --cached --stat
 git commit -m "refactor(css): rename .sidebar-icon-btn to .icon-btn
 
 It is no longer sidebar-scoped: the pane header's ... button shares it next.
 Pure rename, no behaviour change."
 ```
+
+**Watch for the foreign hunk.** The parallel session's `.add-dropdown` block
+contains a `.sidebar-icon-btn` mention in its comment. Because the rename runs
+over the whole file, that comment now also says `.icon-btn` in the working tree
+— and its containing hunk is one added block that `git add -p` cannot split. If
+a foreign hunk is the ONLY thing carrying a rename, drop it: the working tree
+stays renamed regardless, and their commit will agree with the new name. Verify
+afterwards that no renamed line was left behind in the committed tree:
+
+```bash
+git show HEAD:src/renderer/src/styles.css | grep -n "sidebar-icon-btn"
+```
+
+Expected: no output for the 6 committed lines. A hit means a hunk was dropped
+that should have been taken.
 
 ---
 
