@@ -305,8 +305,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 
 .panel-head { display: flex; align-items: center; gap: 0.333333rem; }
 .sidebar-head {
-  background: linear-gradient(180deg, var(--bg-raised), var(--bg-panel));
-  border-bottom: 0.083333rem solid var(--hairline);
+  background: var(--bg-sidebar);
   margin: -0.833333rem -0.833333rem 0.333333rem;
   padding: 0 0.833333rem;
   height: 3.166667rem; flex: 0 0 3.166667rem; box-sizing: border-box;
