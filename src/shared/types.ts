@@ -36,10 +36,15 @@ export interface Workspace {
   agents: AgentConfig[]
 }
 
+export interface SessionMeta {
+  id: string
+  name: string
+}
+
 export interface WorkspaceSummary {
   projectPath: string
   name: string
-  agentCount: number
+  sessions: SessionMeta[]
 }
 
 export interface GitStatus {

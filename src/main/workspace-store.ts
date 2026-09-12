@@ -9,7 +9,7 @@ export class WorkspaceStore {
     return this.store.load().map(w => ({
       projectPath: w.projectPath,
       name: w.name,
-      agentCount: w.agents.length
+      sessions: w.agents.map(a => ({ id: a.id, name: a.name }))
     }))
   }
 

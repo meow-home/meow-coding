@@ -168,7 +168,7 @@ export default function Sidebar({
                 </span>
                 <span className="project-path" title={ws.projectPath}>{ws.projectPath}</span>
                 <span className="project-count">
-                  {ws.agentCount} Agent{ws.agentCount === 1 ? '' : 's'}
+                  {ws.sessions.length} Session{ws.sessions.length === 1 ? '' : 's'}
                 </span>
               </div>
               <div className="project-menu" onClick={e => e.stopPropagation()}>

@@ -61,8 +61,8 @@ describe('dispatchRemoteCommand', () => {
   it('workspace:list returns the workspaces from the store', async () => {
     const { ctx, workspaceStore } = makeCtx()
     const workspaces = [
-      { projectPath: '/a', name: 'A', agentCount: 1 },
-      { projectPath: '/b', name: 'B', agentCount: 2 }
+      { projectPath: '/a', name: 'A', sessions: [{ id: 'a1', name: 'A one' }] },
+      { projectPath: '/b', name: 'B', sessions: [{ id: 'b1', name: 'B one' }, { id: 'b2', name: 'B two' }] }
     ]
     workspaceStore.list.mockReturnValue(workspaces)
     const res = await dispatchRemoteCommand('workspace:list', {}, ctx)
