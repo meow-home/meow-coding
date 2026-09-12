@@ -2,7 +2,6 @@ export const DEFAULT_FONT_SIZE = 14
 export const MIN_FONT_SIZE = 8
 export const MAX_FONT_SIZE = 40
 export const FONT_SIZE_STORAGE_KEY = 'meow.fontSize'
-export const FONT_SIZE_CHANGE_EVENT = 'meow:fontsize'
 
 /** Round to an integer and clamp to the allowed range (8–40px). */
 export function clampFontSize(size: number): number {
@@ -27,17 +26,14 @@ export function getFontSize(): number {
 }
 
 /**
- * Apply the size to <html> (and force <body> to follow the root) and notify
- * same-window listeners via a CustomEvent so anything that measures itself
- * rather than reflowing can re-fit live. The `storage` event only fires across
- * windows, not in the window that wrote it, so the CustomEvent is required for
- * in-window live updates.
+ * Apply the size to <html> (and force <body> to follow the root). Every
+ * surviving consumer reflows off the root font-size, so no change event is
+ * needed; `watchFontSize` covers the cross-window case via `storage`.
  */
 export function applyFontSize(size?: number): number {
   const resolved = clampFontSize(size ?? getFontSize())
   document.documentElement.style.fontSize = `${resolved}px`
   document.body.style.fontSize = '1rem'
-  window.dispatchEvent(new CustomEvent(FONT_SIZE_CHANGE_EVENT, { detail: resolved }))
   return resolved
 }
 

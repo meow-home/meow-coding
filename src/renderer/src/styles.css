@@ -171,12 +171,6 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .title-bar { animation: meow-rise 240ms ease-out both; }
 .sidebar { animation: meow-rise 280ms 60ms ease-out both; }
 .status-bar { animation: meow-rise 260ms 200ms ease-out both; }
-@keyframes meow-pane-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: none; }
-}
-.pane:nth-child(1) { animation: meow-pane-in 300ms 160ms ease-out both; }
-.pane:nth-child(2) { animation: meow-pane-in 300ms 220ms ease-out both; }
 
 /* Title bar */
 .title-bar {
@@ -404,38 +398,6 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 select.input { width: 100%; }
 .row { display: flex; gap: 6px; }
 
-/* Agent/terminal tab bar (was PaneGrid split-screen). Class prefix `agent-tab-*`. */
-.agent-tabs-view { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; animation: meow-rise 300ms 120ms ease-out both; }
-.agent-tab-bar {
-  display: flex; gap: 4px; align-items: center; padding: 0 8px;
-  height: 38px; flex: 0 0 38px; box-sizing: border-box;
-  border-bottom: 1px solid var(--hairline); overflow-x: auto;
-  border-radius: var(--radius) var(--radius) 0 0;
-}
-.agent-tab-bar::-webkit-scrollbar { height: 4px; }
-.agent-tab-bar::-webkit-scrollbar-thumb { border: 1px solid transparent; background-clip: padding-box; }
-.agent-tab {
-  display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px;
-  background: var(--bg-panel); border: 1px solid var(--hairline);
-  border-radius: var(--radius); color: var(--text-dim);
-  font-size: var(--fs-sm); cursor: pointer; white-space: nowrap; user-select: none;
-}
-.agent-tab:hover { background: var(--bg-hover); border-color: var(--accent-dim); color: var(--text); }
-.agent-tab.active {
-  background: var(--bg-active); border-color: var(--accent-border); color: var(--text-strong);
-}
-.agent-tab-name { font-weight: var(--fw-semibold); }
-.agent-tab-close {
-  appearance: none; border: none; background: transparent; color: var(--text-faint);
-  cursor: pointer; font: inherit; font-size: var(--fs-xs); padding: 0 2px; line-height: 1;
-}
-.agent-tab-close:hover { color: var(--red); }
-/* Content panel: equal padding on all sides (0.5rem) around the pane. */
-.agent-pane-container { flex: 1; min-height: 0; padding: 0.5rem; display: flex; flex-direction: column; }
-/* All panes stay mounted (so background agents keep streaming/answering), but
-   only the active one is laid out; the rest are hidden without unmounting. */
-.agent-pane-container .pane { flex: 1; min-height: 0; }
-.agent-pane-container .pane:not(.active) { display: none; }
 /* Session panes: every session of the active project stays mounted, and only the
    active slot is laid out — the rest carry `hidden` (display:none on the wrapper),
    so a hidden session keeps streaming/answering instead of unmounting. */
@@ -547,8 +509,6 @@ select.input { width: 100%; }
 .pane-actions .btn { background: transparent; padding: 2px 8px; border-color: transparent; }
 .pane-actions .btn:hover { background: var(--bg-hover); border-color: var(--accent-dim); }
 .inject-input { width: 180px; }
-.xterm-host { flex: 1; min-height: 0; background: var(--bg-code); }
-.xterm-host .xterm { height: 100%; }
 
 /* Dialogs */
 .dialog-backdrop {
@@ -592,13 +552,6 @@ select.input { width: 100%; }
 .update-progress-track { height: 6px; background: var(--bg-hover); border-radius: 3px; overflow: hidden; margin: 8px 0; }
 .update-progress-fill { height: 100%; background: var(--accent); transition: width 120ms ease; }
 .update-progress-label { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--text-dim); }
-
-/* Templates panel */
-.template-form { display: flex; flex-direction: column; gap: 6px; }
-.template-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.template-list li { display: flex; align-items: center; gap: 6px; font-size: var(--fs-md); padding: 2px 4px; border-radius: var(--radius); }
-.template-list li:hover { background: var(--bg-hover); }
-.template-list code { color: var(--text-dim); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }
 
 /* Empty state */
 .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }

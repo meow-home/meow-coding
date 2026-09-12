@@ -36,8 +36,8 @@ export default function BackgroundPanel({ panes, backgrounds, onOpen, onStop, on
       ))}
       {target && (
         <ConfirmDialog
-          title="Delete agent"
-          message={`Delete agent "${target.agent.name}"? This cannot be undone.`}
+          title="Delete session"
+          message={`Delete session "${target.agent.name}"? This cannot be undone.`}
           confirmLabel="Delete"
           onConfirm={() => { onRemove(target.agent.id); setPendingRemove(null) }}
           onCancel={() => setPendingRemove(null)}

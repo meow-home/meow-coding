@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BrowserInstallGuideEvent } from '@shared/ipc'
 import type { BrowserStatusInfo } from '@shared/browser-types'
 import type {
-  AgentConfig, AgentState, ArtifactEntry, GitStatus, Template, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
+  AgentConfig, AgentState, ArtifactEntry, GitStatus, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from '@shared/types'
 import Sidebar from './components/Sidebar'
 import SessionPanes from './components/SessionPanes'
@@ -76,7 +76,6 @@ function WorkspaceView({
 
 export default function App() {
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
-  const [templates, setTemplates] = useState<Template[]>([])
   const [showSettings, setShowSettings] = useState(false)
   const [settingsTab, setSettingsTab] = useState<TabId>('agents')
   // Every loaded project's workspace stays mounted (hidden via CSS display:none)
@@ -169,7 +168,6 @@ export default function App() {
 
   useEffect(() => {
     void refreshWorkspaces()
-    void window.api.listTemplates().then(setTemplates)
   }, [refreshWorkspaces])
 
   useEffect(() => {
@@ -560,8 +558,6 @@ export default function App() {
         <SettingsDialog
           onClose={() => setShowSettings(false)}
           projectPath={activePath ?? undefined}
-          templates={templates}
-          onTemplatesChange={setTemplates}
           initialTab={settingsTab}
           agentId={activeRuntime?.workspace.agents[0]?.id}
         />

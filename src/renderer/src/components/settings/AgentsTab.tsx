@@ -62,9 +62,9 @@ export default function AgentsTab({ agents, providers, subagentModels, onChangeA
     <div className="settings-tab agents-tab">
       <div className="agents-head">
         <p className="settings-hint">
-          Agent system prompts. "meow" is the default native agent and cannot be removed.
+          Session system prompts. "meow" is the default native session and cannot be removed.
         </p>
-        <button className="btn primary small" onClick={openAdd}>+ Add agent</button>
+        <button className="btn primary small" onClick={openAdd}>+ Add session</button>
       </div>
       {agents.map((a, i) => (
         <div className="settings-row agents-row" key={a.name}>
@@ -83,7 +83,7 @@ export default function AgentsTab({ agents, providers, subagentModels, onChangeA
       ))}
       <div>
         <p className="settings-hint">
-          Models used when the main agent dispatches sub-agents. Leave a role empty to inherit the main agent model.
+          Models used when the main session dispatches sub-agents. Leave a role empty to inherit the main session model.
         </p>
         <div className="subagents-grid">
           {SUBMODEL_ROLES.map(role => {
@@ -93,7 +93,7 @@ export default function AgentsTab({ agents, providers, subagentModels, onChangeA
               <div className="settings-row agents-row" key={role}>
                 <div className="agents-row-head">
                   <span className="agent-name">{role}</span>
-                  <button className="btn small" onClick={() => setRole(role, undefined)}>Use main agent model</button>
+                  <button className="btn small" onClick={() => setRole(role, undefined)}>Use main session model</button>
                 </div>
                 <div className="submodel-fields">
                   <select
@@ -101,7 +101,7 @@ export default function AgentsTab({ agents, providers, subagentModels, onChangeA
                     value={ref?.provider ?? ''}
                     onChange={e => setRole(role, e.target.value ? { provider: e.target.value, model: providers.find(p => p.id === e.target.value)?.models[0] ?? '' } : undefined)}
                   >
-                    <option value="">(inherit main agent model)</option>
+                    <option value="">(inherit main session model)</option>
                     {providers.map(p => <option key={p.id} value={p.id}>{p.id}</option>)}
                   </select>
                   <select
@@ -120,7 +120,7 @@ export default function AgentsTab({ agents, providers, subagentModels, onChangeA
       </div>
       {adding && (
         <Modal
-          title="Add agent"
+          title="Add session"
           onClose={() => setAdding(false)}
           onSubmit={addAgent}
           submitLabel="Add"
@@ -131,7 +131,7 @@ export default function AgentsTab({ agents, providers, subagentModels, onChangeA
             <input
               id="agent-name"
               className="input"
-              placeholder="agent name (e.g. reviewer)"
+              placeholder="session name (e.g. reviewer)"
               value={newName}
               onChange={e => setNewName(e.target.value)}
               autoFocus
@@ -142,7 +142,7 @@ export default function AgentsTab({ agents, providers, subagentModels, onChangeA
             <textarea
               id="agent-prompt"
               className="input agents-prompt"
-              placeholder="System prompt for this agent. Leave empty to use the default."
+              placeholder="System prompt for this session. Leave empty to use the default."
               value={newPrompt}
               onChange={e => setNewPrompt(e.target.value)}
             />

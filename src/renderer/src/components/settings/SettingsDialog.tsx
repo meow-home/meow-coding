@@ -1,22 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowLeft } from 'lucide-react'
-import type { CatalogProviderSummary, McpServerStatus, MeowSettings, Template } from '@shared/types'
+import type { CatalogProviderSummary, McpServerStatus, MeowSettings } from '@shared/types'
 import AgentsTab from './AgentsTab'
 import PermissionsTab from './PermissionsTab'
 import McpTab from './McpTab'
 import ContextTab from './ContextTab'
 import CommandsTab from './CommandsTab'
 import RemoteTab from './RemoteTab'
-import TemplatesTab from './TemplatesTab'
 import UpdatesTab from './UpdatesTab'
 import ProvidersTab from './ProvidersTab'
 import PersonalizeTab from './PersonalizeTab'
 
-export type TabId = 'agents' | 'permissions' | 'mcp' | 'context' | 'commands' | 'remote' | 'templates' | 'updates' | 'providers' | 'personalize'
+export type TabId = 'agents' | 'permissions' | 'mcp' | 'context' | 'commands' | 'remote' | 'updates' | 'providers' | 'personalize'
 
 const TABS: Array<{ id: TabId; label: string }> = [
-  { id: 'agents', label: 'Agents' },
+  { id: 'agents', label: 'Session' },
   { id: 'permissions', label: 'Permissions' },
   { id: 'mcp', label: 'MCP' },
   { id: 'providers', label: 'Providers' },
@@ -29,14 +28,12 @@ const TABS: Array<{ id: TabId; label: string }> = [
 interface Props {
   onClose: () => void
   projectPath?: string
-  templates: Template[]
-  onTemplatesChange: (templates: Template[]) => void
   initialTab?: TabId
   /** First registered agent, used to fetch the context limit for "auto ≈" placeholders. */
   agentId?: string
 }
 
-export default function SettingsDialog({ onClose, projectPath, templates, onTemplatesChange, initialTab = 'agents', agentId }: Props) {
+export default function SettingsDialog({ onClose, projectPath, initialTab = 'agents', agentId }: Props) {
   const [tab, setTab] = useState<TabId>(initialTab)
   const [draft, setDraft] = useState<MeowSettings | null>(null)
   const [mcpStatus, setMcpStatus] = useState<McpServerStatus[]>([])
@@ -272,7 +269,6 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
             )}
             {tab === 'commands' && <CommandsTab projectPath={projectPath} />}
             {tab === 'remote' && <RemoteTab />}
-            {tab === 'templates' && <TemplatesTab templates={templates} onChange={onTemplatesChange} />}
             {tab === 'updates' && <UpdatesTab />}
             {tab === 'personalize' && <PersonalizeTab />}
           </div>

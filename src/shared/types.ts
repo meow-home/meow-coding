@@ -7,15 +7,6 @@ export type AgentMode = 'build' | 'plan'
 export type ModelVariant = string
 export type ChatRole = 'user' | 'assistant'
 
-export interface Template {
-  id: string
-  name: string
-  command: string
-  args: string[]
-  icon?: string
-  kind?: AgentKind
-}
-
 export interface AgentConfig {
   id: string
   name: string
