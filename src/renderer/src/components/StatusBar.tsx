@@ -47,7 +47,7 @@ export default function StatusBar({ workspaceName, git, agents, browser, onBrows
         </button>
       )}
       <span className="sb-item sb-right sb-mono">
-        {running} agent(s) running
+        {running} session(s) running
       </span>
       <button
         className={`sb-item sb-mono sb-browser ${browserClass}`}

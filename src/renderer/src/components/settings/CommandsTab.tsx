@@ -68,7 +68,7 @@ export default function CommandsTab({ projectPath }: Props) {
     <div className="settings-tab commands-tab">
       <div className="agents-head">
         <p className="settings-hint">
-          Slash commands expand into a prompt sent to the agent. Template variables: <code>$1</code>…<code>$N</code>,
+          Slash commands expand into a prompt sent to the session. Template variables: <code>$1</code>…<code>$N</code>,
           <code>$ARGUMENTS</code>, <code>@path</code> file refs, and <code>{'!`cmd`'}</code> shell output.
         </p>
         <button className="btn primary small" onClick={openAdd}>+ Add command</button>

@@ -67,7 +67,7 @@ export default function ContextTab({ maxSteps, compaction, toolOutput, notificat
             onChange={e => setMaxSteps(e.target.value)}
           />
           <p className="settings-hint">
-            Maximum tool steps before the agent is forced to wrap up (empty = unlimited).
+            Maximum tool steps before the session is forced to wrap up (empty = unlimited).
           </p>
         </div>
         <div className="settings-field">
@@ -180,7 +180,7 @@ export default function ContextTab({ maxSteps, compaction, toolOutput, notificat
               checked={notifications.needsInput}
               onChange={e => setNotifications({ needsInput: e.target.checked })}
             />
-            Notify when the agent needs input
+            Notify when a session needs input
           </label>
         </div>
         <div className="settings-field">
