@@ -502,8 +502,16 @@ So the parenthetical becomes:
 
 - [ ] **Step 6: Verify no stale class name survives anywhere**
 
-Run: `grep -rn "sidebar-icon-btn" docs/ src/ ; echo "exit=$?"`
+Run: `grep -rn "sidebar-icon-btn" docs/reference/ src/ ; echo "exit=$?"`
 Expected: **no output** (grep exits 1).
+
+Scope the gate to the live reference and the source. `docs/superpowers/specs|plans`
+are historical records of decisions taken when the old name was current — rewriting
+them would turn accurate history into false history. That includes
+`2026-09-12-sidebar-icon-button-geometry-design.md`, which introduced the class.
+(That spec also warned off the name `.icon-btn` for colliding with the `.btn-icon`
+helper's spelling; Task 3 deletes `.btn-icon`, so the confusion it feared is gone —
+and no `.icon-btn` rule pre-existed, so this rename introduces no collision.)
 
 - [ ] **Step 7: Commit**
 

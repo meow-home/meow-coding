@@ -72,7 +72,7 @@ Update-dialog policy: `update-available` and `downloaded` open the dialog; `erro
 | `StatusBar.tsx` | Workspace name, git branch, running count, app version |
 | `SessionPanes.tsx` | Session layout of one project: **every session stays mounted** (inactive ones carry the `hidden` attribute, hidden by CSS and never unmounted) so a session that is not showing keeps streaming/answering. The active session is **controlled** by `App` (`activeId` + `onActiveChange`, remembered per project path so switching workspaces restores the session that was showing); it reports the first session when the stored id no longer exists |
 | `Pane.tsx` | One session: header + `ChatPanel`; background badge mode |
-| `PaneHeader.tsx` | Status dot, git info, menu (inject / log / stop / restart / background / delete — inject/log/stop/restart exist only on the parked PTY path; a native session's lifecycle lives in its sidebar row) |
+| `PaneHeader.tsx` | Status dot (which carries the status as its accessible name — `role="img"` + the status label, with any exit code folded in), the session name, and the menu (inject / log / stop / restart / background / delete — inject/log/stop/restart exist only on the parked PTY path; a native session's lifecycle lives in its sidebar row). The `...` button is the shared `.icon-btn`. No status word (the dot already shows it) and no git readout (the status bar owns branch + dirty count) |
 | `EmptyState.tsx` | No-pane hint (differs for "no workspace" vs "workspace open") |
 | `BackgroundPanel.tsx` | Background agents; open/stop |
 | `RightPanel.tsx` | Resizable panel with a fixed header; **both tabs stay mounted** for instant switching |
@@ -150,7 +150,7 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   `--font-ui`: the display fonts were never loaded via `@font-face` (CSP is `'self'` only) and
   silently fell back to mono, which made uppercase labels look like terminal output.
 - Spacing on a 4px scale; controls use Tailwind default sizes.
-- Radii: `--radius-xs` 3px (sidebar icon buttons, chat context readout), `--radius-sm` 4px, `--radius` 6px (the global
+- Radii: `--radius-xs` 3px (`.icon-btn` — the sidebar `+`/`...` and the pane header `...` — and the chat context readout), `--radius-sm` 4px, `--radius` 6px (the global
   `*` default), `--radius-lg` 8px.
 - Menus share one metric set (tokens in `:root`): `--menu-radius` 10px (container corner),
   `--menu-pad` 6px (container padding), `--menu-item-h` 32px, `--menu-item-pad-x` 10px,
@@ -180,9 +180,9 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   family — it stacks a name + description and would clip at 32px.
 - **The chat context readout is an icon button.** `ContextFooter`'s ring sits in a 24 × 24 box with
   `--radius-xs`, transparent at rest and `--bg-hover` while `.context-footer-wrap` is hovered, holding
-  a 20px SVG with a 2.5px stroke (the ratio of the original 30px / 3px ring). It shares the sidebar
-  icon buttons' *look*, not their class: `.sidebar-icon-btn` is sidebar-scoped and its hover lives in
-  container rules, and the readout is deliberately not clickable (`cursor: default`, no tabindex).
+  a 20px SVG with a 2.5px stroke (the ratio of the original 30px / 3px ring). It shares the
+  `.icon-btn` *look* but not its class: the readout sits in a container that owns its hover, and it is
+  deliberately not clickable (`cursor: default`, no tabindex).
   Its hover popover is content-width by contract: `width: max-content` with a `min-width: 216px` floor
   (200px before) and `white-space: nowrap` rows. With short values the floor decides the box — measured
   exactly 200px, which is why the floor is a real, testable change — and the explicit `max-content`
@@ -205,12 +205,13 @@ element unless explicitly overridden. To make a screen square-cornered, do **not
 Before editing, check whether the element is being rounded by the `*` rule
 (`grep "border-radius"` and trace the class). Do not assume.
 
-**Icon-only buttons.** `.sidebar-icon-btn` (fixed 24 × 24, `--radius-xs`) is the one class for the
-sidebar's icon-only buttons (project `+` / `...`, session-row `...`; `Sidebar.tsx`). Its geometry must
-live on that class: composing `.btn small` and overriding the padding from a container rule does not
-work — `.project-actions .btn` and `.btn.small` are both `(0,2,0)`, so source order decides, and the
-override lost. The buttons rendered 34 × 25 with the `.btn` 6px radius until `.sidebar-icon-btn`
-replaced them.
+**Icon-only buttons.** `.icon-btn` (fixed 24 × 24, `--radius-xs`) is the one class for every
+icon-only button — the sidebar's project `+` / `...` and session-row `...` (`Sidebar.tsx`) and the
+pane header's `...` (`PaneHeader.tsx`). Its geometry must live on that class: composing `.btn small`
+and overriding the padding from a container rule does not work — `.project-actions .btn` and
+`.btn.small` are both `(0,2,0)`, so source order decides, and the override lost. The sidebar buttons
+render 34 × 25 with the `.btn` 6px radius until `.icon-btn` replaced them, and the pane header
+button measured 31 × 21 with the same 6px radius for the same reason.
 
 **CRLF note:** `styles.css` and the test files use CRLF line endings, which can make exact-match
 string edits fail. Edit them with a script (e.g. python) if the edit tool cannot match.

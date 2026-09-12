@@ -67,10 +67,11 @@ Lessons learned from the Git viewer screen (don't repeat them):
   Only list the elements that ACTUALLY need rounded corners (buttons, inputs, dropdown content, options...).
 - Before editing: check whether the element is being rounded by the `*` rule (`grep "border-radius"` +
   trace the class). Don't assume.
-- **Icon-only buttons use `.sidebar-icon-btn`** (fixed 24 × 24, `border-radius: var(--radius-xs)` = 3px) —
-  never `.btn small` with a container padding override. `.project-actions .btn` and `.btn.small` are both
-  `(0,2,0)`, so source order decides and the override is silently ignored (the project `+`/`...` rendered
-  34 × 25 with the `.btn` 6px radius before the dedicated class existed).
+- **Icon-only buttons use `.icon-btn`** (fixed 24 × 24, `border-radius: var(--radius-xs)` = 3px) —
+  the sidebar's project `+`/`...` and session-row `...`, plus the pane header's `...`. Never `.btn small`
+  with a container padding override. `.project-actions .btn` and `.btn.small` are both `(0,2,0)`, so
+  source order decides and the override is silently ignored (the project `+`/`...` rendered 34 × 25
+  and the pane header's `...` 31 × 21 with the `.btn` 6px radius before the dedicated class existed).
 - **Dropdowns share the `--menu-*` metric tokens** (`--menu-radius`, `--menu-pad`, `--menu-item-h`,
   `--menu-item-pad-x`, `--menu-icon`). New menu surfaces must consume them, not hardcode padding.
 - **Selector rows use `.menu-item-label` + `.menu-item-check`**, and triggers use `.dropdown-caret`.
