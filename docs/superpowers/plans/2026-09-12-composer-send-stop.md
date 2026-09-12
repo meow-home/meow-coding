@@ -17,7 +17,7 @@
 - **`.chat-footer` is not touched** (`+` AddMenu, ModePicker, ModelPicker, VariantPicker, ContextFooter keep their markup, classes and positions).
 - **The textarea stays uncontrolled.** Never convert it to a controlled input: the repository's measured rule (a controlled composer re-renders on every keystroke and triggers a full-page layout) is documented in `docs/reference/09-ui-guide.md` §9.7.3 and `docs/reference/11-conventions-and-pitfalls.md`.
 - **`hasText` may only `setState` on the empty ↔ non-empty transition.** Use the functional form returning the previous value when unchanged, so React bails out and no render happens per keystroke.
-- **Button geometry is fixed at `2rem × 2rem` (24 × 24 at the default 12px root), `border-radius: var(--radius-sm)` (4px), `padding: 0`, `margin-bottom: 0.25rem`, `display: inline-flex` centred, `line-height: 0`.** Sizes in this plan assume `1rem = 12px` (the app's root font-size, and the composer field's `font-size: 1rem` + `line-height: 1.5` → an 18px line box).
+- **Button geometry is fixed at `2rem × 2rem` (24 × 24 at the default 12px root), `border-radius: var(--radius-sm)` (4px), `padding: 0`, `margin-bottom: 0.25rem`, `display: inline-flex` centred, `line-height: 0`.** Sizes in this plan assume `1rem = 12px` (the app's root font-size, and the composer field's `font-size: 1rem` + `line-height: 1.5` → an 18px line box). Measured in the running app: the empty card is **71px** today and must become **47px** (card padding 8+8, field padding 6+6, one 18px line, and `border: 0.083333rem` → **0.5px per side**, so 1px of border total). **Do not hard-code 47 in the test** — derive it from the computed styles as `oneLineCardHeight()` does, because the root font-size is user-configurable.
 - **Never hard-code a text color that fights the theme.** Send/Stop use `--accent` / `--red` with `#fff` icons (both are dark hues, so the icon stays legible in light mode too).
 - **A parallel session edits this checkout.** Before every commit run `git status --short`, read `git diff` on any dirty file you did not touch, and stage only the paths and hunks you changed — never `git add -A`. If foreign edits overlap a hunk you need, stop and ask. **Known foreign work at plan-writing time:** `src/renderer/src/styles.css` carries four uncommitted hunks around lines 1271-1412 (menu / command-menu backgrounds `--bg-raised` → `--bg-chat`) — they are nowhere near the `/* Composer */` block this plan edits, so take the composer hunks and leave those staged-or-not as you found them.
 - **Line endings:** at plan time every file this plan touches is LF (`CR count=0`). Re-check with `tr -cd '\r' < <file> | wc -c` before scripting an edit; if a file has become CRLF, do the edit with `io.open(..., newline='')` so the endings are preserved.
@@ -411,9 +411,14 @@ test('editing a queued message while running swaps stop for a save button', asyn
       const card = window.locator('.chat-input')
       const field = card.locator('.chat-input-field')
 
-      await field.fill('queued text')
+      await field.fill('first turn')
       await field.press('Enter')
       await firstCall
+
+      // Only a message sent *while* a turn runs lands in the queue: the first send
+      // became the running turn itself.
+      await field.fill('queued text')
+      await field.press('Enter')
       await expect(window.locator('.chat-queue-item')).toHaveCount(1)
 
       // Clicking the queued row loads it into the composer for editing.
