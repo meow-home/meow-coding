@@ -3,14 +3,24 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-async function launchPrompt() {
-  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
-  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+// Seed a workspace whose session id the test addresses directly, and mark the
+// one-time v0.37 "single native session" migration as already done: without the
+// flag main rewrites every workspace to one fresh session with a new random id
+// (src/main/fresh-start.ts), so the injected `chat:event` agentId would match
+// nothing.
+function seedWorkspace(userData: string, project: string): void {
   writeFileSync(path.join(userData, 'workspaces.json'), JSON.stringify([{
     projectPath: project,
     name: 'E2E',
     agents: [{ id: 'a1', name: 'meow', templateId: 'meow', cwd: project, kind: 'native' }]
   }]))
+  writeFileSync(path.join(userData, '.sessions-model-reset'), String(Date.now()))
+}
+
+async function launchPrompt() {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  seedWorkspace(userData, project)
   const app = await electron.launch({ args: ['.'], env: { ...process.env as Record<string, string>, MEOW_USER_DATA: userData } })
   const window = await app.firstWindow()
   await window.locator('.project-row').click()
@@ -49,11 +59,7 @@ test('keyboard 1 triggers allow when panel focused', async () => {
 async function launchQuestion() {
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
   const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
-  writeFileSync(path.join(userData, 'workspaces.json'), JSON.stringify([{
-    projectPath: project,
-    name: 'E2E',
-    agents: [{ id: 'a1', name: 'meow', templateId: 'meow', cwd: project, kind: 'native' }]
-  }]))
+  seedWorkspace(userData, project)
   const app = await electron.launch({ args: ['.'], env: { ...process.env as Record<string, string>, MEOW_USER_DATA: userData } })
   const window = await app.firstWindow()
   await window.locator('.project-row').click()
@@ -98,11 +104,7 @@ test('prompt is rendered inside the chat input card', async () => {
 test('prompt does not overlay the chat feed', async () => {
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
   const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
-  writeFileSync(path.join(userData, 'workspaces.json'), JSON.stringify([{
-    projectPath: project,
-    name: 'E2E',
-    agents: [{ id: 'a1', name: 'meow', templateId: 'meow', cwd: project, kind: 'native' }]
-  }]))
+  seedWorkspace(userData, project)
   const app = await electron.launch({ args: ['.'], env: { ...process.env as Record<string, string>, MEOW_USER_DATA: userData } })
   const window = await app.firstWindow()
   await window.locator('.project-row').click()

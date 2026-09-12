@@ -111,9 +111,9 @@ test('context footer shows real token usage, persists across reload, resets on n
     await window.locator('.project-row').click()
     await expect(window.locator('.context-footer')).toContainText('4,231')
 
-    // New session -> back to placeholder.
-    await window.locator('.session-trigger').click()
-    await window.locator('.session-new').click()
+    // New session (the sidebar project row's "+") -> creating it makes it the
+    // active session, so the footer is back to the placeholder.
+    await window.getByRole('button', { name: 'new session E2E Project', exact: true }).click()
     await expect(window.locator('.context-footer')).toContainText('—')
 
     await app.close()

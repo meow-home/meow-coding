@@ -141,6 +141,7 @@ Each e2e test launches the real app with `_electron.launch({ args: ['.'] })` and
 | `prompt.spec.ts` | Permission prompt: click allow, keyboard `1`, prompt spans the pane width |
 | `context-footer.spec.ts` | Real token usage, persistence across reload, reset on new session, danger state past the auto-compact threshold |
 | `chat-scrollbar.spec.ts` | Scrollbar reflects the full transcript (no content-visibility collapse) |
+| `sidebar-sessions.spec.ts` | Sidebar session rows: create via the project row `+`, switching does not stop a running session (one pane visible), status dot idle/running/waiting, delete |
 
 `MEOW_E2E_MOCK_CONNECTIONS=1` swaps the connections backend for `E2EConnectionFixtures` so OAuth is
 never exercised in tests.

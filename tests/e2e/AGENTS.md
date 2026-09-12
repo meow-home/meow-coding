@@ -12,6 +12,7 @@ with a temp `MEOW_USER_DATA`. Run after `npm run build` via `npm run e2e`; singl
 | `prompt.spec.ts` | Permission prompt: click allow, keyboard `1`, prompt is rendered inside the chat input card, prompt does not overlay the chat feed. |
 | `context-footer.spec.ts` | Context footer shows real token usage, persists across reload, resets on new session; danger state past auto-compact threshold. |
 | `chat-scrollbar.spec.ts` | Chat feed scrollbar reflects the full transcript (no content-visibility collapse). |
+| `sidebar-sessions.spec.ts` | Sidebar session rows: create via the project row `+`, switching does not stop a running session (exactly one pane visible), status dot idle/running/waiting, delete via the row menu. |
 
 ## Conventions
 

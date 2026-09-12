@@ -17,6 +17,11 @@ function createScrollFixture(withTranscript: boolean): { userData: string; proje
     ]
   }]
   writeFileSync(path.join(userData, 'workspaces.json'), JSON.stringify(workspaces, null, 2))
+  // Mark the one-time v0.37 "single native session" migration as already done:
+  // without this flag main rewrites the workspace to one fresh session with a
+  // new id and deletes sessions.json (src/main/fresh-start.ts), discarding the
+  // seeded transcript this fixture exists to provide.
+  writeFileSync(path.join(userData, '.sessions-model-reset'), String(Date.now()))
 
   if (withTranscript) {
     const now = Date.now()

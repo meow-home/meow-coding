@@ -220,6 +220,7 @@ There are no renderer unit tests. Coverage comes from:
 
 - `npm run typecheck` (which includes `tsconfig.web.json`)
 - Playwright e2e (`npm run build && npm run e2e`), which launches the real app:
-  `smoke.spec.ts`, `prompt.spec.ts`, `context-footer.spec.ts`, `chat-scrollbar.spec.ts`
+  `smoke.spec.ts`, `prompt.spec.ts`, `context-footer.spec.ts`, `chat-scrollbar.spec.ts`,
+  `sidebar-sessions.spec.ts`
 
 After touching IPC or UI, add or extend a smoke assertion so the regression is caught there.
