@@ -103,8 +103,8 @@ straight to the code.
 | **Workspace** | A git project folder registered in the app, with a list of agents. Persisted in `workspaces.json`. |
 | **Agent** | A configured worker inside a workspace. Two kinds: `pty` (an external CLI process) and `native` (the in-app Meow agent). |
 | **Template** | A named launch recipe (`command` + `args` + `kind`) used to create agents. |
-| **Pane** | The UI slot rendering one agent — either an xterm terminal (`pty`) or the chat panel (`native`). |
-| **Session** | One conversation of a native agent. An agent may own many; exactly one is active. |
+| **Pane** | The UI slot rendering one session — its `PaneHeader` plus the `ChatPanel`. One pane exists per session of the active project; the ones not selected are hidden, not unmounted. |
+| **Session** | The unit of work the UI shows: one chat, listed per project in the sidebar and rendered in its pane. One session per agent — creating a session adds an agent. |
 | **Transcript item** | The persisted unit of a session: either a `message` (user/assistant) or a `tool` (a tool call with input/output/permission). It is the single source of truth for what the LLM sees. |
 | **Turn** | One user message and everything the agent does in response, until `done` or `error`. |
 | **Step** | One LLM request inside a turn. A turn runs many steps; `maxSteps` bounds an uninterrupted run. |

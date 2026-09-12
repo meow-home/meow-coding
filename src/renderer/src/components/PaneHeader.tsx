@@ -9,7 +9,6 @@ interface Props {
   git: GitStatus | null
   background?: boolean
   native?: boolean
-  isTerminal?: boolean
   active?: boolean
   onStop: () => void
   onRestart: () => void
@@ -29,7 +28,7 @@ function MoreIcon() {
 }
 
 export default function PaneHeader({
-  name, state, git, background = false, native = false, isTerminal = false, active = false,
+  name, state, git, background = false, native = false, active = false,
   onStop, onRestart, onInject, onOpenLog, onToggleBackground, onRemove
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -98,41 +97,31 @@ export default function PaneHeader({
           </button>
           {menuOpen && (
             <div className="sidebar-menu-dropdown pane-menu-dropdown">
-              {isTerminal ? (
+              {/* Only the parked PTY path has inject/log/stop/restart actions; a
+                  native session's own menu is the sidebar's session row. */}
+              {!native && (
                 <>
-                  <button className="menu-item danger" onClick={() => { close(); setConfirmRemove(true) }}>Close terminal</button>
-                </>
-              ) : (
-                <>
-                  {!native && (
-                    <>
-                      <button className="menu-item" onClick={() => { close(); setInjecting(v => !v) }}>Inject</button>
-                      <button className="menu-item" onClick={() => { close(); onOpenLog() }}>Log</button>
-                      <button className="menu-item" onClick={() => { close(); onStop() }}>Stop</button>
-                    </>
-                  )}
-                  <button className="menu-item" onClick={() => { close(); onRestart() }}>
-                    {native ? 'New session' : 'Restart'}
-                  </button>
-                  {onToggleBackground && (
-                    <button className="menu-item" onClick={() => { close(); onToggleBackground() }}>
-                      {background ? 'Open pane' : 'Run in background'}
-                    </button>
-                  )}
-                  <button className="menu-item danger" onClick={() => { close(); setConfirmRemove(true) }}>Delete agent</button>
+                  <button className="menu-item" onClick={() => { close(); setInjecting(v => !v) }}>Inject</button>
+                  <button className="menu-item" onClick={() => { close(); onOpenLog() }}>Log</button>
+                  <button className="menu-item" onClick={() => { close(); onStop() }}>Stop</button>
+                  <button className="menu-item" onClick={() => { close(); onRestart() }}>Restart</button>
                 </>
               )}
+              {onToggleBackground && (
+                <button className="menu-item" onClick={() => { close(); onToggleBackground() }}>
+                  {background ? 'Open pane' : 'Run in background'}
+                </button>
+              )}
+              <button className="menu-item danger" onClick={() => { close(); setConfirmRemove(true) }}>Delete agent</button>
             </div>
           )}
         </div>
       </span>
       {confirmRemove && (
         <ConfirmDialog
-          title={isTerminal ? 'Close terminal' : 'Delete agent'}
-          message={isTerminal
-            ? `Close terminal "${name}"?`
-            : `Delete agent "${name}"? This cannot be undone.`}
-          confirmLabel={isTerminal ? 'Close' : 'Delete'}
+          title="Delete agent"
+          message={`Delete agent "${name}"? This cannot be undone.`}
+          confirmLabel="Delete"
           onConfirm={() => { setConfirmRemove(false); onRemove() }}
           onCancel={() => setConfirmRemove(false)}
         />

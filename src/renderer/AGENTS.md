@@ -7,14 +7,14 @@ React renderer (no direct Node/Electron access).
 - `index.html` + `src/main.tsx` — entry; render `<App>`; if `window.api` is missing, show a guidance
   fallback (preload not loaded). `main.tsx` also patches `console.log/info/warn/error` to forward
   each call to the system logger via `window.api.writeSystemLog` (no-op when `window.api` is missing).
-- `src/App.tsx` — state hub: workspaces, templates, open runtimes; defines `PaneModel`
-  (agent + state + git) for each pane; owns the active pane tab per project path
-  (`activeTabByPath`, persisted to localStorage `meow.activeTabByPath`) so switching
-  workspaces restores the previously active tab. Also tracks `needsInput`
+- `src/App.tsx` — state hub: workspaces, templates, the mounted `WorkspaceRuntime` per kept-alive
+  project; defines `PaneModel` (agent + state + git) for each pane; owns the active session per
+  project path (`activeSessionByPath`, persisted to localStorage `meow.activeSessionByPath`) so
+  switching workspaces restores the previously active session. Also tracks `needsInput`
   (project path → agent ids waiting on a permission/question prompt, for the sidebar
   badges) and handles `onActivateAgent` (OS notification click) by opening the target
-  workspace and activating the waiting agent's tab.
-- `src/components/` — `Sidebar`, `PaneTabs`, `Pane`, `PaneHeader`, `XtermHost`, `EmptyState`,
+  workspace and activating the waiting agent's session.
+- `src/components/` — `Sidebar`, `SessionPanes`, `Pane`, `PaneHeader`, `EmptyState`,
   `StatusBar`, `TitleBar`, `BackgroundPanel`, `AddProjectDialog`, `AddAgentDialog`, `UpdateDialog`,
   `BrowserDialog`, `InstallGuideDialog`, `chat/`, `settings/`.
 - `src/styles.css` — VSCode Dark+ palette (default) with a Light+ variant activated via
@@ -35,12 +35,12 @@ React renderer (no direct Node/Electron access).
 ## Conventions
 
 - All main access goes through `window.api` (typed `AgentApi` from shared). Do not import Node/electron.
-- Output arriving before xterm mounts → buffer in `buffersRef` (App), flush when `registerTerminal`
-  is called. Do not remove this mechanism.
-- Input/resize: xterm `onData`/resize → `window.api.writeInput` / `window.api.resizePty` (via props
-  in `Pane`).
-- Tab-bar layout: each agent/terminal pane is a tab; only the active tab renders. The active tab is
-  tracked in `App` per project path (passed to `PaneTabs` as `activeId`/`onActiveChange`).
+- Session layout: `SessionPanes` mounts **every** session of the active project and hides the
+  inactive ones with the `hidden` attribute (CSS only). Never unmount or re-key a session on
+  switch — doing so stops its run. The active session is tracked in `App` per project path (passed
+  to `SessionPanes` as `activeId`/`onActiveChange`).
+- Cross-project keep-alive: kept-alive projects stay mounted under `.workspace-hidden`
+  (`display: none`) for the same reason — hidden `ChatPanel`s keep consuming ChatEvents.
 - Functional components + hooks; declare the `Props` interface in the same file.
 - UI labels in English. Use tabular-nums figures when displaying numbers.
 

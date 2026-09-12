@@ -481,10 +481,3 @@ export interface NotificationsSettings {
   needsInput: boolean
   onDone: boolean
 }
-
-export interface TerminalInfo {
-  id: string        // "term-<uuid>"
-  cwd: string
-  name: string      // basename(cwd), tiêu đề pane
-  status: 'running' | 'exited'
-}

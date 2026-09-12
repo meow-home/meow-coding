@@ -11,12 +11,12 @@ need to understand this codebase quickly, and secondarily for new human contribu
 
 ## What Meow Coding is, in one paragraph
 
-Meow Coding is a cross-platform **Electron desktop application** that lets a developer run several
-**CLI coding agents** (opencode, Claude Code, aider, or anything on `PATH`) side by side in
-parallel terminal panes inside one window, *and* ships its own first-party **native "Meow" agent**
-— a full LLM coding agent with a chat UI, a tool registry, sessions, permissions, subagents,
-context compaction, cost accounting, MCP/LSP integration, a Chrome browser bridge, and a skill
-system. Version at the time of writing: **0.26.8**.
+Meow Coding is a cross-platform **Electron desktop application** built around its own first-party
+**native "Meow" agent** — a full LLM coding agent with a chat UI, a tool registry, sessions,
+permissions, subagents, context compaction, cost accounting, MCP/LSP integration, a Chrome browser
+bridge, and a skill system. Several **sessions** (one chat each) run in parallel inside one window,
+listed per project in the sidebar, with only the selected one shown while the others keep running.
+Version at the time of writing: **0.26.8**.
 
 ## Document map
 

@@ -128,7 +128,7 @@ Windows is the primary development platform here, and several behaviors exist on
 | Trap | Handling |
 |---|---|
 | The global `* { border-radius: var(--radius) }` rule rounds everything | Use `.scope * { border-radius: 0 }` then re-round only what needs it — see [09](09-ui-guide.md#the-border-radius-trap) |
-| PTY output arriving before xterm mounts is lost | `App.buffersRef` buffers it and flushes on `registerTerminal`. **Do not remove.** |
+| Switching sessions stopping another session's run | Every session of a project stays mounted in `SessionPanes`; the inactive ones are hidden with the `hidden` attribute only — never unmounted, never re-keyed |
 | Every keystroke triggering a full-page layout on a long transcript | `content-visibility: auto` + `contain-intrinsic-size` on `.chat-msg` / `.tool-call` |
 | A controlled chat input re-rendering on every keystroke | The composer is uncontrolled (ref-based) |
 | Unstable callbacks defeating `memo()` — the 5s git poll re-rendering the whole chat | `useCallback` with correct deps; row components take primitive props |

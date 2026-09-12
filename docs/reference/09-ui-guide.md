@@ -23,12 +23,12 @@ main window's theme (see [9.6](#96-theming)).
 ┌──────────────────────────────────────────────────────────────────────┐
 │ TitleBar (frameless: drag region + min/max/close)                     │
 ├────────┬───────────────────────────────────────────┬─────────────────┤
-│Sidebar │ PaneGrid                                  │ RightPanel      │
-│        │  ┌───────────────┐ ┌───────────────┐      │  ┌───────────┐  │
-│ work-  │  │ PaneHeader    │ │ PaneHeader    │      │  │ Tree      │  │
-│ spaces │  │ ChatPanel  or │ │ XtermHost     │      │  │ Artifacts │  │
-│        │  │ XtermHost     │ │               │      │  └───────────┘  │
-│ theme  │  └───────────────┘ └───────────────┘      │  (resizable)    │
+│Sidebar │ SessionPanes                              │ RightPanel      │
+│        │  ┌─────────────────────────────────┐      │  ┌───────────┐  │
+│ work-  │  │ PaneHeader                      │      │  │ Tree      │  │
+│ spaces │  │ ChatPanel (active session)      │      │  │ Artifacts │  │
+│        │  │                                 │      │  └───────────┘  │
+│ theme  │  └─────────────────────────────────┘      │  (resizable)    │
 ├────────┴───────────────────────────────────────────┴─────────────────┤
 │ StatusBar (workspace · git branch · running count · app version)      │
 └──────────────────────────────────────────────────────────────────────┘
@@ -39,22 +39,21 @@ Overlays: `SettingsDialog` (full-screen tabbed), `AddProjectDialog`, `AddAgentDi
 
 ## 9.3 `App.tsx` — the state hub
 
-Owns: workspaces, templates, the open `WorkspaceRuntime`, background flags, browser status, update
-status, terminals, right-panel state, artifacts, and the xterm registry.
+Owns: workspaces, templates, the mounted `WorkspaceRuntime`s (one per kept-alive project),
+background flags, browser status, update status, right-panel state, artifacts, and the active
+session per project (`activeSessionByPath`).
 
 ```ts
 export interface PaneModel { agent: AgentConfig; state: AgentState; git: GitStatus | null }
 ```
 
-Two refs matter:
+`runtimesRef` mirrors the mounted runtimes, `activePathRef` the active project and `orderRef` the
+keep-alive order, so the mount-once event subscriptions and the callbacks they invoke never read a
+stale value.
 
-- **`termsRef: Map<agentId, Terminal>`** — xterm instances, registered by `XtermHost` on mount.
-- **`buffersRef: Map<agentId, string>`** — PTY output that arrived **before** xterm mounted. It is
-  flushed on registration. **Do not remove this mechanism**; without it, early agent output is lost.
-
-Event subscriptions set up in `App`: `onPtyData`, `onAgentState`, `onGitStatus`,
+Event subscriptions set up in `App`: `onAgentState`, `onGitStatus`,
 `onAgentBackground`, `onAgentConfig`, `onBrowserStatus`, `onBrowserOpenInstallGuide`,
-`onTerminalExit`, `onUpdaterStatus`, `onArtifactsChanged`. Every one returns an unsubscribe function
+`onUpdaterStatus`, `onArtifactsChanged`. Every one returns an unsubscribe function
 that must be called in the effect cleanup.
 
 Update-dialog policy: `update-available` and `downloaded` open the dialog; `error` and
@@ -71,10 +70,9 @@ Update-dialog policy: `update-available` and `downloaded` open the dialog; `erro
 | `PopupTitleBar.tsx` | Same for the FileViewer/GitViewer popups (drag region + Linux min/max/close) |
 | `Sidebar.tsx` | Workspace list, add/remove, templates, open in editor, Providers entry, theme toggle. "Open Terminal" opens a real OS terminal window (via `openSystemTerminal`), not a tab. Projects with agents waiting on a permission/question prompt show a red count badge (and a dot on the collapsed-rail avatar) |
 | `StatusBar.tsx` | Workspace name, git branch, running count, app version |
-| `PaneTabs.tsx` | Tab-bar layout of agent/terminal panes; **all panes stay mounted** (inactive hidden via CSS) so background agents keep streaming/answering |
-| `Pane.tsx` | One agent: header + `ChatPanel` (native) or `XtermHost` (pty); background badge mode |
-| `PaneHeader.tsx` | Status dot, git info, menu (inject / log / stop / zoom / new session / background / delete) |
-| `XtermHost.tsx` | xterm.js host with `@xterm/addon-fit`; wires `onData` → `writeInput`, resize → `resizePty` |
+| `SessionPanes.tsx` | Session layout of one project: **every session stays mounted** (inactive ones carry the `hidden` attribute, hidden by CSS and never unmounted) so a session that is not showing keeps streaming/answering. The active session is **controlled** by `App` (`activeId` + `onActiveChange`, remembered per project path so switching workspaces restores the session that was showing); it reports the first session when the stored id no longer exists |
+| `Pane.tsx` | One session: header + `ChatPanel`; background badge mode |
+| `PaneHeader.tsx` | Status dot, git info, menu (inject / log / stop / restart / background / delete — inject/log/stop/restart exist only on the parked PTY path; a native session's lifecycle lives in its sidebar row) |
 | `EmptyState.tsx` | No-pane hint (differs for "no workspace" vs "workspace open") |
 | `BackgroundPanel.tsx` | Background agents; open/stop |
 | `RightPanel.tsx` | Resizable panel with a fixed header; **both tabs stay mounted** for instant switching |
@@ -193,8 +191,9 @@ string edits fail. Edit them with a script (e.g. python) if the edit tool cannot
   the Git viewer and File viewer popups re-theme when the main window toggles.
 - App-wide font size persists in `localStorage` under `meow.fontSize` (default 14, range 8–40px,
   integer). `applyFontSize()` in `font.ts` sets `font-size` on `<html>`/`<body>` and dispatches a
-  `meow:fontsize` CustomEvent so open xterm terminals re-`fit()` live; `watchFontSize()` re-applies
-  on `storage` events across same-origin popups. The control lives in the Settings → Personalize tab.
+  `meow:fontsize` CustomEvent for same-window listeners that must re-layout; `watchFontSize()`
+  re-applies on `storage` events across same-origin popups. The control lives in the
+  Settings → Personalize tab.
 
 ## 9.7 Performance rules
 

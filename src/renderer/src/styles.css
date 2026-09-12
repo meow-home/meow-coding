@@ -436,6 +436,13 @@ select.input { width: 100%; }
    only the active one is laid out; the rest are hidden without unmounting. */
 .agent-pane-container .pane { flex: 1; min-height: 0; }
 .agent-pane-container .pane:not(.active) { display: none; }
+/* Session panes: every session of the active project stays mounted, and only the
+   active slot is laid out — the rest carry `hidden` (display:none on the wrapper),
+   so a hidden session keeps streaming/answering instead of unmounting. */
+.session-panes { flex: 1; display: flex; min-width: 0; min-height: 0; padding: 0.5rem; }
+.session-panes .pane-slot { flex: 1; display: flex; min-width: 0; min-height: 0; }
+.session-panes .pane-slot[hidden] { display: none !important; }
+.session-panes .pane-slot > .pane { flex: 1; min-width: 0; min-height: 0; }
 .pane {
   display: flex;
   flex-direction: column;

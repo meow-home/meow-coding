@@ -1,7 +1,5 @@
 import { useCallback } from 'react'
-import { Terminal } from '@xterm/xterm'
 import type { PaneModel } from '../App'
-import XtermHost from './XtermHost'
 import PaneHeader from './PaneHeader'
 import ChatPanel from './chat/ChatPanel'
 import ChatErrorBoundary from './chat/ChatErrorBoundary'
@@ -9,30 +7,22 @@ import ChatErrorBoundary from './chat/ChatErrorBoundary'
 interface Props {
   pane: PaneModel
   background: boolean
-  isTerminal: boolean
   active: boolean
   onFocus: () => void
   onRemove: () => void
-  onRegisterTerminal: (agentId: string, term: Terminal) => void
-  onUnregisterTerminal: (agentId: string) => void
 }
 
-export default function Pane({
-  pane, background, isTerminal, active, onFocus, onRemove, onRegisterTerminal, onUnregisterTerminal
-}: Props) {
+export default function Pane({ pane, background, active, onFocus, onRemove }: Props) {
   const id = pane.agent.id
-  const write = (data: string) => void window.api.writeInput(id, data)
   const native = pane.agent.kind === 'native'
   // Stable callbacks so App-level re-renders (git poll, agent state) don't
   // cascade past the memoized ChatPanel into the chat feed.
   const handleStop = useCallback(() => {
-    if (isTerminal) void window.api.closeTerminal(id)
-    else if (native) void window.api.stopChat(id)
+    if (native) void window.api.stopChat(id)
     else void window.api.stopAgent(id)
-  }, [id, native, isTerminal])
+  }, [id, native])
   const handleRestart = useCallback(() => {
-    if (native) void window.api.newChatSession(id)
-    else void window.api.restartAgent(id)
+    if (!native) void window.api.restartAgent(id)
   }, [id, native])
   const handleInject = useCallback((text: string) => void window.api.injectPrompt(id, text), [id])
   const handleOpenLog = useCallback(() => void window.api.openLog(id), [id])
@@ -50,7 +40,6 @@ export default function Pane({
         git={pane.git}
         background={background}
         native={native}
-        isTerminal={isTerminal}
         active={active}
         onStop={handleStop}
         onRestart={handleRestart}
@@ -67,26 +56,16 @@ export default function Pane({
         </button>
       ) : null}
       <div className="pane-body">
-        {native ? (
-          <ChatErrorBoundary agentId={id}>
-            <ChatPanel
-              agentId={id}
-              cwd={pane.agent.cwd}
-              mode={pane.agent.mode ?? 'build'}
-              variant={pane.agent.variant}
-              onModeChange={handleModeChange}
-              onVariantChange={handleVariantChange}
-            />
-          </ChatErrorBoundary>
-        ) : (
-          <XtermHost
+        <ChatErrorBoundary agentId={id}>
+          <ChatPanel
             agentId={id}
-            onReady={term => onRegisterTerminal(id, term)}
-            onDispose={onUnregisterTerminal}
-            onInput={write}
-            onResize={(cols, rows) => void window.api.resizePty(id, cols, rows)}
+            cwd={pane.agent.cwd}
+            mode={pane.agent.mode ?? 'build'}
+            variant={pane.agent.variant}
+            onModeChange={handleModeChange}
+            onVariantChange={handleVariantChange}
           />
-        )}
+        </ChatErrorBoundary>
       </div>
     </div>
   )

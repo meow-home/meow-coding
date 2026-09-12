@@ -49,7 +49,7 @@ in-window navigation to them is prevented.
 |---|---|---|---|
 | Main | `src/main` | Process spawning/killing, all disk I/O, all network to providers, all stores, IPC handlers, app lifecycle | — |
 | Preload | `src/preload` | `contextBridge.exposeInMainWorld('api', …)`; one method per `AgentApi` entry; `subscribe` helper returning an unsubscribe fn | Import Node libs other than `electron`; expose `ipcRenderer` |
-| Renderer | `src/renderer` | React UI, local UI state, xterm hosting | Import `electron` or `node:*`; touch the filesystem |
+| Renderer | `src/renderer` | React UI, local UI state, mounted session panes (one per session, active one shown) | Import `electron` or `node:*`; touch the filesystem |
 | Shared | `src/shared` | Pure JSON-serializable types, `Channels`, `AgentApi`, pure helpers | Import Node/Electron; pull in external dependencies (it is compiled into all three builds *and* the tests) |
 
 The alias `@shared` → `src/shared` is configured in `electron.vite.config.ts`, `vitest.config.ts`
