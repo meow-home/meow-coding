@@ -1,7 +1,7 @@
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { AgentMode, Command, FileSuggestion, ImageAttachment } from '@shared/types'
-import { Square } from 'lucide-react'
+import { CornerDownLeft, Square } from 'lucide-react'
 import { parseCommandInput } from './parseCommandInput'
 
 export interface ChatInputHandle {
@@ -69,6 +69,10 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const [selectedName, setSelectedName] = useState('')
   const [images, setImages] = useState<ImageAttachment[]>([])
   const [mentions, setMentions] = useState<string[]>([])
+  // The field is uncontrolled, so its emptiness is mirrored here rather than read
+  // from React state. It only changes on the empty <-> non-empty transition, which
+  // keeps the composer free of per-keystroke re-renders.
+  const [hasText, setHasText] = useState(false)
   const [fileMenu, setFileMenu] = useState<{ open: boolean; items: FileSuggestion[]; selected: number }>({
     open: false, items: [], selected: 0
   })
@@ -82,6 +86,11 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   }, [commands, menu])
 
   const selectedIndex = filtered.findIndex(c => c.name === selectedName)
+
+  // One slot, one button: while a turn runs the same slot is Stop — except while a
+  // queued message is being edited, which is a Send (save) action, not a stop.
+  const showSend = !running || !!editTarget
+  const showStop = running && !editTarget
 
   // Scroll only when the highlighted item moves, not while typing.
   useEffect(() => {
@@ -122,6 +131,10 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   }, [agentId, closeFileMenu])
 
   const onInput = useCallback((raw: string) => {
+    setHasText(prev => {
+      const next = raw.trim().length > 0
+      return prev === next ? prev : next
+    })
     syncMenu(raw)
     syncMentions(raw)
   }, [syncMenu, syncMentions])
@@ -140,6 +153,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     const caret = field.selectionStart ?? raw.length
     const next = raw.slice(0, atIndex) + `@${item.path} ` + raw.slice(caret)
     field.value = next
+    setHasText(next.trim().length > 0)
     field.focus()
     const pos = atIndex + item.path.length + 2
     field.setSelectionRange(pos, pos)
@@ -153,6 +167,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     const field = fieldRef.current
     if (field) {
       field.value = field.value.replace(new RegExp(`@${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s?`), '')
+      setHasText(field.value.trim().length > 0)
     }
     setMentions(prev => prev.filter(p => p !== path))
     closeFileMenu()
@@ -190,6 +205,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     const text = (fieldRef.current?.value ?? '').trim()
     if (!text) return
     if (fieldRef.current) fieldRef.current.value = ''
+    setHasText(false)
     setMenu({ open: false, prefix: '' })
     setSelectedName('')
     setMentions([])
@@ -205,12 +221,14 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     if (!editTarget) return
     if (fieldRef.current) {
       fieldRef.current.value = editTarget.text
+      setHasText(true)
       fieldRef.current.focus()
     }
   }, [editTarget])
 
   const applyCommand = useCallback((cmd: Command) => {
     if (fieldRef.current) fieldRef.current.value = `/${cmd.name} `
+    setHasText(true)
     setMenu({ open: false, prefix: '' })
     setSelectedName('')
     fieldRef.current?.focus()
@@ -368,7 +386,19 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               }
             }}
           />
-          {running && (
+          {showSend && (
+            <button
+              className="chat-input-send"
+              title={editTarget ? 'Save edit (Enter)' : 'Send (Enter)'}
+              aria-label={editTarget ? 'Save edit' : 'Send'}
+              disabled={!hasText}
+              onMouseDown={e => e.preventDefault()}
+              onClick={submit}
+            >
+              <CornerDownLeft size={14} aria-hidden="true" />
+            </button>
+          )}
+          {showStop && (
             <button className="chat-input-stop" title="Stop" aria-label="Stop" onClick={onStop}>
               <Square size={12} fill="currentColor" aria-hidden="true" />
             </button>

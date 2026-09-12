@@ -953,13 +953,16 @@ select.input { width: 100%; }
 /* Square icon button in the row's trailing slot. `align-items: flex-end` pins it to
    the row's bottom once the field grows; the 3px bottom margin lifts the 24px box so
    its centre matches the 18px first line box's centre at rest. */
-.chat-input-stop {
+.chat-input-send, .chat-input-stop {
   flex: 0 0 auto; width: 2rem; height: 2rem; padding: 0; margin-bottom: 0.25rem;
   display: inline-flex; align-items: center; justify-content: center; line-height: 0;
   appearance: none; border: none; border-radius: var(--radius-sm);
-  background: var(--red); color: #fff; cursor: pointer;
-  transition: background 120ms ease;
+  color: #fff; cursor: pointer; transition: background 120ms ease;
 }
+.chat-input-send { background: var(--accent); }
+.chat-input-send:hover:not(:disabled) { background: var(--accent-strong); }
+.chat-input-send:disabled { background: var(--accent-dim); color: var(--text-faint); cursor: default; }
+.chat-input-stop { background: var(--red); }
 .chat-input-stop:hover { background: #ff7479; }
 .chat-input-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .chat-image-chip { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0.5rem 0.25rem 0.25rem; background: var(--bg-panel); border: 0.083333rem solid var(--hairline); border-radius: var(--radius); font-size: var(--fs-sm); }
