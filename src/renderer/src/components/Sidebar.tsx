@@ -198,6 +198,11 @@ export default function Sidebar({
                   {inputCount}
                 </span>
               )}
+              {/* `.project-menu` has no styles — it is only the hook the
+                  document-mousedown effect above tests (`closest('.project-menu')`)
+                  to keep this menu open while its own buttons are clicked. Do not
+                  remove it as an "unused class": dropping it makes the menu
+                  unclosable by its own button. */}
               <div className="project-menu project-actions" onClick={e => e.stopPropagation()}>
                 <button
                   className="btn ghost small"

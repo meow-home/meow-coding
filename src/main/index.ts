@@ -507,7 +507,11 @@ export class MainApp {
   }
 
   renameAgent(projectPath: string, agentId: string, name: string): void {
-    const updated = this.workspaces.updateAgent(projectPath, agentId, { name })
+    // The IPC surface is public: a blank name would leave the session nameless in
+    // the sidebar and pane headers, so reject it here rather than persist it.
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const updated = this.workspaces.updateAgent(projectPath, agentId, { name: trimmed })
     this.pushAgentConfig(updated, agentId)
   }
 
@@ -908,11 +912,19 @@ app.whenReady().then(async () => {
   // Runs before any workspace activation (which is what first loads the session
   // store), so deleting the file cannot be undone by a debounced in-memory flush.
   const resetFlag = path.join(app.getPath('userData'), '.sessions-model-reset')
-  const didReset = resetToSingleSession(mainApp.workspaces, {
-    alreadyDone: existsSync(resetFlag),
-    clearSessions: () => rmSync(path.join(app.getPath('userData'), 'sessions.json'), { force: true })
-  })
-  if (didReset) writeFileSync(resetFlag, String(Date.now()))
+  try {
+    const didReset = resetToSingleSession(mainApp.workspaces, {
+      alreadyDone: existsSync(resetFlag),
+      clearSessions: () => rmSync(path.join(app.getPath('userData'), 'sessions.json'), { force: true })
+    })
+    if (didReset) writeFileSync(resetFlag, String(Date.now()))
+  } catch (err) {
+    // Never fatal: a locked or read-only userData (or a full disk) must not reject
+    // the ready chain — that would skip registerIpcHandlers/createWindow and launch
+    // to nothing. The flag is written only after the reset succeeds, so this
+    // degrades to "skipped this launch" and retries on the next one.
+    mainApp.systemLogger.log('ERROR', 'main', `sessions model reset failed: ${err instanceof Error ? err.message : String(err)}`)
+  }
   registerIpcHandlers()
   createWindow()
   tray = TrayManager.create({

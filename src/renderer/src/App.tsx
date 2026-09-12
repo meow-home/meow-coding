@@ -15,6 +15,7 @@ import SettingsDialog, { type TabId } from './components/settings/SettingsDialog
 import BrowserDialog from './components/BrowserDialog'
 import InstallGuideDialog from './components/InstallGuideDialog'
 import UpdateDialog from './components/UpdateDialog'
+import { isLastSession } from './session-guard'
 
 export interface PaneModel {
   agent: AgentConfig
@@ -144,7 +145,11 @@ export default function App() {
   }, [])
 
   const refreshWorkspaces = useCallback(async () => {
-    setWorkspaces(await window.api.listWorkspaces())
+    try {
+      setWorkspaces(await window.api.listWorkspaces())
+    } catch {
+      /* a rejected list leaves the last known sidebar intact; the next refresh retries */
+    }
   }, [])
 
   useEffect(() => {
@@ -433,16 +438,12 @@ export default function App() {
   // bypass it. When the removed session is the project's last, its replacement is
   // created **first** (create-then-delete): the project is never left at zero
   // sessions, and a failed create aborts the removal instead of destroying the
-  // last session. "Last" is detected from local state before touching main — the
-  // mounted runtime when the project is open, else the sidebar summary (a project
-  // need not be opened to have its sessions listed and deleted).
+  // last session. "Last" comes from `isLastSession` (see `session-guard.ts`),
+  // which reads local state before main is touched — the mounted runtime when the
+  // project is open, else the sidebar summary (a project need not be opened to
+  // have its sessions listed and deleted).
   const removeSessionGuarded = useCallback(async (path: string, id: string) => {
-    const rt = runtimesRef.current[path]
-    const knownIds = rt
-      ? rt.workspace.agents.map(a => a.id)
-      : (workspaces.find(w => w.projectPath === path)?.sessions.map(s => s.id) ?? [])
-    const isLastSession = knownIds.length <= 1 && knownIds.includes(id)
-    if (isLastSession && !(await onNewSession(path))) return
+    if (isLastSession(path, id, runtimesRef.current, workspaces) && !(await onNewSession(path))) return
     await removeAgent(path, id)
   }, [onNewSession, removeAgent, workspaces])
 

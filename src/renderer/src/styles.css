@@ -321,7 +321,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .project-list li.active .project-name { color: var(--text-strong); }
 .project-expand { display: inline-flex; align-items: center; background: none; border: none; color: var(--text-faint); cursor: pointer; padding: 0; }
 .project-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; opacity: 0; transition: opacity 120ms ease; }
-.project-row:hover .project-actions, .project-list li.active .project-actions { opacity: 1; }
+.project-row:hover .project-actions, .project-list li.active .project-actions, .project-actions:focus-within { opacity: 1; }
 .project-actions .btn { border: none; background: transparent; padding: 2px 4px; color: var(--text-faint); }
 .project-actions .btn:hover { background: var(--bg-hover); color: var(--text); }
 .project-badge {
@@ -1454,7 +1454,7 @@ select.input { width: 100%; }
 /* Session menu button: hidden until hover / active */
 .session-menu { position: relative; display: inline-flex; }
 .session-menu .btn { opacity: 0; border: none; background: transparent; padding: 2px 3px; color: var(--text-faint); transition: opacity 120ms ease; }
-.session-row:hover .session-menu .btn, .session-row.active .session-menu .btn { opacity: 1; }
+.session-row:hover .session-menu .btn, .session-row.active .session-menu .btn, .session-menu:focus-within .btn { opacity: 1; }
 .session-menu .btn:hover { background: var(--bg-active); color: var(--text); }
 .session-menu-dropdown { position: absolute; right: 0; top: 100%; z-index: 1000; }
 .session-rename-input { position: absolute; right: 0; top: 100%; z-index: 1001; width: 160px; }

@@ -62,9 +62,9 @@ export default function AgentsTab({ agents, providers, subagentModels, onChangeA
     <div className="settings-tab agents-tab">
       <div className="agents-head">
         <p className="settings-hint">
-          Session system prompts. "meow" is the default native session and cannot be removed.
+          Profile system prompts. "meow" is the default profile and cannot be removed.
         </p>
-        <button className="btn primary small" onClick={openAdd}>+ Add session</button>
+        <button className="btn primary small" onClick={openAdd}>+ Add profile</button>
       </div>
       {agents.map((a, i) => (
         <div className="settings-row agents-row" key={a.name}>
@@ -120,7 +120,7 @@ export default function AgentsTab({ agents, providers, subagentModels, onChangeA
       </div>
       {adding && (
         <Modal
-          title="Add session"
+          title="Add profile"
           onClose={() => setAdding(false)}
           onSubmit={addAgent}
           submitLabel="Add"
@@ -131,7 +131,7 @@ export default function AgentsTab({ agents, providers, subagentModels, onChangeA
             <input
               id="agent-name"
               className="input"
-              placeholder="session name (e.g. reviewer)"
+              placeholder="profile name (e.g. reviewer)"
               value={newName}
               onChange={e => setNewName(e.target.value)}
               autoFocus
@@ -142,7 +142,7 @@ export default function AgentsTab({ agents, providers, subagentModels, onChangeA
             <textarea
               id="agent-prompt"
               className="input agents-prompt"
-              placeholder="System prompt for this session. Leave empty to use the default."
+              placeholder="System prompt for this profile. Leave empty to use the default."
               value={newPrompt}
               onChange={e => setNewPrompt(e.target.value)}
             />
