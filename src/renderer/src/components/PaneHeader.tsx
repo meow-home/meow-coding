@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { FileText, Layers, MoreVertical, Play, RotateCw, Square, Trash2 } from 'lucide-react'
-import type { AgentState, GitStatus } from '@shared/types'
+import type { AgentState } from '@shared/types'
 import ConfirmDialog from './ConfirmDialog'
 
 interface Props {
   name: string
   state: AgentState
-  git: GitStatus | null
   background?: boolean
   native?: boolean
   active?: boolean
@@ -24,7 +23,7 @@ const STATUS_LABEL: Record<AgentState['status'], string> = {
 }
 
 export default function PaneHeader({
-  name, state, git, background = false, native = false, active = false,
+  name, state, background = false, native = false, active = false,
   onStop, onRestart, onInject, onOpenLog, onToggleBackground, onRemove
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)

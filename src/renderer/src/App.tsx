@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BrowserInstallGuideEvent } from '@shared/ipc'
 import type { BrowserStatusInfo } from '@shared/browser-types'
 import type {
-  AgentConfig, AgentState, ArtifactEntry, GitStatus, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
+  AgentConfig, AgentState, ArtifactEntry, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from '@shared/types'
 import Sidebar from './components/Sidebar'
 import SessionPanes from './components/SessionPanes'
@@ -20,7 +20,6 @@ import { isLastSession } from './session-guard'
 export interface PaneModel {
   agent: AgentConfig
   state: AgentState
-  git: GitStatus | null
 }
 
 // Upper bound on how many projects stay mounted as keep-alives.
@@ -43,8 +42,7 @@ function WorkspaceView({
       agent,
       state: runtime.agents.find(s => s.agentId === agent.id) ?? {
         agentId: agent.id, status: 'idle', exitCode: null, lastOutputAt: null, alert: 'normal'
-      },
-      git: runtime.git
+      }
     })), [runtime])
 
   const activeId = useMemo(() => {

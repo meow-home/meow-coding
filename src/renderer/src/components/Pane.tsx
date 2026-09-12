@@ -37,7 +37,6 @@ export default function Pane({ pane, background, active, onFocus, onRemove }: Pr
       <PaneHeader
         name={pane.agent.name}
         state={pane.state}
-        git={pane.git}
         background={background}
         native={native}
         active={active}
