@@ -190,9 +190,14 @@ setHasText(prev => { const next = raw.trim().length > 0; return prev === next ? 
 
 The functional update returns the same reference when the flag does not change,
 so React bails out and **no re-render happens per keystroke** — only on the
-empty ↔ non-empty transition. `submit()` sets it back to `false` (it clears the
-field), and the `editTarget` effect sets it to `true` (it loads the target's
-text into the field).
+empty ↔ non-empty transition.
+
+Every site that writes `field.value` programmatically must keep the flag true,
+because such a write fires no `onInput`: `submit()` sets it back to `false` (it
+clears the field), the `editTarget` effect sets it to `true`, and `pickFile()`,
+`applyCommand()` and `removeMention()` each set it from the value they just
+wrote (the first two always insert text, so they set `true`). Missing one of
+these leaves the Send button greyed out over a non-empty field.
 
 Disabled with an empty field matches `submit()`'s existing guard
 (`if (!text) return`): images alone do not send, so the button must not look
