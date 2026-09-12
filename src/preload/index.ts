@@ -122,7 +122,6 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.ChatRunCommand, agentId, name, args),
   undoChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatUndo, agentId),
   redoChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatRedo, agentId),
-  newChatSession: (agentId: string) => ipcRenderer.invoke(Channels.ChatNewSession, agentId),
   listChatMessages: (agentId: string) => ipcRenderer.invoke(Channels.ChatListMessages, agentId),
   listChatTranscript: (agentId: string, opts?: TranscriptWindowOpts) =>
     ipcRenderer.invoke(Channels.ChatListTranscript, agentId, opts),
@@ -138,14 +137,6 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.ChatQueueRemove, agentId, id),
   editQueued: (agentId: string, id: string, text: string) =>
     ipcRenderer.invoke(Channels.ChatQueueEdit, agentId, id, text),
-  listSessions: (agentId: string) => ipcRenderer.invoke(Channels.SessionList, agentId),
-  createSession: (agentId: string) => ipcRenderer.invoke(Channels.SessionCreate, agentId),
-  switchSession: (agentId: string, sessionId: string) =>
-    ipcRenderer.invoke(Channels.SessionSwitch, agentId, sessionId),
-  deleteSession: (agentId: string, sessionId: string) =>
-    ipcRenderer.invoke(Channels.SessionDelete, agentId, sessionId),
-  renameSession: (agentId: string, sessionId: string, title: string) =>
-    ipcRenderer.invoke(Channels.SessionRename, agentId, sessionId, title),
   getSettings: () => ipcRenderer.invoke(Channels.SettingsGet),
   saveSettings: (settings: MeowSettings) => ipcRenderer.invoke(Channels.SettingsSave, settings),
   listCommands: (projectPath: string) => ipcRenderer.invoke(Channels.CommandList, projectPath),

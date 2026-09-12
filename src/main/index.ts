@@ -822,7 +822,6 @@ export function registerIpcHandlers(): void {
     mainApp.meowAgent.runCommand(agentId, name, args))
   ipcMain.handle(Channels.ChatUndo, (_e, agentId: string) => mainApp.meowAgent.undo(agentId))
   ipcMain.handle(Channels.ChatRedo, (_e, agentId: string) => mainApp.meowAgent.redo(agentId))
-  ipcMain.handle(Channels.ChatNewSession, (_e, agentId: string) => mainApp.meowAgent.newSession(agentId))
   ipcMain.handle(Channels.ChatListMessages, (_e, agentId: string) => mainApp.meowAgent.listMessages(agentId))
   ipcMain.handle(Channels.ChatListTranscript, (_e, agentId: string, opts?: TranscriptWindowOpts) =>
     mainApp.meowAgent.listTranscriptWindow(agentId, opts))
@@ -846,14 +845,6 @@ export function registerIpcHandlers(): void {
     mainApp.meowAgent.removeQueued(agentId, id))
   ipcMain.handle(Channels.ChatQueueEdit, (_e, agentId: string, id: string, text: string) =>
     mainApp.meowAgent.editQueued(agentId, id, text))
-  ipcMain.handle(Channels.SessionList, (_e, agentId: string) => mainApp.meowAgent.listSessions(agentId))
-  ipcMain.handle(Channels.SessionCreate, (_e, agentId: string) => mainApp.meowAgent.createSession(agentId))
-  ipcMain.handle(Channels.SessionSwitch, (_e, agentId: string, sessionId: string) =>
-    mainApp.meowAgent.switchSession(agentId, sessionId))
-  ipcMain.handle(Channels.SessionDelete, (_e, agentId: string, sessionId: string) =>
-    mainApp.meowAgent.deleteSession(agentId, sessionId))
-  ipcMain.handle(Channels.SessionRename, (_e, agentId: string, sessionId: string, title: string) =>
-    mainApp.meowAgent.renameSession(agentId, sessionId, title))
   ipcMain.handle(Channels.SettingsGet, () => mainApp.meowAgent.getSettings())
   ipcMain.handle(Channels.SettingsSave, (_e, settings: MeowSettings) =>
     mainApp.meowAgent.saveSettings(settings))

@@ -18,10 +18,9 @@ describe('IPC contract', () => {
       'injectPrompt', 'openLog', 'getLogPath', 'writeSystemLog', 'quit', 'getAppVersion',
       'checkForUpdates', 'installUpdate', 'onUpdaterStatus',
       'onAgentState', 'onAgentConfig', 'onGitStatus',
-      'sendChat', 'stopChat', 'runCommand', 'undoChat', 'redoChat', 'newChatSession', 'listChatMessages', 'listChatTranscript', 'respondPrompt', 'removeQueued', 'editQueued',
+      'sendChat', 'stopChat', 'runCommand', 'undoChat', 'redoChat', 'listChatMessages', 'listChatTranscript', 'respondPrompt', 'removeQueued', 'editQueued',
       'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus', 'listCommands', 'saveCommand', 'removeCommand', 'getStats', 'onContextChanged',
       'suggestFiles', 'setAgentBackground', 'onAgentBackground',
-      'listSessions', 'createSession', 'switchSession', 'deleteSession', 'renameSession',
       'getChatTodos',
       'isChatRunning',
       'getPendingPrompt',
@@ -94,7 +93,6 @@ describe('IPC contract', () => {
       runCommand: async () => {},
       undoChat: async () => true,
       redoChat: async () => true,
-      newChatSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
       listChatMessages: async () => [],
       listChatTranscript: async () => ({ items: [], hasMore: false }),
       getChatTodos: async () => [],
@@ -139,12 +137,7 @@ describe('IPC contract', () => {
       onContextChanged: () => () => {},
       suggestFiles: async () => [],
       setAgentBackground: async () => {},
-      onAgentBackground: () => () => {},
-      listSessions: async () => [],
-      createSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
-      switchSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
-      deleteSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
-      renameSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 })
+      onAgentBackground: () => () => {}
     }
     for (const key of required) {
       expect(typeof api[key]).toBe('function')
@@ -157,7 +150,6 @@ describe('IPC contract', () => {
     expect(Channels.EventGitStatus).toBe('git:status')
     expect(Channels.ChatSend).toBe('chat:send')
     expect(Channels.ChatStop).toBe('chat:stop')
-    expect(Channels.ChatNewSession).toBe('chat:new-session')
     expect(Channels.ChatListMessages).toBe('chat:list-messages')
     expect(Channels.ChatListTranscript).toBe('chat:list-transcript')
     expect(Channels.ChatIsRunning).toBe('chat:is-running')
@@ -173,10 +165,6 @@ describe('IPC contract', () => {
     expect(Channels.AgentSetBackground).toBe('agent:set-background')
     expect(Channels.EventAgentBackground).toBe('agent:background')
     expect(Channels.AppVersion).toBe('app:version')
-    expect(Channels.SessionList).toBe('session:list')
-    expect(Channels.SessionCreate).toBe('session:create')
-    expect(Channels.SessionSwitch).toBe('session:switch')
-    expect(Channels.SessionDelete).toBe('session:delete')
     expect(Channels.SettingsGet).toBe('settings:get')
     expect(Channels.SettingsSave).toBe('settings:save')
     expect(Channels.CommandList).toBe('commands:list')

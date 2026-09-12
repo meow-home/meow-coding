@@ -101,7 +101,6 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `ChatStop` | `chat:stop` | `stopChat(agentId)` → `stopAndDrain` (aborts the turn, keeps the queue, starts the next queued message) |
 | `ChatRunCommand` | `chat:run-command` | `runCommand(agentId, name, args)` |
 | `ChatUndo` / `ChatRedo` | `chat:undo` / `chat:redo` | `undoChat` / `redoChat` → `boolean` |
-| `ChatNewSession` | `chat:new-session` | `newChatSession(agentId): SessionSummary` |
 | `ChatListMessages` | `chat:list-messages` | `listChatMessages(agentId): ChatMessage[]` |
 | `ChatListTranscript` | `chat:list-transcript` | `listChatTranscript(agentId): ChatTranscriptItem[]` |
 | `ChatGetTodos` | `chat:get-todos` | `getChatTodos(agentId): TodoItem[]` |
@@ -110,7 +109,6 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `ChatRespondPrompt` | `chat:respond-prompt` | `respondPrompt(agentId, promptId, resp: PromptResponse)` |
 | `PromptStatesList` | `prompt:states-list` | `listPromptStates(): PromptStateSummary[]` — `{ projectPath, agentIds }` per project with agents currently waiting on a permission/question prompt (seeds the sidebar badges on startup) |
 | `ChatQueueRemove` / `ChatQueueEdit` | `chat:queue-remove` / `chat:queue-edit` | `removeQueued` / `editQueued` |
-| `SessionList` / `SessionCreate` / `SessionSwitch` / `SessionDelete` / `SessionRename` | `session:*` | `listSessions` / `createSession` / `switchSession` / `deleteSession` / `renameSession` |
 | `TraceList` / `TraceRead` / `TraceDelete` | `trace:*` | `traceList(agentId)` / `traceRead(sessionId)` / `traceDelete(sessionId)` |
 
 ### Providers, connections, settings

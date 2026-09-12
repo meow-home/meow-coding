@@ -270,20 +270,6 @@ export class MeowAgentManager {
     return this.summary(session)
   }
 
-  deleteSession(agentId: string, sessionId: string): SessionSummary {
-    const wasActive = this.activeSessions.get(agentId) === sessionId
-    this.deps.store.delete(sessionId)
-    let next: StoredSession
-    if (wasActive) {
-      next = this.deps.store.latest(agentId) ?? this.deps.store.create(agentId, this.agents.get(agentId)?.cwd ?? '')
-    } else {
-      next = this.deps.store.get(this.activeSessions.get(agentId) ?? '')
-        ?? this.deps.store.create(agentId, this.agents.get(agentId)?.cwd ?? '')
-    }
-    this.activeSessions.set(agentId, next.id)
-    return this.summary(next)
-  }
-
   private MAX_QUEUE = 5
 
   emitQueue(agentId: string): void {

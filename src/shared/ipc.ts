@@ -3,7 +3,7 @@ import type {
   ConnectionAccount, ContextChangedEvent, ContextInfo, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload,
   GitActionResult, GitBlameLine, GitBranch, GitCommit, GitDiffResult, GitStatus, GitStatusDetail,
   ImageAttachment, LogLevel, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PendingPromptInfo, PromptResponse,
-  SessionSummary, StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts,
+  StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts,
   UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 import type { BrowserStatusInfo, PairingInfo } from './browser-types'
@@ -72,7 +72,6 @@ export const Channels = {
   ChatRunCommand: 'chat:run-command',
   ChatUndo: 'chat:undo',
   ChatRedo: 'chat:redo',
-  ChatNewSession: 'chat:new-session',
   ChatListMessages: 'chat:list-messages',
   ChatListTranscript: 'chat:list-transcript',
   ChatGetTodos: 'chat:get-todos',
@@ -84,11 +83,6 @@ export const Channels = {
   EventActivateAgent: 'agent:activate',
   ChatQueueRemove: 'chat:queue-remove',
   ChatQueueEdit: 'chat:queue-edit',
-  SessionList: 'session:list',
-  SessionCreate: 'session:create',
-  SessionSwitch: 'session:switch',
-  SessionDelete: 'session:delete',
-  SessionRename: 'session:rename',
   SettingsGet: 'settings:get',
   SettingsSave: 'settings:save',
   CommandList: 'commands:list',
@@ -240,7 +234,6 @@ export interface AgentApi {
   runCommand(agentId: string, name: string, args: string): Promise<void>
   undoChat(agentId: string): Promise<boolean>
   redoChat(agentId: string): Promise<boolean>
-  newChatSession(agentId: string): Promise<SessionSummary>
   listChatMessages(agentId: string): Promise<ChatMessage[]>
   listChatTranscript(agentId: string, opts?: TranscriptWindowOpts): Promise<TranscriptWindow>
   getChatTodos(agentId: string): Promise<TodoItem[]>
@@ -252,11 +245,6 @@ export interface AgentApi {
   onActivateAgent(cb: (e: ActivateAgentEvent) => void): () => void
   removeQueued(agentId: string, id: string): Promise<void>
   editQueued(agentId: string, id: string, text: string): Promise<void>
-  listSessions(agentId: string): Promise<SessionSummary[]>
-  createSession(agentId: string): Promise<SessionSummary>
-  switchSession(agentId: string, sessionId: string): Promise<SessionSummary | null>
-  deleteSession(agentId: string, sessionId: string): Promise<SessionSummary>
-  renameSession(agentId: string, sessionId: string, title: string): Promise<SessionSummary | null>
   getSettings(): Promise<MeowSettings>
   saveSettings(settings: MeowSettings): Promise<MeowSettings>
   listCommands(projectPath: string): Promise<Command[]>
