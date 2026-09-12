@@ -24,6 +24,10 @@
   --bg-raised: #161618;
   --bg-hover: #1c1c20;
   --bg-active: #242428;
+  /* Surface floating above the feed (jump-to-end button). Brighter than --bg-raised in BOTH themes,
+     which --bg-active cannot do: it means "selected", so it darkens in the light theme. */
+  --bg-elevated: #383842;
+  --bg-elevated-hover: #484854;
   /* Sidebar surface — its own token so it can differ from panels (near-white in light). */
   --bg-sidebar: #0f0f11;
   /* Paler hover/active for dropdown & select menu items (subtle overlay over the menu bg). */
@@ -95,6 +99,8 @@
   --bg-raised: #e8e8e8;
   --bg-hover: #e0e0e0;
   --bg-active: #d4d4d4;
+  --bg-elevated: #f7f7f7;
+  --bg-elevated-hover: #ffffff;
   --bg-sidebar: #fdfdfd;
   --menu-hover: rgba(0, 0, 0, 0.045);
   --menu-active: rgba(0, 0, 0, 0.08);
@@ -685,11 +691,11 @@ select.input { width: 100%; }
   display: inline-flex; align-items: center; justify-content: center;
   width: 2rem; height: 2rem; padding: 0; line-height: 0;
   border: 0.083333rem solid var(--hairline);
-  background: #383842; color: var(--text-strong);
+  background: var(--bg-elevated); color: var(--text-strong);
   border-radius: var(--radius); cursor: pointer;
   box-shadow: var(--shadow-3); z-index: 5;
 }
-.chat-jump-to-end:hover { background: #484854; border-color: var(--accent-border); color: #fff; }
+.chat-jump-to-end:hover { background: var(--bg-elevated-hover); border-color: var(--accent-border); color: var(--text-strong); }
 /* Keep-alive workspace panes that stay mounted but hidden; they stream
    ChatEvents in the background and toggle back instantly. */
 .workspace-hidden { display: none; }

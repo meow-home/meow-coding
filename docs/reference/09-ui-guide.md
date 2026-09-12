@@ -187,6 +187,13 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   (200px before) and `white-space: nowrap` rows. With short values the floor decides the box — measured
   exactly 200px, which is why the floor is a real, testable change — and the explicit `max-content`
   keeps the width from depending on shrink-to-fit resolution for `position: absolute; right: 0`.
+- **The jump-to-end button floats above the feed on its own token, `--bg-elevated`.** It has to be
+  *brighter* than the feed in **both** themes, which no existing surface token provides: `--bg-raised`
+  is the card grey, and `--bg-active` means "selected", so it goes *darker* toward the light theme
+  (`#e8e8e8` → `#d4d4d4`) — hard-coding it left the button a dark grey chip on the white feed. Dark:
+  `#383842` at rest / `#484854` on hover; light: `#f7f7f7` / `#ffffff`. Its label follows the theme via
+  `--text-strong`, never a literal `#fff`: white text over the white light-theme hover made the label
+  disappear on hover.
 - Numeric displays use tabular-nums.
 - UI labels are English.
 
