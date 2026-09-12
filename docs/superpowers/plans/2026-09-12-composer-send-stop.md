@@ -19,7 +19,7 @@
 - **`hasText` may only `setState` on the empty ↔ non-empty transition.** Use the functional form returning the previous value when unchanged, so React bails out and no render happens per keystroke.
 - **Button geometry is fixed at `2rem × 2rem` (24 × 24 at the default 12px root), `border-radius: var(--radius-sm)` (4px), `padding: 0`, `margin-bottom: 0.25rem`, `display: inline-flex` centred, `line-height: 0`.** Sizes in this plan assume `1rem = 12px` (the app's root font-size, and the composer field's `font-size: 1rem` + `line-height: 1.5` → an 18px line box).
 - **Never hard-code a text color that fights the theme.** Send/Stop use `--accent` / `--red` with `#fff` icons (both are dark hues, so the icon stays legible in light mode too).
-- **A parallel session edits this checkout.** Before every commit run `git status --short`, read `git diff` on any dirty file you did not touch, and stage only the paths and hunks you changed — never `git add -A`. If foreign edits overlap a hunk you need, stop and ask.
+- **A parallel session edits this checkout.** Before every commit run `git status --short`, read `git diff` on any dirty file you did not touch, and stage only the paths and hunks you changed — never `git add -A`. If foreign edits overlap a hunk you need, stop and ask. **Known foreign work at plan-writing time:** `src/renderer/src/styles.css` carries four uncommitted hunks around lines 1271-1412 (menu / command-menu backgrounds `--bg-raised` → `--bg-chat`) — they are nowhere near the `/* Composer */` block this plan edits, so take the composer hunks and leave those staged-or-not as you found them.
 - **Line endings:** at plan time every file this plan touches is LF (`CR count=0`). Re-check with `tr -cd '\r' < <file> | wc -c` before scripting an edit; if a file has become CRLF, do the edit with `io.open(..., newline='')` so the endings are preserved.
 - **Language: English** for source, UI labels, docs and commit messages. Commits must **not** carry a `Co-Authored-By` trailer.
 - **Verification before claiming done:** `npm run typecheck`, `npm test`, and for UI `npm run build && npx playwright test` on the affected specs.
@@ -879,7 +879,21 @@ Replace it with a row that names the new shape: the composer card's bottom is on
 
 - [ ] **Step 3: Add the spec to the e2e inventory**
 
-`docs/reference/09-ui-guide.md` ~line 283 lists the Playwright specs after "Playwright e2e (`npm run build && npm run e2e`), which launches the real app:". Add `composer.spec.ts` to that list.
+`docs/reference/09-ui-guide.md` lines 268-270 list the Playwright specs:
+
+```
+- Playwright e2e (`npm run build && npm run e2e`), which launches the real app:
+  `smoke.spec.ts`, `prompt.spec.ts`, `context-footer.spec.ts`, `chat-scrollbar.spec.ts`,
+  `sidebar-sessions.spec.ts`
+```
+
+That list is already missing `selectors.spec.ts` and `menus.spec.ts` (both exist in `tests/e2e/`), so replace those three lines with the complete, alphabetical inventory of the directory:
+
+```
+- Playwright e2e (`npm run build && npm run e2e`), which launches the real app:
+  `smoke.spec.ts`, `prompt.spec.ts`, `composer.spec.ts`, `context-footer.spec.ts`,
+  `chat-scrollbar.spec.ts`, `sidebar-sessions.spec.ts`, `selectors.spec.ts`, `menus.spec.ts`
+```
 
 - [ ] **Step 4: Check the product overview for a stale composer claim**
 
