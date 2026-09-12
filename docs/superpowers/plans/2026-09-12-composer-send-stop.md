@@ -518,7 +518,7 @@ In `src/renderer/src/styles.css`, replace this exact block (the `.chat-input-mai
 .chat-input-main { display: flex; flex-direction: column; gap: 0.333333rem; min-width: 0; }
 .chat-input-field {
   flex: 1; resize: none; background: transparent; color: var(--text);
-  border: none; padding: 0.5rem 0.333rem;
+  border: none; padding: 0.5rem 0.333333rem;
   font-family: var(--font-ui); font-size: 1rem; user-select: text; line-height: 1.5;
 }
 .chat-input-field:focus, .chat-input-field:focus-visible { outline: none; }
@@ -543,7 +543,7 @@ with:
 .chat-input-row { display: flex; align-items: flex-end; gap: 0.5rem; }
 .chat-input-field {
   flex: 1; min-width: 0; resize: none; background: transparent; color: var(--text);
-  border: none; padding: 0.5rem 0.333rem;
+  border: none; padding: 0.5rem 0.333333rem;
   font-family: var(--font-ui); font-size: 1rem; user-select: text; line-height: 1.5;
   /* Grow with the content up to 8 lines, then scroll inside the card instead of
      pushing the transcript off screen. */

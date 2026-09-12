@@ -240,7 +240,7 @@ taken on trust.
 .chat-input-row { display: flex; align-items: flex-end; gap: 0.5rem; }
 .chat-input-field {
   flex: 1; min-width: 0; resize: none; background: transparent; color: var(--text);
-  border: none; padding: 0.5rem 0.333rem;
+  border: none; padding: 0.5rem 0.333333rem;
   font-family: var(--font-ui); font-size: 1rem; user-select: text; line-height: 1.5;
   field-sizing: content; max-height: 13rem; overflow-y: auto;
 }

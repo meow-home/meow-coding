@@ -1,6 +1,7 @@
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { AgentMode, Command, FileSuggestion, ImageAttachment } from '@shared/types'
+import { Square } from 'lucide-react'
 import { parseCommandInput } from './parseCommandInput'
 
 export interface ChatInputHandle {
@@ -314,58 +315,65 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             ))}
           </div>
         )}
-        <textarea
-          ref={fieldRef}
-          className={`chat-input-field mode-${mode}`}
-          placeholder="Message Meow...  ( / for commands )"
-          rows={2}
-          onInput={e => onInput((e.target as HTMLTextAreaElement).value)}
-          onPaste={e => {
-            const files = Array.from(e.clipboardData.items)
-              .map(item => item.getAsFile())
-              .filter((f): f is File => f !== null)
-            if (files.length > 0) {
-              e.preventDefault()
-              addImageFiles(files)
-            }
-          }}
-          onDrop={e => {
-            const files = Array.from(e.dataTransfer.files)
-            if (files.length > 0) {
-              e.preventDefault()
-              addImageFiles(files)
-            }
-          }}
-          onKeyDown={e => {
-            if (menu.open && filtered.length > 0) {
-              if (e.key === 'ArrowDown') { e.preventDefault(); move(1); return }
-              if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); return }
-              if (e.key === 'Tab') { e.preventDefault(); onPick(filtered[selectedIndex < 0 ? 0 : selectedIndex].name); return }
-              if (e.key === 'Enter') {
+        <div className="chat-input-row">
+          <textarea
+            ref={fieldRef}
+            className={`chat-input-field mode-${mode}`}
+            placeholder={running ? 'Processing...' : 'Type a message... (/ for commands)'}
+            rows={1}
+            onInput={e => onInput((e.target as HTMLTextAreaElement).value)}
+            onPaste={e => {
+              const files = Array.from(e.clipboardData.items)
+                .map(item => item.getAsFile())
+                .filter((f): f is File => f !== null)
+              if (files.length > 0) {
                 e.preventDefault()
-                onPick(filtered[selectedIndex < 0 ? 0 : selectedIndex].name)
-                return
+                addImageFiles(files)
               }
-            }
-            if (fileMenu.open && fileMenu.items.length > 0) {
-              if (e.key === 'ArrowDown') { e.preventDefault(); moveFile(1); return }
-              if (e.key === 'ArrowUp') { e.preventDefault(); moveFile(-1); return }
-              if (e.key === 'Tab' || e.key === 'Enter') {
+            }}
+            onDrop={e => {
+              const files = Array.from(e.dataTransfer.files)
+              if (files.length > 0) {
                 e.preventDefault()
-                pickFile(fileMenu.items[fileMenu.selected] ?? fileMenu.items[0])
-                return
+                addImageFiles(files)
               }
-            }
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              submit()
-            }
-            if (e.key === 'Escape') {
-              setMenu(prev => (prev.open ? { open: false, prefix: '' } : prev))
-              closeFileMenu()
-            }
-          }}
-        />
+            }}
+            onKeyDown={e => {
+              if (menu.open && filtered.length > 0) {
+                if (e.key === 'ArrowDown') { e.preventDefault(); move(1); return }
+                if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); return }
+                if (e.key === 'Tab') { e.preventDefault(); onPick(filtered[selectedIndex < 0 ? 0 : selectedIndex].name); return }
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  onPick(filtered[selectedIndex < 0 ? 0 : selectedIndex].name)
+                  return
+                }
+              }
+              if (fileMenu.open && fileMenu.items.length > 0) {
+                if (e.key === 'ArrowDown') { e.preventDefault(); moveFile(1); return }
+                if (e.key === 'ArrowUp') { e.preventDefault(); moveFile(-1); return }
+                if (e.key === 'Tab' || e.key === 'Enter') {
+                  e.preventDefault()
+                  pickFile(fileMenu.items[fileMenu.selected] ?? fileMenu.items[0])
+                  return
+                }
+              }
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                submit()
+              }
+              if (e.key === 'Escape') {
+                setMenu(prev => (prev.open ? { open: false, prefix: '' } : prev))
+                closeFileMenu()
+              }
+            }}
+          />
+          {running && (
+            <button className="chat-input-stop" title="Stop" aria-label="Stop" onClick={onStop}>
+              <Square size={12} fill="currentColor" aria-hidden="true" />
+            </button>
+          )}
+        </div>
       </div>
       <input
         ref={fileInputRef}
@@ -378,14 +386,6 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
           e.target.value = ''
         }}
       />
-      <div className="chat-input-toolbar">
-        <span className="chat-input-toolbar-spacer" />
-        {running && (
-          <button className="chat-input-stop" onClick={onStop}>
-            Stop
-          </button>
-        )}
-      </div>
     </div>
   )
 })
