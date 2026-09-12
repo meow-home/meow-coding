@@ -685,11 +685,11 @@ select.input { width: 100%; }
   display: inline-flex; align-items: center; justify-content: center;
   width: 2rem; height: 2rem; padding: 0; line-height: 0;
   border: 0.083333rem solid var(--hairline);
-  background: var(--bg-active); color: var(--text-strong);
+  background: #383842; color: var(--text-strong);
   border-radius: var(--radius); cursor: pointer;
   box-shadow: var(--shadow-3); z-index: 5;
 }
-.chat-jump-to-end:hover { background: #323238; border-color: var(--accent-border); color: var(--text-strong); }
+.chat-jump-to-end:hover { background: #484854; border-color: var(--accent-border); color: #fff; }
 /* Keep-alive workspace panes that stay mounted but hidden; they stream
    ChatEvents in the background and toggle back instantly. */
 .workspace-hidden { display: none; }
