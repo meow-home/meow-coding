@@ -152,6 +152,17 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
 - Spacing on a 4px scale; controls use Tailwind default sizes.
 - Radii: `--radius-xs` 3px (sidebar icon buttons), `--radius-sm` 4px, `--radius` 6px (the global
   `*` default), `--radius-lg` 8px.
+- Menus share one metric set (tokens in `:root`): `--menu-radius` 10px (container corner),
+  `--menu-pad` 6px (container padding), `--menu-item-h` 32px, `--menu-item-pad-x` 10px,
+  `--menu-icon` 16px. Rows are **contiguous** (`gap: 0`) and each is `min-height: 32px` with
+  `padding: 0 10px`. `.menu-sep` is an inset hairline between groups; `.menu-head` is a muted
+  non-interactive context row.
+- **Action menus get icons and dividers; pickers get metrics only.** The action menus (project,
+  session row, sidebar footer, pane header, right-panel file context) lead every item with a 16px
+  lucide icon and separate groups with `.menu-sep`. The pickers (mode, variant, model, git branch)
+  take the shared metrics but deliberately have no icons or dividers: the model picker is a
+  searchable, sectioned list where an icon column is noise. `.command-item` is excluded from the
+  family — it stacks a name + description and would clip at 32px.
 - Numeric displays use tabular-nums.
 - UI labels are English.
 

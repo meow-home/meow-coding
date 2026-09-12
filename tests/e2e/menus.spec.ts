@@ -109,3 +109,56 @@ test('every menu shares one metric set', async () => {
     cleanupDir(project)
   }
 })
+
+test('action menus carry icons, a divider and a path header; pickers do not', async () => {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    seedWorkspaces(userData, project)
+    const { app, window } = await launch(userData)
+    try {
+      await openProject(window)
+
+      await window.getByRole('button', { name: 'menu E2E Project', exact: true }).click()
+      await expect(window.locator('.project-menu-dropdown')).toBeVisible()
+      const projectMenu = window.locator('.project-menu-dropdown')
+      // Every row renders exactly one icon; it is decorative, so the accessible
+      // name stays the label the other suites click.
+      await expect(projectMenu.locator('.menu-item')).toHaveCount(6)
+      await expect(projectMenu.locator('.menu-item svg')).toHaveCount(6)
+      await expect(projectMenu.locator('.menu-item svg').first()).toHaveAttribute('aria-hidden', 'true')
+      await expect(projectMenu.locator('.menu-sep')).toHaveCount(1)
+      await expect(projectMenu.locator('.menu-head')).toHaveCount(1)
+      await expect(projectMenu.locator('.menu-head')).toHaveAttribute('title', project)
+      // The icon column is a fixed width, so labels line up across rows.
+      const iconWidths = await projectMenu.locator('.menu-item svg').evaluateAll(
+        els => els.map(e => Math.round(e.getBoundingClientRect().width))
+      )
+      expect(new Set(iconWidths).size).toBe(1)
+      expect(iconWidths[0]).toBe(16)
+
+      // Session menu: icons + divider, no header.
+      await window.keyboard.press('Escape')
+      const row = window.locator('.session-list .session-row').first()
+      await row.hover()
+      await row.getByRole('button', { name: 'Session menu', exact: true }).click()
+      const sessionMenu = window.locator('.session-menu-dropdown')
+      await expect(sessionMenu).toBeVisible()
+      await expect(sessionMenu.locator('.menu-item svg')).toHaveCount(2)
+      await expect(sessionMenu.locator('.menu-sep')).toHaveCount(1)
+
+      // A picker stays icon-free and separator-free — the scope split is deliberate.
+      await window.keyboard.press('Escape')
+      await window.getByRole('button', { name: 'Mode', exact: true }).click()
+      const modeMenu = window.locator('.mode-menu')
+      await expect(modeMenu).toBeVisible()
+      await expect(modeMenu.locator('svg')).toHaveCount(0)
+      await expect(modeMenu.locator('.menu-sep')).toHaveCount(0)
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+  }
+})

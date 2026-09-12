@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Ellipsis } from 'lucide-react'
+import { Ellipsis, FileText, Layers, Play, RotateCw, Square, Trash2 } from 'lucide-react'
 import type { AgentState, GitStatus } from '@shared/types'
 import ConfirmDialog from './ConfirmDialog'
 
@@ -101,18 +101,35 @@ export default function PaneHeader({
                   native session's own menu is the sidebar's session row. */}
               {!native && (
                 <>
-                  <button className="menu-item" onClick={() => { close(); setInjecting(v => !v) }}>Inject</button>
-                  <button className="menu-item" onClick={() => { close(); onOpenLog() }}>Log</button>
-                  <button className="menu-item" onClick={() => { close(); onStop() }}>Stop</button>
-                  <button className="menu-item" onClick={() => { close(); onRestart() }}>Restart</button>
+                  <button className="menu-item" onClick={() => { close(); setInjecting(v => !v) }}>
+                    <Play size={16} aria-hidden="true" />
+                    Inject
+                  </button>
+                  <button className="menu-item" onClick={() => { close(); onOpenLog() }}>
+                    <FileText size={16} aria-hidden="true" />
+                    Log
+                  </button>
+                  <button className="menu-item" onClick={() => { close(); onStop() }}>
+                    <Square size={16} aria-hidden="true" />
+                    Stop
+                  </button>
+                  <button className="menu-item" onClick={() => { close(); onRestart() }}>
+                    <RotateCw size={16} aria-hidden="true" />
+                    Restart
+                  </button>
                 </>
               )}
               {onToggleBackground && (
                 <button className="menu-item" onClick={() => { close(); onToggleBackground() }}>
+                  <Layers size={16} aria-hidden="true" />
                   {background ? 'Open pane' : 'Run in background'}
                 </button>
               )}
-              <button className="menu-item danger" onClick={() => { close(); setConfirmRemove(true) }}>Delete session</button>
+              <div className="menu-sep" aria-hidden="true" />
+              <button className="menu-item danger" onClick={() => { close(); setConfirmRemove(true) }}>
+                <Trash2 size={16} aria-hidden="true" />
+                Delete session
+              </button>
             </div>
           )}
         </div>

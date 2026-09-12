@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { ArrowUpRight, Code } from 'lucide-react'
 
 export interface FileMenuState {
   x: number
@@ -33,14 +34,16 @@ export default function FileContextMenu({ menu, onClose }: Props) {
   }, [menu, onClose])
 
   if (!menu) return null
-  const x = Math.min(menu.x, window.innerWidth - 190)
+  const x = Math.min(menu.x, window.innerWidth - 230)
   const y = Math.min(menu.y, window.innerHeight - 80)
   return createPortal(
     <div ref={ref} className="right-panel-menu" style={{ position: 'fixed', left: x, top: y, zIndex: 1000 }}>
       <button className="menu-item" onClick={() => { void window.api.openFileInEditor(menu.absPath); onClose() }}>
+        <Code size={16} aria-hidden="true" />
         Open in VS Code
       </button>
       <button className="menu-item" onClick={() => { void window.api.showFileInFolder(menu.absPath); onClose() }}>
+        <ArrowUpRight size={16} aria-hidden="true" />
         Reveal in Folder
       </button>
     </div>,

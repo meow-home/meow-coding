@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, ChevronRight, GitBranch, Moon, MoreVertical, PanelLeft, Plus, RefreshCw, Settings, Server, Sun } from 'lucide-react'
+import {
+  ChevronDown, ChevronRight, Code, FolderOpen, FolderSymlink, GitBranch, Moon, MoreVertical,
+  PanelLeft, Pencil, Plus, RefreshCw, Server, Settings, Square, Sun, Terminal, Trash2, X
+} from 'lucide-react'
 import type { WorkspaceRuntime, WorkspaceSummary } from '@shared/types'
 import AddProjectDialog from './AddProjectDialog'
 import { applyTheme, type Theme } from '../theme'
@@ -237,41 +240,48 @@ export default function Sidebar({
                     className="sidebar-menu-dropdown project-menu-dropdown"
                     style={{ position: 'fixed', left: projectMenuPos.x, top: projectMenuPos.y, right: 'auto', bottom: 'auto' }}
                   >
+                    <span className="menu-head" title={ws.projectPath}>{ws.projectPath}</span>
                     <button
                       className="menu-item"
                       onClick={() => { setOpenProjectMenu(null); onOpen(ws.projectPath) }}
                     >
+                      <FolderOpen size={16} aria-hidden="true" />
                       Open
                     </button>
                     <button
                       className="menu-item"
                       onClick={() => { setOpenProjectMenu(null); void window.api.openInEditor(ws.projectPath) }}
                     >
+                      <Code size={16} aria-hidden="true" />
                       Open in VS Code
                     </button>
                     <button
                       className="menu-item"
                       onClick={() => { setOpenProjectMenu(null); onOpenGit(ws.projectPath) }}
                     >
-                      <GitBranch size={14} aria-hidden="true" />
+                      <GitBranch size={16} aria-hidden="true" />
                       Git
                     </button>
                     <button
                       className="menu-item"
                       onClick={() => { setOpenProjectMenu(null); void window.api.openFolder(ws.projectPath) }}
                     >
+                      <FolderSymlink size={16} aria-hidden="true" />
                       Open Folder
                     </button>
                     <button
                       className="menu-item"
                       onClick={() => { setOpenProjectMenu(null); void window.api.openSystemTerminal(ws.projectPath) }}
                     >
+                      <Terminal size={16} aria-hidden="true" />
                       Open Terminal
                     </button>
+                    <div className="menu-sep" aria-hidden="true" />
                     <button
                       className="menu-item danger"
                       onClick={() => { setOpenProjectMenu(null); onRemove(ws.projectPath) }}
                     >
+                      <X size={16} aria-hidden="true" />
                       Remove
                     </button>
                   </div>,
@@ -340,21 +350,21 @@ export default function Sidebar({
               className="menu-item"
               onClick={() => { setFooterMenuOpen(false); setFooterMenuPos(null); onOpenSettings() }}
             >
-              <Settings size={14} aria-hidden="true" />
+              <Settings size={16} aria-hidden="true" />
               Settings
             </button>
             <button
               className="menu-item"
               onClick={() => { setFooterMenuOpen(false); setFooterMenuPos(null); onOpenProviders() }}
             >
-              <Server size={14} aria-hidden="true" />
+              <Server size={16} aria-hidden="true" />
               Providers
             </button>
             <button
               className="menu-item"
               onClick={() => { setTheme(t => t === 'dark' ? 'light' : 'dark') }}
             >
-              {theme === 'dark' ? <Sun size={14} aria-hidden="true" /> : <Moon size={14} aria-hidden="true" />}
+              {theme === 'dark' ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
               {theme === 'dark' ? 'Light mode' : 'Dark mode'}
             </button>
             <div className="sidebar-update-block">
@@ -420,9 +430,21 @@ function SessionRowMenu({ running, onRename, onDelete, onStop }: {
       </button>
       {open && (
         <div className="sidebar-menu-dropdown session-menu-dropdown">
-          <button className="menu-item" onClick={() => { setOpen(false); setRenaming(true) }}>Rename</button>
-          {running && <button className="menu-item" onClick={() => { setOpen(false); onStop() }}>Stop</button>}
-          <button className="menu-item danger" onClick={() => { setOpen(false); onDelete() }}>Delete</button>
+          <button className="menu-item" onClick={() => { setOpen(false); setRenaming(true) }}>
+            <Pencil size={16} aria-hidden="true" />
+            Rename
+          </button>
+          {running && (
+            <button className="menu-item" onClick={() => { setOpen(false); onStop() }}>
+              <Square size={16} aria-hidden="true" />
+              Stop
+            </button>
+          )}
+          <div className="menu-sep" aria-hidden="true" />
+          <button className="menu-item danger" onClick={() => { setOpen(false); onDelete() }}>
+            <Trash2 size={16} aria-hidden="true" />
+            Delete
+          </button>
         </div>
       )}
       {renaming && (
