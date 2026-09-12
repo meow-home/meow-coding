@@ -563,6 +563,11 @@ export class MainApp {
     }
   }
 
+  renameAgent(projectPath: string, agentId: string, name: string): void {
+    const updated = this.workspaces.updateAgent(projectPath, agentId, { name })
+    this.pushAgentConfig(updated, agentId)
+  }
+
   // Keep the renderer's AgentConfig (mode/variant/model) fresh after a change
   // so remounted chat panels don't revert to the pre-change values.
   private pushAgentConfig(ws: Workspace, agentId: string): void {
@@ -807,11 +812,8 @@ export function registerIpcHandlers(): void {
     mainApp.logs.remove(agentId)
   })
 
-  ipcMain.handle(Channels.AgentRename, (_e, projectPath: string, agentId: string, name: string) => {
-    const ws = mainApp.workspaces.updateAgent(projectPath, agentId, { name })
-    const agent = ws.agents.find(a => a.id === agentId)
-    if (agent) win?.webContents.send(Channels.EventAgentConfig, { agentId, config: agent })
-  })
+  ipcMain.handle(Channels.AgentRename, (_e, projectPath: string, agentId: string, name: string) =>
+    mainApp.renameAgent(projectPath, agentId, name))
 
   ipcMain.handle(Channels.AgentSetMode, (_e, agentId: string, mode: 'build' | 'plan') =>
     mainApp.setAgentMode(agentId, mode))
