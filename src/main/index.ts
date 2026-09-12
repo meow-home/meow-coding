@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Notification, screen, shell } from 'electron'
 import { spawn } from 'node:child_process'
 import { existsSync, rmSync, writeFileSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
@@ -566,9 +566,14 @@ process.on('unhandledRejection', reason => {
 })
 
 function createWindow(): void {
+  // Prefer 1400x900, but never exceed the display's work area (which already
+  // excludes the taskbar) so the window can't slip under it on smaller screens.
+  const { width: areaW, height: areaH } = screen.getPrimaryDisplay().workAreaSize
+  const width = Math.min(1400, Math.round(areaW * 0.9))
+  const height = Math.min(900, Math.round(areaH * 0.9))
   win = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width,
+    height,
     title: 'Meow Coding',
     backgroundColor: '#1e1e1e',
     ...getWindowChromeOptions(process.platform),
