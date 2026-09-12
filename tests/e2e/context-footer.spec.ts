@@ -1,4 +1,4 @@
-import { test, expect, _electron as electron } from '@playwright/test'
+import { test, expect, _electron as electron, type Page } from '@playwright/test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -68,6 +68,18 @@ function seedUserData(userData: string, project: string, meowConfig: Record<stri
   }]
   writeFileSync(path.join(userData, 'workspaces.json'), JSON.stringify(workspaces, null, 2))
   writeFileSync(path.join(userData, 'meow.json'), JSON.stringify(meowConfig, null, 2))
+}
+
+/** Resolves a CSS variable to a concrete rgb() string, for comparing computed colours. */
+function resolveVar(page: Page, name: string): Promise<string> {
+  return page.evaluate((n: string) => {
+    const probe = document.createElement('div')
+    probe.style.background = `var(${n})`
+    document.body.appendChild(probe)
+    const value = getComputedStyle(probe).backgroundColor
+    probe.remove()
+    return value
+  }, name)
 }
 
 test('context footer shows real token usage, persists across reload, resets on new session', async () => {
@@ -166,6 +178,61 @@ test('context footer turns danger and shows the compacting note past the auto-co
 
       await expect(window.locator('.context-ring')).toHaveClass(/danger/)
       await expect(window.locator('.context-footer-wrap')).toContainText('compacting soon')
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+    server.close()
+  }
+})
+
+test('the context readout is a 24x24 icon button with a hover background', async () => {
+  const { server, port } = await startMockLlm([
+    { content: 'unused', usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 } }
+  ])
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    seedUserData(userData, project, {
+      provider: { mock: { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}`, models: ['mock-model'] } },
+      model: 'mock',
+      maxContextTokens: 200000,
+      compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000, prune: true }
+    })
+
+    const app = await electron.launch({
+      args: ['.'],
+      env: { ...process.env as Record<string, string>, MEOW_USER_DATA: userData }
+    })
+    const window = await app.firstWindow()
+    try {
+      await expect(window.locator('.project-row')).toBeVisible()
+      await window.locator('.project-toggle').click()
+      await window.locator('.session-list .session-row').first().click()
+      await expect(window.locator('.chat-panel')).toBeVisible()
+
+      const ring = window.locator('.context-ring')
+      await expect(ring).toBeVisible()
+
+      // The box is the icon-button square (was 30x30), matching the sidebar buttons.
+      const box = await ring.boundingBox()
+      expect(Math.round(box!.width)).toBe(24)
+      expect(Math.round(box!.height)).toBe(24)
+      expect(await ring.evaluate(e => getComputedStyle(e).borderRadius)).toBe('3px')
+
+      // The ring shrank with the box so the arc keeps its clearance inside it.
+      const svg = await ring.locator('svg').boundingBox()
+      expect(Math.round(svg!.width)).toBe(20)
+      expect(Math.round(svg!.height)).toBe(20)
+
+      // A readout, not a button: transparent at rest, hover lifts it, cursor stays default.
+      expect(await ring.evaluate(e => getComputedStyle(e).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
+      const bgHover = await resolveVar(window, '--bg-hover')
+      await window.locator('.context-footer-wrap').hover()
+      await expect(ring).toHaveCSS('background-color', bgHover)
+      await expect(ring).toHaveCSS('cursor', 'default')
     } finally {
       await app.close()
     }

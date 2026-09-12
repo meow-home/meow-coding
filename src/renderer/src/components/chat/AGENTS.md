@@ -15,7 +15,7 @@ pushed from main over IPC (`window.api.onChatEvent`).
 | `ToolCallCard.tsx` | Renders a tool call: input JSON, diff (for edit/apply-patch), output/error. Memoized. |
 | `MarkdownText.tsx` | Markdown rendering via `marked` + `DOMPurify.sanitize`. |
 | `DiffView.tsx` | Inline diff view for edit tool calls. |
-| `ContextFooter.tsx` | Context readout (only context by default); hovering shows a popover with session tokens in/out + cost. |
+| `ContextFooter.tsx` | Context readout — a 24 × 24 icon-button ring (20px, 2.5px stroke, `--radius-xs`, `--bg-hover` on hover). Hover-only: no click handler. Hovering shows a popover with session tokens in/out + cost. |
 | `ModelPicker.tsx` | Model selector for the agent. |
 | `VariantPicker.tsx` | Variant selector (reasoning effort etc.) for the agent. |
 | `ModePicker.tsx` | Build/Plan mode selector (dropdown) in the composer footer. |

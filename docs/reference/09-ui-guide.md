@@ -90,7 +90,7 @@ Update-dialog policy: `update-available` and `downloaded` open the dialog; `erro
 
 | Component | Responsibility |
 |---|---|
-| `ChatPanel.tsx` | The container: subscribes to chat events, owns feed state (items / todos / queue / pendingPrompt), rAF-batches stream deltas, renders feed + composer + context footer. The permission/question prompt is rendered in-flow at the top of the chat input card (never overlays the chat history). The composer's bottom row (`chat-footer`) puts the context readout on the left and the mode/model/variant selectors on the right. Memoized. |
+| `ChatPanel.tsx` | The container: subscribes to chat events, owns feed state (items / todos / queue / pendingPrompt), rAF-batches stream deltas, renders feed + composer + context footer. The permission/question prompt is rendered in-flow at the top of the chat input card (never overlays the chat history). The composer's bottom row (`chat-footer`) puts the mode on the left (`chat-footer-context`) and the model/variant selectors plus the context readout on the right (`chat-footer-controls`). Memoized. |
 | `ChatInput.tsx` | Composer: textarea (Enter to send), paste/drop image chips (≤4, ≤5MB), `@` file-mention dropdown + chips, `/` command menu, edit-queued flow. Memoized, **uncontrolled**. |
 | `useChatScroll.ts` | Feed scroll controller: follow / anchored / manual modes, turn-top anchoring, jump-to-end button. Pure geometry helpers live in `chat-scroll-geometry.ts`. |
 | `ToolCallCard.tsx` | One tool call: input JSON, diff (edit / apply-patch), output or error. Memoized. |
@@ -99,7 +99,7 @@ Update-dialog policy: `update-available` and `downloaded` open the dialog; `erro
 | `markdownTable.ts` | `normalizeMarkdownTables` — repairs table pipes before rendering |
 | `markdownPaths.ts` | Turns file paths in markdown into clickable `openFile` links |
 | `highlight.ts` | Shiki syntax highlighting |
-| `ContextFooter.tsx` | Context readout (context only by default); hovering shows a popover with session tokens in/out + cost |
+| `ContextFooter.tsx` | Context readout — a 24 × 24 icon-button ring; hovering shows a popover with session tokens in/out + cost. Hover-only, not clickable |
 | `ModelPicker.tsx` / `VariantPicker.tsx` / `ModePicker.tsx` / `Dropdown.tsx` | Model / variant / build-plan mode selection |
 | `parseCommandInput.ts` | `parseCommandInput(raw) → { isCommand, prefix }` for the `/` menu |
 | `questionAnswer.ts` | `buildQuestionAnswer` for permission/question responses |
@@ -150,7 +150,7 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   `--font-ui`: the display fonts were never loaded via `@font-face` (CSP is `'self'` only) and
   silently fell back to mono, which made uppercase labels look like terminal output.
 - Spacing on a 4px scale; controls use Tailwind default sizes.
-- Radii: `--radius-xs` 3px (sidebar icon buttons), `--radius-sm` 4px, `--radius` 6px (the global
+- Radii: `--radius-xs` 3px (sidebar icon buttons, chat context readout), `--radius-sm` 4px, `--radius` 6px (the global
   `*` default), `--radius-lg` 8px.
 - Menus share one metric set (tokens in `:root`): `--menu-radius` 10px (container corner),
   `--menu-pad` 6px (container padding), `--menu-item-h` 32px, `--menu-item-pad-x` 10px,
@@ -173,6 +173,11 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   take the shared metrics but deliberately have no icons or dividers: the model picker is a
   searchable, sectioned list where an icon column is noise. `.command-item` is excluded from the
   family — it stacks a name + description and would clip at 32px.
+- **The chat context readout is an icon button.** `ContextFooter`'s ring sits in a 24 × 24 box with
+  `--radius-xs`, transparent at rest and `--bg-hover` while `.context-footer-wrap` is hovered, holding
+  a 20px SVG with a 2.5px stroke (the ratio of the original 30px / 3px ring). It shares the sidebar
+  icon buttons' *look*, not their class: `.sidebar-icon-btn` is sidebar-scoped and its hover lives in
+  container rules, and the readout is deliberately not clickable (`cursor: default`, no tabindex).
 - Numeric displays use tabular-nums.
 - UI labels are English.
 

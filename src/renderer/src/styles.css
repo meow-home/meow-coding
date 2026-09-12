@@ -1009,13 +1009,18 @@ select.input { width: 100%; }
    depletes as the session fills up; color escalates via warn/danger levels. */
 .context-ring {
   position: relative; display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; cursor: default; color: var(--accent-strong);
+  width: 24px; height: 24px; cursor: default; color: var(--accent-strong);
+  border-radius: var(--radius-xs); background: transparent;
+  transition: background 120ms ease;
 }
 .context-ring svg { display: block; transform: rotate(0deg); }
 .context-ring-track { stroke: var(--bg-active); }
 .context-ring-arc { stroke: currentColor; transition: stroke-dashoffset 0.3s ease, stroke 0.2s ease; }
 .context-ring.warn { color: var(--yellow); }
 .context-ring.danger { color: var(--red); }
+/* Same silhouette as the sidebar icon buttons — but a readout, not a button:
+   hover lifts the box, `cursor: default` and no click handler. */
+.context-footer-wrap:hover .context-ring { background: var(--bg-hover); }
 
 /* Hover popover: token totals, session tokens in/out + cost, shown when the user
    hovers the context ring. Anchored to the right edge since the ring sits far right. */
