@@ -24,6 +24,9 @@
   --bg-raised: #161618;
   --bg-hover: #1c1c20;
   --bg-active: #242428;
+  /* Paler hover/active for dropdown & select menu items (subtle overlay over the menu bg). */
+  --menu-hover: rgba(255, 255, 255, 0.05);
+  --menu-active: rgba(255, 255, 255, 0.09);
   --bg-tab-inactive: #0f0f11;
   --bg-input: #1a1a1d;
   --bg-input-hover: #242428;
@@ -90,6 +93,8 @@
   --bg-raised: #e8e8e8;
   --bg-hover: #e0e0e0;
   --bg-active: #d4d4d4;
+  --menu-hover: rgba(0, 0, 0, 0.045);
+  --menu-active: rgba(0, 0, 0, 0.08);
   --bg-tab-inactive: #f3f3f3;
   --bg-input: #ffffff;
   --bg-input-hover: #eaeaea;
@@ -1293,8 +1298,8 @@ select.input { width: 100%; }
   color: var(--text); cursor: pointer; font-size: var(--fs-md); font-family: var(--font-mono);
   border-radius: var(--radius);
 }
-.variant-item:hover { background: var(--bg-hover); }
-.variant-item.active { background: var(--bg-active); color: var(--accent); }
+.variant-item:hover { background: var(--menu-hover); }
+.variant-item.active { background: var(--menu-active); color: var(--accent); }
 .variant-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .model-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .model-menu {
@@ -1319,8 +1324,8 @@ select.input { width: 100%; }
   color: var(--text); cursor: pointer; font-size: var(--fs-md); font-family: var(--font-mono);
   border-radius: var(--radius);
 }
-.model-item:hover { background: var(--bg-hover); }
-.model-item.active { background: var(--bg-active); color: var(--accent); }
+.model-item:hover { background: var(--menu-hover); }
+.model-item.active { background: var(--menu-active); color: var(--accent); }
 .model-empty { padding: 0.5rem 0.833333rem; color: var(--text-faint); font-size: var(--fs-base); }
 .model-error { color: var(--red); font-size: var(--fs-base); padding: 0.666667rem; }
 /* Mode selector dropdown (in the composer footer) */
@@ -1349,8 +1354,8 @@ select.input { width: 100%; }
   color: var(--text); cursor: pointer; font-size: var(--fs-md); font-family: var(--font-mono);
   border-radius: var(--radius);
 }
-.mode-item:hover { background: var(--bg-hover); }
-.mode-item.active { background: var(--bg-active); }
+.mode-item:hover { background: var(--menu-hover); }
+.mode-item.active { background: var(--menu-active); }
 .mode-item.mode-build.active { color: var(--accent); }
 .mode-item.mode-plan.active { color: var(--orange); }
 .chat-mode-hint { font-size: var(--fs-base); color: var(--yellow); margin-right: 0.5rem; }
@@ -1397,7 +1402,7 @@ select.input { width: 100%; }
   border-radius: var(--radius-sm);
   border-left: 0.166667rem solid transparent;
 }
-.command-item.selected { background: var(--bg-active); border-left-color: var(--accent); }
+.command-item.selected { background: var(--menu-active); border-left-color: var(--accent); }
 .command-name { font-family: var(--font-mono); color: var(--accent); font-size: var(--fs-md); }
 .command-desc { color: var(--text-dim); font-size: var(--fs-base); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .command-more { padding: 0.333333rem 0.833333rem; color: var(--text-faint); font-size: var(--fs-base); font-style: italic; }
@@ -1424,7 +1429,7 @@ select.input { width: 100%; }
   border: none; background: transparent; color: var(--text);
   cursor: pointer; font-size: var(--fs-md); border-radius: var(--radius);
 }
-.menu-item:hover { background: var(--bg-hover); color: var(--text-strong); }
+.menu-item:hover { background: var(--menu-hover); color: var(--text-strong); }
 /* Inset hairline between menu groups (inset like the reference, not edge to edge). */
 .menu-sep { height: 0.083333rem; background: var(--hairline); margin: 0.333333rem 0.5rem; flex: 0 0 auto; }
 /* Non-interactive muted context row (e.g. the project's path). */
@@ -1726,8 +1731,8 @@ select.input { width: 100%; }
   color: var(--text); font-family: var(--font-mono); font-size: var(--fs-sm);
   border-radius: var(--radius); cursor: pointer; text-align: left;
 }
-.git-branch-item:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-strong); }
-.git-branch-item.active { background: var(--bg-active); color: var(--accent); }
+.git-branch-item:hover:not(:disabled) { background: var(--menu-hover); color: var(--text-strong); }
+.git-branch-item.active { background: var(--menu-active); color: var(--accent); }
 .git-branch-item:disabled { opacity: 0.5; cursor: default; }
 .git-branch-empty { padding: 0.333333rem 0.666667rem; color: var(--text-faint); font-size: var(--fs-sm); }
 .git-branch-create {
