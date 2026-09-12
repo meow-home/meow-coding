@@ -319,7 +319,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   text-overflow: ellipsis;
 }
 .project-list {
-  list-style: none; margin: 0; padding: 0;
+  list-style: none; margin: 0 -0.833333rem; padding: 0 0.833333rem;
   flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
 }
 /* Project = lightweight group header; actions reveal on hover / when current */
@@ -1481,7 +1481,9 @@ select.input { width: 100%; }
 .session-menu .icon-btn { opacity: 0; transition: opacity 120ms ease, background 120ms ease, color 120ms ease; }
 .session-row:hover .session-menu .icon-btn, .session-row.active .session-menu .icon-btn, .session-menu:focus-within .icon-btn { opacity: 1; }
 .session-menu .icon-btn:hover { background: var(--bg-active); color: var(--text); }
-.session-menu-dropdown { position: absolute; right: 0; top: 100%; z-index: 1000; }
+/* Portaled to <body> (position:fixed set inline) so the sidebar's overflow
+   never clips it; z-index rides above the app chrome. */
+.session-menu-dropdown { z-index: 1000; }
 .session-rename-input { position: absolute; right: 0; top: 100%; z-index: 1001; width: 13.333333rem; }
 
 /* Pane header menu */

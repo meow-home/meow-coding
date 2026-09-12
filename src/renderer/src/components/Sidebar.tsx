@@ -399,6 +399,7 @@ function SessionRowMenu({ running, onRename, onDelete, onStop }: {
   onStop: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState('')
   const rootRef = useRef<HTMLSpanElement>(null)
@@ -411,6 +412,9 @@ function SessionRowMenu({ running, onRename, onDelete, onStop }: {
     if (!open) return
     const onDocClick = (e: MouseEvent) => {
       const target = e.target as Node
+      // The dropdown is portaled to <body>, so a click on a menu item lands
+      // outside rootRef — ignore clicks inside the portaled menu too.
+      if (target instanceof Element && target.closest('.session-menu-dropdown')) return
       if (rootRef.current && !rootRef.current.contains(target)) setOpen(false)
     }
     document.addEventListener('mousedown', onDocClick)
@@ -423,12 +427,22 @@ function SessionRowMenu({ running, onRename, onDelete, onStop }: {
         className="icon-btn"
         title="Session menu"
         aria-label="Session menu"
-        onClick={() => setOpen(v => !v)}
+        onClick={e => {
+          // Anchor the portaled menu at the button, clamped to the viewport
+          // (same as the project menu) so the sidebar's overflow never clips it.
+          const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+          const x = Math.max(4, Math.min(r.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8))
+          setMenuPos({ x, y: r.bottom + 4 })
+          setOpen(v => !v)
+        }}
       >
         <MoreVertical size={13} aria-hidden="true" />
       </button>
-      {open && (
-        <div className="sidebar-menu-dropdown session-menu-dropdown">
+      {open && menuPos && createPortal(
+        <div
+          className="sidebar-menu-dropdown session-menu-dropdown"
+          style={{ position: 'fixed', left: menuPos.x, top: menuPos.y, right: 'auto', bottom: 'auto' }}
+        >
           <button className="menu-item" onClick={() => { setOpen(false); setRenaming(true) }}>
             <Pencil size={16} aria-hidden="true" />
             Rename
@@ -444,7 +458,8 @@ function SessionRowMenu({ running, onRename, onDelete, onStop }: {
             <Trash2 size={16} aria-hidden="true" />
             Delete
           </button>
-        </div>
+        </div>,
+        document.body
       )}
       {renaming && (
         <input
