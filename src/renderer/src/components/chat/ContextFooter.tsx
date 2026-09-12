@@ -55,11 +55,6 @@ export default memo(function ContextFooter({ tokens, limit, compactThreshold, co
             </>
           )}
         </div>
-        {level === 'danger' && (
-          <div className="context-popover-row">
-            <span className="context-footer-note">· compacting soon</span>
-          </div>
-        )}
         {sessionTokens && (
           <div className="context-popover-row">
             <span className="context-popover-label">tokens</span>
