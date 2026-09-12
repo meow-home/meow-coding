@@ -1570,7 +1570,7 @@ select.input { width: 100%; }
   flex: 0 0 auto;
   min-width: 0;
   display: flex;
-  background: var(--bg-panel);
+  background: var(--bg-sidebar);
   border-left: 0.083333rem solid var(--hairline);
   animation: meow-rise 300ms 120ms ease-out both;
 }
@@ -1592,7 +1592,7 @@ select.input { width: 100%; }
    strip reads as one square module flush with the Explorer header. */
 .right-panel-tabs {
   flex: 0 0 3.166667rem; display: flex; flex-direction: column; align-items: stretch;
-  border-left: 0.083333rem solid var(--hairline); background: var(--bg-raised);
+  border-left: 0.083333rem solid var(--hairline); background: var(--bg-sidebar);
   border-radius: 0;
 }
 /* Square: height set here, width comes from the parent's align-items: stretch. */
