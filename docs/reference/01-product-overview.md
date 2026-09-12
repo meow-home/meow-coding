@@ -41,7 +41,7 @@ straight to the code.
 | Open workspace | Registers native agents synchronously (so chat mounts instantly), then loads tools/MCP off the critical path | `MainApp.openWorkspace` / `prepareWorkspace` |
 | Session panes | Every session of the active project has a pane and stays mounted; the selected one is shown (inactive ones are hidden, never unmounted) | `SessionPanes.tsx` |
 | Pane status | Status dot (spawning/running/idle/exited/stopped/error), git branch, dirty-file count | `PaneHeader.tsx`, `git-status-service.ts` |
-| Background agents | An agent can be moved out of the grid and keeps running; listed in a background panel | `Channels.AgentSetBackground`, `BackgroundPanel.tsx` |
+| Background agents | An agent can be moved to the background and keeps running; listed in a background panel | `Channels.AgentSetBackground`, `BackgroundPanel.tsx` |
 | Idle / exit alerts | Idle alert after 5 minutes without output; exit alert classified by exit code | `alert-service.ts` |
 | Per-agent logs | Every byte of PTY output appended to `userData/logs/<agentId>.log`, openable from the pane menu | `log-manager.ts` |
 
@@ -63,7 +63,6 @@ straight to the code.
 | Instructions | `AGENTS.md` / `CLAUDE.md` walked up from the agent cwd are inlined into the system prompt; module-level ones attach automatically when a nearby file is read | `agent/instructions.ts` |
 | `@`-mentions | `@path` in the composer resolves to an absolute path and is appended as a hint (the agent reads the file itself) | `agent/references.ts`, `file-suggest.ts` |
 | Images | Paste/drop up to 4 images (≤5MB each) into the composer; sent as data URLs | `ChatInput.tsx`, `agent/message.ts` |
-| Trace | Optional per-session structured event log (turn, message, tool, subagent, compaction, error, done, pty-run) with a trace panel | `agent/trace-store.ts`, `components/trace/` |
 | Notifications | Native OS notifications when the agent needs input or finishes (only while the window is unfocused). Throttled per agent × kind so a "needs input" is never suppressed by a recent "done". Clicking an "Input needed" notification jumps to the waiting session's project; the sidebar project list shows a red badge with the count of sessions awaiting reply/approval per project | `notification-service.ts`, `Channels.EventPromptState` / `EventActivateAgent` |
 
 ### Providers, models & accounts

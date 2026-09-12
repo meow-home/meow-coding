@@ -62,7 +62,7 @@ and the tsconfigs.
 | File | Role |
 |---|---|
 | `index.ts` | `MainApp` — the composition root. Constructs every store/service, wires PTY and chat events to the renderer, registers all IPC handlers, manages the window/tray/quit lifecycle. |
-| `meow-agent-manager.ts` | `MeowAgentManager` — orchestrates the native agent: registration, sessions, turns, the message queue, permissions prompts, subagent wiring, MCP/user tools, settings, stats, trace. **The only place that orchestrates the native agent.** |
+| `meow-agent-manager.ts` | `MeowAgentManager` — orchestrates the native agent: registration, sessions, turns, the message queue, permissions prompts, subagent wiring, MCP/user tools, settings, stats. **The only place that orchestrates the native agent.** |
 
 ### Process & terminal
 
@@ -84,7 +84,6 @@ and the tsconfigs.
 | `agent/snapshot.ts` | `snapshots.json` | Per-turn before/after file contents for undo/redo, capped at 50 turns. |
 | `agent/saved-permissions.ts` | `permissions.json` | "Always allow" decisions per (project, tool). |
 | `agent/learned-limits.ts` | `learned-limits.json` (debounce 500ms) | Provider-verified context/output caps keyed `baseUrl\|model`; only ever tighten. |
-| `agent/trace-store.ts` | `traces/` | Per-session structured event log, buffered and flushed async. |
 | `agent/truncation.ts` | `truncation/` | Full text of truncated tool outputs, so a preview can point at a file. Cleaned up after 7 days. |
 | `agent/commands.ts` `CommandStore` | `commands.json` | User slash commands (built-ins are in code). |
 | `connections/connection-store.ts` | `connections/index.json` | Metadata-only account index (never secrets). |
@@ -133,7 +132,7 @@ and the tsconfigs.
 | `skill.ts` | `parseFrontmatter`, `loadSkills`, `collectSkills`, `skillListText`. |
 | `plugin.ts` | `loadUserTools` — dynamic `import()` of `*.js`/`*.cjs` from `userData/tools`, each default-exporting `{ name, description, schema, run }`. |
 | `apply-patch.ts` | Unified-diff parser and applier. |
-| `session.ts` / `snapshot.ts` / `truncation.ts` / `trace-store.ts` / `saved-permissions.ts` | Stores listed above. |
+| `session.ts` / `snapshot.ts` / `truncation.ts` / `saved-permissions.ts` | Stores listed above. |
 | `tools/` | Tool implementations + `registry.ts`. See [04](04-tool-catalog.md). |
 | `mcp/manager.ts` | MCP client manager. See [08](08-integrations.md). |
 | `lsp/` | `manager.ts`, `client.ts`, `servers.ts`. See [08](08-integrations.md). |
@@ -156,8 +155,7 @@ child process stdout
 ```
 
 Exit path: `PtyManager 'exit'` → if exit code ≠ 0 and no log exists, an English `[meow]` hint is
-appended to the agent log → `AlertService.onExit` → `setState` to `exited` or `error` → a
-`pty-run` trace event is written when tracing is enabled.
+appended to the agent log → `AlertService.onExit` → `setState` to `exited` or `error`.
 
 ## 2.6 Data flow: a native agent chat turn
 
@@ -211,7 +209,7 @@ the modal from closing.
 4. Subscribe remote status → renderer.
 5. `ConnectionsManager.init()` — if Codex accounts exist, start the cliproxy sidecar and refresh tokens.
 6. `ensureExtensionInstalled()` — copy the built Chrome extension into `userData/browser-extension`.
-7. If tracing is disabled, delete `userData/traces` so nothing lingers.
+7. Delete leftover `userData/traces` from older versions (the trace feature was removed).
 8. `registerIpcHandlers()`, `createWindow()`, `TrayManager.create()`.
 9. After 1.5s, an automatic update check (packaged builds only).
 
@@ -223,7 +221,6 @@ The first `before-quit` is **preventDefault**ed and a cleanup chain runs, then `
 stopGitPoll()
  → MeowAgentManager.dispose()   (stop idle-compact timer, abort all turns + background subagents,
                                  flush sessions, close MCP, dispose LSP)
- → TraceStore.flushAll()
  → ConnectionsManager.dispose() (stop the cliproxy sidecar, remove its runtime dir)
  → BrowserBridge.close()
  → RemoteManager.dispose()

@@ -33,7 +33,6 @@ in `src/main/index.ts`).
 | `remote.json` | `remote/remote-settings.ts` | object | `{ enabled, relayUrl, deviceId, sessionToken? }` |
 | `logs/<agentId>.log` | `log-manager.ts` | text | Raw PTY output, append-only |
 | `logs/<YYYY-MM-DD>-log.txt` | `system-logger.ts` | text | App-wide system log (main/render/agent), append-only, pruned after 7 days on startup |
-| `traces/` | `agent/trace-store.ts` | one file per session | Only written when `trace.enabled` |
 | `truncation/<agentId>-<toolId>.txt` | `agent/truncation.ts` | text | Full text of truncated tool output; cleaned up after 7 days on startup |
 | `connections/index.json` | `connections/connection-store.ts` | `{ version: 1, accounts: ConnectionAccount[] }` | **Metadata only** — never secrets |
 | `connections/vault.json` | `vault.ts` | `{ ref: base64 }` | `safeStorage`-encrypted secrets |
@@ -128,7 +127,6 @@ writes it through `settingsToConfig`.
   // ── Integrations ─────────────────────────────────────────────────────────
   "lsp": { "enabled": true, "diagnosticsTimeoutMs": 3000 },
   "notifications": { "needsInput": true, "onDone": true },
-  "trace": { "enabled": false },
 
   // ── Subagent model overrides ─────────────────────────────────────────────
   "subagentModels": {
@@ -200,7 +198,7 @@ interface StoredSession {
   removed items so redo can re-append them.
 - `removeMessage(id, messageId)` removes a single message (a steered message the user deleted after
   it was injected).
-- Deleting an agent (`removeAgent`) purges its sessions **and** their trace files.
+- Deleting an agent (`removeAgent`) purges its sessions.
 
 ## 6.5 Project-level configuration (`.meow/`)
 

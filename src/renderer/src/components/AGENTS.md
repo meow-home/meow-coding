@@ -22,7 +22,6 @@ The React UI layer (renderer process). Everything the user sees: the sessions of
 | `BrowserDialog.tsx` | Chrome bridge pairing + status UI. |
 | `InstallGuideDialog.tsx` | Extension install steps for the browser bridge. |
 
-| `ChallengeToast.tsx` | ChatGPT web challenge toast. |
 | `AddProjectDialog.tsx` | Project creation dialog. |
 | `chat/` | The native-agent chat UI — see its own AGENTS.md. |
 | `settings/` | Settings dialog + tabs — see its own AGENTS.md. |

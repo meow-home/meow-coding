@@ -110,7 +110,6 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `ChatRespondPrompt` | `chat:respond-prompt` | `respondPrompt(agentId, promptId, resp: PromptResponse)` |
 | `PromptStatesList` | `prompt:states-list` | `listPromptStates(): PromptStateSummary[]` — `{ projectPath, agentIds }` per project with agents currently waiting on a permission/question prompt (seeds the sidebar badges on startup) |
 | `ChatQueueRemove` / `ChatQueueEdit` | `chat:queue-remove` / `chat:queue-edit` | `removeQueued` / `editQueued` |
-| `TraceList` / `TraceRead` / `TraceDelete` | `trace:*` | `traceList(agentId)` / `traceRead(sessionId)` / `traceDelete(sessionId)` |
 
 ### Providers, connections, settings
 
@@ -176,7 +175,6 @@ captured in preload).
 | `EventGitStatus` | `git:status` | `GitStatusEvent { projectPath, git }` | `onGitStatus` |
 | `EventContextChanged` | `context:changed` | `ContextChangedEvent { projectPath, files }` | `onContextChanged` |
 | `EventChat` | `chat:event` | `ChatEvent` | `onChatEvent` |
-| `EventTrace` | `trace:event` | `TraceEvent` | `onTraceEvent` |
 | `EventArtifactsChanged` | `artifacts:changed` | `ArtifactsChangedEvent { projectPath, artifacts }` | `onArtifactsChanged` |
 | `EventBrowserStatus` | `browser:status` | `BrowserStatusInfo` | `onBrowserStatus` |
 | `EventBrowserOpenInstallGuide` | `browser:install-guide` | `BrowserInstallGuideEvent { extensionDir }` | `onBrowserOpenInstallGuide` |

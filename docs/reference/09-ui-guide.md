@@ -84,7 +84,7 @@ Update-dialog policy: `update-available` and `downloaded` open the dialog; `erro
 ### Dialogs
 
 `AddProjectDialog`, `UpdateDialog`, `BrowserDialog` (bridge pairing + status),
-`InstallGuideDialog` (extension install steps), `ChallengeToast` (ChatGPT web challenge).
+`InstallGuideDialog` (extension install steps).
 
 ### Chat (`components/chat/`)
 
@@ -139,11 +139,6 @@ Adding a setting touches three places: `MeowSettings` in `src/shared/types.ts`, 
 `GitViewer.tsx` hosts tabs: `GitChangesTab`, `GitDiffView`, `GitHistoryTab`, `GitBlameTab`, plus
 `GitFileTree` and `GitBranchSwitcher`. `parseDiff.ts` parses unified diffs for rendering. It runs in
 its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
-
-### Trace (`components/trace/`)
-
-`TracePanel` hosts `TraceTimeline`, `TraceLedger`, `TraceInspector` and `SubagentTree`, driven by
-`traceList` / `traceRead` / `onTraceEvent`.
 
 ## 9.5 Styling
 
@@ -225,7 +220,6 @@ There are no renderer unit tests. Coverage comes from:
 
 - `npm run typecheck` (which includes `tsconfig.web.json`)
 - Playwright e2e (`npm run build && npm run e2e`), which launches the real app:
-  `smoke.spec.ts`, `prompt.spec.ts`, `context-footer.spec.ts`, `chat-scrollbar.spec.ts`,
-  `trace-panel.spec.ts`
+  `smoke.spec.ts`, `prompt.spec.ts`, `context-footer.spec.ts`, `chat-scrollbar.spec.ts`
 
 After touching IPC or UI, add or extend a smoke assertion so the regression is caught there.

@@ -526,15 +526,8 @@ reference, but the next turn must see the new mode.
 
 ## 3.15 Trace
 
-Enabled by `trace.enabled` in `meow.json` (default `false`). When on, `MeowAgentManager.writeTrace`
-mirrors `ChatEvent`s into `TraceStore` as `TraceEvent`s, with two refinements:
-
-- Text/reasoning deltas accumulate into one pending assistant `message` event and are flushed at the
-  next event boundary — the trace shows full content, not one row per delta.
-- Tool durations are measured from `tool-start` to `tool-result`.
-- PTY agents also contribute `pty-run` events (start ts, end ts, exit code, duration, log path).
-
-When tracing is disabled at startup, `userData/traces` is deleted outright so nothing lingers.
+The trace feature was removed. Its only remnant is the startup cleanup of a legacy `userData/traces`
+directory (see [02 — startup sequence](02-architecture.md#28-startup-sequence-appwhenready)).
 
 ## 3.16 Harness prompt, environment, and memory
 
@@ -622,9 +615,8 @@ without a reload. The same provider goes to `createTaskTool`, so **subagents run
 (same cwd, same merged config).
 
 Hooks are invisible unless they act: the model and the user see a blocked call's error, a replaced
-tool output, appended context, or a Stop reason in the feed. Lifecycle is recorded in the
-`TraceStore` as `{ type: 'hook', event, tool?, status, durationMs }` (`started` → `ok` | `blocked` |
-`failed` | `timeout`) when tracing is enabled — never in the transcript.
+tool output, appended context, or a Stop reason in the feed; a hook's own lifecycle
+(`started` → `ok` | `blocked` | `failed` | `timeout`) is never written to the transcript.
 
 **Out of scope** (phase 2): the other Claude Code events (`UserPromptSubmit`, `SessionStart`,
 `SessionEnd`, `PreCompact`, `Notification`, …), the `if` per-handler filter, `asyncRewake`, the

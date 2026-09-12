@@ -2,7 +2,7 @@
 
 **Meow Coding** is a desktop app for running a built-in **native "Meow" agent** across multiple coding
 **sessions** side by side — each session its own chat, in its own pane — inside a single window. The
-agent ships with a chat UI, tool registry, permissions, and skill system.
+agent ships with a chat UI, tool registry, sessions, permissions, and skill system.
 
 <p align="center">
   <img src="media/meow-app-screen-light-mode.png" alt="Meow Coding — multiple CLI coding agents in parallel panes (light mode)" width="720">
