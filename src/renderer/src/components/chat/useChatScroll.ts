@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent, PointerEvent, RefObject, WheelEvent } from 'react'
 import {
+  CHAT_ANCHOR_HOLD_FRAMES,
   CHAT_TURN_TOP_INSET,
   anchorScrollTop,
   followScrollDelta,
@@ -55,6 +56,7 @@ export function useChatScroll(): ChatScrollController {
   // can keep shifting the row's document position for a couple of seconds);
   // the turnExtent condition below is the real terminator, this is a safety cap.
   const anchorRetriesRef = useRef(0)
+  const anchorStableFramesRef = useRef(0)
   const [showJumpToEnd, setShowJumpToEnd] = useState(false)
 
   const writeScrollTop = useCallback((top: number) => {
@@ -126,14 +128,21 @@ export function useChatScroll(): ChatScrollController {
         const maxScroll = Math.max(0, feed.scrollHeight - feed.clientHeight)
         const rawTarget = currentScrollTop + anchorTop - CHAT_TURN_TOP_INSET
         const pinnable = rawTarget >= 0 && rawTarget <= maxScroll
-        if (Math.abs(anchorTop - CHAT_TURN_TOP_INSET) > 2
-          && turnExtent <= feed.clientHeight - CHAT_TURN_TOP_INSET
-          && pinnable
-          && anchorRetriesRef.current < 300) {
+        const holds = pinnable && turnExtent <= feed.clientHeight - CHAT_TURN_TOP_INSET
+        if (holds && Math.abs(anchorTop - CHAT_TURN_TOP_INSET) > 2 && anchorRetriesRef.current < 300) {
+          anchorStableFramesRef.current = 0
           anchorRetriesRef.current += 1
           reconcile()
           return
         }
+        // On the inset, but not released yet: hold it armed for a few frames so a
+        // late settle above the row is still corrected (see CHAT_ANCHOR_HOLD_FRAMES).
+        if (holds && anchorStableFramesRef.current < CHAT_ANCHOR_HOLD_FRAMES) {
+          anchorStableFramesRef.current += 1
+          reconcile()
+          return
+        }
+        anchorStableFramesRef.current = 0
         anchorRetriesRef.current = 0
         pendingAnchorIdRef.current = null
         modeRef.current = nextChatScrollMode(modeRef.current, 'anchor-applied')

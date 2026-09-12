@@ -1,6 +1,11 @@
 export const CHAT_TURN_TOP_INSET = 20
 export const CHAT_BOTTOM_FOLLOW_ZONE = 80
 export const CHAT_FOLLOW_BOTTOM_INSET = 14
+// Frames the turn anchor keeps re-asserting itself after the row first lands on
+// the inset. Rows above it can still resolve their content-visibility height a
+// few frames later and push it down; a released anchor is never repaired, since
+// `following` only scrolls down and the turn's bottom is already above the fold.
+export const CHAT_ANCHOR_HOLD_FRAMES = 12
 
 export type ChatScrollMode = 'anchoring-turn' | 'following' | 'manual'
 export type ChatScrollEvent =
