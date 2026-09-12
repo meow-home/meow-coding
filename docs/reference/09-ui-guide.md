@@ -178,6 +178,10 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   a 20px SVG with a 2.5px stroke (the ratio of the original 30px / 3px ring). It shares the sidebar
   icon buttons' *look*, not their class: `.sidebar-icon-btn` is sidebar-scoped and its hover lives in
   container rules, and the readout is deliberately not clickable (`cursor: default`, no tabindex).
+  Its hover popover is content-width by contract: `width: max-content` with a `min-width: 216px` floor
+  (200px before) and `white-space: nowrap` rows. With short values the floor decides the box — measured
+  exactly 200px, which is why the floor is a real, testable change — and the explicit `max-content`
+  keeps the width from depending on shrink-to-fit resolution for `position: absolute; right: 0`.
 - Numeric displays use tabular-nums.
 - UI labels are English.
 

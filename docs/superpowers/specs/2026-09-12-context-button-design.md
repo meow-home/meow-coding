@@ -23,8 +23,10 @@ hover background** (`--bg-hover`), holding a 20px ring — while keeping the rea
 2. **Proportional ring.** The SVG shrinks 30px → 20px and the stroke 3 → 2.5 so the arc keeps the same
    clearance ratio inside its box (1.5px margin in 30px → 1.25px in 20px) instead of touching the
    rounded corners.
-3. **A readable popover.** The hover popover stops wrapping: rows and values are single-line, and the
-   box grows to fit its content instead of squeezing it into 200px.
+3. **A wider, never-breaking popover.** The hover popover's floor grows 200px → 216px (comfortable
+   line lengths for the `context` / `tokens` / `cost` rows), its width is declared content-driven
+   (`width: max-content`) rather than left to shrink-to-fit resolution, and its rows are `nowrap` so
+   no value can ever break the layout.
 4. **No behavior change.** Still a readout, not a button: no click target, no menu, no keyboard
    affordance added or removed; the aria-label and the warn/danger color escalation are unchanged.
 
@@ -50,28 +52,34 @@ the cost of coupling two unrelated surfaces and colliding with in-flight work.
 **Rejected for the same reason:** extracting a generic `.icon-btn` and rebasing the sidebar buttons on
 it. That is a reasonable follow-up once the sidebar branch is quiet, not part of this change.
 
-## Root cause of the wrapping popover
+## Findings: the popover's real behaviour (measured)
 
-`.context-footer-popover` is absolutely positioned inside `.context-footer-wrap`, which is only as
-wide as its trigger (30px today, 24px after this change). An absolutely positioned box with `auto`
-width is shrink-to-fit against that 30px containing block, so the layout is decided entirely by the
-declared `min-width: 200px` floor: the box renders 200px wide and each row's text wraps at its
-whitespace to fit.
+The design brief reported the popover's rows wrapping. Instrumented against the built app (a temp
+`MEOW_USER_DATA`, one mock turn, the popover forced visible so its width is stable), that could **not**
+be reproduced — and it falsified the first hypothesis, that the box was shrink-to-fit inside the 24px
+trigger and therefore decided by its `min-width`:
 
-So widening `min-width` alone is a partial fix — the box would still be shrink-to-fit and would wrap
-again for any value long enough to exceed the new floor. The width must become
-`width: max-content` (content-driven, ignoring the 24px containing block), with `white-space: nowrap`
-on the rows so no row can break. `min-width` stays as a floor so a short value (`—`, or no cost row)
-does not produce a cramped box.
+| content (the `tokens` row) | window width | popover `offsetWidth` | lines per row |
+|---|---|---|---|
+| real-session counts, `145,503 in / 431 out` | 1399 / 499 / 319 px | **200px** (the floor) | 1 |
+| 9-digit counts | 1399 px | **227px** (content-driven) | 1 |
+| 13-digit counts | 1399 / 499 px | **264px** (content-driven) | 1 |
+| 13-digit counts | 319 px | 264px — overflows past the left edge | 1 |
 
-Measured on the real `styles.css` today:
+So `width: auto` on this absolutely positioned box already resolves to `max-content`: the `min-width`
+floor only decides the result when the text is **shorter** than it. Consequences for the change:
 
-| | value |
-|---|---|
-| `.context-footer-wrap` | 30 × 30 |
-| `.context-ring` | 30 × 30, radius 6px (the global `*` rule) |
-| `.context-footer-popover` | `min-width: 200px`, resolved width 200px |
-| `.context-popover-row` | flex, `white-space: normal` → values wrap |
+- **The widening is the real change.** With realistic counts the box renders exactly 200px — the old
+  floor — so `min-width: 216px` is what makes the readout roomier. That is also the assertion the e2e
+  test can genuinely gate (200 → 216).
+- **`width: max-content` makes the intent explicit** instead of depending on how Chromium resolves
+  shrink-to-fit for `position: absolute; right: 0; left: auto`.
+- **`white-space: nowrap` is a guard, not a fix.** No row wraps today, at any width or value size we
+  could produce; the rule keeps that true if an ancestor ever clamps the box.
+- **Open question for the user:** the reported wrap is unaccounted for. The one behaviour that *does*
+  degrade at small window widths is the box overflowing off-screen (measured `popoverLeft: -42` at a
+  319px window), which a `max-width` + wrap would trade for wrapped rows — deliberately not done here,
+  pending the user's confirmation of what they saw.
 
 ## Detailed design
 
@@ -136,10 +144,11 @@ The popover, with the wrapping fix:
 .context-popover-row { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 ```
 
-- `width: max-content` + `white-space: nowrap` are the fix; `min-width: 216px` only keeps short
-  content (a lone `—`) from collapsing into a cramped box.
+- `min-width: 216px` is the visible change (see Findings); `width: max-content` states the
+  content-driven intent outright and `white-space: nowrap` guarantees no row can break.
 - No `max-width`: a clamp would either re-wrap or clip nowrap text. Growth is leftward (the popover is
-  `right: 0`, anchored at the composer's right edge), so even a 7-digit token count stays on screen.
+  `right: 0`, anchored at the composer's right edge), so even a 13-digit token count stays on screen at
+  normal window widths — measured, and it overflows only in a very narrow window (see Findings).
 - `.context-popover-label` keeps its fixed `min-width: 56px` so the `context` / `tokens` / `cost`
   labels stay column-aligned across rows.
 
@@ -152,7 +161,7 @@ The popover, with the wrapping fix:
 | ring radius | 6px | 3px |
 | rest background | transparent | transparent |
 | hover background | none | `var(--bg-hover)` |
-| popover width | 200px floor, rows wrap | `max-content`, floor 216px, no wrap |
+| popover width | 200px floor (content-driven above it) | `max-content`, floor 216px, rows cannot wrap |
 | popover offset above trigger | 6px | 6px (unchanged) |
 
 The readout now matches the 24px icon buttons of the sidebar and stops competing with the 34px-tall
@@ -161,23 +170,42 @@ picker triggers beside it.
 ## Testing
 
 Extend `tests/e2e/context-footer.spec.ts` (its existing selectors, `.context-footer-wrap` and
-`.context-ring`, survive this change, so the other three tests keep passing as-is) with one geometry
-test, mirroring the sidebar icon-button geometry test:
+`.context-ring`, survive this change, so the other three tests keep passing as-is) with two tests.
 
-1. Launch the existing fixture, open the seeded session, hover `.context-footer-wrap`.
-2. `.context-ring` bounding box is 24 × 24, and `toHaveCSS('border-radius', '3px')`.
-3. Hover background: `.context-ring` computes to `rgb(28, 28, 32)` (= `--bg-hover`, `#1c1c20`, in the
-   default dark theme of a fresh `MEOW_USER_DATA` — the fixture seeds no theme).
-4. Popover no-wrap proof: `.context-footer-popover` is visible on hover, its `offsetWidth` is
-   ≥ 216, `scrollWidth <= clientWidth + 1` (nothing clipped), and every `.context-popover-row`
-   computes `white-space: nowrap`.
+**Test A — the readout's geometry** (fixture: the file's existing mock provider; no message needed):
+
+1. Launch, open the seeded session, take the ring's `boundingBox()`.
+2. It is 24 × 24, `border-radius` computes to `3px`, and the inner `svg` is 20 × 20.
+3. Rest background is `rgba(0, 0, 0, 0)`; `cursor` computes to `default`. Move the pointer onto the
+   ring (`window.mouse.move` to the box centre — `locator.hover()` retargets to the element's own
+   centre and raced the pane mount, which made the assertion flaky under `--repeat-each`), then poll
+   the computed `background-color` until it equals a runtime-resolved `--bg-hover`.
+
+**Test B — the popover's box** (fixture: one mock turn, realistic counts — `145,503` prompt /
+`431` completion tokens, i.e. a real session's numbers; `maxContextTokens` above them so nothing
+compacts). With short content the box is exactly its floor, which is what makes the width assertion
+meaningful:
+
+1. Send a message so the `tokens` row exists, then move the pointer onto `.context-footer-wrap`.
+2. `.context-footer-popover` becomes visible; its `offsetWidth` is ≥ 216 (**the gate**: measured
+   exactly 200px before the change) and `scrollWidth <= clientWidth + 1`.
+3. Guard: every `.context-popover-row` reports exactly one line box, and computes
+   `white-space: nowrap`. Line count is measured over the row's **text nodes** (`Range.getClientRects`
+   per text node, fragments grouped into a line while their vertical spans overlap) — a range over the
+   row itself is useless, because a flex row blockifies its spans and reports one rect per span, which
+   is why a first version of this assertion passed even with wrapping.
 
 Then the usual gates: `npm run typecheck`, `npm test`, and `npm run build && npx playwright test
 tests/e2e/context-footer.spec.ts`.
 
-**Verification hazard:** this branch's working tree is being edited by a parallel session, and `out/`
+**Verification hazards:** this branch's working tree is being edited by a parallel session, and `out/`
 is rebuilt by that process — check `out/` mtime before trusting an e2e result, as recorded in the
-project memory `concurrent-session-edits`.
+project memory `concurrent-session-edits`. Independently, the file's **first** test fails against the
+current tree for a reason unrelated to this change: `SessionPanes` keeps every session mounted (a
+`hidden` attribute, never an unmount), so after the `+` creates a second session the DOM holds two
+`.context-footer-wrap` elements and that test's `toContainText` hits a Playwright strict-mode
+violation. Fixing it is out of scope here (scope the locator to the active pane) — it is reported, not
+silently patched.
 
 ## Documentation
 

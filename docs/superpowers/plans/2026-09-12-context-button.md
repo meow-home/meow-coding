@@ -137,10 +137,14 @@ test('the context readout is a 24x24 icon button with a hover background', async
       expect(Math.round(svg!.height)).toBe(20)
 
       // A readout, not a button: transparent at rest, hover lifts it, cursor stays default.
+      // Move the pointer onto the ring explicitly: `locator.hover()` retargets to the
+      // element's own centre and raced the pane mount, making this flaky under
+      // `--repeat-each`.
       expect(await ring.evaluate(e => getComputedStyle(e).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
       const bgHover = await resolveVar(window, '--bg-hover')
-      await window.locator('.context-footer-wrap').hover()
-      await expect(ring).toHaveCSS('background-color', bgHover)
+      await window.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
+      await expect.poll(() => ring.evaluate(e => getComputedStyle(e).backgroundColor)).toBe(bgHover)
+      await expect(ring).toHaveCSS('cursor', 'default')
       await expect(ring).toHaveCSS('cursor', 'default')
     } finally {
       await app.close()
@@ -290,7 +294,7 @@ git commit -m "feat(ui): context readout as a 24x24 icon button"
 
 ---
 
-### Task 2: The popover stops wrapping
+### Task 2: A wider popover whose rows cannot break
 
 **Files:**
 - Modify: `src/renderer/src/styles.css:1022-1030`
@@ -306,9 +310,12 @@ git commit -m "feat(ui): context readout as a 24x24 icon button"
 Append this test to `tests/e2e/context-footer.spec.ts`:
 
 ```ts
-test('the context popover is content-width and its rows stay on one line', async () => {
+test('the context popover is wider than the 200px floor and keeps its rows on one line', async () => {
+  // Realistic counts (a real session's ~145k prompt tokens): with short content
+  // the popover's width is decided by its min-width floor, not by the text, so
+  // this fixture is what makes the 216px assertion meaningful.
   const { server, port } = await startMockLlm([
-    { content: 'hi there', usage: { prompt_tokens: 3800, completion_tokens: 431, total_tokens: 4231 } }
+    { content: 'hi there', usage: { prompt_tokens: 145503, completion_tokens: 431, total_tokens: 145934 } }
   ])
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
   const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
@@ -337,29 +344,51 @@ test('the context popover is content-width and its rows stay on one line', async
       await expect(window.locator('.chat-msg.assistant').last()).toContainText('hi there')
 
       const popover = window.locator('.context-footer-popover')
-      await window.locator('.context-footer-wrap').hover()
+      const wrapBox = await window.locator('.context-footer-wrap').boundingBox()
+      await window.mouse.move(wrapBox!.x + wrapBox!.width / 2, wrapBox!.y + wrapBox!.height / 2)
       await expect(popover).toBeVisible()
 
       // Wider than the old 200px floor, and nothing is clipped horizontally.
+      // (Measured before this change: 200px exactly — the floor, not the text.)
       const metrics = await popover.evaluate(e => ({ w: e.offsetWidth, scroll: e.scrollWidth, client: e.clientWidth }))
       expect(metrics.w).toBeGreaterThanOrEqual(216)
       expect(metrics.scroll).toBeLessThanOrEqual(metrics.client + 1)
 
-      // The real proof: every row renders exactly ONE line box. A wrapped value
-      // (the old bug) yields two rects with different tops. Rects are grouped by
-      // top so nested spans (label + value) still count as one line.
+      // Guard, not a fix: with short values the box is already content-driven and
+      // does not wrap, but `width: max-content` alone stops applying the moment an
+      // ancestor is clamped — so assert the rows can never break. A range over the
+      // row is useless here — the row is a flex container, so each span is
+      // blockified and the range reports one rect per span, not per line. Measure
+      // the TEXT NODES instead: a range over a text node yields one rect per line
+      // fragment, so stacked (wrapped) lines are visible. Fragments whose vertical
+      // spans overlap belong to the same line (the label uses the UI font and the
+      // value the mono font, so their tops differ even on one line).
       const rowLines = await window.locator('.context-popover-row').evaluateAll(rows =>
         rows.map(row => {
-          const range = document.createRange()
-          range.selectNodeContents(row)
-          const tops = new Set(
-            Array.from(range.getClientRects()).filter(r => r.width > 0).map(r => Math.round(r.top))
-          )
-          return tops.size
+          const rects: DOMRect[] = []
+          const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT)
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            if (!node.nodeValue?.trim()) continue
+            const range = document.createRange()
+            range.selectNodeContents(node)
+            rects.push(...Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0))
+          }
+          rects.sort((a, b) => a.top - b.top)
+          let lines = 0
+          let lineBottom = -Infinity
+          for (const r of rects) {
+            if (r.top >= lineBottom - 1) {
+              lines++
+              lineBottom = r.bottom
+            } else {
+              lineBottom = Math.max(lineBottom, r.bottom)
+            }
+          }
+          return lines
         })
       )
       expect(rowLines.length).toBeGreaterThan(0)
-      expect(rowLines).toEqual(rowLines.map(() => 1))
+      expect(rowLines, `lines per row: ${JSON.stringify(rowLines)}`).toEqual(rowLines.map(() => 1))
 
       // The mechanism, stated explicitly so a later edit cannot silently undo it.
       const nowrap = await window.locator('.context-popover-row').evaluateAll(rows =>
@@ -375,13 +404,17 @@ test('the context popover is content-width and its rows stay on one line', async
     server.close()
   }
 })
-```
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `npm run build && npx playwright test tests/e2e/context-footer.spec.ts -g "content-width"`
+Run: `npm run build && npx playwright test tests/e2e/context-footer.spec.ts -g "wider than the 200px"`
 
-Expected: FAIL — `expect(metrics.w).toBeGreaterThanOrEqual(216)` receives `200`. (The mechanism: `.context-footer-popover` is absolute inside `.context-footer-wrap`, which is 24px wide after Task 1, so its `auto` width is shrink-to-fit against that containing block and `min-width: 200px` alone decides the layout. The stylesheet's global `* { box-sizing: border-box }` — line 137 — makes that 200px the total box, so `offsetWidth` is exactly 200.)
+Expected: FAIL — `expect(metrics.w).toBeGreaterThanOrEqual(216)` receives `200`. (The mechanism is NOT
+the shrink-to-fit story this plan first assumed: instrumenting the built app showed `width: auto`
+already resolving to the content's width — 227px for 9-digit counts, 264px for 13-digit ones — and the
+`min-width` floor deciding the result only when the text is *shorter* than it. With realistic counts
+(`145,503 in / 431 out`) the box is therefore exactly 200px, the old floor, and the global
+`* { box-sizing: border-box }` (line 137) makes that 200px the total `offsetWidth`.)
 
 - [ ] **Step 3: Make the popover content-width**
 
@@ -410,7 +443,7 @@ with:
 }
 ```
 
-`width: max-content` is what makes the box follow its content instead of the 24px trigger; `min-width` is only a floor for short content (a lone `—`). No `max-width`: growth is leftward (`right: 0`, anchored at the composer's right edge), so long values stay on screen. With the global `* { box-sizing: border-box }` (line 137), `min-width: 216px` is a 216px *total* box, which is exactly what the test asserts.
+`min-width: 216px` is the change that is actually visible (the measured pre-change box with realistic counts is 200px). `width: max-content` states the content-driven intent explicitly instead of leaning on how Chromium resolves shrink-to-fit for `position: absolute; right: 0; left: auto`. No `max-width`: growth is leftward (`right: 0`, anchored at the composer's right edge), so long values stay on screen at normal window widths. With the global `* { box-sizing: border-box }` (line 137), `min-width: 216px` is a 216px *total* box, which is exactly what the test asserts.
 
 - [ ] **Step 4: Keep the rows on one line**
 
@@ -426,7 +459,7 @@ with:
 .context-popover-row { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 ```
 
-The popover's own explanatory comment ("Hover popover: token totals, session tokens in/out + cost, shown when the user hovers the context ring…") stays as is; update the `.context-popover-label` rule's `min-width: 56px` only if the labels visibly misalign (they do not — it stays).
+`white-space: nowrap` is a **guard, not a fix**: no row wraps today (measured at every value size and window width tried) — it keeps that true if an ancestor ever clamps the box. The popover's own explanatory comment ("Hover popover: token totals, session tokens in/out + cost, shown when the user hovers the context ring…") stays as is; the `.context-popover-label` rule's `min-width: 56px` stays too (it is what keeps the label column aligned).
 
 - [ ] **Step 5: Run the test to verify it passes**
 
@@ -476,5 +509,14 @@ git commit -m "fix(ui): keep the context popover on one line at content width"
 **Spec coverage:** icon-button box + 3px radius + hover background → Task 1 (Steps 3-4). Ring 30→20 / stroke 2.5 with clearance ratio → Task 1 Step 5. Popover `max-content` + floor 216 + nowrap rows → Task 2 Steps 3-4. Non-goals (no click/focus, no info-design change, no `.sidebar-icon-btn` reuse, no new token/dependency) → Global Constraints. Testing section of the spec (geometry, hover colour, popover width, single-line rows) → the two new e2e tests. Documentation section (chat `AGENTS.md`, `09-ui-guide.md` §9.5, `tests/e2e/AGENTS.md`) → Task 1 Step 8, Task 2 Step 7. No spec requirement is without a task.
 
 **Placeholder scan:** none — every step carries the exact code, selector, command and expected result.
+
+**Correction recorded during execution (Task 2):** the original brief reported the popover's rows
+wrapping, and this plan initially explained that as shrink-to-fit against the 24px trigger, with the
+`min-width` floor deciding the layout. Instrumented against the built app, that explanation is wrong —
+`width: auto` already resolves to the content's width, and no value size or window width produced a
+wrapped row (see the Findings section of the spec, `docs/superpowers/specs/2026-09-12-context-button-design.md`).
+The work therefore ships as: a deliberate widening (floor 200px → 216px, the assertion the e2e test
+genuinely gates), an explicit `width: max-content`, and `nowrap` as a guard. The reported wrap is
+unaccounted for and open with the user.
 
 **Consistency:** `SIZE`/`STROKE` appear only as 20/2.5; the radius token is `--radius-xs`, the hover colour `--bg-hover`, the popover floor `216px` (used in both the CSS and the test) — all named identically across tasks. `resolveVar` is defined in Task 1 and used only there. The e2e helper names (`startMockLlm`, `seedUserData`, `cleanupDir`) match the existing file.

@@ -1026,13 +1026,14 @@ select.input { width: 100%; }
    hovers the context ring. Anchored to the right edge since the ring sits far right. */
 .context-footer-popover {
   position: absolute; bottom: calc(100% + 6px); right: 0; left: auto; z-index: 100;
-  display: none; min-width: 200px; padding: 8px 10px; flex-direction: column; gap: 6px;
+  display: none; width: max-content; min-width: 216px; padding: 8px 10px;
+  flex-direction: column; gap: 6px;
   background: var(--bg-raised); border: 1px solid var(--hairline); border-radius: var(--radius);
   box-shadow: var(--shadow-3); font-family: var(--font-mono); font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums;
 }
 .context-footer-wrap:hover .context-footer-popover { display: flex; }
-.context-popover-row { display: flex; align-items: center; gap: 8px; }
+.context-popover-row { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .context-popover-label {
   color: var(--text-faint); font-family: var(--font-ui); text-transform: uppercase;
   letter-spacing: 0.08em; font-size: var(--fs-sm); min-width: 56px;

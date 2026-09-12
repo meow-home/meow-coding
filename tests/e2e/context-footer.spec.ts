@@ -230,9 +230,107 @@ test('the context readout is a 24x24 icon button with a hover background', async
       // A readout, not a button: transparent at rest, hover lifts it, cursor stays default.
       expect(await ring.evaluate(e => getComputedStyle(e).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
       const bgHover = await resolveVar(window, '--bg-hover')
-      await window.locator('.context-footer-wrap').hover()
-      await expect(ring).toHaveCSS('background-color', bgHover)
+      // Move the pointer onto the ring explicitly: `locator.hover()` retargets to
+      // the element's own center and races the pane's mount animation, which made
+      // this assertion flaky when the whole file ran in one worker.
+      await window.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
+      await expect.poll(() => ring.evaluate(e => getComputedStyle(e).backgroundColor)).toBe(bgHover)
       await expect(ring).toHaveCSS('cursor', 'default')
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+    server.close()
+  }
+})
+
+test('the context popover is wider than the 200px floor and keeps its rows on one line', async () => {
+  // Realistic counts (a real session's ~145k prompt tokens): with short content
+  // the popover's width is decided by its min-width floor, not by the text, so
+  // this fixture is what makes the 216px assertion meaningful.
+  const { server, port } = await startMockLlm([
+    { content: 'hi there', usage: { prompt_tokens: 145503, completion_tokens: 431, total_tokens: 145934 } }
+  ])
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    seedUserData(userData, project, {
+      provider: { mock: { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}`, models: ['mock-model'] } },
+      model: 'mock',
+      maxContextTokens: 200000,
+      compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000, prune: true }
+    })
+
+    const app = await electron.launch({
+      args: ['.'],
+      env: { ...process.env as Record<string, string>, MEOW_USER_DATA: userData }
+    })
+    const window = await app.firstWindow()
+    try {
+      await expect(window.locator('.project-row')).toBeVisible()
+      await window.locator('.project-toggle').click()
+      await window.locator('.session-list .session-row').first().click()
+      await expect(window.locator('.chat-panel')).toBeVisible()
+
+      // A real turn, so the popover carries its longest rows (tokens in/out).
+      await window.locator('.chat-input-field').fill('hello meow')
+      await window.locator('.chat-input-field').press('Enter')
+      await expect(window.locator('.chat-msg.assistant').last()).toContainText('hi there')
+
+      const popover = window.locator('.context-footer-popover')
+      const wrapBox = await window.locator('.context-footer-wrap').boundingBox()
+      await window.mouse.move(wrapBox!.x + wrapBox!.width / 2, wrapBox!.y + wrapBox!.height / 2)
+      await expect(popover).toBeVisible()
+
+      // Wider than the old 200px floor, and nothing is clipped horizontally.
+      // (Measured before this change: 200px exactly — the floor, not the text.)
+      const metrics = await popover.evaluate(e => ({ w: e.offsetWidth, scroll: e.scrollWidth, client: e.clientWidth }))
+      expect(metrics.w).toBeGreaterThanOrEqual(216)
+      expect(metrics.scroll).toBeLessThanOrEqual(metrics.client + 1)
+
+      // Guard, not a fix: with short values the box is already content-driven and
+      // does not wrap, but `width: max-content` alone stops applying the moment an
+      // ancestor is clamped — so assert the rows can never break. A range over the
+      // row is useless here — the row is a flex container, so each span is
+      // blockified and the range reports one rect per span, not per line. Measure
+      // the TEXT NODES instead: a range over a text node yields one rect per line
+      // fragment, so stacked (wrapped) lines are visible. Fragments whose vertical
+      // spans overlap belong to the same line (the label uses the UI font and the
+      // value the mono font, so their tops differ even on one line).
+      const rowLines = await window.locator('.context-popover-row').evaluateAll(rows =>
+        rows.map(row => {
+          const rects: DOMRect[] = []
+          const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT)
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            if (!node.nodeValue?.trim()) continue
+            const range = document.createRange()
+            range.selectNodeContents(node)
+            rects.push(...Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0))
+          }
+          rects.sort((a, b) => a.top - b.top)
+          let lines = 0
+          let lineBottom = -Infinity
+          for (const r of rects) {
+            if (r.top >= lineBottom - 1) {
+              lines++
+              lineBottom = r.bottom
+            } else {
+              lineBottom = Math.max(lineBottom, r.bottom)
+            }
+          }
+          return lines
+        })
+      )
+      expect(rowLines.length).toBeGreaterThan(0)
+      expect(rowLines, `lines per row: ${JSON.stringify(rowLines)}`).toEqual(rowLines.map(() => 1))
+
+      // The mechanism, stated explicitly so a later edit cannot silently undo it.
+      const nowrap = await window.locator('.context-popover-row').evaluateAll(rows =>
+        rows.map(row => getComputedStyle(row).whiteSpace)
+      )
+      expect(nowrap.every(v => v === 'nowrap')).toBe(true)
     } finally {
       await app.close()
     }
