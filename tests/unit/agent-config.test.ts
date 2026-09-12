@@ -483,18 +483,6 @@ describe('configToSettings / settingsToConfig', () => {
     expect(back.lsp).toEqual({ enabled: true, diagnosticsTimeoutMs: 3000 })
   })
 
-  it('defaults trace to disabled and round-trips trace.enabled', () => {
-    const cfg = cfgWithProviders()
-    expect(cfg.trace).toEqual({ enabled: false })
-    expect(configToSettings(cfg).trace).toEqual({ enabled: false })
-
-    cfg.trace = { enabled: true }
-    const settings = configToSettings(cfg)
-    expect(settings.trace).toEqual({ enabled: true })
-
-    const back = settingsToConfig(settings, cfg)
-    expect(back.trace).toEqual({ enabled: true })
-  })
 })
 
 describe('subagentModels', () => {

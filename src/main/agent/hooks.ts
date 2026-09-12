@@ -169,13 +169,6 @@ const DEFAULT_TIMEOUT_S: Record<HookEventName, number> = {
 
 const PRECEDENCE: Record<'allow' | 'ask' | 'deny', number> = { allow: 0, ask: 1, deny: 2 }
 
-export interface HookTraceRecord {
-  event: HookEventName
-  tool?: string
-  status: 'started' | 'ok' | 'blocked' | 'failed' | 'timeout'
-  durationMs?: number
-}
-
 interface HookExecution {
   // null when the child never reported a code: a spawn failure, or a kill.
   exitCode: number | null
@@ -188,7 +181,6 @@ export interface HooksExecutorDeps {
   cwd: string
   spawnFn?: typeof spawn
   killFn?: (pid: number, cb: () => void) => void
-  onTrace?: (record: HookTraceRecord) => void
   // Bridges to a connected MCP server. Absent, mcp_tool hooks are inert rather
   // than fatal, so a hooks config outlives the server it names.
   callMcpTool?: (
@@ -420,9 +412,6 @@ export class HooksExecutor implements HooksRunner {
     event: HookEventName,
     payload: Record<string, unknown>
   ): Promise<HookExecution & { json?: Record<string, unknown> }> {
-    const tool = asString(payload.tool_name)
-    this.deps.onTrace?.({ event, tool, status: 'started' })
-    const startedAt = Date.now()
     const exec = hook.type === 'command'
       ? await this.runCommand(hook, payload, event)
       : hook.type === 'mcp_tool'
@@ -430,14 +419,6 @@ export class HooksExecutor implements HooksRunner {
         : hook.type === 'http'
           ? await this.runHttp(hook, payload)
           : await this.runPrompt(hook, payload)
-    const status: HookTraceRecord['status'] = exec.timedOut
-      ? 'timeout'
-      : exec.exitCode === 2
-        ? 'blocked'
-        : exec.exitCode === 0
-          ? 'ok'
-          : 'failed'
-    this.deps.onTrace?.({ event, tool, status, durationMs: Date.now() - startedAt })
     return { ...exec, json: parseHookJson(exec.stdout) }
   }
 

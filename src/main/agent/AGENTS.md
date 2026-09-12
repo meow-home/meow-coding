@@ -26,7 +26,6 @@ commands, references, compaction and usage accounting. Orchestrated by `MeowAgen
 | `truncation.ts` | `TruncationStore`: truncation state per session. |
 | `usage.ts` | `calcCost` / `EMPTY_USAGE` / price-based cost accounting. |
 | `token.ts` | Token estimation/counting helpers (`estimateTokens`, `estimateUsage`, `charsForTokens`); inline image data URLs are charged a flat cost, not their base64 length. |
-| `trace-store.ts` | `TraceStore`: per-session trace event log (buffered + flushed async, seq per session). |
 | `apply-patch.ts` | Unified-diff parser + applier (the `apply-patch` tool backend). |
 | `plugin.ts` | Loads user tools from `userData/tools`. |
 | `skill.ts` | Collects skills (builtin + user) into `skillListText` for the system prompt. |
@@ -45,4 +44,4 @@ commands, references, compaction and usage accounting. Orchestrated by `MeowAgen
 - Session transcript items are the single source of truth for what the LLM sees (`message.ts` rebuilds prompts from them).
 - **Hooks tighten, never loosen.** A `PreToolUse` hook may deny a call, rewrite its input, or waive a permission prompt, but it can never override a config deny (`loop.ts` applies the hook decision around `decidePermission`). A failed or timed-out hook yields *no* decision, so broken policy never blocks work.
 - Hooks run in subagents too — same cwd, same merged config — and `LoopDeps.hooks` is a **function**, resolved once per run like `system`, so editing a hooks file lands on the next turn without a reload.
-- Hook activity goes to the `TraceStore` (`{ type: 'hook' }`), never into the transcript: hooks are policy machinery, not conversation. What the model sees is only a blocked call's error, a replaced tool output, or appended context.
+- Hooks stay out of the transcript: they are policy machinery, not conversation. What the model sees is only a blocked call's error, a replaced tool output, or appended context.

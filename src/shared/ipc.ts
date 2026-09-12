@@ -3,7 +3,7 @@ import type {
   ConnectionAccount, ContextChangedEvent, ContextInfo, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload,
   GitActionResult, GitBlameLine, GitBranch, GitCommit, GitDiffResult, GitStatus, GitStatusDetail,
   ImageAttachment, LogLevel, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PendingPromptInfo, PromptResponse,
-  SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, TraceEvent, TraceSummary, TranscriptWindow, TranscriptWindowOpts,
+  SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, TranscriptWindow, TranscriptWindowOpts,
   UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 import type { BrowserStatusInfo, PairingInfo } from './browser-types'
@@ -135,10 +135,6 @@ export const Channels = {
   RemoteRevokeToken: 'remote:revoke-token',
   EventRemoteStatus: 'remote:status',
   EventBrowserOpenInstallGuide: 'browser:install-guide',
-  TraceList: 'trace:list',
-  TraceRead: 'trace:read',
-  TraceDelete: 'trace:delete',
-  EventTrace: 'trace:event',
   DirList: 'dir:list',
   ArtifactsList: 'artifacts:list',
   ArtifactsClear: 'artifacts:clear',
@@ -277,10 +273,6 @@ export interface AgentApi {
   switchSession(agentId: string, sessionId: string): Promise<SessionSummary | null>
   deleteSession(agentId: string, sessionId: string): Promise<SessionSummary>
   renameSession(agentId: string, sessionId: string, title: string): Promise<SessionSummary | null>
-  traceList(agentId: string): Promise<TraceSummary[]>
-  traceRead(sessionId: string): Promise<TraceEvent[]>
-  traceDelete(sessionId: string): Promise<void>
-  onTraceEvent(cb: (e: TraceEvent) => void): () => void
   getSettings(): Promise<MeowSettings>
   saveSettings(settings: MeowSettings): Promise<MeowSettings>
   listCommands(projectPath: string): Promise<Command[]>

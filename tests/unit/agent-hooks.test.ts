@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { HooksExecutor, loadProjectHooks, matchHook, mergeHooksConfig } from '../../src/main/agent/hooks'
-import type { CommandHook, HookTraceRecord, HooksConfig, HttpHook, PromptHook } from '../../src/main/agent/hooks'
+import type { CommandHook, HooksConfig, HttpHook, PromptHook } from '../../src/main/agent/hooks'
 import type { LlmClient, LlmStreamOptions } from '../../src/main/agent/llm'
 import { DEFAULT_MEOW_CONFIG, loadMeowConfig, settingsToConfig, configToSettings } from '../../src/main/agent/config'
 
@@ -667,21 +667,5 @@ describe('HooksExecutor prompt handler', () => {
       { cwd: '/proj', getModel: () => stub }
     )
     expect(await ex.runStop('done', false)).toEqual({ block: true, reason: 'tests not run yet' })
-  })
-})
-
-describe('HooksExecutor trace records', () => {
-  it('reports started then a terminal status for each hook', async () => {
-    const records: HookTraceRecord[] = []
-    const spawned = fakeSpawn({ stderr: 'no', exitCode: 2 })
-    const ex = new HooksExecutor(alwaysPre(), {
-      cwd: '/proj',
-      spawnFn: spawned.fn as never,
-      onTrace: r => records.push(r)
-    })
-    await ex.runPreToolUse('write', {})
-    expect(records.map(r => r.status)).toEqual(['started', 'blocked'])
-    expect(records[1]).toMatchObject({ event: 'PreToolUse', tool: 'write' })
-    expect(typeof records[1].durationMs).toBe('number')
   })
 })

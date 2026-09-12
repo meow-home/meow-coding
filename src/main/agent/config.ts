@@ -42,10 +42,6 @@ export interface LspConfig {
 
 export type NotificationsConfig = NotificationsSettings
 
-export interface TraceConfig {
-  enabled: boolean
-}
-
 export interface MeowConfig {
   provider: Record<string, MeowProviderConfig>
   model: string
@@ -61,7 +57,6 @@ export interface MeowConfig {
   mcpOutput?: { maxTokens?: number }
   lsp: LspConfig
   notifications?: NotificationsConfig
-  trace?: TraceConfig
   subagentModels?: Partial<Record<SubagentType, ModelRef>>
   hooks?: HooksConfig
 }
@@ -129,9 +124,6 @@ export const DEFAULT_LSP: LspConfig = {
   enabled: true,
   diagnosticsTimeoutMs: 3000
 }
-export const DEFAULT_TRACE: TraceConfig = {
-  enabled: false
-}
 export const DEFAULT_NOTIFICATIONS: NotificationsConfig = {
   needsInput: true,
   onDone: true
@@ -172,8 +164,7 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
   compaction: DEFAULT_COMPACTION,
   toolOutput: DEFAULT_TOOL_OUTPUT,
   lsp: DEFAULT_LSP,
-  notifications: DEFAULT_NOTIFICATIONS,
-  trace: DEFAULT_TRACE
+  notifications: DEFAULT_NOTIFICATIONS
 }
 
 type RawProvider = Partial<MeowProviderConfig> & Record<string, unknown>
@@ -252,11 +243,6 @@ function normalizeMcpOutput(raw: { maxTokens?: number } | undefined): { maxToken
   return maxTokens === undefined ? undefined : { maxTokens }
 }
 
-function normalizeTrace(raw: Partial<TraceConfig> | undefined): TraceConfig {
-  return {
-    enabled: raw?.enabled ?? DEFAULT_TRACE.enabled
-  }
-}
 
 function normalizeLsp(raw: Partial<LspConfig> | undefined): LspConfig {
   return {
@@ -338,7 +324,6 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     mcpOutput: normalizeMcpOutput(raw.mcpOutput),
     lsp: normalizeLsp(raw.lsp),
     notifications: normalizeNotifications(raw.notifications),
-    trace: normalizeTrace(raw.trace),
     subagentModels: normalizeSubagentModels(raw.subagentModels, providers),
     hooks: normalizeHooks(raw.hooks)
   }
@@ -453,7 +438,6 @@ export function configToSettings(cfg: MeowConfig): MeowSettings {
     mcpOutput: cfg.mcpOutput,
     lsp: cfg.lsp,
     notifications: cfg.notifications ? normalizeNotifications(cfg.notifications) : DEFAULT_NOTIFICATIONS,
-    trace: normalizeTrace(cfg.trace),
     ...(cfg.subagentModels ? { subagentModels: cfg.subagentModels } : {})
   }
 }
@@ -503,7 +487,6 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
     notifications: settings.notifications
       ? normalizeNotifications(settings.notifications)
       : normalizeNotifications(base.notifications),
-    trace: normalizeTrace(settings.trace ?? base.trace),
     // Hooks are edited in meow.json / .meow/hooks.json, never in the settings
     // UI, so they must survive a settings save instead of being written away.
     hooks: normalizeHooks(base.hooks),

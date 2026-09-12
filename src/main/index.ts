@@ -23,7 +23,6 @@ import type { StoredSession } from './agent/session'
 import { SnapshotStore } from './agent/snapshot'
 import type { SnapshotTurn } from './agent/snapshot'
 import { TruncationStore } from './agent/truncation'
-import { TraceStore } from './agent/trace-store'
 import { LearnedLimitsStore } from './agent/learned-limits'
 import type { LearnedLimitEntry } from './agent/learned-limits'
 import { SavedPermissions } from './agent/saved-permissions'
@@ -135,7 +134,6 @@ export class MainApp {
     getWindow: () => win,
     extensionDir: path.join(app.getPath('userData'), 'browser-extension')
   })
-  traces = new TraceStore(path.join(app.getPath('userData'), 'traces'))
   vault = new Vault(path.join(app.getPath('userData'), 'connections', 'vault.json'))
   connections = new ConnectionsManager({
     store: new ConnectionStore(path.join(app.getPath('userData'), 'connections', 'index.json')),
@@ -152,7 +150,6 @@ export class MainApp {
     configPath: path.join(app.getPath('userData'), 'meow.json'),
     vault: this.vault,
     store: new SessionStore(createJsonStore<StoredSession>(path.join(app.getPath('userData'), 'sessions.json'), { debounceMs: 250 })),
-    trace: this.traces,
     tools: createDefaultTools({
       getUserSkillsDir: () => path.join(app.getPath('userData'), 'skills'),
       getBuiltinSkillsDir: () => this.builtinSkillsDir,
@@ -238,7 +235,6 @@ export class MainApp {
     win?.webContents.send(Channels.EventArtifactsChanged, { projectPath, artifacts })
   })
   private prices = new Map<string, { input?: number; output?: number; cacheRead?: number; cacheWrite?: number }>()
-  private ptyStartTs = new Map<string, number>()
   private updater: Updater
 
   constructor() {
@@ -271,15 +267,6 @@ export class MainApp {
         win?.webContents.send(Channels.EventPtyData, { agentId, data: hint })
       }
       this.alerts.onExit(agentId, code)
-      const startTs = this.ptyStartTs.get(agentId)
-      if (startTs !== undefined && mainApp.meowAgent.isTraceEnabled()) {
-        this.ptyStartTs.delete(agentId)
-        this.traces.append(agentId, {
-          type: 'pty-run', agentId, sessionId: agentId, startTs,
-          endTs: Date.now(), exitCode: code, durationMs: Date.now() - startTs,
-          logPath: this.logs.pathFor(agentId)
-        })
-      }
     })
     this.alerts.on('idle', ({ agentId }) => {
       this.setState(agentId, { status: 'idle', alert: 'attention' })
@@ -394,13 +381,6 @@ export class MainApp {
     this.setState(agentId, { status: 'spawning', exitCode: null, alert: 'normal' })
     try {
       this.pty.start(agentId, agent.name, tmpl.command, tmpl.args, agent.cwd)
-      this.ptyStartTs.set(agentId, Date.now())
-      if (mainApp.meowAgent.isTraceEnabled()) {
-        this.traces.append(agentId, {
-          type: 'pty-run', agentId, sessionId: agentId, startTs: this.ptyStartTs.get(agentId) ?? Date.now(),
-          logPath: this.logs.pathFor(agentId)
-        })
-      }
       this.alerts.track(agentId)
     } catch (err) {
       const message = `[meow] Could not start agent "${agent.name}" (${tmpl.command} ${tmpl.args.join(' ')}): ${String(err)}\n`
@@ -934,9 +914,6 @@ export function registerIpcHandlers(): void {
     mainApp.meowAgent.deleteSession(agentId, sessionId))
   ipcMain.handle(Channels.SessionRename, (_e, agentId: string, sessionId: string, title: string) =>
     mainApp.meowAgent.renameSession(agentId, sessionId, title))
-  ipcMain.handle(Channels.TraceList, (_e, agentId: string) => mainApp.traces.listForAgent(agentId))
-  ipcMain.handle(Channels.TraceRead, (_e, sessionId: string) => mainApp.traces.read(sessionId))
-  ipcMain.handle(Channels.TraceDelete, (_e, sessionId: string) => mainApp.traces.delete(sessionId))
   ipcMain.handle(Channels.SettingsGet, () => mainApp.meowAgent.getSettings())
   ipcMain.handle(Channels.SettingsSave, (_e, settings: MeowSettings) =>
     mainApp.meowAgent.saveSettings(settings))
@@ -994,10 +971,8 @@ app.whenReady().then(async () => {
     ? path.join(process.resourcesPath, 'browser-extension')
     : path.join(app.getAppPath(), 'out', 'browser-extension')
   ensureExtensionInstalled(extSource, path.join(app.getPath('userData'), 'browser-extension'))
-  if (!mainApp.meowAgent.isTraceEnabled()) {
-    // Trace temporarily disabled: drop old trace data so nothing lingers.
-    rmSync(path.join(app.getPath('userData'), 'traces'), { recursive: true, force: true })
-  }
+  // The trace feature was removed; purge any leftover trace data from old versions.
+  rmSync(path.join(app.getPath('userData'), 'traces'), { recursive: true, force: true })
   registerIpcHandlers()
   createWindow()
   tray = TrayManager.create({
@@ -1032,8 +1007,6 @@ app.on('before-quit', (event) => {
   isQuitting = true
   mainApp.stopGitPoll()
   void mainApp.meowAgent.dispose().then(() => {
-    return mainApp.traces.flushAll()
-  }).then(() => {
     return mainApp.connections.dispose()
   }).then(() => {
     return mainApp.browserBridge.close()

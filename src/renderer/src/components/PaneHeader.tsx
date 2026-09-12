@@ -11,9 +11,6 @@ interface Props {
   native?: boolean
   isTerminal?: boolean
   active?: boolean
-  activeTab?: 'chat' | 'trace'
-  traceEnabled?: boolean
-  onTabChange?: (tab: 'chat' | 'trace') => void
   onStop: () => void
   onRestart: () => void
   onInject: (text: string) => void
@@ -33,7 +30,6 @@ function MoreIcon() {
 
 export default function PaneHeader({
   name, state, git, background = false, native = false, isTerminal = false, active = false,
-  activeTab = 'chat', traceEnabled = true, onTabChange,
   onStop, onRestart, onInject, onOpenLog, onToggleBackground, onRemove
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -71,24 +67,6 @@ export default function PaneHeader({
     <div className={`pane-header ${active ? 'active' : ''} alert-${state.alert}`}>
       <span className={`status-dot status-${state.status}`} />
       <span className="pane-title">{name}</span>
-      {native && (
-        <span className="pane-tabs">
-          <button
-            className={`pane-tab${activeTab === 'chat' ? ' active' : ''}`}
-            onClick={() => onTabChange?.('chat')}
-          >
-            Chat
-          </button>
-          {traceEnabled && (
-            <button
-              className={`pane-tab${activeTab === 'trace' ? ' active' : ''}`}
-              onClick={() => onTabChange?.('trace')}
-            >
-              Trace
-            </button>
-          )}
-        </span>
-      )}
       <span className="pane-status">{STATUS_LABEL[state.status]}
         {state.exitCode !== null && ` (${state.exitCode})`}
       </span>

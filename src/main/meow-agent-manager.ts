@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
-import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, NotificationsSettings, PendingPromptInfo, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TraceEvent, TranscriptWindow, TranscriptWindowOpts, UsageSummary } from '../shared/types'
+import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, NotificationsSettings, PendingPromptInfo, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts, UsageSummary } from '../shared/types'
 import type { AgentConfig, AgentMode, ArtifactEntry, CatalogProviderSummary, Command, ModelRef, SubagentType } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, resolveApiKey, settingsToConfig, writeMeowConfig,
@@ -49,17 +49,12 @@ import type { AccountEndpointResolver } from './agent/config'
 import type { ToolDefinition } from './agent/tools/types'
 import type { NotificationService } from './notification-service'
 import type { Vault } from './vault'
-import { TraceStore } from './agent/trace-store'
-import type { TraceEventInput } from './agent/trace-store'
 import { HooksExecutor, loadProjectHooks, mergeHooksConfig } from './agent/hooks'
-import type { HookTraceRecord } from './agent/hooks'
 
 export interface MeowAgentManagerDeps {
   configPath: string
   vault?: Vault
   store: SessionStore
-  trace?: TraceStore
-  onTrace?: (e: TraceEvent) => void
   tools: Map<string, ToolDefinition>
   createLlm?: (provider: string, apiKey: string, baseUrl?: string, retry?: RetryOptions, providerType?: string) => LlmClient
   learnedLimits?: LearnedLimitsStore
@@ -123,9 +118,6 @@ export class MeowAgentManager {
   private turnPromises = new Map<string, Promise<void>>()
   private onEvent: (e: ChatEvent) => void = () => {}
   private turnCounters = new Map<string, number>()
-  private toolStartTs = new Map<string, number>()
-  private pendingMessages = new Map<string, { turn: number; text: string; reasoning: string; tokens?: MessageTokens }>()
-  private traceEnabled = false
   private lastUsageByAgent = new Map<string, MessageTokens>()
   private compacting = new Set<string>()
   private lastCompactionAt = new Map<string, number>()
@@ -150,7 +142,6 @@ export class MeowAgentManager {
     })
     const cfg = loadMeowConfig(deps.configPath)
     this.deps = { ...deps, notifications: cfg.notifications }
-    this.traceEnabled = cfg.trace?.enabled ?? false
     // Auto-compact when a session sits over its context limit while idle
     // (compaction otherwise only runs at the start of a turn step).
     this.idleCompactTimer = setInterval(() => void this.maybeCompactIdle(), 20_000)
@@ -161,7 +152,6 @@ export class MeowAgentManager {
     this.onEvent = (e) => {
       if (e.type === 'done' || e.type === 'error') this.running.delete(e.agentId)
       cb(e)
-      if (this.traceEnabled) this.writeTrace(e)
       if (e.type === 'done' && this.deps.notifications?.onDone !== false) {
         const cost = e.cost !== undefined ? ` · ${e.cost.toFixed(4)}` : ''
         this.deps.notify?.notify({
@@ -189,10 +179,6 @@ export class MeowAgentManager {
 
   isNative(agentId: string): boolean {
     return this.agents.has(agentId)
-  }
-
-  isTraceEnabled(): boolean {
-    return this.traceEnabled
   }
 
   isRunning(agentId: string): boolean {
@@ -241,9 +227,7 @@ export class MeowAgentManager {
     this.queues.delete(agentId)
     this.deps.snapshots.clear(agentId)
     // Capture session ids before deleteForAgent purges them from the store.
-    const sessionIds = this.deps.store.list(agentId).map(s => s.id)
     this.deps.store.deleteForAgent(agentId)
-    for (const id of sessionIds) this.deps.trace?.delete(id)
   }
 
   private summary(session: StoredSession): SessionSummary {
@@ -289,7 +273,6 @@ export class MeowAgentManager {
   deleteSession(agentId: string, sessionId: string): SessionSummary {
     const wasActive = this.activeSessions.get(agentId) === sessionId
     this.deps.store.delete(sessionId)
-    this.deps.trace?.delete(sessionId)
     let next: StoredSession
     if (wasActive) {
       next = this.deps.store.latest(agentId) ?? this.deps.store.create(agentId, this.agents.get(agentId)?.cwd ?? '')
@@ -893,7 +876,6 @@ export class MeowAgentManager {
     }
     await this.syncTools()
     await this.refreshModelLimits()
-    this.traceEnabled = loadMeowConfig(this.deps.configPath).trace?.enabled ?? false
     for (const agent of agents) await this.register(agent)
   }
 
@@ -1071,8 +1053,7 @@ export class MeowAgentManager {
       {
         cwd: agent.cwd,
         callMcpTool: (server, tool, input) => this.mcp.callTool(server, tool, input),
-        getModel: () => ({ llm: llmClient, model: resolved.model }),
-        onTrace: (record) => this.writeHookTrace(agent.id, record)
+        getModel: () => ({ llm: llmClient, model: resolved.model })
       }
     )
 
@@ -1299,117 +1280,6 @@ export class MeowAgentManager {
     const next = (this.turnCounters.get(sessionId) ?? 0) + 1
     this.turnCounters.set(sessionId, next)
     return next
-  }
-
-  // Hooks stay out of the transcript: they are policy machinery, not part of the
-  // conversation. The trace is where their lifecycle is visible.
-  private writeHookTrace(agentId: string, record: HookTraceRecord): void {
-    const trace = this.deps.trace
-    // Called straight from the executor, so it checks the flag itself rather
-    // than relying on the gate that fronts chat-event tracing.
-    if (!trace || !this.traceEnabled) return
-    const sessionId = this.activeSessionId(agentId)
-    const full = trace.append(sessionId, {
-      type: 'hook',
-      agentId,
-      sessionId,
-      turn: this.turnCounters.get(sessionId) ?? 0,
-      event: record.event,
-      tool: record.tool,
-      status: record.status,
-      durationMs: record.durationMs
-    })
-    this.deps.onTrace?.(full)
-  }
-
-  private writeTrace(e: ChatEvent): void {
-    const trace = this.deps.trace
-    if (!trace) return
-    const agentId = e.agentId
-    const sessionId = this.activeSessionId(agentId)
-    const turn = this.turnCounters.get(sessionId) ?? 0
-    const emitTrace = (ev: TraceEventInput) => {
-      const full = trace.append(sessionId, ev)
-      this.deps.onTrace?.(full)
-      return full
-    }
-    // text/reasoning deltas accumulate into one assistant message; flush it
-    // at the next event boundary so the trace shows full content, not one
-    // row per streamed delta (and far fewer writes -> less UI churn).
-    const flushMessage = () => {
-      const pending = this.pendingMessages.get(sessionId)
-      if (!pending || (!pending.text && !pending.reasoning)) return
-      emitTrace({
-        type: 'message', agentId, sessionId, turn: pending.turn, role: 'assistant',
-        text: pending.text || undefined,
-        reasoning: pending.reasoning || undefined,
-        tokens: pending.tokens
-      })
-      this.pendingMessages.delete(sessionId)
-    }
-    switch (e.type) {
-      case 'turn-started':
-        // counter already incremented before emit (see runTurn)
-        this.pendingMessages.delete(sessionId)
-        emitTrace({ type: 'turn-started', agentId, sessionId, turn: this.turnCounters.get(sessionId) ?? 1 })
-        break
-      case 'text-delta': {
-        const pending = this.pendingMessages.get(sessionId) ?? { turn, text: '', reasoning: '' }
-        pending.text += e.delta
-        pending.turn = turn
-        this.pendingMessages.set(sessionId, pending)
-        break
-      }
-      case 'reasoning-delta': {
-        const pending = this.pendingMessages.get(sessionId) ?? { turn, text: '', reasoning: '' }
-        pending.reasoning += e.delta
-        pending.turn = turn
-        this.pendingMessages.set(sessionId, pending)
-        break
-      }
-      case 'usage': {
-        const pending = this.pendingMessages.get(sessionId)
-        if (pending) pending.tokens = e.tokens
-        break
-      }
-      case 'tool-start':
-        flushMessage()
-        this.toolStartTs.set(e.call.id, Date.now())
-        emitTrace({ type: 'tool-start', agentId, sessionId, turn, callId: e.call.id, tool: e.call.tool, input: e.call.input })
-        break
-      case 'tool-result': {
-        const startTs = this.toolStartTs.get(e.call.id)
-        const durationMs = startTs !== undefined ? Date.now() - startTs : 0
-        this.toolStartTs.delete(e.call.id)
-        emitTrace({ type: 'tool-result', agentId, sessionId, turn, callId: e.call.id, tool: e.call.tool, output: e.call.output, error: e.call.error, durationMs, cost: undefined })
-        break
-      }
-      case 'subagent-event':
-        flushMessage()
-        emitTrace({
-          type: 'subagent', agentId, sessionId, turn, taskId: e.taskId, parentTaskId: e.parentTaskId,
-          subagentType: e.subagentType,
-          state: e.sub === 'done' ? (e.state ?? 'completed') : 'running',
-          text: e.sub === 'delta' ? e.text : undefined,
-          result: e.result, tools: []
-        })
-        break
-      case 'compacted':
-        flushMessage()
-        emitTrace({ type: 'compaction', agentId, sessionId, turn, summary: e.summary })
-        break
-      case 'error':
-        flushMessage()
-        emitTrace({ type: 'error', agentId, sessionId, message: e.message })
-        break
-      case 'done':
-        flushMessage()
-        emitTrace({ type: 'done', agentId, sessionId, reason: e.reason, tokens: e.tokens, cost: e.cost })
-        this.deps.trace?.flush(sessionId)
-        break
-      default:
-        break
-    }
   }
 
   private emit(e: ChatEvent): void {

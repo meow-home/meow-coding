@@ -235,25 +235,6 @@ export interface TokenUsage {
   total: number
 }
 
-export interface TraceSummary {
-  sessionId: string
-  eventCount: number
-  firstTs: number
-  lastTs: number
-}
-
-export type TraceEvent =
-  | { type: 'turn-started'; seq: number; ts: number; agentId: string; sessionId: string; turn: number }
-  | { type: 'message'; seq: number; ts: number; agentId: string; sessionId: string; turn: number; role: 'assistant'; text?: string; reasoning?: string; tokens?: MessageTokens; ttftMs?: number; decodeMs?: number; durationMs?: number }
-  | { type: 'tool-start'; seq: number; ts: number; agentId: string; sessionId: string; turn: number; callId: string; tool: string; input: Record<string, unknown> }
-  | { type: 'tool-result'; seq: number; ts: number; agentId: string; sessionId: string; turn: number; callId: string; tool: string; output?: string; error?: string; durationMs: number; cost?: number }
-  | { type: 'subagent'; seq: number; ts: number; agentId: string; sessionId: string; turn: number; taskId: string; parentTaskId?: string; subagentType?: string; state: 'running' | 'completed' | 'cancelled' | 'error'; text?: string; result?: string; tools: string[] }
-  | { type: 'compaction'; seq: number; ts: number; agentId: string; sessionId: string; turn: number; summary: string }
-  | { type: 'error'; seq: number; ts: number; agentId: string; sessionId: string; message: string }
-  | { type: 'done'; seq: number; ts: number; agentId: string; sessionId: string; reason: string; tokens?: TokenUsage; cost?: number }
-  | { type: 'pty-run'; seq: number; ts: number; agentId: string; sessionId: string; startTs: number; endTs?: number; exitCode?: number; durationMs?: number; logPath: string }
-  | { type: 'hook'; seq: number; ts: number; agentId: string; sessionId: string; turn: number; event: 'PreToolUse' | 'PostToolUse' | 'Stop'; tool?: string; status: 'started' | 'ok' | 'blocked' | 'failed' | 'timeout'; durationMs?: number }
-
 export interface QuestionOption {
   label: string
   description?: string
@@ -364,7 +345,6 @@ export interface MeowSettings {
   mcpOutput?: { maxTokens?: number }
   lsp: LspSettings
   notifications?: NotificationsSettings
-  trace?: { enabled: boolean }
   /** Model override per sub-agent role. Missing role -> inherit main agent model. */
   subagentModels?: Partial<Record<SubagentType, ModelRef>>
 }
