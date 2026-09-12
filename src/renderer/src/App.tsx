@@ -194,6 +194,11 @@ export default function App() {
       setBackgrounds(prev => ({ ...prev, [agentId]: background }))
     })
     const offConfig = window.api.onAgentConfig(({ agentId, config }) => {
+      // Keep the sidebar session name in sync (e.g. auto-naming from the first
+      // message) without a full workspace refresh.
+      setWorkspaces(prev => prev.map(ws => ws.sessions.some(s => s.id === agentId)
+        ? { ...ws, sessions: ws.sessions.map(s => s.id === agentId ? { ...s, name: config.name } : s) }
+        : ws))
       const path = Object.keys(runtimesRef.current).find(p =>
         runtimesRef.current[p].workspace.agents.some(a => a.id === agentId))
       if (!path) return

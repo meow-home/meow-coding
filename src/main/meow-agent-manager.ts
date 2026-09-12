@@ -81,6 +81,8 @@ export interface MeowAgentManagerDeps {
   onPromptStateChange?: (agentId: string, pending: boolean) => void
   onBackgroundChange?: (agentId: string, background: boolean) => void
   onVariantInvalidated?: (agentId: string) => void
+  /** Fired for every user message sent to an agent (typed, slash command, or remote). */
+  onUserMessage?: (agentId: string, message: ChatMessage) => void
   onArtifact?: (entry: Omit<ArtifactEntry, 'id' | 'ts'>) => void
   notifications?: NotificationsSettings
 }
@@ -379,6 +381,7 @@ export class MeowAgentManager {
     }
     this.deps.store.appendMessage(this.activeSessionId(agentId), message)
     this.emit({ type: 'user-message', agentId, message })
+    this.deps.onUserMessage?.(agentId, message)
     const config = this.resolved.get(agentId)
     if (!config?.apiKey) {
       this.emit({

@@ -70,6 +70,7 @@ async function makeManager(opts: StubLlmOptions & {
   tools?: ToolDefinition[]
   prices?: Record<string, { input?: number; output?: number }>
   onPromptStateChange?: (agentId: string, pending: boolean) => void
+  onUserMessage?: (agentId: string, message: { text: string; displayText?: string }) => void
   notify?: { notify: (opts: { title: string; body: string; agentId?: string; onActivate?: () => void }) => void }
   notifications?: { needsInput?: boolean; onDone?: boolean }
   vault?: Vault
@@ -156,6 +157,7 @@ async function makeManager(opts: StubLlmOptions & {
     prices: opts.prices ?? { 'test/test-model': { input: 1, output: 2 } },
     connections,
     onPromptStateChange: opts.onPromptStateChange,
+    onUserMessage: opts.onUserMessage as never,
     notify: opts.notify as never,
     notifications: opts.notifications as never,
     vault: opts.vault,
@@ -197,6 +199,17 @@ describe('MeowAgentManager', () => {
     expect(events.some(e => e.type === 'text-delta')).toBe(true)
     expect(events.some(e => e.type === 'done' && e.reason === 'complete')).toBe(true)
     expect(manager.isRunning('a1')).toBe(false)
+  })
+
+  it('invokes onUserMessage for each user message (drives session auto-naming)', async () => {
+    const seen: Array<{ agentId: string; text: string; displayText?: string }> = []
+    const { manager } = await makeManager({
+      onUserMessage: (agentId, m) => seen.push({ agentId, text: m.text, displayText: m.displayText })
+    })
+    await manager.send('a1', 'Fix the login bug')
+    expect(seen).toHaveLength(1)
+    expect(seen[0].agentId).toBe('a1')
+    expect(seen[0].displayText ?? seen[0].text).toBe('Fix the login bug')
   })
 
   it('emits turn-started when a turn begins, including queued drains', async () => {

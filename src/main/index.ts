@@ -15,7 +15,7 @@ import { openGitViewer } from './git-viewer'
 import { AlertService } from './alert-service'
 import { NotificationService } from './notification-service'
 import { Updater } from './updater'
-import { SessionStore } from './agent/session'
+import { SessionStore, titleFrom, DEFAULT_SESSION_TITLE } from './agent/session'
 import type { StoredSession } from './agent/session'
 import { SnapshotStore } from './agent/snapshot'
 import type { SnapshotTurn } from './agent/snapshot'
@@ -196,6 +196,22 @@ export class MainApp {
       const ws = this.findWorkspaceByAgent(agentId)
       if (!ws) return
       const updated = this.workspaces.updateAgent(ws.projectPath, agentId, { variant: undefined })
+      this.pushAgentConfig(updated, agentId)
+    },
+    // Auto-name a session from its first user message: while the session still
+    // carries an auto-generated placeholder name ('New session' or the initial
+    // 'meow'), adopt a title derived from the message so the sidebar shows
+    // something meaningful. An explicit user rename yields a non-placeholder
+    // name, so it is never overwritten.
+    onUserMessage: (agentId, message) => {
+      const ws = this.findWorkspaceByAgent(agentId)
+      if (!ws) return
+      const agent = ws.agents.find(a => a.id === agentId)
+      if (!agent) return
+      if (agent.name !== DEFAULT_SESSION_TITLE && agent.name !== 'meow') return
+      const title = titleFrom(message.displayText ?? message.text)
+      if (!title || title === agent.name || title === DEFAULT_SESSION_TITLE) return
+      const updated = this.workspaces.updateAgent(ws.projectPath, agentId, { name: title })
       this.pushAgentConfig(updated, agentId)
     },
     onArtifact: (entry) => {

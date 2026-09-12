@@ -20,7 +20,7 @@ export type { SessionSummary }
 
 type RawSession = Partial<StoredSession> & Record<string, unknown>
 
-function titleFrom(text: string): string {
+export function titleFrom(text: string): string {
   const line = text.split('\n').find(l => l.trim().length > 0)
   let t = (line ?? '').trim().replace(/\s+/g, ' ')
   if (t.length > 60) t = t.slice(0, 59) + '…'
