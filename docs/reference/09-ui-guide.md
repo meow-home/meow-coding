@@ -269,4 +269,9 @@ Renderer modules do have unit tests — pure helpers and components rendered wit
   `smoke.spec.ts`, `prompt.spec.ts`, `composer.spec.ts`, `context-footer.spec.ts`,
   `chat-scrollbar.spec.ts`, `sidebar-sessions.spec.ts`, `selectors.spec.ts`, `menus.spec.ts`
 
+`playwright.config.ts` deletes `ELECTRON_RENDERER_URL` / `NODE_ENV_ELECTRON_VITE` at load time. The dev
+app exports them to every process it spawns, and a shell started from inside it inherits both; with a
+leaked value `src/main/index.ts` loads the renderer from the vite dev server and the suite renders the
+current `src/` instead of the built `out/` — every assertion would silently test the wrong tree.
+
 After touching IPC or UI, add or extend a smoke assertion so the regression is caught there.

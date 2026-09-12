@@ -23,3 +23,6 @@ with a temp `MEOW_USER_DATA`. Run after `npm run build` via `npm run e2e`; singl
 - **Requires `npm run build` first** — e2e launches the built app in `out/`.
 - Use locator auto-wait (e.g. `toHaveText`/`toContainText`) for async UI (IPC round-trips, streaming).
 - After touching IPC/UI, add/extend a smoke assertion so regressions are caught here.
+- `playwright.config.ts` strips `ELECTRON_RENDERER_URL` / `NODE_ENV_ELECTRON_VITE` at load: the dev app
+  exports them to its children, so a leaked value makes main load the vite dev server and the suite
+  silently tests the current `src/` instead of the built `out/`.
