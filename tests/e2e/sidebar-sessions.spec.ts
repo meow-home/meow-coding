@@ -320,3 +320,46 @@ test('sidebar icon buttons are 24x24 squares with a 3px radius', async () => {
     cleanupDir(project)
   }
 })
+
+test('the pane header is the dot and the name, sharing the sidebar icon button', async () => {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    seedWorkspaces(userData, project, ['Alpha'])
+    const { app, window } = await launch(userData)
+    try {
+      await openProject(window)
+
+      // The header is the dot and the name. The status word repeated the dot
+      // beside it, and the git readout rendered "--" whenever git was
+      // unavailable while the status bar already shows branch + dirty count.
+      await expect(window.locator('.pane-status')).toHaveCount(0)
+      await expect(window.locator('.pane-git')).toHaveCount(0)
+      await expect(window.locator('.pane-title')).toHaveText('Alpha')
+
+      // Dropping the visible status word must not drop the status: the dot
+      // carries it as an accessible name.
+      await expect(window.locator('.pane-header .status-dot')).toHaveAttribute('aria-label', 'idle')
+
+      // One action button, in the sidebar icon-button box.
+      const paneMenu = window.getByRole('button', { name: 'menu Alpha', exact: true })
+      await expect(paneMenu).toHaveCount(1)
+      await expect(paneMenu.locator('svg')).toHaveClass(/lucide-more-vertical/)
+      const paneBox = (await paneMenu.boundingBox())!
+      expect(Math.round(paneBox.width)).toBe(24)
+      expect(Math.round(paneBox.height)).toBe(24)
+      await expect(paneMenu).toHaveCSS('border-radius', '3px')
+
+      // Not "a button that looks the same as the project row's" — the same
+      // class, so the two cannot drift apart again.
+      await window.locator('.project-row').hover()
+      const projectMenu = window.getByRole('button', { name: 'menu E2E Project', exact: true })
+      expect(await paneMenu.getAttribute('class')).toBe(await projectMenu.getAttribute('class'))
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+  }
+})
