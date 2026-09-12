@@ -1,4 +1,4 @@
-export const DEFAULT_FONT_SIZE = 14
+export const DEFAULT_FONT_SIZE = 12
 export const MIN_FONT_SIZE = 8
 export const MAX_FONT_SIZE = 40
 export const FONT_SIZE_STORAGE_KEY = 'meow.fontSize'
@@ -20,7 +20,7 @@ export function parseFontSize(raw: string | null): number {
   return clampFontSize(n)
 }
 
-/** Read the current size from localStorage (default 14). */
+/** Read the current size from localStorage (default 12). */
 export function getFontSize(): number {
   return parseFontSize(localStorage.getItem(FONT_SIZE_STORAGE_KEY))
 }
