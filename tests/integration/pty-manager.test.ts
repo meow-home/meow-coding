@@ -111,7 +111,7 @@ describe('PtyManager', () => {
   it('emits exit when stopped and removes the session', async () => {
     const pty = new PtyManager()
     managers.push(pty)
-    const exited: { agentId: string; exitCode: number; kind?: 'agent' | 'terminal' }[] = []
+    const exited: { agentId: string; exitCode: number }[] = []
     pty.on('exit', e => exited.push(e))
 
     pty.start('a1', 'echo', process.execPath, [FIXTURE], process.cwd())
@@ -129,7 +129,6 @@ describe('PtyManager', () => {
       check()
     })
     expect(exited[0].agentId).toBe('a1')
-    expect(exited[0].kind).toBe('agent')
     expect(pty.isRunning('a1')).toBe(false)
   })
 

@@ -69,7 +69,6 @@ and the tsconfigs.
 | File | Role |
 |---|---|
 | `pty-manager.ts` | node-pty wrapper. Emits `data` / `exit`. `buildSpawnCommand` wraps non-`.exe` commands through `cmd.exe` on Windows. `stop()` uses `tree-kill` with a 3s force-kill fallback. |
-| `terminal-shell.ts` | `resolveShell()` — `cmd.exe` on Windows, `$SHELL || /bin/bash` elsewhere. |
 | `log-manager.ts` | Appends PTY output to `userData/logs/<agentId>.log`. |
 | `alert-service.ts` | Idle timer (default 5 min) → `idle` event; `onExit` → `exit` event. |
 | `notification-service.ts` | Native `Notification`, only fired while the window is unfocused. |
@@ -143,20 +142,18 @@ and the tsconfigs.
 ## 2.5 Data flow: a PTY agent
 
 ```
-renderer: xterm onData
-   → window.api.writeInput(agentId, data)          [Channels.PtyInput]
+renderer: injectPrompt(agentId, text)
+   → window.api.injectPrompt(agentId, text)        [Channels.PtyInject]
    → PtyManager.write()  (CRLF normalized on Windows)
    → child process stdin
 
 child process stdout
    → PtyManager 'data'
    → MainApp: LogManager.append + AlertService.onOutput + setState({status:'running'})
-   → win.webContents.send(Channels.EventPtyData)
-   → renderer: term.write(data)   (buffered in App.buffersRef if xterm not mounted yet)
 ```
 
 Exit path: `PtyManager 'exit'` → if exit code ≠ 0 and no log exists, an English `[meow]` hint is
-appended and pushed as PTY data → `AlertService.onExit` → `setState` to `exited` or `error` → a
+appended to the agent log → `AlertService.onExit` → `setState` to `exited` or `error` → a
 `pty-run` trace event is written when tracing is enabled.
 
 ## 2.6 Data flow: a native agent chat turn

@@ -44,7 +44,6 @@ straight to the code.
 | Background agents | An agent can be moved out of the grid and keeps running; listed in a background panel | `Channels.AgentSetBackground`, `BackgroundPanel.tsx` |
 | Idle / exit alerts | Idle alert after 5 minutes without output; exit alert classified by exit code | `alert-service.ts` |
 | Per-agent logs | Every byte of PTY output appended to `userData/logs/<agentId>.log`, openable from the pane menu | `log-manager.ts` |
-| Integrated terminals | Plain shell terminals (not agents) can be opened per project | `Channels.TerminalOpen`, `terminal-shell.ts` |
 
 ### Native Meow agent
 

@@ -88,12 +88,9 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `AgentGetContext` | `agent:get-context` | `getContextInfo(agentId): ContextInfo` |
 | `AgentSetBackground` | `agent:set-background` | `setAgentBackground(agentId, background)` |
 | `PtyStart` / `PtyStop` / `PtyRestart` | `pty:start` / `pty:stop` / `pty:restart` | `startAgent` / `stopAgent` / `restartAgent` |
-| `PtyInput` | `pty:input` | `writeInput(agentId, data)` |
 | `PtyInject` | `pty:inject` | `injectPrompt(agentId, text)` — writes `text + '\n'` |
-| `PtyResize` | `pty:resize` | `resizePty(agentId, cols, rows)` |
 | `LogPath` / `LogOpen` | `log:path` / `log:open` | `getLogPath` / `openLog` |
 | `SystemLog` | `system-log:write` | `writeSystemLog(level: LogLevel, message)` — renderer gửi log về main ghi vào file theo ngày |
-| `TerminalOpen` / `TerminalClose` | `terminal:open` / `terminal:close` | `openTerminal(cwd): TerminalInfo` / `closeTerminal(id)` |
 | `SystemTerminalOpen` | `system-terminal:open` | `openSystemTerminal(cwd)` — opens a real OS terminal window (cmd on Windows) rooted at `cwd`, not a tab inside Meow Coding |
 
 ### Chat & sessions
@@ -175,8 +172,6 @@ captured in preload).
 
 | Key | Channel | Payload | Subscribe method |
 |---|---|---|---|
-| `EventPtyData` | `pty:data` | `PtyDataEvent { agentId, data }` | `onPtyData` |
-| `EventTerminalExit` | `terminal:exit` | `TerminalExitEvent { id, exitCode }` | `onTerminalExit` |
 | `EventAgentState` | `agent:state` | `AgentStateEvent { agentId, state }` | `onAgentState` |
 | `EventAgentConfig` | `agent:config-changed` | `AgentConfigEvent { agentId, config }` | `onAgentConfig` |
 | `EventAgentBackground` | `agent:background` | `{ agentId, background }` | `onAgentBackground` |
@@ -253,7 +248,6 @@ interface ConnectionAccount { id; provider: 'codex'; email?; displayName; active
                               lastUsedAt?; status: 'ready'|'refreshing'|'expired'|'error'; error? }
 
 interface ArtifactEntry { id; path; absPath; kind: 'create'|'edit'; agentId; agentName; ts }
-interface TerminalInfo  { id: `term-${string}`; cwd; name; status: 'running'|'exited' }
 ```
 
 `MeowSettings` — the whole settings surface — is documented in
