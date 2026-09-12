@@ -369,19 +369,16 @@ export default function Sidebar({
               {theme === 'dark' ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
               {theme === 'dark' ? 'Light mode' : 'Dark mode'}
             </button>
-            <div className="sidebar-update-block">
+            <div className="menu-sep" />
+            <button
+              className="menu-item"
+              disabled={updateChecking}
+              onClick={onCheckUpdate}
+            >
+              <RefreshCw size={16} aria-hidden="true" className={updateChecking ? 'spin' : undefined} />
+              <span className="menu-item-label">{updateChecking ? 'Checking…' : 'Check update'}</span>
               <span className="sidebar-update-version">v{version || '…'}</span>
-              <div className="sidebar-update-actions">
-                <button
-                  className="btn small"
-                  disabled={updateChecking}
-                  onClick={onCheckUpdate}
-                >
-                  <RefreshCw size={12} aria-hidden="true" className={updateChecking ? 'spin' : undefined} />
-                  {updateChecking ? 'Checking…' : 'Check update'}
-                </button>
-              </div>
-            </div>
+            </button>
           </div>,
           document.body
         )}
