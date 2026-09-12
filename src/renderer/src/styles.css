@@ -1271,7 +1271,7 @@ select.input { width: 100%; }
    trigger's rect. High z-index so it overlays all app chrome. */
 .dropdown-menu {
   z-index: 1000;
-  background: var(--bg-raised); border: 0.083333rem solid var(--hairline);
+  background: var(--bg-chat); border: 0.083333rem solid var(--hairline);
   border-radius: var(--menu-radius);
   box-shadow: var(--shadow-3);
   padding: var(--menu-pad); display: flex; flex-direction: column; gap: 0;
@@ -1300,7 +1300,7 @@ select.input { width: 100%; }
 .model-menu {
   position: absolute; bottom: calc(100% + 0.333333rem); right: 0; z-index: 40;
   width: 25rem; max-height: 28.333333rem;
-  background: var(--bg-raised); border: 0.083333rem solid var(--hairline);
+  background: var(--bg-chat); border: 0.083333rem solid var(--hairline);
   border-radius: var(--menu-radius);
   box-shadow: var(--shadow-3);
   padding: var(--menu-pad); display: flex; flex-direction: column; gap: 0;
@@ -1383,7 +1383,7 @@ select.input { width: 100%; }
 .command-menu {
   position: absolute; bottom: calc(100% + 0.333333rem); left: 0; z-index: 40;
   min-width: 26.666667rem; max-width: 40rem; max-height: 23.333333rem; overflow-y: auto;
-  background: var(--bg-raised);
+  background: var(--bg-chat);
   border: 0.083333rem solid var(--hairline);
   border-radius: var(--menu-radius);
   box-shadow: var(--shadow-3);
@@ -1412,7 +1412,7 @@ select.input { width: 100%; }
 .sidebar-menu { position: relative; }
 .sidebar-menu-dropdown {
   position: absolute; right: 0; top: calc(100% + 0.333333rem); z-index: 50;
-  min-width: 14.166667rem; background: var(--bg-raised); border: 0.083333rem solid var(--hairline);
+  min-width: 14.166667rem; background: var(--bg-chat); border: 0.083333rem solid var(--hairline);
   border-radius: var(--menu-radius);
   padding: var(--menu-pad); display: flex; flex-direction: column; gap: 0;
   box-shadow: var(--shadow-3);
@@ -1609,7 +1609,7 @@ select.input { width: 100%; }
 }
 .right-panel-empty { padding: 1.333333rem; color: var(--text-faint); font-size: var(--fs-base); }
 .right-panel-menu {
-  min-width: 17.5rem; background: var(--bg-raised); border: 0.083333rem solid var(--hairline);
+  min-width: 17.5rem; background: var(--bg-chat); border: 0.083333rem solid var(--hairline);
   border-radius: var(--menu-radius); padding: var(--menu-pad); display: flex; flex-direction: column; gap: 0;
   box-shadow: var(--shadow-3);
 }
@@ -1708,7 +1708,7 @@ select.input { width: 100%; }
 .git-branch-dropdown {
   position: absolute; right: 0; top: calc(100% + 0.333333rem); z-index: 50;
   width: 23.333333rem; max-height: 31.666667rem; overflow-y: auto;
-  background: var(--bg-raised); border: 0.083333rem solid var(--hairline);
+  background: var(--bg-chat); border: 0.083333rem solid var(--hairline);
   box-shadow: 0 0.666667rem 2rem rgba(0, 0, 0, 0.45);
   border-radius: var(--menu-radius);
   padding: var(--menu-pad);
