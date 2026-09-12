@@ -201,3 +201,62 @@ test('a selected row is bg-active with a trailing tick in a reserved column', as
     cleanupDir(project)
   }
 })
+
+/**
+ * The ModelPicker's rows are reachable only with a configured provider; the
+ * MEOW_E2E_MOCK_CONNECTIONS flag + connectCodex() gives it real rows to assert.
+ * `.model-item` differs from the other three selector rows: it was a plain block
+ * (no flex), so the shared flex-based label/check classes need it to be flex too.
+ */
+test('model picker ticks sit at the right edge like the other selectors', async () => {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    writeFileSync(path.join(userData, 'workspaces.json'), JSON.stringify([{
+      projectPath: project,
+      name: 'E2E Project',
+      agents: [{ id: 'e2e-meow', name: 'meow', templateId: 'meow', cwd: project, kind: 'native' }]
+    }]))
+
+    const app = await electron.launch({
+      args: ['.'],
+      env: {
+        ...process.env as Record<string, string>,
+        MEOW_USER_DATA: userData,
+        MEOW_E2E_MOCK_CONNECTIONS: '1'
+      }
+    })
+    const window = await app.firstWindow()
+    try {
+      await window.evaluate(() => window.api.connectCodex())
+      await window.locator('.project-row').click()
+      await expect(window.locator('.chat-panel')).toBeVisible()
+
+      // Pick a model so a row is selected, then reopen to inspect the tick.
+      await window.locator('.model-trigger').click()
+      await expect(window.locator('.model-group-head', { hasText: 'E2E Account' })).toBeVisible()
+      await window.getByRole('button', { name: /gpt-5\.3-codex/ }).first().click()
+      await window.locator('.model-trigger').click()
+
+      const activeRow = window.locator('.model-item.active').first()
+      await expect(activeRow).toHaveCount(1)
+
+      // Same idiom as the other selectors: [label][tick], tick flush right.
+      const labelFirst = await activeRow.evaluate(
+        e => e.firstElementChild?.classList.contains('menu-item-label') ?? false
+      )
+      expect(labelFirst).toBe(true)
+      const { tickRight, rowRight } = await activeRow.evaluate(e => ({
+        tickRight: e.lastElementChild!.getBoundingClientRect().right,
+        rowRight: e.getBoundingClientRect().right
+      }))
+      expect(Math.round(rowRight - tickRight)).toBe(10)
+      await expect(activeRow.locator('.menu-item-check svg')).toHaveCount(1)
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+  }
+})

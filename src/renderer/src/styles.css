@@ -1347,7 +1347,8 @@ select.input { width: 100%; }
   color: var(--text-faint); font-family: var(--font-display);
 }
 .model-item {
-  text-align: left; min-height: var(--menu-item-h); padding: 0 var(--menu-item-pad-x);
+  text-align: left; display: flex; align-items: center; gap: 6px;
+  min-height: var(--menu-item-h); padding: 0 var(--menu-item-pad-x);
   background: transparent; border: none;
   color: var(--text); cursor: pointer; font-size: var(--fs-md); font-family: var(--font-mono);
   border-radius: var(--radius);
