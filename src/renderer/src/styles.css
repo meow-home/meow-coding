@@ -24,6 +24,8 @@
   --bg-raised: #161618;
   --bg-hover: #1c1c20;
   --bg-active: #242428;
+  /* Sidebar surface — its own token so it can differ from panels (near-white in light). */
+  --bg-sidebar: #0f0f11;
   /* Paler hover/active for dropdown & select menu items (subtle overlay over the menu bg). */
   --menu-hover: rgba(255, 255, 255, 0.05);
   --menu-active: rgba(255, 255, 255, 0.09);
@@ -93,6 +95,7 @@
   --bg-raised: #e8e8e8;
   --bg-hover: #e0e0e0;
   --bg-active: #d4d4d4;
+  --bg-sidebar: #fdfdfd;
   --menu-hover: rgba(0, 0, 0, 0.045);
   --menu-active: rgba(0, 0, 0, 0.08);
   --bg-tab-inactive: #f3f3f3;
@@ -228,7 +231,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .sidebar {
 
   width: 22.333333rem;
-  background: var(--bg-panel);
+  background: var(--bg-sidebar);
   border-right: 0.083333rem solid var(--hairline);
   display: flex;
   flex-direction: column;
