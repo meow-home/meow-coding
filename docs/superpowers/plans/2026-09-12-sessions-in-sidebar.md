@@ -676,28 +676,35 @@ const sessionStatus = (path: string, id: string): 'running' | 'waiting' | 'idle'
 }
 ```
 
-- [ ] **Step 2: Render chevron + `+` on the project row and the session list**
+- [ ] **Step 2: Render the project header + session list (reference-image layout)**
 
-In the expanded `project-list` branch, change the `project-row` block: add a chevron button that toggles `expanded[ws.projectPath]`, add a `+` button next to the existing `...` button, and after the `project-row` render the session group when expanded. Replace the `project-info`/`project-menu` block with:
+**Visual target** (see `docs/superpowers/specs` reference image): the project is a
+*lightweight group header* — project name, then a **trailing** chevron, then
+hover-revealed `+` (new session) and menu icons on the right. **No** path line,
+**no** "N Sessions" count (path moves to the row `title`). The current-open
+project's name is bright (`--text-strong`); others are dim (`--text-dim`).
+Session rows are indented with a **hollow status ring** glyph (idle = ring;
+running = solid green + glow; waiting = solid yellow), the name, and a trailing
+`⋮` (vertical dots) that appears on hover / when active. The active session is a
+full-width rounded pill (`--bg-hover`).
+
+Add these lucide imports to `Sidebar.tsx`: `ChevronDown, ChevronRight, Plus, MoreVertical`.
+
+Replace the `project-info`/`project-menu` block with:
 
 ```tsx
-<div className="project-row" onClick={() => onOpen(ws.projectPath)} onContextMenu={/* unchanged */}>
+<div className="project-row" onClick={() => onOpen(ws.projectPath)} title={ws.projectPath}
+  onContextMenu={/* unchanged */}>
+  <span className="project-name">{ws.name}</span>
   <button
     className="project-expand"
     aria-label={expanded[ws.projectPath] ? 'Collapse' : 'Expand'}
     onClick={e => { e.stopPropagation(); setExpanded(p => ({ ...p, [ws.projectPath]: !p[ws.projectPath] })) }}
-  >{expanded[ws.projectPath] ? '▾' : '▸'}</button>
-  <div className="project-info">
-    <span className="project-name-row">
-      <span className="project-name">{ws.name}</span>
-      {inputCount > 0 && <span className="project-badge" title={`${inputCount} session(s) need your reply/approval`}>{inputCount}</span>}
-    </span>
-    <span className="project-path" title={ws.projectPath}>{ws.projectPath}</span>
-    <span className="project-count">{ws.sessions.length} Session{ws.sessions.length === 1 ? '' : 's'}</span>
-  </div>
+  >{expanded[ws.projectPath] ? <ChevronDown size={13} aria-hidden="true" /> : <ChevronRight size={13} aria-hidden="true" />}</button>
+  {inputCount > 0 && <span className="project-badge" title={`${inputCount} session(s) need your reply/approval`}>{inputCount}</span>}
   <div className="project-actions" onClick={e => e.stopPropagation()}>
     <button className="btn ghost small" title="New session" aria-label={`new session ${ws.name}`}
-      onClick={() => onNewSession(ws.projectPath)}>+</button>
+      onClick={() => onNewSession(ws.projectPath)}><Plus size={14} aria-hidden="true" /></button>
     <button className="btn ghost small" title="Project menu" aria-label={`menu ${ws.name}`}
       onClick={e => { /* existing project-menu open logic, unchanged */ }}>
       <span className="btn-icon"><MoreIcon /></span>
@@ -713,7 +720,7 @@ In the expanded `project-list` branch, change the `project-row` block: add a che
       return (
         <li key={s.id} className={`session-row ${activeSession ? 'active' : ''}`}
           onClick={() => onSelectSession(ws.projectPath, s.id)}>
-          <span className={`status-dot session-status-${status}`} />
+          <span className={`session-dot session-status-${status}`} aria-label={status} />
           <span className="session-name">{s.name}</span>
           <SessionRowMenu
             running={status === 'running'}
@@ -726,6 +733,9 @@ In the expanded `project-list` branch, change the `project-row` block: add a che
     })}
   </ul>
 )}
+```
+
+The current-project brightness comes from CSS: keep the outer `<li className={ws.projectPath === activePath ? 'active' : ''}>` wrapper so `.project-list li.active .project-name` can brighten it (Step 5).
 ```
 
 Remove the "Add Agent" menu item (lines ~202-207) and the `handleAddAgent`/`addAgentPath`/`AddAgentDialog` code (33, 96-106, 252-259) and imports (`AddAgentDialog`, `NewAgentInput`, `Template`). Delete `src/renderer/src/components/AddAgentDialog.tsx`.
@@ -743,7 +753,7 @@ function SessionRowMenu({ running, onRename, onDelete, onStop }:
   return (
     <span className="session-menu" onClick={e => e.stopPropagation()}>
       <button className="btn ghost small" aria-label="Session menu" onClick={() => setOpen(v => !v)}>
-        <Ellipsis size={12} aria-hidden="true" />
+        <MoreVertical size={13} aria-hidden="true" />
       </button>
       {open && (
         <div className="sidebar-menu-dropdown session-menu-dropdown">
@@ -763,7 +773,7 @@ function SessionRowMenu({ running, onRename, onDelete, onStop }:
 }
 ```
 
-Import `Ellipsis` already present. (Outside-click closing for this menu can reuse the existing document mousedown effect by adding `.session-menu`/`.session-menu-dropdown` to its closest checks.)
+`MoreVertical` is imported in Step 2. (Outside-click closing for this menu can reuse the existing document mousedown effect by adding `.session-menu`/`.session-menu-dropdown` to its closest checks.)
 
 - [ ] **Step 4: Wire handlers in `App` and pass to `Sidebar`**
 
@@ -780,25 +790,41 @@ Concretely, reuse the existing `openWorkspace(path)` refresh pattern: after `add
 
 - [ ] **Step 5: Add sidebar CSS**
 
-In `src/renderer/src/styles.css` add:
+In `src/renderer/src/styles.css`, replace the old `.project-row`/`.project-info`/`.project-path`/`.project-count`/`.project-menu` rules and any placeholder session rules with the reference-image styling below. (`--green #4ade9f`, `--yellow #ffb454`, `--bg-hover #1c1c20`, `--bg-raised #161618`, `--text-faint #707076` already exist in `:root` — do not add new tokens.)
 
 ```css
-.project-expand { background: none; border: none; color: var(--text-faint); cursor: pointer; padding: 0 4px; font-size: 10px; }
-.project-actions { display: flex; align-items: center; gap: 2px; }
-.session-list { list-style: none; margin: 0; padding: 0 0 4px 18px; display: flex; flex-direction: column; }
-.session-row { display: flex; align-items: center; gap: 6px; padding: 3px 8px; cursor: pointer; border-radius: var(--radius); color: var(--text-dim); }
-.session-row:hover { background: var(--bg-hover); color: var(--text); }
-.session-row.active { background: var(--bg-active); color: var(--text); }
-.session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); }
-.session-status-running { background: var(--green); }
-.session-status-waiting { background: var(--yellow); }
-.session-status-idle { background: var(--text-faint); }
-.session-menu { position: relative; }
+/* Project = lightweight group header; actions reveal on hover / when current */
+.project-row { display: flex; align-items: center; gap: 5px; padding: 5px 8px; cursor: pointer; border-radius: var(--radius); }
+.project-row:hover { background: var(--bg-raised); }
+.project-name { color: var(--text-dim); font-weight: var(--fw-medium); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-list li.active .project-name { color: var(--text-strong); }
+.project-expand { display: inline-flex; align-items: center; background: none; border: none; color: var(--text-faint); cursor: pointer; padding: 0; }
+.project-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; opacity: 0; transition: opacity 120ms ease; }
+.project-row:hover .project-actions, .project-list li.active .project-actions { opacity: 1; }
+.project-actions .btn { border: none; background: transparent; padding: 2px 4px; color: var(--text-faint); }
+.project-actions .btn:hover { background: var(--bg-hover); color: var(--text); }
+
+/* Session rows — indented so the ring sits under the project name */
+.session-list { list-style: none; margin: 0 0 6px; padding: 0 0 0 16px; display: flex; flex-direction: column; gap: 1px; }
+.session-row { display: flex; align-items: center; gap: 8px; padding: 4px 8px; cursor: pointer; border-radius: var(--radius); color: var(--text-dim); }
+.session-row:hover { background: var(--bg-raised); color: var(--text); }
+.session-row.active { background: var(--bg-hover); color: var(--text); }
+.session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); }
+
+/* Status glyph: idle = hollow ring; running/waiting = solid + glow */
+.session-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; box-sizing: border-box; border: 1.5px solid var(--text-faint); background: transparent; }
+.session-dot.session-status-running { border-color: var(--green); background: var(--green); box-shadow: 0 0 7px rgba(74, 222, 159, 0.45); }
+.session-dot.session-status-waiting { border-color: var(--yellow); background: var(--yellow); box-shadow: 0 0 7px rgba(255, 180, 84, 0.4); }
+.session-dot.session-status-idle { border-color: var(--text-faint); background: transparent; }
+
+/* Session menu button: hidden until hover / active */
+.session-menu { position: relative; display: inline-flex; }
+.session-menu .btn { opacity: 0; border: none; background: transparent; padding: 2px 3px; color: var(--text-faint); transition: opacity 120ms ease; }
+.session-row:hover .session-menu .btn, .session-row.active .session-menu .btn { opacity: 1; }
+.session-menu .btn:hover { background: var(--bg-active); color: var(--text); }
 .session-menu-dropdown { position: absolute; right: 0; top: 100%; z-index: 1000; }
 .session-rename-input { position: absolute; right: 0; top: 100%; z-index: 1001; width: 160px; }
 ```
-
-Confirm `--green` exists in `:root` (`git grep -- '--green:' src/renderer/src/styles.css`); if not, add `--green: #3fb950;` alongside `--yellow`/`--red`.
 
 - [ ] **Step 6: Verify green**
 
