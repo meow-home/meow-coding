@@ -104,7 +104,7 @@
   --bg-code: #f5f5f5;
   --code-text: #c4661e;
   --bg-chat: #ffffff;
-  --bg-bubble: #f0f0f0;
+  --bg-bubble: #f7f7f7;
   --bg-bubble-user: #cce4f7;
   --chat-text: #1e1e1e;
 
@@ -332,7 +332,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 }
 /* Project = lightweight group header; actions reveal on hover / when current */
 .project-row { display: flex; align-items: center; gap: 0.416667rem; padding: 0.25rem 0.666667rem; border-radius: var(--radius); }
-.project-row:hover { background: var(--bg-raised); }
+.project-row:hover { background: var(--menu-hover); }
 /* The name + chevron share one flex button so the whole pair is the
    expand/collapse target; flex:1 + min-width:0 lets the name ellipsis. */
 .project-toggle { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 0.416667rem; background: none; border: none; padding: 0; margin: 0; cursor: pointer; font: inherit; color: inherit; text-align: left; }
@@ -843,7 +843,7 @@ select.input { width: 100%; }
 
 /* Tool call card */
 .tool-call {
-  background: var(--bg-raised);
+  background: var(--bg-bubble);
   border: 0.083333rem solid var(--hairline);
   border-radius: var(--radius);
   max-width: 92%; margin-right: auto; width: 100%;
@@ -1472,8 +1472,8 @@ select.input { width: 100%; }
    ring sits under the project name */
 .session-list { list-style: none; margin: 0 0 0.5rem; padding: 0 0 0 0; display: flex; flex-direction: column; gap: 0.083333rem; }
 .session-row { display: flex; align-items: center; gap: 0.666667rem; padding: 0.25rem 0.666667rem; cursor: pointer; border-radius: var(--radius); color: var(--text-dim); }
-.session-row:hover { background: var(--bg-raised); color: var(--text); }
-.session-row.active { background: var(--bg-hover); color: var(--text); }
+.session-row:hover { background: var(--menu-hover); color: var(--text); }
+.session-row.active { background: var(--menu-active); color: var(--text); }
 .session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); }
 
 /* Status glyph: idle = hollow ring; running/waiting = solid fill */
