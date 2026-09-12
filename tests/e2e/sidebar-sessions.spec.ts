@@ -344,7 +344,9 @@ test('the pane header is the dot and the name, sharing the sidebar icon button',
       // One action button, in the sidebar icon-button box.
       const paneMenu = window.getByRole('button', { name: 'menu Alpha', exact: true })
       await expect(paneMenu).toHaveCount(1)
-      await expect(paneMenu.locator('svg')).toHaveClass(/lucide-more-vertical/)
+      // lucide 1.33 renders MoreVertical as `lucide-ellipsis-vertical` (the
+      // component was renamed upstream, the export kept its old name as an alias).
+      await expect(paneMenu.locator('svg')).toHaveClass(/lucide-ellipsis-vertical/)
       const paneBox = (await paneMenu.boundingBox())!
       expect(Math.round(paneBox.width)).toBe(24)
       expect(Math.round(paneBox.height)).toBe(24)

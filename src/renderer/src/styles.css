@@ -371,11 +371,6 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .btn.ghost:hover { background: var(--bg-hover); }
 .btn.danger { border-color: rgba(255, 95, 86, 0.4); color: var(--red); }
 .btn.danger:hover { background: rgba(255, 95, 86, 0.12); }
-.btn-icon {
-  display: inline-flex; align-items: center; justify-content: center;
-  line-height: 0; /* icon-only buttons: collapse text line box so the svg is vertically centered, not baseline-shifted */
-  vertical-align: middle;
-}
 /* Icon-only button (sidebar project +/…, session-row …, pane header …). A standalone
    class, NOT `.btn small` + a container padding override: `.btn.small` and
    `.project-actions .btn` are both (0,2,0), so source order decided and the
@@ -501,20 +496,8 @@ select.input { width: 100%; }
 .status-dot.status-exited, .status-dot.status-stopped { background: var(--text-faint); }
 .status-dot.status-error { background: var(--red); box-shadow: 0 0 0.666667rem rgba(255, 95, 86, 0.4); }
 .pane-title { font-weight: var(--fw-semibold); white-space: nowrap; }
-.pane-status {
-  color: var(--text-dim); white-space: nowrap;
-  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  font-size: var(--fs-sm);
-}
-.pane-git {
-  color: var(--text-dim); white-space: nowrap;
-  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  font-size: var(--fs-sm);
-}
-.pane-git::before { content: '⎇ '; color: var(--text-faint); }
 .pane-actions { margin-left: auto; display: flex; gap: 0.333333rem; align-items: center; }
-.pane-actions .btn { background: transparent; padding: 0.166667rem 0.666667rem; border-color: transparent; }
-.pane-actions .btn:hover { background: var(--bg-hover); border-color: var(--accent-dim); }
+.pane-actions .icon-btn:hover { background: var(--bg-hover); color: var(--text); }
 .inject-input { width: 15rem; }
 
 /* Dialogs */
