@@ -35,6 +35,10 @@ interface Props {
   onStopSession: (id: string) => void
 }
 
+// Must match the .project-menu-dropdown / .sidebar-footer-dropdown CSS min-width;
+// these menus are positioned from the trigger's rect and clamp to this width.
+const MENU_WIDTH = 200
+
 export default function Sidebar({
   workspaces, needsInput, activePath, runtimes, activeSessionByPath, onOpen, onRemove, onRefresh,
   onOpenSettings, onOpenProviders, onOpenGit, onCheckUpdate, updateChecking,
@@ -219,7 +223,7 @@ export default function Sidebar({
                   onClick={e => {
                     // Anchor the portaled menu at the button, clamped to the viewport.
                     const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                    const width = 160
+                    const width = MENU_WIDTH
                     const x = Math.max(4, Math.min(r.right - width, window.innerWidth - width - 8))
                     const y = r.bottom + 4
                     setProjectMenuPos({ x, y })
@@ -315,7 +319,7 @@ export default function Sidebar({
           aria-label="Menu"
           onClick={e => {
             const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-            const width = 160
+            const width = MENU_WIDTH
             const x = Math.max(4, Math.min(r.right - width, window.innerWidth - width - 8))
             // Footer sits at the bottom edge of the window, so the menu opens
             // upward (bottom-anchored) to stay inside the viewport.
