@@ -21,10 +21,16 @@ frame — **Send** at rest, **Stop** while a turn runs.
 
 ## Goals
 
-1. **One line at rest.** The card opens **48px** tall (one 18px text line —
+1. **One line at rest.** The card opens **47px** tall (one 18px text line —
    `line-height: 1.5` × the field's `1rem` = the 12px root — plus 6px field
-   padding top/bottom, the card's 8px padding and its 2 × 1px border), instead of
-   today's **72px** (two text rows + the gap + the toolbar line).
+   padding top/bottom, the card's 8px padding and its 1px of border), instead of
+   today's **71px** (two text rows + the gap + the empty toolbar line).
+
+   These are measured, not derived: `border: 0.083333rem` at a 12px root is
+   `0.99999px`, which Chromium reports as **0.5px per side** — hence 1px of
+   border, not 2. The e2e spec computes the one-line height from the live
+   computed styles rather than hard-coding 47, so a user-configured root
+   font-size keeps the assertion honest.
 2. **Send and Stop live inside the card, at its right edge** — both square
    icon buttons of the same size, at the same place, so the button does not move
    when a turn starts or ends.
@@ -74,7 +80,7 @@ line 949).
 **Root cause of the height.** `rows={2}` hard-codes two text rows, and the
 toolbar is its own flex line separated by the card's `gap: 0.5rem` (6px), so the
 empty card is `padding 8 + field (6 + 2×18 + 6) + gap 6 + toolbar 0 + padding 8`
-= **72px** — a permanent reservation of two lines of text plus a button line.
+= **71px** — a permanent reservation of two lines of text plus a button line.
 (The toolbar itself collapses to 0px at rest: its only child is the `flex: 1`
 spacer, and the Stop button exists only while running.)
 
@@ -234,7 +240,7 @@ taken on trust.
 .chat-input-row { display: flex; align-items: flex-end; gap: 0.5rem; }
 .chat-input-field {
   flex: 1; min-width: 0; resize: none; background: transparent; color: var(--text);
-  border: none; padding: 0.5rem 0.333rem;
+  border: none; padding: 0.5rem 0.333333rem;
   font-family: var(--font-ui); font-size: 1rem; user-select: text; line-height: 1.5;
   field-sizing: content; max-height: 13rem; overflow-y: auto;
 }
@@ -260,7 +266,7 @@ stays as is.
 
 | | before | after |
 |---|---|---|
-| empty card height | 72px (1 + 8 + 48 field + 6 gap + 0 toolbar + 8 + 1) | **48px** (1 + 8 + 30 field + 8 + 1) |
+| empty card height | 71px (0.5 + 8 + 48 field + 6 gap + 0 toolbar + 8 + 0.5) | **47px** (0.5 + 8 + 30 field + 8 + 0.5) |
 | textarea | `rows={2}`, fixed at 48px | `rows={1}`, 30px at rest, grows to 8 lines (156px), then scrolls |
 | Send | does not exist | 24 × 24, `--radius-sm`, `--accent`, inside the card |
 | Stop | text button on its own toolbar line | 24 × 24 square, `--red`, same slot as Send |
@@ -276,11 +282,11 @@ state assertable instead of racing an instant reply). Assertions:
    box, and its right edge sits exactly the card's horizontal padding (10px,
    `0.833333rem`) inside the card's right edge — i.e. the button is *inside* the
    frame, at its right, not floating outside it.
-2. **One line at rest.** The card is 48px ± 2px with an empty field, and the
+2. **One line at rest.** The card measures its derived one-line height ± 1px with an empty field, and the
    Send button's centre is within 2px of the first text line's centre.
 3. **Growth and shrink.** Typing 5 newlines grows the card; the card stops
    growing at the 8-line cap and the textarea reports
-   `scrollHeight > clientHeight`; clearing the field returns the card to 48px.
+   `scrollHeight > clientHeight`; clearing the field returns the card to the one-line height.
    This is the assertion that catches `field-sizing` not shrinking.
 4. **Send state.** Disabled with an empty field; enabled after typing; clicking
    it sends the message (the transcript shows the user row) and the field and
