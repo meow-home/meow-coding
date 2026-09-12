@@ -19,7 +19,7 @@ pushed from main over IPC (`window.api.onChatEvent`).
 | `ModelPicker.tsx` | Model selector for the agent. |
 | `VariantPicker.tsx` | Variant selector (reasoning effort etc.) for the agent. |
 | `ModePicker.tsx` | Build/Plan mode selector (dropdown) in the composer footer. |
-| `Dropdown.tsx` | Reusable dropdown menu (used by ModelPicker/VariantPicker/ModePicker). |
+| `Dropdown.tsx` | Reusable dropdown menu (used by ModelPicker/VariantPicker/ModePicker/AddMenu). `align` picks which menu edge lines up with the trigger: `'right'` by default (the sidebar rows and the composer's right-hand pickers hug their container's right edge), `'left'` for a trigger at the container's left edge — right-aligning the  add menu there pushed it 134px outside the composer card. |
 | `questionAnswer.ts` | `buildQuestionAnswer` — helper for permission/question answers. |
 | `markdownTable.ts` | `normalizeMarkdownTables` — repairs markdown table pipes before rendering. |
 | `ChatErrorBoundary.tsx` | Error boundary wrapping `<ChatPanel>` in `Pane.tsx` (a render/lifecycle error in the chat pane used to unmount the whole React root — a black, unresponsive window). Catches it to a contained card (Reload remounts ChatPanel via a bumped key) and logs the full stack to the system log. |

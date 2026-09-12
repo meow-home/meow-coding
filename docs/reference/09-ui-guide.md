@@ -161,6 +161,11 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   rotates 180° while its menu is open. Rotation is driven purely by the trigger's
   `[aria-expanded="true"]`, so any new select trigger gets it by setting that attribute (`Dropdown.tsx`
   sets it; `ModelPicker` and `GitBranchSwitcher` set it on their own buttons).
+- **Menus anchor to the trigger's right edge by default; a left-edge trigger opts into
+  `align="left"`** (`Dropdown.tsx`). The sidebar rows and the composer's right-hand pickers hug their
+  container's right edge, so right-aligning keeps the menu inside it. A trigger at the container's
+  *left* edge (the composer's "+" add menu) must align the menu's **left** edge instead: right-aligning
+  there pushed the 158px menu 134px outside the composer card, over the transcript.
 - **A selected selector row** is `background: var(--bg-active)` + accent label + a trailing tick, never a
   left accent bar. Rows are `[.menu-item-label][.menu-item-check]`: the label grows and ellipsizes, the
   check column is a fixed `var(--menu-icon)` (16px) and is rendered on **every** row (empty when

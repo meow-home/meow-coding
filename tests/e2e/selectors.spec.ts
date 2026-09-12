@@ -77,12 +77,12 @@ test('selector triggers carry one shared caret that rotates while open', async (
       const modeTrigger = window.getByRole('button', { name: 'Mode', exact: true })
       await expect(modeTrigger.locator('svg.dropdown-caret')).toHaveCount(1)
       await expect(modeTrigger).toHaveAttribute('aria-expanded', 'false')
-      expect(await rotationDeg(window, '.dropdown-trigger .dropdown-caret')).toBe(0)
+      expect(await rotationDeg(window, '[aria-label="Mode"].dropdown-trigger .dropdown-caret')).toBe(0)
       await modeTrigger.click()
       await expect(window.locator('.mode-menu')).toBeVisible()
       await expect(modeTrigger).toHaveAttribute('aria-expanded', 'true')
       // Poll: the caret animates over 120ms, so the final angle is what matters.
-      await expect.poll(() => rotationDeg(window, '.dropdown-trigger .dropdown-caret')).toBe(180)
+      await expect.poll(() => rotationDeg(window, '[aria-label="Mode"].dropdown-trigger .dropdown-caret')).toBe(180)
       await window.keyboard.press('Escape')
       await expect(modeTrigger).toHaveAttribute('aria-expanded', 'false')
 

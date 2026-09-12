@@ -11,6 +11,14 @@ interface DropdownProps {
   title?: string
   ariaLabel?: string
   menuClassName?: string
+  /**
+   * Which menu edge lines up with the trigger. Defaults to 'right' — the sidebar
+   * and the composer's right-hand pickers anchor on their trigger's right edge.
+   * A trigger sitting at the *left* edge of its container needs 'left': anchoring
+   * its right edge there pushes the menu (which is wider than the 24px button)
+   * out to the left, clear of the container it belongs to.
+   */
+  align?: 'left' | 'right'
   children: ReactNode
 }
 
@@ -19,7 +27,7 @@ interface DropdownProps {
 // stacking context. The menu opens upward, right-aligned to the trigger.
 // Closes on outside mousedown (checks both trigger and portaled menu) and Escape.
 export default function Dropdown({
-  trigger, open, onToggle, onClose, title, ariaLabel, menuClassName = '', children
+  trigger, open, onToggle, onClose, title, ariaLabel, menuClassName = '', align = 'right', children
 }: DropdownProps) {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -36,7 +44,7 @@ export default function Dropdown({
       setPos({
         position: 'fixed',
         bottom: window.innerHeight - r.top + 4,
-        right: window.innerWidth - r.right
+        ...(align === 'left' ? { left: r.left } : { right: window.innerWidth - r.right })
       })
     }
     place()
@@ -46,7 +54,7 @@ export default function Dropdown({
       window.removeEventListener('resize', place)
       window.removeEventListener('scroll', place, true)
     }
-  }, [open])
+  }, [open, align])
 
   useEffect(() => {
     if (!open) return
