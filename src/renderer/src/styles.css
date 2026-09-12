@@ -323,7 +323,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
 }
 /* Project = lightweight group header; actions reveal on hover / when current */
-.project-row { display: flex; align-items: center; gap: 0.416667rem; padding: 0.416667rem 0.666667rem; border-radius: var(--radius); }
+.project-row { display: flex; align-items: center; gap: 0.416667rem; padding: 0.25rem 0.666667rem; border-radius: var(--radius); }
 .project-row:hover { background: var(--bg-raised); }
 /* The name + chevron share one flex button so the whole pair is the
    expand/collapse target; flex:1 + min-width:0 lets the name ellipsis. */
@@ -1493,7 +1493,7 @@ select.input { width: 100%; }
 /* Sidebar session rows (one row per session of a project) — indented so the
    ring sits under the project name */
 .session-list { list-style: none; margin: 0 0 0.5rem; padding: 0 0 0 0; display: flex; flex-direction: column; gap: 0.083333rem; }
-.session-row { display: flex; align-items: center; gap: 0.666667rem; padding: 0.333333rem 0.666667rem; cursor: pointer; border-radius: var(--radius); color: var(--text-dim); }
+.session-row { display: flex; align-items: center; gap: 0.666667rem; padding: 0.25rem 0.666667rem; cursor: pointer; border-radius: var(--radius); color: var(--text-dim); }
 .session-row:hover { background: var(--bg-raised); color: var(--text); }
 .session-row.active { background: var(--bg-hover); color: var(--text); }
 .session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); }
