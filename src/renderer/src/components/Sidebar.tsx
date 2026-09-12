@@ -214,7 +214,7 @@ export default function Sidebar({
                   unclosable by its own button. */}
               <div className="project-menu project-actions" onClick={e => e.stopPropagation()}>
                 <button
-                  className="sidebar-icon-btn"
+                  className="icon-btn"
                   title="New session"
                   aria-label={`new session ${ws.name}`}
                   onClick={() => onNewSession(ws.projectPath)}
@@ -222,7 +222,7 @@ export default function Sidebar({
                   <Plus size={14} aria-hidden="true" />
                 </button>
                 <button
-                  className="sidebar-icon-btn"
+                  className="icon-btn"
                   title="Project menu"
                   aria-label={`menu ${ws.name}`}
                   onClick={e => {
@@ -420,7 +420,7 @@ function SessionRowMenu({ running, onRename, onDelete, onStop }: {
   return (
     <span className="session-menu" ref={rootRef} onClick={e => e.stopPropagation()}>
       <button
-        className="sidebar-icon-btn"
+        className="icon-btn"
         title="Session menu"
         aria-label="Session menu"
         onClick={() => setOpen(v => !v)}
