@@ -54,6 +54,7 @@ Alias `@shared` → `src/shared` (configured in electron.vite.config.ts, vitest.
   Specs, implementation plans, and any project documentation (README, docs/, AGENTS.md, changelogs)
   must also be written in English.
 - Do not add unnecessary comments; only comment when explaining a complex decision (e.g. Windows shim, tree-kill).
+- Git commits: **do not** add a `Co-Authored-By` trailer to commit messages.
 - Agent exits must be handled: kill the entire process tree (`tree-kill`), no orphan processes.
 - Browser bridge: only bind `127.0.0.1` (do not expose to the network), pairing code required before accepting
   commands; runs on the user's **real** Chrome profile — do not create a separate profile per project.
