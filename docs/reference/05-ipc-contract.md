@@ -91,7 +91,7 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `PtyStart` / `PtyStop` / `PtyRestart` | `pty:start` / `pty:stop` / `pty:restart` | `startAgent` / `stopAgent` / `restartAgent` |
 | `PtyInject` | `pty:inject` | `injectPrompt(agentId, text)` — writes `text + '\n'` |
 | `LogPath` / `LogOpen` | `log:path` / `log:open` | `getLogPath` / `openLog` |
-| `SystemLog` | `system-log:write` | `writeSystemLog(level: LogLevel, message)` — renderer gửi log về main ghi vào file theo ngày |
+| `SystemLog` | `system-log:write` | `writeSystemLog(level: LogLevel, message)` — the renderer sends the log to main, which writes it to the per-day file |
 | `SystemTerminalOpen` | `system-terminal:open` | `openSystemTerminal(cwd)` — opens a real OS terminal window (cmd on Windows) rooted at `cwd`, not a tab inside Meow Coding |
 
 ### Chat & sessions

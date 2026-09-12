@@ -210,8 +210,13 @@ the modal from closing.
 5. `ConnectionsManager.init()` — if Codex accounts exist, start the cliproxy sidecar and refresh tokens.
 6. `ensureExtensionInstalled()` — copy the built Chrome extension into `userData/browser-extension`.
 7. Delete leftover `userData/traces` from older versions (the trace feature was removed).
-8. `registerIpcHandlers()`, `createWindow()`, `TrayManager.create()`.
-9. After 1.5s, an automatic update check (packaged builds only).
+8. One-time **destructive** v0.37 model switch (`fresh-start.ts`): every project is reset to exactly one
+   fresh native session in `workspaces.json`, `userData/sessions.json` is deleted, and then the flag file
+   `userData/.sessions-model-reset` is written. Wrapped in `try/catch` — a locked/read-only `userData`
+   logs the failure and skips the migration, and because the flag is written only on success it is retried
+   on the next launch. Runs before any workspace activation (which is what first loads the session store).
+9. `registerIpcHandlers()`, `createWindow()`, `TrayManager.create()`.
+10. After 1.5s, an automatic update check (packaged builds only).
 
 ## 2.9 Shutdown sequence (`before-quit`)
 

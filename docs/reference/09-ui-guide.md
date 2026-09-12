@@ -216,7 +216,8 @@ guesswork). Treat them as requirements, not suggestions.
 
 ## 9.8 Testing the renderer
 
-There are no renderer unit tests. Coverage comes from:
+Renderer modules do have unit tests — pure helpers and components rendered with `react-dom/server`
+(there is no jsdom), e.g. `session-panes.test.ts` and `session-guard.test.ts`. Coverage mostly comes from:
 
 - `npm run typecheck` (which includes `tsconfig.web.json`)
 - Playwright e2e (`npm run build && npm run e2e`), which launches the real app:

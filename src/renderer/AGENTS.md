@@ -33,6 +33,10 @@ React renderer (no direct Node/Electron access).
   default 14, range 8-40px) and `watchFontSize` (re-apply
   on `storage` events). `main.tsx` calls both for EVERY renderer (main window + Git viewer +
   FileViewer popups) so they inherit the persisted font size.
+- `src/session-guard.ts` — pure `isLastSession(projectPath, sessionId, runtimes, workspaces)`: whether
+  removing a session would leave its project with none (the mounted runtime is the truth for an open
+  project, the sidebar summary for a project that was never opened). `App.tsx`'s `removeSessionGuarded`
+  is its only caller, so the "≥ 1 session per project" invariant is unit-testable.
 
 ## Conventions
 

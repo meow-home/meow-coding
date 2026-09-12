@@ -5,11 +5,11 @@
 agent ships with a chat UI, tool registry, sessions, permissions, and skill system.
 
 <p align="center">
-  <img src="media/meow-app-screen-light-mode.png" alt="Meow Coding — multiple CLI coding agents in parallel panes (light mode)" width="720">
+  <img src="media/meow-app-screen-light-mode.png" alt="Meow Coding — multiple coding sessions in parallel panes (light mode)" width="720">
 </p>
 
 <p align="center">
-  <img src="media/meow-app-screen-dark-mode.png" alt="Meow Coding — multiple CLI coding agents in parallel panes (dark mode)" width="720">
+  <img src="media/meow-app-screen-dark-mode.png" alt="Meow Coding — multiple coding sessions in parallel panes (dark mode)" width="720">
 </p>
 
 ## Highlights

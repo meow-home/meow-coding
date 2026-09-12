@@ -25,6 +25,7 @@ in `src/main/index.ts`).
 | `meow.json` | `agent/config.ts` `writeMeowConfig` | object | The whole agent configuration; see [6.3](#63-meowjson-reference) |
 | `workspaces.json` | `workspace-store.ts` | `Workspace[]` | Project path, name, agents (id, name, templateId, cwd, kind, mode, variant, model, accountId, background) |
 | `sessions.json` | `agent/session.ts` | `StoredSession[]` | **Hot file** — debounced 250ms. See [6.4](#64-session-format) |
+| `.sessions-model-reset` | `fresh-start.ts` (boot block in `index.ts`) | timestamp text | Flag for the one-time **destructive** v0.37 model switch (every project reset to one native session, `sessions.json` deleted). Written only after the reset succeeds, so an absent flag means the migration is retried on the next launch |
 | `snapshots.json` | `agent/snapshot.ts` | `SnapshotTurn[]` | `{ agentId, ts, before: {path: content}, after: {path: content} }`, max 50 turns |
 | `permissions.json` | `agent/saved-permissions.ts` | `SavedPermission[]` | "Always allow" decisions per (project, tool) |
 | `learned-limits.json` | `agent/learned-limits.ts` | `LearnedLimitEntry[]` | Debounced 500ms; keyed `baseUrl\|model`; values only ever tighten |

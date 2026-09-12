@@ -21,6 +21,11 @@ handlers and the app lifecycle.
   commands through `cmd.exe` on Windows (ConPTY cannot spawn `.cmd` shims directly). Uses `tree-kill`
   to kill the entire process tree on stop.
 - `workspace-store.ts` — CRUD on `JsonStore<T>` (`userData/workspaces.json`).
+- `fresh-start.ts` — one-time **destructive** v0.37 model switch: `resetToSingleSession` replaces every
+  project's agents with a single fresh native session and deletes `userData/sessions.json`. Runs once,
+  guarded by the flag file `userData/.sessions-model-reset` (written only after the reset succeeds). The
+  boot call in `index.ts` is wrapped in `try/catch`, so a locked/read-only `userData` skips the migration
+  for that launch and retries on the next one instead of rejecting the ready chain.
 - `json-store.ts` — `JsonStore<T>` interface + `createJsonStore` (in-memory cache, atomic temp+rename write, retries the rename on transient Windows locks then falls back to an in-place write, optional `debounceMs` batching with `flush()`, parse error → `[]` after parking the file as `.corrupt`).
 - `log-manager.ts` — appends each agent's output to `userData/logs/<agentId>.log`.
 - `system-logger.ts` — appends app-wide logs (main/render/agent, INFO/WARN/ERROR) to `userData/logs/<YYYY-MM-DD>-log.txt`, prunes files older than 7 days on startup.
