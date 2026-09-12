@@ -275,8 +275,14 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   // Infinite-scroll trigger shared by scroll and wheel: page older history when
   // the feed nears the top, or when it does not overflow at all (no scroll
   // events fire, so wheel-up is the only remaining gesture).
+  //
+  // The session-load pin writes scrollTop on every frame of its settle loop, so
+  // mid-pin readings look like "the user is at the top" while the transcript is
+  // still laying out. Paging there prepends a page the pin cannot compensate for,
+  // leaving the feed thousands of px above the bottom of its window.
   const maybeLoadOlder = useCallback(() => {
     if (loadingOlderRef.current || !hasMore) return
+    if (scroll.isPinning()) return
     const feed = scroll.feedRef.current
     if (!feed) return
     if (feed.scrollTop <= AUTOLOAD_INSET || feed.scrollHeight <= feed.clientHeight) loadOlder()

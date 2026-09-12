@@ -58,11 +58,17 @@ test('settings opens below the title bar and returns to the app', async () => {
         ((contentBox?.x ?? 0) + (contentBox?.width ?? 0)) - ((tabBox?.x ?? 0) + (tabBox?.width ?? 0)),
         0
       )
-      await expect.poll(() => window.locator('.settings-nav').evaluate(element => getComputedStyle(element).paddingTop)).toBe('3.75px')
+      // Both paddings are rem-derived (.settings-nav 0.25rem, .settings-content
+      // 0.75rem) and the base font is user-configurable (8-40px), so a frozen px
+      // snapshot is wrong the moment anyone changes their font size. Assert the
+      // rem ratio against the live root font-size instead: still catches a
+      // spacing regression, no longer breaks on a personalization setting.
+      const rootPx = await window.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize))
+      await expect.poll(() => window.locator('.settings-nav').evaluate(element => getComputedStyle(element).paddingTop)).toBe(`${0.25 * rootPx}px`)
       await expect.poll(() => window.locator('.settings-content').evaluate(element => ({
         top: getComputedStyle(element).paddingTop,
         bottom: getComputedStyle(element).paddingBottom
-      }))).toEqual({ top: '11.25px', bottom: '11.25px' })
+      }))).toEqual({ top: `${0.75 * rootPx}px`, bottom: `${0.75 * rootPx}px` })
 
       await window.getByRole('button', { name: 'MCP' }).click()
       await window.getByRole('button', { name: '+ Add server' }).click()

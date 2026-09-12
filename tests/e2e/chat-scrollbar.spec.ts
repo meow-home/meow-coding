@@ -67,9 +67,17 @@ async function launchChatProject(userData: string): Promise<{ app: ElectronAppli
   return { app, window }
 }
 
+// Measured from inside the feed in one evaluation. Resolving `.chat-msg.user`
+// first and then reading it races the optimistic->persisted handoff: sending a
+// turn renders a provisional row that React replaces once the transcript
+// reloads, and evaluating on that detached node made `closest('.chat-feed')`
+// return null (an intermittent TypeError, not an assertion failure).
+// Returns NaN while no user row is in the feed yet, so expect.poll retries.
 function anchorTop(window: Page): Promise<number> {
-  return window.locator('.chat-msg.user').last().evaluate((row) => {
-    const feed = row.closest('.chat-feed')!
+  return window.locator('.chat-feed').evaluate((feed) => {
+    const rows = feed.querySelectorAll('.chat-msg.user')
+    const row = rows[rows.length - 1]
+    if (!row) return Number.NaN
     return row.getBoundingClientRect().top - feed.getBoundingClientRect().top
   })
 }
@@ -92,6 +100,29 @@ function waitForScrollSettle(window: Page): Promise<void> {
   }))
 }
 
+// Resolves once the feed's scrollHeight has stopped changing across several
+// frames (bounded by a frame cap). Needed because the app pins the feed to the
+// bottom for ~60 frames after a session load: reading the gap during that loop
+// always looks correct, so the "landed at the bottom" assertion has to be judged
+// against the settled layout to mean anything.
+function waitForHeightSettle(window: Page): Promise<void> {
+  return window.evaluate(() => new Promise<void>(resolve => {
+    const feed = document.querySelector('.chat-feed')!
+    let last = feed.scrollHeight
+    let stable = 0
+    let frames = 0
+    const tick = () => {
+      frames += 1
+      if (Math.abs(feed.scrollHeight - last) < 1) stable += 1
+      else stable = 0
+      last = feed.scrollHeight
+      if (stable > 10 || frames > 600) resolve()
+      else requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  }))
+}
+
 test('chat feed scrollbar reflects the full transcript (no content-visibility collapse)', async () => {
   const { userData, project } = createScrollFixture(true)
   try {
@@ -99,18 +130,31 @@ test('chat feed scrollbar reflects the full transcript (no content-visibility co
     try {
       const feed = window.locator('.chat-feed')
       await expect(feed).toBeVisible()
-      await expect(window.locator('.chat-msg')).toHaveCount(120)
-      // content-visibility row inside a flex-column feed used to reserve zero
-      // height when skipped, collapsing scrollHeight to a couple of viewports.
-      await expect.poll(() => feed.evaluate(el => el.scrollHeight / el.clientHeight), {
-        timeout: 5000
-      }).toBeGreaterThan(8)
 
       // Opening the project must land the feed at the real bottom, even though
       // content-visibility rows settle their true heights a few frames late.
+      await waitForHeightSettle(window)
       await expect.poll(() => feed.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight), {
         timeout: 5000
       }).toBeLessThan(4)
+
+      // The feed renders one transcript window at a time (transcriptWindow's
+      // default limit is 50) and pulls in the previous page once the feed nears
+      // the top. Page the whole 120-message transcript in first: the regression
+      // this test guards — content-visibility rows reserving zero height when
+      // skipped, collapsing scrollHeight to a couple of viewports — can only be
+      // judged against a fully rendered feed.
+      const msgs = window.locator('.chat-msg')
+      await expect.poll(async () => {
+        const count = await msgs.count()
+        if (count >= 120) return count
+        await feed.evaluate(el => { el.scrollTop = 0 })
+        return count
+      }, { timeout: 20000 }).toBe(120)
+
+      await expect.poll(() => feed.evaluate(el => el.scrollHeight / el.clientHeight), {
+        timeout: 5000
+      }).toBeGreaterThan(8)
     } finally {
       await app.close()
     }

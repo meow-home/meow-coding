@@ -21,6 +21,11 @@ export interface ChatScrollController {
   replaceActiveAnchorId(messageId: string): void
   reconcile(): void
   pinSessionToEnd(): void
+  // True while the session-load pin's settle loop is still running. The feed is
+  // then being written to on every frame, so its scroll readings are transitional
+  // and must not be read as a user gesture (paging older history in mid-pin
+  // prepends rows the pin then fails to compensate for).
+  isPinning(): boolean
   // Exit "following" mode so a DOM mutation that changes content height (e.g.
   // prepending transcript pages) does not snap the scroll back to the bottom.
   leaveFollowMode(): void
@@ -184,6 +189,8 @@ export function useChatScroll(): ChatScrollController {
     pinRafRef.current = requestAnimationFrame(settle)
   }, [writeScrollTop])
 
+  const isPinning = useCallback(() => pinRafRef.current !== null, [])
+
   const jumpToEnd = useCallback(() => {
     if (pinRafRef.current !== null) cancelAnimationFrame(pinRafRef.current)
     pinRafRef.current = null
@@ -282,6 +289,7 @@ export function useChatScroll(): ChatScrollController {
     showJumpToEnd,
     startTurnAnchor,
     replaceActiveAnchorId,
+    isPinning,
     reconcile,
     pinSessionToEnd,
     leaveFollowMode,

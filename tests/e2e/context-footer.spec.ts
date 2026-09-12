@@ -1,4 +1,4 @@
-import { test, expect, _electron as electron, type Page } from '@playwright/test'
+import { test, expect, _electron as electron, type Locator, type Page } from '@playwright/test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -60,6 +60,14 @@ function cleanupDir(dir: string): void {
   }
 }
 
+// SessionPanes keeps every opened session's pane mounted and marks the inactive
+// ones with [hidden], so a bare `.context-footer-wrap` / `.context-ring` lookup
+// matches the kept-alive session too (strict-mode violation). Always read the
+// readout through the visible pane.
+function pane(window: Page): Locator {
+  return window.locator('.pane-slot:not([hidden])')
+}
+
 function seedUserData(userData: string, project: string, meowConfig: Record<string, unknown>): void {
   const workspaces = [{
     projectPath: project,
@@ -107,7 +115,7 @@ test('context footer shows real token usage, persists across reload, resets on n
     await expect(window.locator('.chat-panel')).toBeVisible()
 
     // No messages yet -> placeholder, not a stale number.
-    await expect(window.locator('.context-footer-wrap')).toContainText('—')
+    await expect(pane(window).locator('.context-footer-wrap')).toContainText('—')
 
     await window.locator('.chat-input-field').fill('hello meow')
     await window.locator('.chat-input-field').press('Enter')
@@ -115,10 +123,10 @@ test('context footer shows real token usage, persists across reload, resets on n
 
     // The readout lives in `.context-footer-wrap`; the level class is on
     // `.context-ring` (`.context-footer` itself no longer exists).
-    const footer = window.locator('.context-footer-wrap')
+    const footer = pane(window).locator('.context-footer-wrap')
     await expect(footer).toContainText('4,231')
     await expect(footer).toContainText('(98% left)')
-    await expect(window.locator('.context-ring')).not.toHaveClass(/warn|danger/)
+    await expect(pane(window).locator('.context-ring')).not.toHaveClass(/warn|danger/)
 
     await app.close()
 
@@ -132,12 +140,12 @@ test('context footer shows real token usage, persists across reload, resets on n
     // Same user data: the sidebar restores its persisted expanded state, so the
     // session list is already open — just reselect the session to open its panes.
     await window.locator('.session-list .session-row').first().click()
-    await expect(window.locator('.context-footer-wrap')).toContainText('4,231')
+    await expect(pane(window).locator('.context-footer-wrap')).toContainText('4,231')
 
     // New session (the sidebar project row's "+") -> creating it makes it the
     // active session, so the footer is back to the placeholder.
     await window.getByRole('button', { name: 'new session E2E Project', exact: true }).click()
-    await expect(window.locator('.context-footer-wrap')).toContainText('—')
+    await expect(pane(window).locator('.context-footer-wrap')).toContainText('—')
 
     await app.close()
   } finally {
@@ -176,8 +184,8 @@ test('context footer turns danger and shows the compacting note past the auto-co
       await window.locator('.chat-input-field').press('Enter')
       await expect(window.locator('.chat-msg.assistant').last()).toContainText('near limit')
 
-      await expect(window.locator('.context-ring')).toHaveClass(/danger/)
-      await expect(window.locator('.context-footer-wrap')).toContainText('compacting soon')
+      await expect(pane(window).locator('.context-ring')).toHaveClass(/danger/)
+      await expect(pane(window).locator('.context-footer-wrap')).toContainText('compacting soon')
     } finally {
       await app.close()
     }
@@ -213,7 +221,7 @@ test('the context readout is a 24x24 icon button with a hover background', async
       await window.locator('.session-list .session-row').first().click()
       await expect(window.locator('.chat-panel')).toBeVisible()
 
-      const ring = window.locator('.context-ring')
+      const ring = pane(window).locator('.context-ring')
       await expect(ring).toBeVisible()
 
       // The box is the icon-button square (was 30x30), matching the sidebar buttons.
@@ -279,8 +287,8 @@ test('the context popover is wider than the 200px floor and keeps its rows on on
       await window.locator('.chat-input-field').press('Enter')
       await expect(window.locator('.chat-msg.assistant').last()).toContainText('hi there')
 
-      const popover = window.locator('.context-footer-popover')
-      const wrapBox = await window.locator('.context-footer-wrap').boundingBox()
+      const popover = pane(window).locator('.context-footer-popover')
+      const wrapBox = await pane(window).locator('.context-footer-wrap').boundingBox()
       await window.mouse.move(wrapBox!.x + wrapBox!.width / 2, wrapBox!.y + wrapBox!.height / 2)
       await expect(popover).toBeVisible()
 
