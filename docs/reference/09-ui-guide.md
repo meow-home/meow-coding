@@ -90,8 +90,8 @@ Update-dialog policy: `update-available` and `downloaded` open the dialog; `erro
 
 | Component | Responsibility |
 |---|---|
-| `ChatPanel.tsx` | The container: subscribes to chat events, owns feed state (items / todos / queue / pendingPrompt), rAF-batches stream deltas, renders feed + composer + context footer. The permission/question prompt is rendered in-flow at the top of the chat input card (never overlays the chat history). The composer's bottom row (`chat-footer`) puts the mode on the left (`chat-footer-context`) and the model/variant selectors plus the context readout on the right (`chat-footer-controls`). Memoized. |
-| `ChatInput.tsx` | Composer: textarea (Enter to send), paste/drop image chips (≤4, ≤5MB), `@` file-mention dropdown + chips, `/` command menu, edit-queued flow. Memoized, **uncontrolled**. |
+| `ChatPanel.tsx` | The container: subscribes to chat events, owns feed state (items / todos / queue / pendingPrompt), rAF-batches stream deltas, renders feed + composer + context footer. The permission/question prompt is rendered in-flow at the top of the chat input card (never overlays the chat history). The composer's `chat-footer` row — below the input row, still inside the composer — puts the mode on the left (`chat-footer-context`) and the model/variant selectors plus the context readout on the right (`chat-footer-controls`). Memoized. |
+| `ChatInput.tsx` | Composer: the card's bottom is one row (`chat-input-row`) — the auto-growing field (`rows=1`, `field-sizing: content`, capped at 8 lines and then scrolling) plus a single 24 × 24 square button at the card's trailing edge: Send at rest (disabled while the field is empty), Stop while a turn runs, and Send again (`Save edit`) while a queued message is edited. Enter sends, Shift+Enter inserts a newline; the placeholder is `Type a message... (/ for commands)`, or `Processing...` while running. Paste/drop image chips (≤4, ≤5MB), `@` file-mention dropdown + chips, `/` command menu, edit-queued flow. Memoized, **uncontrolled**. |
 | `useChatScroll.ts` | Feed scroll controller: follow / anchored / manual modes, turn-top anchoring, jump-to-end button. Pure geometry helpers live in `chat-scroll-geometry.ts`. |
 | `ToolCallCard.tsx` | One tool call: input JSON, diff (edit / apply-patch), output or error. Memoized. |
 | `DiffView.tsx` | Inline diff for edit-style tool calls |
@@ -266,7 +266,7 @@ Renderer modules do have unit tests — pure helpers and components rendered wit
 
 - `npm run typecheck` (which includes `tsconfig.web.json`)
 - Playwright e2e (`npm run build && npm run e2e`), which launches the real app:
-  `smoke.spec.ts`, `prompt.spec.ts`, `context-footer.spec.ts`, `chat-scrollbar.spec.ts`,
-  `sidebar-sessions.spec.ts`
+  `smoke.spec.ts`, `prompt.spec.ts`, `composer.spec.ts`, `context-footer.spec.ts`,
+  `chat-scrollbar.spec.ts`, `sidebar-sessions.spec.ts`, `selectors.spec.ts`, `menus.spec.ts`
 
 After touching IPC or UI, add or extend a smoke assertion so the regression is caught there.
