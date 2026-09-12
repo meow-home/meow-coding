@@ -399,7 +399,7 @@ function SessionRowMenu({ running, onRename, onDelete, onStop }: {
   onStop: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
+  const [menuPos, setMenuPos] = useState<{ right: number; top: number } | null>(null)
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState('')
   const rootRef = useRef<HTMLSpanElement>(null)
@@ -428,11 +428,11 @@ function SessionRowMenu({ running, onRename, onDelete, onStop }: {
         title="Session menu"
         aria-label="Session menu"
         onClick={e => {
-          // Anchor the portaled menu at the button, clamped to the viewport
-          // (same as the project menu) so the sidebar's overflow never clips it.
+          // Portal the menu to <body> so the sidebar's overflow never clips it,
+          // right-aligned to the button's right edge (width-independent, so it
+          // sits directly under the "..." button regardless of menu width).
           const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-          const x = Math.max(4, Math.min(r.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8))
-          setMenuPos({ x, y: r.bottom + 4 })
+          setMenuPos({ right: window.innerWidth - r.right, top: r.bottom + 4 })
           setOpen(v => !v)
         }}
       >
@@ -441,7 +441,7 @@ function SessionRowMenu({ running, onRename, onDelete, onStop }: {
       {open && menuPos && createPortal(
         <div
           className="sidebar-menu-dropdown session-menu-dropdown"
-          style={{ position: 'fixed', left: menuPos.x, top: menuPos.y, right: 'auto', bottom: 'auto' }}
+          style={{ position: 'fixed', right: menuPos.right, top: menuPos.top, left: 'auto', bottom: 'auto' }}
         >
           <button className="menu-item" onClick={() => { setOpen(false); setRenaming(true) }}>
             <Pencil size={16} aria-hidden="true" />
