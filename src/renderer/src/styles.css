@@ -70,7 +70,7 @@
   /* menu metrics — one set for every dropdown in the app; see docs/reference/09-ui-guide.md */
   --menu-radius: 0.833333rem;
   --menu-pad: 0.5rem;
-  --menu-item-h: 2.666667rem;
+  --menu-item-h: 2.25rem;
   --menu-item-pad-x: 0.833333rem;
   --menu-icon: 1.333333rem;
   --hairline: rgba(255, 255, 255, 0.10);
@@ -277,12 +277,12 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .sidebar-footer {
   flex: 0 0 auto; display: flex; align-items: center;
   border-top: 0.083333rem solid var(--hairline);
-  margin: 0 -0.833333rem -0.833333rem; padding: 0.833333rem 0.833333rem;
+  margin: 0 -0.833333rem -0.833333rem; padding: 0.75rem 0.35rem;
   border-radius: 0;
 }
 .sidebar-settings-btn {
   flex: 0 0 auto; display: inline-flex; align-items: center; gap: 0.666667rem;
-  min-height: 2.666667rem; padding: 0.5rem 0.833333rem;
+  min-height: 2.666667rem; padding: 0.5rem 0.5rem;
   appearance: none; background: transparent; border: 0.083333rem solid transparent;
   color: var(--text-dim); border-radius: var(--radius-sm); cursor: pointer;
   transition: color 120ms ease, background 120ms ease;
@@ -1476,16 +1476,13 @@ select.input { width: 100%; }
 .sidebar-footer-dropdown { min-width: 16.666667rem; }
 .menu-item.danger { color: var(--red); }
 .sidebar-footer-menu { display: flex; align-items: center; gap: 0.5rem; width: fit-content; }
-.sidebar:not(.collapsed) .sidebar-footer-menu { margin-left: auto; }
-.sidebar-update-block {
-  border-top: 0.083333rem solid var(--hairline);
-  margin-top: 0.333333rem; padding-top: 0.5rem;
-  display: flex; flex-direction: column; gap: 0.5rem;
-}
-.sidebar-update-version { color: var(--text-faint); font-size: var(--fs-sm); font-family: var(--font-mono); padding: 0 0.833333rem; }
-.sidebar-update-actions { display: flex; flex-direction: column; gap: 0.333333rem; padding: 0 0.5rem 0.333333rem; }
-.sidebar-update-actions .btn { display: inline-flex; align-items: center; gap: 0.5rem; justify-content: flex-start; }
-.sidebar-update-actions .btn .spin { animation: spin 1s linear infinite; }
+/* Match the compact "Add Project" header button (.sidebar-head .btn). */
+.sidebar:not(.collapsed) .sidebar-footer-menu { min-height: 0; padding: 0.55rem 0.833333rem; font-size: var(--fs-sm); }
+.sidebar:not(.collapsed) .sidebar-footer-menu .sidebar-settings-label { font-size: var(--fs-sm); line-height: 1.4; }
+.sidebar:not(.collapsed) .sidebar-footer-menu svg { width: 1.2em; height: 1.2em; }
+/* Version tag trailing the "Check update" menu item. */
+.sidebar-update-version { flex: 0 0 auto; color: var(--text-faint); font-size: var(--fs-sm); font-family: var(--font-mono); }
+.menu-item .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .menu-item.danger:hover { background: rgba(255, 95, 86, 0.12); color: var(--red); }
