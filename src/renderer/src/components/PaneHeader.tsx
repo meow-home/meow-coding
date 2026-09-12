@@ -112,15 +112,15 @@ export default function PaneHeader({
                   {background ? 'Open pane' : 'Run in background'}
                 </button>
               )}
-              <button className="menu-item danger" onClick={() => { close(); setConfirmRemove(true) }}>Delete agent</button>
+              <button className="menu-item danger" onClick={() => { close(); setConfirmRemove(true) }}>Delete session</button>
             </div>
           )}
         </div>
       </span>
       {confirmRemove && (
         <ConfirmDialog
-          title="Delete agent"
-          message={`Delete agent "${name}"? This cannot be undone.`}
+          title="Delete session"
+          message={`Delete session "${name}"? This cannot be undone.`}
           confirmLabel="Delete"
           onConfirm={() => { setConfirmRemove(false); onRemove() }}
           onCancel={() => setConfirmRemove(false)}

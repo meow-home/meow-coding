@@ -10,7 +10,7 @@ The React UI layer (renderer process). Everything the user sees: the sessions of
 |---|---|
 | `SessionPanes.tsx` | Layout of one project's sessions: **every** session stays mounted and only the active slot is shown (`hidden` attribute on the wrapper — CSS, never an unmount) so a session that is not selected keeps streaming/answering. The active session is **controlled** by `App` (`activeId` + `onActiveChange`, remembered per project path so switching workspaces restores the session that was showing); SessionPanes reports the first session when the stored id no longer exists. |
 | `Pane.tsx` | A single session pane: header + `ChatPanel`; background badge mode. |
-| `PaneHeader.tsx` | Pane title bar: status dot, git info, menu (inject/log/stop/restart/background/delete — the first four only on the parked PTY path); shows a confirm dialog before deleting an agent. |
+| `PaneHeader.tsx` | Pane title bar: status dot, git info, menu (inject/log/stop/restart/background/delete — the first four only on the parked PTY path); shows a confirm dialog before deleting a session. |
 | `ConfirmDialog.tsx` | Reusable confirmation dialog (title, message, confirm/cancel, danger styling). Rendered through a React portal into `document.body` so its `position: fixed` backdrop always covers the whole window, regardless of any transformed ancestor. |
 | `Sidebar.tsx` | Left sidebar: workspace list, add/remove, templates, open in editor. Shows a red badge (count) per project whose agents are waiting on a permission/question prompt (`needsInput` prop). |
 | `StatusBar.tsx` | Bottom bar: workspace name, git branch, running count, app version (via IPC). |

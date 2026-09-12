@@ -28,9 +28,10 @@ export function getFontSize(): number {
 
 /**
  * Apply the size to <html> (and force <body> to follow the root) and notify
- * listeners via a CustomEvent so same-window terminals re-fit live. The
- * `storage` event only fires across windows, not in the window that wrote it,
- * so the CustomEvent is required for in-window live updates.
+ * same-window listeners via a CustomEvent so anything that measures itself
+ * rather than reflowing can re-fit live. The `storage` event only fires across
+ * windows, not in the window that wrote it, so the CustomEvent is required for
+ * in-window live updates.
  */
 export function applyFontSize(size?: number): number {
   const resolved = clampFontSize(size ?? getFontSize())
