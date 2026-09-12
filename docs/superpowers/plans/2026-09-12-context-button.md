@@ -31,8 +31,14 @@ This branch is a **shared working tree**, and it is currently mid-refactor by a 
 
 1. `git status --short` — expect **clean**.
 2. `git stash list` — you will see `stash@{0}: WIP on feat/sessions-in-sidebar: 40cf048 …`. That is **someone else's in-progress work**. Do **not** `stash pop`, `stash drop`, `checkout -- .` or `clean` while it exists.
-3. **Known breakage you must not "fix":** `tests/e2e/context-footer.spec.ts` (committed) opens the app with `window.locator('.project-toggle').click()` (lines 93 and 161), but `HEAD:src/renderer/src/components/Sidebar.tsx` has **no** `.project-toggle` — it still renders `.project-expand` and opens the project on `.project-row` click. The sidebar refactor that introduces `.project-toggle` is the stashed WIP. Consequence: `npx playwright test tests/e2e/context-footer.spec.ts` fails **at launch, in both new and existing tests**, until that refactor lands.
-   **Action:** verify it with `npm run build && npx playwright test tests/e2e/context-footer.spec.ts` (expect a `project-toggle` timeout). Then **stop and ask the user** whether the sidebar work is being committed first. Do not restore, reimplement or patch the sidebar — that is another session's work, and patching the specs back to `.project-row` would fight it. Write the code and the tests, commit them, and report that e2e verification is blocked on the sidebar refactor.
+3. **A parallel session owns the sidebar refactor — never touch it.** `Sidebar.tsx`, `styles.css`,
+   `prompt.spec.ts`, `smoke.spec.ts`, `selectors.spec.ts`, `sidebar-sessions.spec.ts`,
+   `chat-scrollbar.spec.ts` and `menus.spec.ts` are dirty with that session's work, and it has already
+   stashed and re-applied it once. Those same files carry the committed e2e specs that open a session
+   with `window.locator('.project-toggle').click()` — so:
+   - Before any e2e run, confirm the marker exists: `grep -c project-toggle src/renderer/src/components/Sidebar.tsx` must be ≥ 1. If it is `0`, that session has stashed its refactor again and `tests/e2e/context-footer.spec.ts` will fail **at launch, in both the new and the existing tests**, for a reason that has nothing to do with this plan.
+   - If it is `0`, **do not** reimplement the sidebar, and **do not** rewrite the specs back to `.project-row` — that fights in-flight work. Write the code and tests, commit them, and report e2e verification as blocked.
+   - **Commit by explicit path only** (every commit below lists its files). Never `git add -A` / `git add .` on this tree, and never `git stash`, `git checkout -- .` or `git clean` — you would destroy someone else's half-finished work.
 4. `out/` may have been rebuilt by that other process (observed `out/main/index.js` at a mtime this session never produced). Always `npm run build` yourself immediately before an e2e run.
 
 ---
