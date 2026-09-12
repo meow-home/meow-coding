@@ -21,10 +21,10 @@ frame — **Send** at rest, **Stop** while a turn runs.
 
 ## Goals
 
-1. **One line at rest.** The card opens **46px** tall (one 18px text line —
+1. **One line at rest.** The card opens **48px** tall (one 18px text line —
    `line-height: 1.5` × the field's `1rem` = the 12px root — plus 6px field
-   padding top/bottom and the card's 8px padding), instead of today's ~70px
-   (two text rows + the gap + the toolbar line).
+   padding top/bottom, the card's 8px padding and its 2 × 1px border), instead of
+   today's **72px** (two text rows + the gap + the toolbar line).
 2. **Send and Stop live inside the card, at its right edge** — both square
    icon buttons of the same size, at the same place, so the button does not move
    when a turn starts or ends.
@@ -74,7 +74,7 @@ line 949).
 **Root cause of the height.** `rows={2}` hard-codes two text rows, and the
 toolbar is its own flex line separated by the card's `gap: 0.5rem` (6px), so the
 empty card is `padding 8 + field (6 + 2×18 + 6) + gap 6 + toolbar 0 + padding 8`
-= **70px** — a permanent reservation of two lines of text plus a button line.
+= **72px** — a permanent reservation of two lines of text plus a button line.
 (The toolbar itself collapses to 0px at rest: its only child is the `flex: 1`
 spacer, and the Stop button exists only while running.)
 
@@ -166,8 +166,8 @@ components).
 |---|---|---|
 | Idle, not editing | yes (disabled while the field is empty) | no |
 | Running, not editing | **no** — Enter still queues the message | yes |
-| Running, editing a queued message | yes (always enabled) | **no** |
-| Idle, editing a queued message | yes (always enabled) | no |
+| Running, editing a queued message | yes (disabled while the field is empty) | **no** |
+| Idle, editing a queued message | yes (disabled while the field is empty) | no |
 
 So one button is rendered at a time, in the same slot. `showSend = !running ||
 !!editTarget`, `showStop = running && !editTarget`.
@@ -255,7 +255,7 @@ stays as is.
 
 | | before | after |
 |---|---|---|
-| empty card height | 70px (8 + 48 field + 6 gap + 0 toolbar + 8) | **46px** (8 + 30 field + 8) |
+| empty card height | 72px (1 + 8 + 48 field + 6 gap + 0 toolbar + 8 + 1) | **48px** (1 + 8 + 30 field + 8 + 1) |
 | textarea | `rows={2}`, fixed at 48px | `rows={1}`, 30px at rest, grows to 8 lines (156px), then scrolls |
 | Send | does not exist | 24 × 24, `--radius-sm`, `--accent`, inside the card |
 | Stop | text button on its own toolbar line | 24 × 24 square, `--red`, same slot as Send |
@@ -271,11 +271,11 @@ state assertable instead of racing an instant reply). Assertions:
    box, and its right edge sits exactly the card's horizontal padding (10px,
    `0.833333rem`) inside the card's right edge — i.e. the button is *inside* the
    frame, at its right, not floating outside it.
-2. **One line at rest.** The card is 46px ± 2px with an empty field, and the
+2. **One line at rest.** The card is 48px ± 2px with an empty field, and the
    Send button's centre is within 2px of the first text line's centre.
 3. **Growth and shrink.** Typing 5 newlines grows the card; the card stops
    growing at the 8-line cap and the textarea reports
-   `scrollHeight > clientHeight`; clearing the field returns the card to 46px.
+   `scrollHeight > clientHeight`; clearing the field returns the card to 48px.
    This is the assertion that catches `field-sizing` not shrinking.
 4. **Send state.** Disabled with an empty field; enabled after typing; clicking
    it sends the message (the transcript shows the user row) and the field and
