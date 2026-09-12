@@ -5,6 +5,17 @@ import type { JsonStore } from './json-store'
 export class WorkspaceStore {
   constructor(private store: JsonStore<Workspace>) {}
 
+  // Raw whole-store access for one-off rewrites (the fresh-start reset). The
+  // JsonStore array is the live in-memory copy, so mutating what `load()`
+  // returns and passing it to `save()` persists in place.
+  load(): Workspace[] {
+    return this.store.load()
+  }
+
+  save(all: Workspace[]): void {
+    this.store.save(all)
+  }
+
   list(): WorkspaceSummary[] {
     return this.store.load().map(w => ({
       projectPath: w.projectPath,

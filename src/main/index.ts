@@ -1,10 +1,11 @@
 import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electron'
 import { spawn } from 'node:child_process'
-import { existsSync, rmSync } from 'node:fs'
+import { existsSync, rmSync, writeFileSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { createJsonStore } from './json-store'
+import { resetToSingleSession } from './fresh-start'
 import { TemplateManager } from './template-manager'
 import { DEFAULT_TEMPLATES } from './default-templates'
 import { WorkspaceStore } from './workspace-store'
@@ -981,6 +982,15 @@ app.whenReady().then(async () => {
   ensureExtensionInstalled(extSource, path.join(app.getPath('userData'), 'browser-extension'))
   // The trace feature was removed; purge any leftover trace data from old versions.
   rmSync(path.join(app.getPath('userData'), 'traces'), { recursive: true, force: true })
+  // v0.37 model switch: one-time reset to a single native session per project.
+  // Runs before any workspace activation (which is what first loads the session
+  // store), so deleting the file cannot be undone by a debounced in-memory flush.
+  const resetFlag = path.join(app.getPath('userData'), '.sessions-model-reset')
+  const didReset = resetToSingleSession(mainApp.workspaces, {
+    alreadyDone: existsSync(resetFlag),
+    clearSessions: () => rmSync(path.join(app.getPath('userData'), 'sessions.json'), { force: true })
+  })
+  if (didReset) writeFileSync(resetFlag, String(Date.now()))
   registerIpcHandlers()
   createWindow()
   tray = TrayManager.create({
