@@ -960,11 +960,10 @@ select.input { width: 100%; }
 .chat-prompt-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 0.166667rem var(--focus-ring); }
 
 /* Composer */
-.chat-composer { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.833333rem 1rem 1rem; border-top: 0.083333rem solid var(--hairline); background: var(--bg-panel); }
+.chat-composer { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.833333rem 1rem 1rem; border-top: 0.083333rem solid var(--hairline); background: var(--bg-chat); }
 .chat-input {
   display: flex; flex-direction: column; gap: 0.5rem;
-  border: 0.083333rem solid var(--hairline); background: var(--bg-raised);
-  border-radius: var(--radius-lg);
+  border: 0.083333rem solid var(--hairline); background: var(--bg-chat);
   padding: 0.666667rem 0.833333rem; transition: border-color 150ms ease, box-shadow 150ms ease;
   box-shadow: var(--shadow-1);
 }
