@@ -1,7 +1,12 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { AgentMode, Command, FileSuggestion, ImageAttachment } from '@shared/types'
 import { parseCommandInput } from './parseCommandInput'
+
+export interface ChatInputHandle {
+  /** Opens the native file picker to attach images (driven by the composer's "+" menu). */
+  openFilePicker(): void
+}
 
 interface Props {
   agentId: string
@@ -47,11 +52,15 @@ const CommandMenuItem = memo(function CommandMenuItem({
   )
 })
 
-export default memo(function ChatInput({
+const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   agentId, running, mode, commands, editTarget, promptSlot, onSubmit, onEditSubmit, onEditCancel, onStop
-}: Props) {
+}: Props, ref) {
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useImperativeHandle(ref, () => ({
+    openFilePicker: () => fileInputRef.current?.click()
+  }), [])
   const selectedRef = useRef<HTMLButtonElement | null>(null)
   const fileSelectedRef = useRef<HTMLButtonElement | null>(null)
   const mentionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -370,13 +379,6 @@ export default memo(function ChatInput({
         }}
       />
       <div className="chat-input-toolbar">
-        <button
-          className="chat-input-attach"
-          title="Upload file"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          Upload file
-        </button>
         <span className="chat-input-toolbar-spacer" />
         {running && (
           <button className="chat-input-stop" onClick={onStop}>
@@ -387,3 +389,5 @@ export default memo(function ChatInput({
     </div>
   )
 })
+
+export default memo(ChatInput)

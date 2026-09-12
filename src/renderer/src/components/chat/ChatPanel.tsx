@@ -4,6 +4,8 @@ import type { AgentMode, ChatEvent, ChatMessage, ChatTranscriptItem, Command, Im
 import { appendStreamDelta } from '@shared/text'
 import { contextTokens } from '@shared/usage'
 import ChatInput from './ChatInput'
+import type { ChatInputHandle } from './ChatInput'
+import AddMenu from './AddMenu'
 import { useChatScroll } from './useChatScroll'
 import { buildQuestionAnswer } from './questionAnswer'
 import ToolCallCard from './ToolCallCard'
@@ -175,6 +177,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const [editTarget, setEditTarget] = useState<QueuedMessage | null>(null)
   const [liveTaskId, setLiveTaskId] = useState<string | null>(null)
   const promptRef = useRef<HTMLDivElement>(null)
+  const chatInputRef = useRef<ChatInputHandle>(null)
   const scroll = useChatScroll()
   // Stream deltas are accumulated per animation frame: one setItems per frame
   // bounds markdown parsing and feed re-renders, which otherwise saturate the
@@ -970,13 +973,13 @@ if (e.type === 'usage') {
       </div>
       {scroll.showJumpToEnd && (
         <button className="chat-jump-to-end" onClick={scroll.jumpToEnd} title="Scroll to end" aria-label="Scroll to end">
-          <ChevronDown size={14} aria-hidden="true" />
-          <span>Scroll to end</span>
+          <ChevronDown size={16} aria-hidden="true" />
         </button>
       )}
       </div>
       <div className="chat-composer">
         <ChatInput
+          ref={chatInputRef}
           agentId={agentId}
           running={running}
           mode={currentMode}
@@ -1115,6 +1118,7 @@ if (e.type === 'usage') {
         />
         <div className="chat-footer">
           <div className="chat-footer-context">
+            <AddMenu onAddFiles={() => chatInputRef.current?.openFilePicker()} />
             <ModePicker value={currentMode} onChange={switchMode} />
             {currentMode === 'plan' && <span className="chat-mode-hint">read-only — edits denied</span>}
           </div>

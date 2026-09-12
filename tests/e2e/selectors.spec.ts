@@ -265,3 +265,39 @@ test('model picker ticks sit at the right edge like the other selectors', async 
     cleanupDir(project)
   }
 })
+
+test('the composer + menu opens to the right, inside the composer card', async () => {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    initRepo(project)
+    seedWorkspaces(userData, project)
+    const { app, window } = await launch(userData)
+    try {
+      await openProject(window)
+
+      // The "+" add menu sits at the composer's left edge. Right-aligning the
+      // menu to its trigger (the sidebar convention, where the "..." triggers hug
+      // the row's right edge) hung it 134px outside the composer card, over the
+      // transcript. A left-edge trigger must align the menu's left edge instead.
+      const trigger = window.locator('.add-dropdown .dropdown-trigger')
+      await trigger.click()
+      const menu = window.locator('.dropdown-menu.add-menu')
+      await expect(menu).toBeVisible()
+
+      const triggerBox = (await trigger.boundingBox())!
+      const menuBox = (await menu.boundingBox())!
+      const cardBox = (await window.locator('.chat-input').boundingBox())!
+
+      expect(Math.round(menuBox.x - triggerBox.x)).toBe(0)
+      expect(menuBox.x).toBeGreaterThanOrEqual(cardBox.x)
+      // Height offset stays as it was: 4px above the trigger's top edge.
+      expect(Math.round(triggerBox.y - (menuBox.y + menuBox.height))).toBe(4)
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+  }
+})
