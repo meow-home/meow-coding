@@ -6,7 +6,7 @@ Shared contract between main / preload / renderer.
   JSON-serializable only: **no** classes, no functions, no Node/Electron imports.
 - `log-helpers.ts` — pure helpers `formatLogArg`/`safeJson`/`formatConsoleArgs` dùng cho system logger (main + renderer). `formatConsoleArgs` interpolates printf-style `%s`/`%d`/`%o`/`%c` console arguments (React/devtools log `console.error('%s', message, stack)`), so renderer log lines carry the real message + stack instead of literal `%s`.
 - `ipc.ts` — `Channels` (all channel strings) + `AgentApi` (API interface) + event payload types
-  (`PtyDataEvent`, `AgentStateEvent`, `GitStatusEvent`).
+  (`AgentStateEvent`, `GitStatusEvent`).
 - `browser-types.ts` — types specific to the browser bridge (pairing, snapshot).
 - `text.ts` — pure text helpers (append stream delta, ...).
 - `usage.ts` — pure helpers for computing context/token usage.
@@ -19,8 +19,8 @@ Shared contract between main / preload / renderer.
 - Adding a new push event: add an `Event*` channel + payload interface + subscribe method in `AgentApi`,
   then implement it in preload and forward it in main.
 - `Channels.WorkspaceActivate` (`workspace:activate`) is a lightweight re-activation
-  for an already-loaded workspace: repoints `activeProject` + git/file pollers and closes
-  terminals, but does NOT re-register agents or re-run workspace preparation.
+  for an already-loaded workspace: repoints `activeProject` + git/file pollers,
+  but does NOT re-register agents or re-run workspace preparation.
 - `listChatTranscript(agentId, opts?)` returns `{ items, hasMore }` (a `TranscriptWindow`
   tail of `limit`, default 50); pass `beforeId` to page older items.
 - Files here are used by the main, preload, renderer builds and tests → do not pull in external dependencies.

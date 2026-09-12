@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Channels } from '../../src/shared/ipc'
-import type { AgentApi, BrowserStatusEvent, PtyDataEvent, AgentStateEvent, GitStatusEvent, ChatEvent } from '../../src/shared/ipc'
+import type { AgentApi, BrowserStatusEvent, AgentStateEvent, GitStatusEvent, ChatEvent } from '../../src/shared/ipc'
 import type { BrowserStatusInfo } from '../../src/shared/browser-types'
 import type { AgentConfig, ChatMessage, MeowSettings } from '../../src/shared/types'
 
@@ -8,7 +8,7 @@ describe('IPC contract', () => {
   it('defines all channels used by the preload api', () => {
     const required: (keyof AgentApi)[] = [
       'listWorkspaces', 'addWorkspace', 'removeWorkspace', 'openWorkspace', 'activateWorkspace', 'openInEditor',
-      'openFolder', 'openTerminal', 'closeTerminal', 'openSystemTerminal',
+      'openFolder', 'openSystemTerminal',
       'gitOpenViewer', 'gitGetBranches', 'gitCreateBranch', 'gitCheckout', 'gitStash', 'gitStashPop',
       'gitGetStatusDetail', 'gitGetDiff', 'gitGetCommits', 'gitGetCommitDiff', 'gitCompareCommits', 'gitGetBlame', 'gitGetFileHistory', 'gitDiscard',
       'addAgent', 'removeAgent', 'renameAgent', 'setAgentMode', 'setAgentVariant', 'getAgentVariants', 'setAgentModel', 'getAgentModel', 'getContextInfo', 'getProviderModels', 'fetchProviderModels',
@@ -16,9 +16,9 @@ describe('IPC contract', () => {
       'listConnections', 'connectCodex', 'disconnectConnection', 'setActiveConnection', 'getConnectionModels',
       'listTemplates', 'saveTemplate', 'removeTemplate',
       'pickFolder', 'startAgent', 'stopAgent', 'restartAgent',
-      'writeInput', 'injectPrompt', 'resizePty', 'openLog', 'getLogPath', 'writeSystemLog', 'quit', 'getAppVersion',
+      'injectPrompt', 'openLog', 'getLogPath', 'writeSystemLog', 'quit', 'getAppVersion',
       'checkForUpdates', 'installUpdate', 'onUpdaterStatus',
-      'onPtyData', 'onAgentState', 'onAgentConfig', 'onGitStatus', 'onTerminalExit',
+      'onAgentState', 'onAgentConfig', 'onGitStatus',
       'sendChat', 'stopChat', 'runCommand', 'undoChat', 'redoChat', 'newChatSession', 'listChatMessages', 'listChatTranscript', 'respondPrompt', 'removeQueued', 'editQueued',
       'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus', 'listCommands', 'saveCommand', 'removeCommand', 'getStats', 'onContextChanged',
       'suggestFiles', 'setAgentBackground', 'onAgentBackground',
@@ -54,8 +54,6 @@ describe('IPC contract', () => {
       gitCompareCommits: async () => ({ files: [] }),
       gitGetBlame: async () => [],
       gitGetFileHistory: async () => [],
-      openTerminal: async () => ({ id: '', cwd: '', name: '', status: 'running' }),
-      closeTerminal: async () => {},
       openSystemTerminal: async () => {},
       addAgent: async () => ({ workspace: { projectPath: '', name: '', agents: [] }, agents: [], git: null }),
       removeAgent: async () => {},
@@ -83,9 +81,7 @@ describe('IPC contract', () => {
       startAgent: async () => {},
       stopAgent: async () => {},
       restartAgent: async () => {},
-      writeInput: async () => {},
       injectPrompt: async () => {},
-      resizePty: async () => {},
       openLog: async () => {},
       getLogPath: async () => '',
       writeSystemLog: async () => {},
@@ -94,11 +90,9 @@ describe('IPC contract', () => {
       checkForUpdates: async () => {},
       installUpdate: async () => {},
       onUpdaterStatus: () => () => {},
-      onPtyData: () => () => {},
       onAgentState: () => () => {},
       onAgentConfig: () => () => {},
       onGitStatus: () => () => {},
-      onTerminalExit: () => () => {},
       sendChat: async () => {},
       stopChat: async () => {},
       runCommand: async () => {},
@@ -162,11 +156,9 @@ describe('IPC contract', () => {
   })
 
   it('maps event channel names to the AgentApi method names', () => {
-    expect(Channels.EventPtyData).toBe('pty:data')
     expect(Channels.WorkspaceActivate).toBe('workspace:activate')
     expect(Channels.EventAgentState).toBe('agent:state')
     expect(Channels.EventGitStatus).toBe('git:status')
-    expect(Channels.PtyInput).toBe('pty:input')
     expect(Channels.ChatSend).toBe('chat:send')
     expect(Channels.ChatStop).toBe('chat:stop')
     expect(Channels.ChatNewSession).toBe('chat:new-session')
@@ -236,10 +228,7 @@ describe('IPC contract', () => {
     expect(Channels.RemoteRevokeToken).toBe('remote:revoke-token')
     expect(Channels.EventRemoteStatus).toBe('remote:status')
     expect(Channels.ProjectOpenFolder).toBe('project:open-folder')
-    expect(Channels.TerminalOpen).toBe('terminal:open')
-    expect(Channels.TerminalClose).toBe('terminal:close')
     expect(Channels.SystemTerminalOpen).toBe('system-terminal:open')
-    expect(Channels.EventTerminalExit).toBe('terminal:exit')
     expect(Channels.GitOpenViewer).toBe('git:open-viewer')
     expect(Channels.GitGetBranches).toBe('git:get-branches')
     expect(Channels.GitCreateBranch).toBe('git:create-branch')
@@ -257,11 +246,9 @@ describe('IPC contract', () => {
   })
 
   it('types event payloads without runtime error', () => {
-    const d: PtyDataEvent = { agentId: 'a1', data: 'x' }
     const s: AgentStateEvent = { agentId: 'a1', state: {} as never }
     const gNull: GitStatusEvent = { projectPath: '/p', git: null }
     const g: GitStatusEvent = { projectPath: '/p', git: { branch: 'main', dirtyCount: 0 } }
-    expect(d.data).toBe('x')
     expect(s.agentId).toBe('a1')
     expect(g.git.branch).toBe('main')
     expect(gNull.git).toBeNull()

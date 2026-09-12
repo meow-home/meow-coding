@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
 import type { ArtifactsChangedEvent } from '../shared/ipc'
 import type { ChatEvent, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, Template, TranscriptWindowOpts, UpdaterStatusEvent } from '../shared/types'
-import type { ActivateAgentEvent, AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, GitStatusEvent, PromptStateEvent, PtyDataEvent, TerminalExitEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
+import type { ActivateAgentEvent, AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, GitStatusEvent, PromptStateEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 import type { BrowserStatusInfo } from '../shared/browser-types'
 import type { RemoteStatus } from '../shared/remote-types'
 
@@ -70,10 +70,6 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.ArtifactsClear, projectPath),
   onArtifactsChanged: (cb: (e: ArtifactsChangedEvent) => void) =>
     subscribe(Channels.EventArtifactsChanged, cb),
-  openTerminal: (cwd: string) =>
-    ipcRenderer.invoke(Channels.TerminalOpen, cwd),
-  closeTerminal: (id: string) =>
-    ipcRenderer.invoke(Channels.TerminalClose, id),
   openSystemTerminal: (cwd: string) =>
     ipcRenderer.invoke(Channels.SystemTerminalOpen, cwd),
   addAgent: (projectPath: string, input: NewAgentInput) =>
@@ -112,12 +108,8 @@ const api: AgentApi = {
   startAgent: (agentId: string) => ipcRenderer.invoke(Channels.PtyStart, agentId),
   stopAgent: (agentId: string) => ipcRenderer.invoke(Channels.PtyStop, agentId),
   restartAgent: (agentId: string) => ipcRenderer.invoke(Channels.PtyRestart, agentId),
-  writeInput: (agentId: string, data: string) =>
-    ipcRenderer.invoke(Channels.PtyInput, agentId, data),
   injectPrompt: (agentId: string, text: string) =>
     ipcRenderer.invoke(Channels.PtyInject, agentId, text),
-  resizePty: (agentId: string, cols: number, rows: number) =>
-    ipcRenderer.invoke(Channels.PtyResize, agentId, cols, rows),
   openLog: (agentId: string) => ipcRenderer.invoke(Channels.LogOpen, agentId),
   getLogPath: (agentId: string) => ipcRenderer.invoke(Channels.LogPath, agentId),
   writeSystemLog: (level: LogLevel, message: string) =>
@@ -174,8 +166,6 @@ const api: AgentApi = {
   onWindowMaximizedChange: (cb: (e: WindowMaximizedChangeEvent) => void) =>
     subscribe(Channels.EventWindowMaximizedChange, cb),
   onUpdaterStatus: (cb: (e: UpdaterStatusEvent) => void) => subscribe(Channels.EventUpdaterStatus, cb),
-  onPtyData: (cb: (e: PtyDataEvent) => void) => subscribe(Channels.EventPtyData, cb),
-  onTerminalExit: (cb: (e: TerminalExitEvent) => void) => subscribe(Channels.EventTerminalExit, cb),
   onAgentState: (cb: (e: AgentStateEvent) => void) => subscribe(Channels.EventAgentState, cb),
   onAgentConfig: (cb: (e: AgentConfigEvent) => void) => subscribe(Channels.EventAgentConfig, cb),
   onGitStatus: (cb: (e: GitStatusEvent) => void) => subscribe(Channels.EventGitStatus, cb),

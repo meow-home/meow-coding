@@ -5,8 +5,8 @@ handlers and the app lifecycle.
 
 ## Key files
 
-- `index.ts` — `MainApp` coordinates everything: setState, forwards `pty:data`/`agent:state`/
-  `git:status` events to the renderer; `registerIpcHandlers`; window lifecycle; `before-quit` → `pty.stopAll()`.
+- `index.ts` — `MainApp` coordinates everything: setState, forwards `agent:state`/`git:status` events
+  to the renderer; `registerIpcHandlers`; window lifecycle; `before-quit` → `pty.stopAll()`.
   The main window logs `render-process-gone` (reason/exitCode), `unresponsive` and `responsive` to the
   system log — a dead renderer paints the near-black window background and freezes interaction, so these
   events are the only way to capture that failure (a crashed renderer cannot log for itself).
@@ -36,7 +36,6 @@ handlers and the app lifecycle.
   node_modules/.git/out/dist).
 - `file-watcher.ts` — recursively watches the project, filters text files, batches changes (debounce 500ms).
 - `models-catalog.ts` / `model-variants.ts` — model provider catalog + variants (reasoning, pricing); `fetchLiveModelsInfo` syncs any OpenAI-compatible `/models` endpoint (used when connecting a provider or clicking "Sync models"). `meow-agent-manager.connectProvider` accepts a hand-typed `models[]` (the way to add an arbitrary OpenAI-compatible baseUrl + key), falling back to live `/models` → catalog → stored list.
-- `terminal-shell.ts` — `resolveShell`: picks the default shell per platform.
 - `updater.ts` — electron-updater wrapper, emits `UpdaterStatusEvent`.
 - `window-chrome.ts` — `getWindowChromeOptions`: hides the title-bar on Windows/Linux; `applyTitleBarTheme` re-colors the Windows overlay (min/max/close) live when the app theme toggles dark/light.
 - `vault.ts` — encrypted secret store (safeStorage) for provider API keys.
@@ -56,7 +55,7 @@ handlers and the app lifecycle.
 
 ## Testing
 
-- Unit: `tests/unit/` — one test file per module: pty-spawn-command, terminal-shell,
+- Unit: `tests/unit/` — one test file per module: pty-spawn-command,
   window-chrome, updater, models-catalog, model-variants, notification-service, file-suggest,
   file-watcher, git-status-service, alert-service, json-store, log-manager, template-manager,
   workspace-store, meow-agent-manager, ipc-contract, ...

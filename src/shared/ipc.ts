@@ -3,7 +3,7 @@ import type {
   ConnectionAccount, ContextChangedEvent, ContextInfo, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload,
   GitActionResult, GitBlameLine, GitBranch, GitCommit, GitDiffResult, GitStatus, GitStatusDetail,
   ImageAttachment, LogLevel, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PendingPromptInfo, PromptResponse,
-  SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, TranscriptWindow, TranscriptWindowOpts,
+  SessionSummary, StatsSummary, Template, TodoItem, TranscriptWindow, TranscriptWindowOpts,
   UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 import type { BrowserStatusInfo, PairingInfo } from './browser-types'
@@ -61,9 +61,7 @@ export const Channels = {
   PtyStart: 'pty:start',
   PtyStop: 'pty:stop',
   PtyRestart: 'pty:restart',
-  PtyInput: 'pty:input',
   PtyInject: 'pty:inject',
-  PtyResize: 'pty:resize',
   LogOpen: 'log:open',
   LogPath: 'log:path',
   SystemLog: 'system-log:write',
@@ -108,11 +106,7 @@ export const Channels = {
   WindowIsMaximized: 'window:is-maximized',
   WindowSetTheme: 'window:set-theme',
   EventWindowMaximizedChange: 'window:maximized-change',
-  TerminalOpen: 'terminal:open',
-  TerminalClose: 'terminal:close',
   SystemTerminalOpen: 'system-terminal:open',
-  EventTerminalExit: 'terminal:exit',
-  EventPtyData: 'pty:data',
   EventAgentState: 'agent:state',
   EventGitStatus: 'git:status',
   EventContextChanged: 'context:changed',
@@ -142,8 +136,6 @@ export const Channels = {
   EventArtifactsChanged: 'artifacts:changed'
 } as const
 
-export interface PtyDataEvent { agentId: string; data: string }
-export interface TerminalExitEvent { id: string; exitCode: number | null }
 export interface AgentStateEvent { agentId: string; state: AgentState }
 export interface GitStatusEvent { projectPath: string; git: GitStatus | null }
 export interface AgentConfigEvent { agentId: string; config: AgentConfig }
@@ -184,8 +176,8 @@ export interface AgentApi {
   removeWorkspace(projectPath: string): Promise<void>
   openWorkspace(projectPath: string): Promise<WorkspaceRuntime>
   // Lightweight re-activation of an already-open workspace: repoints main's
-  // activeProject + git/file pollers and closes terminals, but does NOT
-  // re-register agents or re-run workspace preparation.
+  // activeProject + git/file pollers, but does NOT re-register agents or
+  // re-run workspace preparation.
   activateWorkspace(projectPath: string): Promise<WorkspaceRuntime>
   openInEditor(projectPath: string): Promise<void>
   openFolder(projectPath: string): Promise<void>
@@ -211,8 +203,6 @@ export interface AgentApi {
   listArtifacts(projectPath: string): Promise<ArtifactEntry[]>
   clearArtifacts(projectPath: string): Promise<void>
   onArtifactsChanged(cb: (e: ArtifactsChangedEvent) => void): () => void
-  openTerminal(cwd: string): Promise<TerminalInfo>
-  closeTerminal(id: string): Promise<void>
   openSystemTerminal(cwd: string): Promise<void>
   addAgent(projectPath: string, input: NewAgentInput): Promise<WorkspaceRuntime>
   removeAgent(projectPath: string, agentId: string): Promise<void>
@@ -240,9 +230,7 @@ export interface AgentApi {
   startAgent(agentId: string): Promise<void>
   stopAgent(agentId: string): Promise<void>
   restartAgent(agentId: string): Promise<void>
-  writeInput(agentId: string, data: string): Promise<void>
   injectPrompt(agentId: string, text: string): Promise<void>
-  resizePty(agentId: string, cols: number, rows: number): Promise<void>
   openLog(agentId: string): Promise<void>
   getLogPath(agentId: string): Promise<string>
   writeSystemLog(level: LogLevel, message: string): Promise<void>
@@ -291,8 +279,6 @@ export interface AgentApi {
   setTitleBarTheme(theme: 'dark' | 'light'): Promise<void>
   onWindowMaximizedChange(cb: (e: WindowMaximizedChangeEvent) => void): () => void
   onUpdaterStatus(cb: (e: UpdaterStatusEvent) => void): () => void
-  onPtyData(cb: (e: PtyDataEvent) => void): () => void
-  onTerminalExit(cb: (e: TerminalExitEvent) => void): () => void
   onAgentState(cb: (e: AgentStateEvent) => void): () => void
   onAgentConfig(cb: (e: AgentConfigEvent) => void): () => void
   onGitStatus(cb: (e: GitStatusEvent) => void): () => void

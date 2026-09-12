@@ -2,7 +2,6 @@ import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electr
 import { spawn } from 'node:child_process'
 import { existsSync, rmSync, writeFileSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
-import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { createJsonStore } from './json-store'
 import { resetToSingleSession } from './fresh-start'
@@ -10,7 +9,6 @@ import { TemplateManager } from './template-manager'
 import { DEFAULT_TEMPLATES } from './default-templates'
 import { WorkspaceStore } from './workspace-store'
 import { PtyManager } from './pty-manager'
-import { resolveShell } from './terminal-shell'
 import { LogManager } from './log-manager'
 import { SystemLogger } from './system-logger'
 import { GitStatusService } from './git-status-service'
@@ -53,7 +51,7 @@ import { RemoteSettingsStore } from './remote/remote-settings'
 import { RemotePairing } from './remote/remote-pairing'
 import { Channels } from '../shared/ipc'
 import { formatLogArg, safeJson } from '../shared/log-helpers'
-import type { AgentState, Command, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, Template, TerminalInfo, TranscriptWindowOpts, Workspace, WorkspaceRuntime } from '../shared/types'
+import type { AgentState, Command, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, Template, TranscriptWindowOpts, Workspace, WorkspaceRuntime } from '../shared/types'
 
 let win: BrowserWindow | null = null
 let isQuitting = false
@@ -240,20 +238,11 @@ export class MainApp {
 
   constructor() {
     this.pty.on('data', ({ agentId, data }) => {
-      if (this.pty.isTerminal(agentId)) {
-        win?.webContents.send(Channels.EventPtyData, { agentId, data })
-        return
-      }
       this.logs.append(agentId, data)
       this.alerts.onOutput(agentId)
       this.setState(agentId, { status: 'running', lastOutputAt: Date.now() })
-      win?.webContents.send(Channels.EventPtyData, { agentId, data })
     })
-    this.pty.on('exit', ({ agentId, exitCode, kind }) => {
-      if (kind === 'terminal') {
-        win?.webContents.send(Channels.EventTerminalExit, { id: agentId, exitCode })
-        return
-      }
+    this.pty.on('exit', ({ agentId, exitCode }) => {
       const code = exitCode ?? -1
       if (code !== 0) {
         mainApp.systemLogger.log('ERROR', 'agent', `agent ${agentId} exited with code ${code}`)
@@ -265,7 +254,6 @@ export class MainApp {
         const label = tmpl ? `${tmpl.command} ${tmpl.args.join(' ')}`.trim() : (agent?.name ?? agentId)
         const hint = `[meow] Agent exited with code ${code} and produced no output. Check that "${label}" is on your PATH, then use restart.\n`
         this.logs.append(agentId, hint)
-        win?.webContents.send(Channels.EventPtyData, { agentId, data: hint })
       }
       this.alerts.onExit(agentId, code)
     })
@@ -375,7 +363,6 @@ export class MainApp {
     if (!tmpl) {
       const message = `[meow] Template "${agent.templateId}" not found for agent "${agent.name}". Add that template or remove this agent.\n`
       this.logs.append(agentId, message)
-      win?.webContents.send(Channels.EventPtyData, { agentId, data: message })
       this.setState(agentId, { status: 'error', alert: 'error' })
       return
     }
@@ -386,7 +373,6 @@ export class MainApp {
     } catch (err) {
       const message = `[meow] Could not start agent "${agent.name}" (${tmpl.command} ${tmpl.args.join(' ')}): ${String(err)}\n`
       this.logs.append(agentId, message)
-      win?.webContents.send(Channels.EventPtyData, { agentId, data: message })
       this.setState(agentId, { status: 'error', alert: 'error' })
     }
   }
@@ -401,23 +387,7 @@ export class MainApp {
     await this.startAgent(agentId)
   }
 
-  async openTerminal(cwd: string): Promise<TerminalInfo> {
-    const id = `term-${randomUUID()}`
-    const name = path.basename(cwd) || cwd
-    this.pty.startTerminal(id, resolveShell(), cwd)
-    return { id, cwd, name, status: 'running' }
-  }
-
-  async closeTerminal(id: string): Promise<void> {
-    await this.pty.stop(id)
-  }
-
-  closeAllTerminals(): void {
-    for (const id of this.pty.terminalIds()) void this.pty.stop(id)
-  }
-
   async openWorkspace(projectPath: string): Promise<WorkspaceRuntime> {
-    this.closeAllTerminals()
     const ws = this.workspaces.get(projectPath)
     if (!ws) throw new Error(`Workspace not found: ${projectPath}`)
     this.activeProject = projectPath
@@ -444,7 +414,6 @@ export class MainApp {
   async activateWorkspace(projectPath: string): Promise<WorkspaceRuntime> {
     const ws = this.workspaces.get(projectPath)
     if (!ws) throw new Error(`Workspace not found: ${projectPath}`)
-    this.closeAllTerminals()
     this.activeProject = projectPath
     this.meowAgent.setProjectPath(projectPath)
     const rt = this.runtimeFor(ws)
@@ -583,7 +552,6 @@ export class MainApp {
     this.meowAgent.stopAll()
     if (this.activeProject) this.artifacts.clear(this.activeProject)
     this.activeProject = null
-    this.closeAllTerminals()
     this.states.clear()
     this.alerts.clearAll()
   }
@@ -790,8 +758,6 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.ArtifactsClear, (_e, projectPath: string) => {
     mainApp.artifacts.clear(projectPath)
   })
-  ipcMain.handle(Channels.TerminalOpen, (_e, cwd: string) => mainApp.openTerminal(cwd))
-  ipcMain.handle(Channels.TerminalClose, (_e, id: string) => mainApp.closeTerminal(id))
   ipcMain.handle(Channels.SystemTerminalOpen, (_e, cwd: string) => openSystemTerminal(cwd))
 
   ipcMain.handle(Channels.AgentAdd, async (_e, projectPath: string, input: NewAgentInput) => {
@@ -868,14 +834,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.PtyStart, (_e, agentId: string) => mainApp.startAgent(agentId))
   ipcMain.handle(Channels.PtyStop, (_e, agentId: string) => mainApp.stopAgent(agentId))
   ipcMain.handle(Channels.PtyRestart, (_e, agentId: string) => mainApp.restartAgent(agentId))
-  ipcMain.handle(Channels.PtyInput, (_e, agentId: string, data: string) => {
-    mainApp.pty.write(agentId, data)
-  })
   ipcMain.handle(Channels.PtyInject, (_e, agentId: string, text: string) => {
     mainApp.pty.write(agentId, text + '\n')
-  })
-  ipcMain.handle(Channels.PtyResize, (_e, agentId: string, cols: number, rows: number) => {
-    mainApp.pty.resize(agentId, cols, rows)
   })
   ipcMain.handle(Channels.LogPath, (_e, agentId: string) => mainApp.logs.pathFor(agentId))
   ipcMain.handle(Channels.LogOpen, (_e, agentId: string) => {

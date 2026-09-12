@@ -50,20 +50,6 @@ export class PtyManager extends EventEmitter {
     return this.spawnSession(agentId, name, resolved.command, resolved.args, cwd, 'agent', env)
   }
 
-  startTerminal(id: string, shell: string, cwd: string): PtySession {
-    if (this.sessions.has(id)) throw new Error(`Terminal already running: ${id}`)
-    if (this.stopping.has(id)) throw new Error(`Terminal is stopping: ${id}`)
-    return this.spawnSession(id, 'terminal', shell, [], cwd, 'terminal')
-  }
-
-  isTerminal(id: string): boolean {
-    return this.sessions.get(id)?.kind === 'terminal'
-  }
-
-  terminalIds(): string[] {
-    return [...this.sessions.values()].filter(s => s.kind === 'terminal').map(s => s.agentId)
-  }
-
   private spawnSession(
     id: string,
     name: string,
