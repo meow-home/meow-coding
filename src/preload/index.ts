@@ -80,6 +80,8 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.AgentAdd, projectPath, input),
   removeAgent: (projectPath: string, agentId: string) =>
     ipcRenderer.invoke(Channels.AgentRemove, projectPath, agentId),
+  renameAgent: (projectPath: string, agentId: string, name: string) =>
+    ipcRenderer.invoke(Channels.AgentRename, projectPath, agentId, name),
   setAgentMode: (agentId: string, mode: 'build' | 'plan') =>
     ipcRenderer.invoke(Channels.AgentSetMode, agentId, mode),
   setAgentVariant: (agentId: string, variant: string | null) =>

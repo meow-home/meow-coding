@@ -37,6 +37,7 @@ export const Channels = {
   GitGetFileHistory: 'git:get-file-history',
   AgentAdd: 'agent:add',
   AgentRemove: 'agent:remove',
+  AgentRename: 'agent:rename',
   AgentSetMode: 'agent:set-mode',
   AgentSetVariant: 'agent:set-variant',
   AgentGetVariants: 'agent:get-variants',
@@ -215,6 +216,7 @@ export interface AgentApi {
   openSystemTerminal(cwd: string): Promise<void>
   addAgent(projectPath: string, input: NewAgentInput): Promise<WorkspaceRuntime>
   removeAgent(projectPath: string, agentId: string): Promise<void>
+  renameAgent(projectPath: string, agentId: string, name: string): Promise<void>
   setAgentMode(agentId: string, mode: 'build' | 'plan'): Promise<void>
   setAgentVariant(agentId: string, variant: string | null): Promise<void>
   getAgentVariants(agentId: string): Promise<string[]>
