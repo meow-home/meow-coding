@@ -323,8 +323,11 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
 }
 /* Project = lightweight group header; actions reveal on hover / when current */
-.project-row { display: flex; align-items: center; gap: 5px; padding: 5px 8px; cursor: pointer; border-radius: var(--radius); }
+.project-row { display: flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: var(--radius); }
 .project-row:hover { background: var(--bg-raised); }
+/* The name + chevron share one flex button so the whole pair is the
+   expand/collapse target; flex:1 + min-width:0 lets the name ellipsis. */
+.project-toggle { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 5px; background: none; border: none; padding: 0; margin: 0; cursor: pointer; font: inherit; color: inherit; text-align: left; }
 .project-name { color: var(--text-dim); font-weight: var(--fw-medium); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .project-list li.active .project-name { color: var(--text-strong); }
 .project-expand { display: inline-flex; align-items: center; background: none; border: none; color: var(--text-faint); cursor: pointer; padding: 0; }
@@ -1489,14 +1492,14 @@ select.input { width: 100%; }
 
 /* Sidebar session rows (one row per session of a project) — indented so the
    ring sits under the project name */
-.session-list { list-style: none; margin: 0 0 6px; padding: 0 0 0 16px; display: flex; flex-direction: column; gap: 1px; }
+.session-list { list-style: none; margin: 0 0 6px; padding: 0 0 0 0; display: flex; flex-direction: column; gap: 1px; }
 .session-row { display: flex; align-items: center; gap: 8px; padding: 4px 8px; cursor: pointer; border-radius: var(--radius); color: var(--text-dim); }
 .session-row:hover { background: var(--bg-raised); color: var(--text); }
 .session-row.active { background: var(--bg-hover); color: var(--text); }
 .session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); }
 
 /* Status glyph: idle = hollow ring; running/waiting = solid + glow */
-.session-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; box-sizing: border-box; border: 1.5px solid var(--text-faint); background: transparent; }
+.session-dot { width: 9px; height: 9px; margin-left: 8px; border-radius: 50%; flex: 0 0 auto; box-sizing: border-box; border: 1.5px solid var(--text-faint); background: transparent; }
 .session-dot.session-status-running { border-color: var(--green); background: var(--green); box-shadow: 0 0 7px rgba(74, 222, 159, 0.45); }
 .session-dot.session-status-waiting { border-color: var(--yellow); background: var(--yellow); box-shadow: 0 0 7px rgba(255, 180, 84, 0.4); }
 .session-dot.session-status-idle { border-color: var(--text-faint); background: transparent; }

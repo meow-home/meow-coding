@@ -34,9 +34,12 @@ async function launch(userData: string): Promise<{ app: ElectronApplication; win
 /** Opens the seeded project and expands its session list. */
 async function openProject(window: Page): Promise<void> {
   await expect(window.locator('.project-row')).toBeVisible()
-  await window.locator('.project-row').click()
-  await window.locator('.project-expand').click()
+  // One click on the name+chevron group expands the session list; selecting a
+  // session then opens its panes (the Mode/Model pickers live there).
+  await window.locator('.project-toggle').click()
   await expect(window.locator('.session-list')).toBeVisible()
+  await window.locator('.session-list .session-row').first().click()
+  await expect(window.locator('.chat-panel')).toBeVisible()
 }
 
 /** Computed + box metrics of a menu's rows, for geometry assertions. */

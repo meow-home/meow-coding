@@ -61,7 +61,8 @@ async function launchChatProject(userData: string): Promise<{ app: ElectronAppli
   })
   const window = await app.firstWindow()
   await expect(window.locator('.project-row')).toBeVisible()
-  await window.locator('.project-row').click()
+  await window.locator('.project-toggle').click()
+  await window.locator('.session-list .session-row').first().click()
   await expect(window.locator('.chat-panel')).toBeVisible()
   return { app, window }
 }

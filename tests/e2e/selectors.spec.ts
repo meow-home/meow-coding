@@ -43,7 +43,11 @@ async function launch(userData: string): Promise<{ app: ElectronApplication; win
 
 async function openProject(window: Page): Promise<void> {
   await expect(window.locator('.project-row')).toBeVisible()
-  await window.locator('.project-row').click()
+  // The name+chevron group now only expands the session list; opening a
+  // project's panes happens by selecting one of its sessions.
+  await window.locator('.project-toggle').click()
+  await window.locator('.session-list .session-row').first().click()
+  await expect(window.locator('.chat-panel')).toBeVisible()
 }
 
 /**
@@ -229,7 +233,8 @@ test('model picker ticks sit at the right edge like the other selectors', async 
     const window = await app.firstWindow()
     try {
       await window.evaluate(() => window.api.connectCodex())
-      await window.locator('.project-row').click()
+      await window.locator('.project-toggle').click()
+      await window.locator('.session-list .session-row').first().click()
       await expect(window.locator('.chat-panel')).toBeVisible()
 
       // Pick a model so a row is selected, then reopen to inspect the tick.

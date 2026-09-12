@@ -176,7 +176,6 @@ export default function Sidebar({
           <li key={ws.projectPath} className={ws.projectPath === activePath ? 'active' : ''}>
             <div
               className="project-row"
-              onClick={() => onOpen(ws.projectPath)}
               title={ws.projectPath}
               onContextMenu={e => {
                 e.preventDefault()
@@ -184,18 +183,21 @@ export default function Sidebar({
                 setOpenProjectMenu(ws.projectPath)
               }}
             >
-              <span className="project-name">{ws.name}</span>
+              {/* Name + chevron are one flex group so clicking anywhere across
+                  the pair toggles expand/collapse — not just the small icon. */}
               <button
-                className="project-expand"
+                type="button"
+                className="project-toggle"
                 aria-label={expanded[ws.projectPath] ? 'Collapse' : 'Expand'}
-                onClick={e => {
-                  e.stopPropagation()
-                  setExpanded(p => ({ ...p, [ws.projectPath]: !p[ws.projectPath] }))
-                }}
+                aria-expanded={!!expanded[ws.projectPath]}
+                onClick={() => setExpanded(p => ({ ...p, [ws.projectPath]: !p[ws.projectPath] }))}
               >
-                {expanded[ws.projectPath]
-                  ? <ChevronDown size={13} aria-hidden="true" />
-                  : <ChevronRight size={13} aria-hidden="true" />}
+                <span className="project-name">{ws.name}</span>
+                <span className="project-expand" aria-hidden="true">
+                  {expanded[ws.projectPath]
+                    ? <ChevronDown size={13} aria-hidden="true" />
+                    : <ChevronRight size={13} aria-hidden="true" />}
+                </span>
               </button>
               {inputCount > 0 && (
                 <span

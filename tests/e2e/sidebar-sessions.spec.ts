@@ -97,13 +97,14 @@ async function launch(userData: string): Promise<{ app: ElectronApplication; win
   return { app, window }
 }
 
-// Opens the (single) seeded project and expands its session list. Asserts the
-// pane container rather than `.chat-panel`, which matches once per session.
+// Expands the (single) seeded project's session list, then opens its panes by
+// selecting the first session. Asserts the pane container rather than
+// `.chat-panel`, which matches once per session.
 async function openProject(window: Page): Promise<void> {
-  await window.locator('.project-row').click()
-  await expect(window.locator('.session-panes')).toBeVisible()
-  await window.locator('.project-expand').click()
+  await window.locator('.project-toggle').click()
   await expect(window.locator('.session-list')).toBeVisible()
+  await window.locator('.session-list .session-row').first().click()
+  await expect(window.locator('.session-panes')).toBeVisible()
 }
 
 test('the project row "+" creates a session that appears in the session list', async () => {

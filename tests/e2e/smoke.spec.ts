@@ -102,7 +102,8 @@ test('native meow agent renders a chat panel and sends a message', async () => {
     const window = await app.firstWindow()
     try {
       await expect(window.locator('.project-row')).toBeVisible()
-      await window.locator('.project-row').click()
+      await window.locator('.project-toggle').click()
+      await window.locator('.session-list .session-row').first().click()
       await expect(window.locator('.chat-panel')).toBeVisible()
 
       await window.getByRole('button', { name: 'menu E2E Project' }).click()
@@ -161,7 +162,8 @@ test('pasted/attached image previews render in input, feed, and lightbox', async
     const window = await app.firstWindow()
     try {
       await expect(window.locator('.project-row')).toBeVisible()
-      await window.locator('.project-row').click()
+      await window.locator('.project-toggle').click()
+      await window.locator('.session-list .session-row').first().click()
       await expect(window.locator('.chat-panel')).toBeVisible()
 
       const field = window.locator('.chat-input-field')
@@ -316,7 +318,8 @@ test('codex account models group under the account label in the model picker', a
       // account via IPC so the picker can group its models under the label.
       await window.evaluate(() => window.api.connectCodex())
 
-      await window.locator('.project-row').click()
+      await window.locator('.project-toggle').click()
+      await window.locator('.session-list .session-row').first().click()
       await expect(window.locator('.chat-panel')).toBeVisible()
       await window.locator('.model-trigger').click()
       await expect(window.locator('.model-group-head', { hasText: 'E2E Account' })).toBeVisible()

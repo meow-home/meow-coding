@@ -23,7 +23,8 @@ async function launchPrompt() {
   seedWorkspace(userData, project)
   const app = await electron.launch({ args: ['.'], env: { ...process.env as Record<string, string>, MEOW_USER_DATA: userData } })
   const window = await app.firstWindow()
-  await window.locator('.project-row').click()
+  await window.locator('.project-toggle').click()
+  await window.locator('.session-list .session-row').first().click()
   await expect(window.locator('.chat-panel')).toBeVisible()
   await app.evaluate(async ({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0].webContents.send('chat:event', {
@@ -62,7 +63,8 @@ async function launchQuestion() {
   seedWorkspace(userData, project)
   const app = await electron.launch({ args: ['.'], env: { ...process.env as Record<string, string>, MEOW_USER_DATA: userData } })
   const window = await app.firstWindow()
-  await window.locator('.project-row').click()
+  await window.locator('.project-toggle').click()
+  await window.locator('.session-list .session-row').first().click()
   await expect(window.locator('.chat-panel')).toBeVisible()
   await app.evaluate(async ({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0].webContents.send('chat:event', {
@@ -107,7 +109,8 @@ test('prompt does not overlay the chat feed', async () => {
   seedWorkspace(userData, project)
   const app = await electron.launch({ args: ['.'], env: { ...process.env as Record<string, string>, MEOW_USER_DATA: userData } })
   const window = await app.firstWindow()
-  await window.locator('.project-row').click()
+  await window.locator('.project-toggle').click()
+  await window.locator('.session-list .session-row').first().click()
   await expect(window.locator('.chat-panel')).toBeVisible()
   await app.evaluate(async ({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0].webContents.send('chat:event', {
