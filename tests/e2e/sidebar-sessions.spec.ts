@@ -279,3 +279,43 @@ test('the session row menu deletes a session', async () => {
     cleanupDir(project)
   }
 })
+
+test('sidebar icon buttons are 24x24 squares with a 3px radius', async () => {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    seedWorkspaces(userData, project, ['Alpha'])
+    const { app, window } = await launch(userData)
+    try {
+      await openProject(window)
+
+      // Project row: the "+" (new session) and the "..." (project menu). Both are
+      // revealed on hover; boundingBox() ignores opacity, but hovering keeps the
+      // measurement on the state the user actually sees.
+      await window.locator('.project-row').hover()
+      for (const name of ['new session E2E Project', 'menu E2E Project']) {
+        const btn = window.getByRole('button', { name, exact: true })
+        const box = await btn.boundingBox()
+        expect(box).not.toBeNull()
+        expect(Math.round(box!.width)).toBe(24)
+        expect(Math.round(box!.height)).toBe(24)
+        await expect(btn).toHaveCSS('border-radius', '3px')
+      }
+
+      // Session row: the per-row "..." menu button.
+      const row = window.locator('.session-list .session-row').first()
+      await row.hover()
+      const sessionMenu = row.getByRole('button', { name: 'Session menu', exact: true })
+      const box = await sessionMenu.boundingBox()
+      expect(box).not.toBeNull()
+      expect(Math.round(box!.width)).toBe(24)
+      expect(Math.round(box!.height)).toBe(24)
+      await expect(sessionMenu).toHaveCSS('border-radius', '3px')
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+  }
+})

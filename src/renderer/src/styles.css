@@ -62,6 +62,7 @@
   --md-table-border: rgba(214, 240, 220, 0.14);
 
   /* misc */
+  --radius-xs: 3px;
   --radius-sm: 4px;
   --radius: 6px;
   --radius-lg: 8px;
@@ -322,8 +323,9 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .project-expand { display: inline-flex; align-items: center; background: none; border: none; color: var(--text-faint); cursor: pointer; padding: 0; }
 .project-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; opacity: 0; transition: opacity 120ms ease; }
 .project-row:hover .project-actions, .project-list li.active .project-actions, .project-actions:focus-within { opacity: 1; }
-.project-actions .btn { border: none; background: transparent; padding: 2px 4px; color: var(--text-faint); }
-.project-actions .btn:hover { background: var(--bg-hover); color: var(--text); }
+/* Border/background/padding/color come from .sidebar-icon-btn now — only the
+   hover lift stays container-specific. */
+.project-actions .sidebar-icon-btn:hover { background: var(--bg-hover); color: var(--text); }
 .project-badge {
   flex: 0 0 auto; min-width: 16px; height: 16px; padding: 0 4px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -363,6 +365,18 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   display: inline-flex; align-items: center; justify-content: center;
   line-height: 0; /* icon-only buttons: collapse text line box so the svg is vertically centered, not baseline-shifted */
   vertical-align: middle;
+}
+/* Icon-only button in the sidebar (project +/…, session-row …). A standalone
+   class, NOT `.btn small` + a container padding override: `.btn.small` and
+   `.project-actions .btn` are both (0,2,0), so source order decided and the
+   override silently lost — the buttons rendered 34x25 with the .btn 6px radius. */
+.sidebar-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; padding: 0; flex: 0 0 auto;
+  line-height: 0; /* icon-only: the svg is a flex item, so no baseline descender gap */
+  border: none; background: transparent; color: var(--text-faint);
+  border-radius: var(--radius-xs); cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
 }
 .sidebar-action { display: block; width: 100%; text-align: left; margin-top: 2px; }
 .input {
@@ -1453,9 +1467,11 @@ select.input { width: 100%; }
 
 /* Session menu button: hidden until hover / active */
 .session-menu { position: relative; display: inline-flex; }
-.session-menu .btn { opacity: 0; border: none; background: transparent; padding: 2px 3px; color: var(--text-faint); transition: opacity 120ms ease; }
-.session-row:hover .session-menu .btn, .session-row.active .session-menu .btn, .session-menu:focus-within .btn { opacity: 1; }
-.session-menu .btn:hover { background: var(--bg-active); color: var(--text); }
+/* `transition` replaces the whole property, so all three are listed — dropping
+   background/color here would make the hover background snap in with no fade. */
+.session-menu .sidebar-icon-btn { opacity: 0; transition: opacity 120ms ease, background 120ms ease, color 120ms ease; }
+.session-row:hover .session-menu .sidebar-icon-btn, .session-row.active .session-menu .sidebar-icon-btn, .session-menu:focus-within .sidebar-icon-btn { opacity: 1; }
+.session-menu .sidebar-icon-btn:hover { background: var(--bg-active); color: var(--text); }
 .session-menu-dropdown { position: absolute; right: 0; top: 100%; z-index: 1000; }
 .session-rename-input { position: absolute; right: 0; top: 100%; z-index: 1001; width: 160px; }
 

@@ -67,6 +67,10 @@ Lessons learned from the Git viewer screen (don't repeat them):
   Only list the elements that ACTUALLY need rounded corners (buttons, inputs, dropdown content, options...).
 - Before editing: check whether the element is being rounded by the `*` rule (`grep "border-radius"` +
   trace the class). Don't assume.
+- **Icon-only buttons use `.sidebar-icon-btn`** (fixed 24 × 24, `border-radius: var(--radius-xs)` = 3px) —
+  never `.btn small` with a container padding override. `.project-actions .btn` and `.btn.small` are both
+  `(0,2,0)`, so source order decides and the override is silently ignored (the project `+`/`...` rendered
+  34 × 25 with the `.btn` 6px radius before the dedicated class existed).
 - Edit CSS with python when the file uses CRLF (the edit tool won't match strings) — see `tests/*.test.ts`,
   `styles.css` are all CRLF.
 

@@ -150,6 +150,8 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   `--font-ui`: the display fonts were never loaded via `@font-face` (CSP is `'self'` only) and
   silently fell back to mono, which made uppercase labels look like terminal output.
 - Spacing on a 4px scale; controls use Tailwind default sizes.
+- Radii: `--radius-xs` 3px (sidebar icon buttons), `--radius-sm` 4px, `--radius` 6px (the global
+  `*` default), `--radius-lg` 8px.
 - Numeric displays use tabular-nums.
 - UI labels are English.
 
@@ -167,6 +169,13 @@ element unless explicitly overridden. To make a screen square-cornered, do **not
 
 Before editing, check whether the element is being rounded by the `*` rule
 (`grep "border-radius"` and trace the class). Do not assume.
+
+**Icon-only buttons.** `.sidebar-icon-btn` (fixed 24 × 24, `--radius-xs`) is the one class for the
+sidebar's icon-only buttons (project `+` / `...`, session-row `...`; `Sidebar.tsx`). Its geometry must
+live on that class: composing `.btn small` and overriding the padding from a container rule does not
+work — `.project-actions .btn` and `.btn.small` are both `(0,2,0)`, so source order decides, and the
+override lost. The buttons rendered 34 × 25 with the `.btn` 6px radius until `.sidebar-icon-btn`
+replaced them.
 
 **CRLF note:** `styles.css` and the test files use CRLF line endings, which can make exact-match
 string edits fail. Edit them with a script (e.g. python) if the edit tool cannot match.
