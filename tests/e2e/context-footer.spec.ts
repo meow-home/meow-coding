@@ -48,10 +48,16 @@ function startMockLlm(turns: MockTurn[]): Promise<{ server: http.Server; port: n
 }
 
 // Electron leaves cache file handles open briefly after app.close() on
-// Windows; retry so that transient EPERM/EBUSY on cleanup never masks a real
-// assertion failure from the try block above it.
+// Windows; retry, then give up quietly. A locked Chrome cache file in a temp
+// dir must never fail the test that already ran - and because this runs in
+// `finally`, a throw here would REPLACE a real assertion failure from the try
+// block, hiding the actual bug behind an EPERM.
 function cleanupDir(dir: string): void {
-  rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
+  try {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
+  } catch (err) {
+    console.warn(`[e2e] could not remove ${dir}: ${String(err)}`)
+  }
 }
 
 function seedUserData(userData: string, project: string, meowConfig: Record<string, unknown>): void {
@@ -84,20 +90,23 @@ test('context footer shows real token usage, persists across reload, resets on n
     })
     let window = await app.firstWindow()
     await expect(window.locator('.project-row')).toBeVisible()
-    await window.locator('.project-row').click()
+    await window.locator('.project-toggle').click()
+    await window.locator('.session-list .session-row').first().click()
     await expect(window.locator('.chat-panel')).toBeVisible()
 
     // No messages yet -> placeholder, not a stale number.
-    await expect(window.locator('.context-footer')).toContainText('—')
+    await expect(window.locator('.context-footer-wrap')).toContainText('—')
 
     await window.locator('.chat-input-field').fill('hello meow')
     await window.locator('.chat-input-field').press('Enter')
     await expect(window.locator('.chat-msg.assistant').last()).toContainText('hi there')
 
-    const footer = window.locator('.context-footer')
+    // The readout lives in `.context-footer-wrap`; the level class is on
+    // `.context-ring` (`.context-footer` itself no longer exists).
+    const footer = window.locator('.context-footer-wrap')
     await expect(footer).toContainText('4,231')
-    await expect(footer).toContainText('(2%)')
-    await expect(footer).not.toHaveClass(/warn|danger/)
+    await expect(footer).toContainText('(98% left)')
+    await expect(window.locator('.context-ring')).not.toHaveClass(/warn|danger/)
 
     await app.close()
 
@@ -108,13 +117,15 @@ test('context footer shows real token usage, persists across reload, resets on n
       env: { ...process.env as Record<string, string>, MEOW_USER_DATA: userData }
     })
     window = await app.firstWindow()
-    await window.locator('.project-row').click()
-    await expect(window.locator('.context-footer')).toContainText('4,231')
+    // Same user data: the sidebar restores its persisted expanded state, so the
+    // session list is already open — just reselect the session to open its panes.
+    await window.locator('.session-list .session-row').first().click()
+    await expect(window.locator('.context-footer-wrap')).toContainText('4,231')
 
     // New session (the sidebar project row's "+") -> creating it makes it the
     // active session, so the footer is back to the placeholder.
     await window.getByRole('button', { name: 'new session E2E Project', exact: true }).click()
-    await expect(window.locator('.context-footer')).toContainText('—')
+    await expect(window.locator('.context-footer-wrap')).toContainText('—')
 
     await app.close()
   } finally {
@@ -147,14 +158,14 @@ test('context footer turns danger and shows the compacting note past the auto-co
     })
     const window = await app.firstWindow()
     try {
-      await window.locator('.project-row').click()
+      await window.locator('.project-toggle').click()
+      await window.locator('.session-list .session-row').first().click()
       await window.locator('.chat-input-field').fill('hello meow')
       await window.locator('.chat-input-field').press('Enter')
       await expect(window.locator('.chat-msg.assistant').last()).toContainText('near limit')
 
-      const footer = window.locator('.context-footer')
-      await expect(footer).toHaveClass(/danger/)
-      await expect(footer).toContainText('compacting soon')
+      await expect(window.locator('.context-ring')).toHaveClass(/danger/)
+      await expect(window.locator('.context-footer-wrap')).toContainText('compacting soon')
     } finally {
       await app.close()
     }
