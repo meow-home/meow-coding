@@ -13,7 +13,7 @@ type SessionStatus = 'running' | 'waiting' | 'idle'
 
 interface Props {
   workspaces: WorkspaceSummary[]
-  /** Project path -> agent ids waiting on a permission/question prompt. */
+  /** Project path -> session ids waiting on a permission/question prompt. */
   needsInput: Record<string, string[]>
   activePath: string | null
   /** Mounted runtimes keyed by project path — drives each session row's status dot. */
@@ -112,12 +112,18 @@ export default function Sidebar({
     }
   }
 
+  // The real run state of a session, independent of the status dot: a session
+  // blocked on a prompt still has `status === 'running'` and must stay stoppable.
+  const isSessionRunning = (path: string, id: string): boolean =>
+    runtimes[path]?.agents.find(a => a.agentId === id)?.status === 'running'
+
   // A session is "waiting" when it has a pending permission/question prompt,
-  // "running" while a turn is in flight, and "idle" otherwise.
+  // "running" while a turn is in flight, and "idle" otherwise. Waiting wins over
+  // running: a blocked session's `AgentState.status` stays 'running' for the whole
+  // turn, so testing running first would make the yellow dot unreachable.
   const sessionStatus = (path: string, id: string): SessionStatus => {
-    const st = runtimes[path]?.agents.find(a => a.agentId === id)
-    if (st?.status === 'running') return 'running'
     if (needsInput[path]?.includes(id)) return 'waiting'
+    if (isSessionRunning(path, id)) return 'running'
     return 'idle'
   }
 
@@ -273,6 +279,7 @@ export default function Sidebar({
               <ul className="session-list">
                 {ws.sessions.map(s => {
                   const status = sessionStatus(ws.projectPath, s.id)
+                  const running = isSessionRunning(ws.projectPath, s.id)
                   const activeSession = activeSessionByPath[ws.projectPath] === s.id && ws.projectPath === activePath
                   return (
                     <li
@@ -283,7 +290,7 @@ export default function Sidebar({
                       <span className={`status-dot session-status-${status}`} />
                       <span className="session-name">{s.name}</span>
                       <SessionRowMenu
-                        running={status === 'running'}
+                        running={running}
                         onRename={name => onRenameSession(ws.projectPath, s.id, name)}
                         onDelete={() => onDeleteSession(ws.projectPath, s.id)}
                         onStop={() => onStopSession(s.id)}

@@ -401,12 +401,14 @@ export default function App() {
   }, [])
 
   // Sidebar "+": every new session is a native meow session, and creating it also
-  // makes it the project's active one (main appends it last in `agents`).
-  const onNewSession = useCallback(async (path: string) => {
+  // makes it the project's active one (main appends it last in `agents`). Returns
+  // false when the create failed, so the last-session delete can abort instead of
+  // leaving a project with no sessions.
+  const onNewSession = useCallback(async (path: string): Promise<boolean> => {
     const created = await window.api.addAgent(path, {
       name: 'New session', templateId: 'meow', cwd: path, kind: 'native'
     }).catch(() => null)
-    if (!created) return
+    if (!created) return false
     setRuntimes(prev => (prev[path]
       ? { ...prev, [path]: { ...prev[path], ...created, git: created.git ?? prev[path].git } }
       : { ...prev, [path]: created }))
@@ -414,6 +416,7 @@ export default function App() {
     const newId = created.workspace.agents[created.workspace.agents.length - 1]?.id
     if (newId) setActiveSessionByPath(prev => (prev[path] === newId ? prev : { ...prev, [path]: newId }))
     await refreshWorkspaces()
+    return true
   }, [activate, refreshWorkspaces])
 
   const onSelectSession = useCallback((path: string, id: string) => {
@@ -430,14 +433,21 @@ export default function App() {
     await refreshWorkspaces()
   }, [refreshWorkspaces])
 
-  // A project must always own at least one session, so deleting the last one
-  // immediately replaces it with a fresh one.
+  // A project must always own at least one session. When the deleted session is
+  // the project's last, create its replacement **first** (create-then-delete): the
+  // project is never left at zero sessions, and a failed create aborts the delete
+  // instead of destroying the last session. "Last" is detected from local state
+  // before touching main — the mounted runtime when the project is open, else the
+  // sidebar summary (a project need not be opened to list and delete a session).
   const onDeleteSession = useCallback(async (path: string, id: string) => {
+    const rt = runtimesRef.current[path]
+    const knownIds = rt
+      ? rt.workspace.agents.map(a => a.id)
+      : (workspaces.find(w => w.projectPath === path)?.sessions.map(s => s.id) ?? [])
+    const isLastSession = knownIds.length <= 1 && knownIds.includes(id)
+    if (isLastSession && !(await onNewSession(path))) return
     await removeAgent(path, id)
-    const list = await window.api.listWorkspaces()
-    const ws = list.find(w => w.projectPath === path)
-    if (ws && ws.sessions.length === 0) await onNewSession(path)
-  }, [removeAgent, onNewSession])
+  }, [onNewSession, removeAgent, workspaces])
 
   const onStopSession = useCallback((id: string) => {
     void window.api.stopChat(id)
