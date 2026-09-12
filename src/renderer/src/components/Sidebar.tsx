@@ -1,21 +1,25 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Ellipsis, GitBranch, Moon, PanelLeft, RefreshCw, Settings, Server, Sun } from 'lucide-react'
-import type { NewAgentInput, Template, WorkspaceSummary } from '@shared/types'
+import type { WorkspaceRuntime, WorkspaceSummary } from '@shared/types'
 import AddProjectDialog from './AddProjectDialog'
-import AddAgentDialog from './AddAgentDialog'
 import { applyTheme, type Theme } from '../theme'
 
 function MoreIcon() {
   return <Ellipsis size={14} aria-hidden="true" />
 }
 
+type SessionStatus = 'running' | 'waiting' | 'idle'
+
 interface Props {
   workspaces: WorkspaceSummary[]
-  templates: Template[]
   /** Project path -> agent ids waiting on a permission/question prompt. */
   needsInput: Record<string, string[]>
   activePath: string | null
+  /** Mounted runtimes keyed by project path — drives each session row's status dot. */
+  runtimes: Record<string, WorkspaceRuntime>
+  /** Project path -> the session id currently showing (drives the active row). */
+  activeSessionByPath: Record<string, string>
   onOpen: (path: string) => void
   onRemove: (path: string) => void
   onRefresh: () => void
@@ -24,13 +28,19 @@ interface Props {
   onOpenGit: (path: string) => void
   onCheckUpdate: () => void
   updateChecking: boolean
+  onNewSession: (path: string) => void
+  onSelectSession: (path: string, id: string) => void
+  onRenameSession: (path: string, id: string, name: string) => void
+  onDeleteSession: (path: string, id: string) => void
+  onStopSession: (id: string) => void
 }
 
 export default function Sidebar({
-  workspaces, templates, needsInput, activePath, onOpen, onRemove, onRefresh, onOpenSettings, onOpenProviders, onOpenGit, onCheckUpdate, updateChecking
+  workspaces, needsInput, activePath, runtimes, activeSessionByPath, onOpen, onRemove, onRefresh,
+  onOpenSettings, onOpenProviders, onOpenGit, onCheckUpdate, updateChecking,
+  onNewSession, onSelectSession, onRenameSession, onDeleteSession, onStopSession
 }: Props) {
   const [showAddProject, setShowAddProject] = useState(false)
-  const [addAgentPath, setAddAgentPath] = useState<string | null>(null)
   const [openProjectMenu, setOpenProjectMenu] = useState<string | null>(null)
   const [projectMenuPos, setProjectMenuPos] = useState<{ x: number; y: number } | null>(null)
   const [error, setError] = useState('')
@@ -39,6 +49,11 @@ export default function Sidebar({
   const [footerMenuPos, setFooterMenuPos] = useState<{ x: number; bottom: number } | null>(null)
   const [version, setVersion] = useState('')
   const [theme, setTheme] = useState<Theme>(() => localStorage.getItem('meow.theme') === 'light' ? 'light' : 'dark')
+  // Which projects show their session list; persisted so the sidebar reopens the
+  // way the user left it.
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('meow.sidebar.expanded') ?? '{}') as Record<string, boolean> } catch { return {} }
+  })
 
   useEffect(() => {
     applyTheme(theme)
@@ -52,6 +67,10 @@ export default function Sidebar({
   useEffect(() => {
     localStorage.setItem('meow.sidebar.collapsed', collapsed ? '1' : '0')
   }, [collapsed])
+
+  useEffect(() => {
+    localStorage.setItem('meow.sidebar.expanded', JSON.stringify(expanded))
+  }, [expanded])
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -93,16 +112,13 @@ export default function Sidebar({
     }
   }
 
-  const handleAddAgent = async (projectPath: string, input: NewAgentInput) => {
-    try {
-      await window.api.addAgent(projectPath, input)
-      setAddAgentPath(null)
-      setError('')
-      onRefresh()
-      onOpen(projectPath)
-    } catch (err) {
-      setError(String(err))
-    }
+  // A session is "waiting" when it has a pending permission/question prompt,
+  // "running" while a turn is in flight, and "idle" otherwise.
+  const sessionStatus = (path: string, id: string): SessionStatus => {
+    const st = runtimes[path]?.agents.find(a => a.agentId === id)
+    if (st?.status === 'running') return 'running'
+    if (needsInput[path]?.includes(id)) return 'waiting'
+    return 'idle'
   }
 
   return (
@@ -154,13 +170,23 @@ export default function Sidebar({
                 setOpenProjectMenu(ws.projectPath)
               }}
             >
+              <button
+                className="project-expand"
+                aria-label={expanded[ws.projectPath] ? 'Collapse' : 'Expand'}
+                onClick={e => {
+                  e.stopPropagation()
+                  setExpanded(p => ({ ...p, [ws.projectPath]: !p[ws.projectPath] }))
+                }}
+              >
+                {expanded[ws.projectPath] ? '▾' : '▸'}
+              </button>
               <div className="project-info">
                 <span className="project-name-row">
                   <span className="project-name">{ws.name}</span>
                   {inputCount > 0 && (
                     <span
                       className="project-badge"
-                      title={`${inputCount} agent${inputCount === 1 ? '' : 's'} need${inputCount === 1 ? 's' : ''} your reply/approval`}
+                      title={`${inputCount} session(s) need your reply/approval`}
                     >
                       {inputCount}
                     </span>
@@ -171,7 +197,15 @@ export default function Sidebar({
                   {ws.sessions.length} Session{ws.sessions.length === 1 ? '' : 's'}
                 </span>
               </div>
-              <div className="project-menu" onClick={e => e.stopPropagation()}>
+              <div className="project-menu project-actions" onClick={e => e.stopPropagation()}>
+                <button
+                  className="btn ghost small"
+                  title="New session"
+                  aria-label={`new session ${ws.name}`}
+                  onClick={() => onNewSession(ws.projectPath)}
+                >
+                  +
+                </button>
                 <button
                   className="btn ghost small"
                   title="Project menu"
@@ -198,12 +232,6 @@ export default function Sidebar({
                       onClick={() => { setOpenProjectMenu(null); onOpen(ws.projectPath) }}
                     >
                       Open
-                    </button>
-                    <button
-                      className="menu-item"
-                      onClick={() => { setOpenProjectMenu(null); setAddAgentPath(ws.projectPath) }}
-                    >
-                      Add Agent
                     </button>
                     <button
                       className="menu-item"
@@ -241,6 +269,30 @@ export default function Sidebar({
                 )}
               </div>
             </div>
+            {expanded[ws.projectPath] && (
+              <ul className="session-list">
+                {ws.sessions.map(s => {
+                  const status = sessionStatus(ws.projectPath, s.id)
+                  const activeSession = activeSessionByPath[ws.projectPath] === s.id && ws.projectPath === activePath
+                  return (
+                    <li
+                      key={s.id}
+                      className={`session-row ${activeSession ? 'active' : ''}`}
+                      onClick={() => onSelectSession(ws.projectPath, s.id)}
+                    >
+                      <span className={`status-dot session-status-${status}`} />
+                      <span className="session-name">{s.name}</span>
+                      <SessionRowMenu
+                        running={status === 'running'}
+                        onRename={name => onRenameSession(ws.projectPath, s.id, name)}
+                        onDelete={() => onDeleteSession(ws.projectPath, s.id)}
+                        onStop={() => onStopSession(s.id)}
+                      />
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
           </li>
           )
         })}
@@ -248,14 +300,6 @@ export default function Sidebar({
       )}
       {showAddProject && (
         <AddProjectDialog onAdd={(p, n) => void handleAddProject(p, n)} onClose={() => setShowAddProject(false)} />
-      )}
-      {addAgentPath && (
-        <AddAgentDialog
-          projectPath={addAgentPath}
-          templates={templates}
-          onAdd={input => void handleAddAgent(addAgentPath, input)}
-          onClose={() => setAddAgentPath(null)}
-        />
       )}
       <footer className="sidebar-footer">
         <button
@@ -320,5 +364,70 @@ export default function Sidebar({
         )}
       </footer>
     </aside>
+  )
+}
+
+/**
+ * Per-session `...` menu: Rename (inline input), Delete (always) and Stop (only
+ * while running). Owns its own outside-click handling — `open` is local state,
+ * so Sidebar's document listener cannot close it.
+ */
+function SessionRowMenu({ running, onRename, onDelete, onStop }: {
+  running: boolean
+  onRename: (name: string) => void
+  onDelete: () => void
+  onStop: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const [name, setName] = useState('')
+  const rootRef = useRef<HTMLSpanElement>(null)
+
+  // Close the dropdown when the click lands outside this menu. This listener is
+  // only attached while `open` — the inline rename input appears only after the
+  // dropdown has closed, so it can never be torn down mid-typing by this
+  // handler; the input's own blur closes it.
+  useEffect(() => {
+    if (!open) return
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (rootRef.current && !rootRef.current.contains(target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [open])
+
+  return (
+    <span className="session-menu" ref={rootRef} onClick={e => e.stopPropagation()}>
+      <button
+        className="btn ghost small"
+        title="Session menu"
+        aria-label="Session menu"
+        onClick={() => setOpen(v => !v)}
+      >
+        <Ellipsis size={12} aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="sidebar-menu-dropdown session-menu-dropdown">
+          <button className="menu-item" onClick={() => { setOpen(false); setRenaming(true) }}>Rename</button>
+          {running && <button className="menu-item" onClick={() => { setOpen(false); onStop() }}>Stop</button>}
+          <button className="menu-item danger" onClick={() => { setOpen(false); onDelete() }}>Delete</button>
+        </div>
+      )}
+      {renaming && (
+        <input
+          className="input session-rename-input"
+          autoFocus
+          placeholder="Session name"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && name.trim()) { onRename(name.trim()); setRenaming(false); setName('') }
+            if (e.key === 'Escape') { setRenaming(false); setName('') }
+          }}
+          onBlur={() => { setRenaming(false); setName('') }}
+        />
+      )}
+    </span>
   )
 }

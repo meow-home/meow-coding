@@ -692,68 +692,7 @@ select.input { width: 100%; }
 
 /* Chat panel (native agent) */
 .chat-panel { flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--bg-chat); }
-.chat-sessions {
-  flex: 0 0 auto; display: flex; align-items: center;
-  padding: 6px 10px; border-bottom: 1px solid var(--hairline);
-  background: var(--bg-panel);
-  gap: 6px;
-  border-radius: 0;
-}
-.session-dropdown { position: relative; display: inline-flex; }
-.session-label { color: var(--text-dim); font-size: var(--fs-sm); font-weight: var(--fw-semibold); white-space: nowrap; text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--font-display); }
-.session-trigger {
-  display: inline-flex; align-items: center; gap: 6px; max-width: 320px;
-  background: var(--bg-input); border: 1px solid var(--hairline); color: var(--text-strong);
-  font-size: var(--fs-md); cursor: pointer; padding: 6px 12px;
-  border-radius: var(--radius);
-  transition: border-color 120ms ease, background 120ms ease;
-}
-.session-trigger:hover { background: var(--bg-input-hover); border-color: var(--accent-border); }
-.session-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.session-caret { color: var(--text-dim); font-size: var(--fs-sm); }
-.session-menu {
-  position: absolute; top: calc(100% + 4px); left: 0; z-index: 40;
-  min-width: 260px; max-width: 380px;
-  background: var(--bg-raised); border: 1px solid var(--hairline);
-  box-shadow: var(--shadow-3);
-  border-radius: var(--radius);
-  padding: 4px; display: flex; flex-direction: column; gap: 2px;
-}
-.session-new {
-  text-align: left; padding: 8px 12px; background: transparent; border: none;
-  color: var(--accent); cursor: pointer; font-size: var(--fs-md); border-radius: var(--radius);
-}
-.session-new:hover { background: var(--bg-hover); }
-.session-list { max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
-.session-row {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 10px; cursor: pointer; border-radius: var(--radius);
-  border-left: 2px solid transparent;
-}
-.session-row:hover { background: var(--bg-hover); }
-.session-row.active { background: var(--bg-active); border-left-color: var(--accent); }
-.session-row-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-md); }
-.session-row-meta { color: var(--text-faint); font-size: var(--fs-base); font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.session-row-delete {
-  background: transparent; border: none; color: var(--text-faint);
-  cursor: pointer; padding: 0 4px; font-size: var(--fs-lg); line-height: 1;
-  visibility: hidden; border-radius: var(--radius-sm);
-}
-.session-row:hover .session-row-delete { visibility: visible; }
-.session-row-delete:hover { color: var(--red); }
-.session-row-rename {
-  background: transparent; border: none; color: var(--text-faint);
-  cursor: pointer; padding: 0 4px; font-size: var(--fs-base); line-height: 1;
-  visibility: hidden; border-radius: var(--radius-sm);
-}
-.session-row:hover .session-row-rename { visibility: visible; }
-.session-row-rename:hover { color: var(--accent); }
-.session-rename-input {
-  flex: 1; min-width: 0; padding: 2px 6px; background: var(--bg-input);
-  color: var(--text); border: 1px solid var(--accent); border-radius: var(--radius-sm);
-  font-family: var(--font-mono); font-size: var(--fs-md);
-}
-.session-rename-input:focus { outline: none; box-shadow: 0 0 0 2px var(--focus-ring); }
+
 /* Toolbar tạm ẩn (undo/redo vẫn hoạt động qua handlers, chỉ ẩn UI). */
 .chat-history-actions { display: none; }
 .chat-todos {
@@ -1563,6 +1502,27 @@ select.input { width: 100%; }
 
 .menu-item.danger:hover { background: rgba(255, 95, 86, 0.12); color: var(--red); }
 .project-row { position: relative; }
+
+/* Sidebar session rows (one row per session of a project) */
+.project-expand {
+  background: none; border: none; color: var(--text-faint);
+  cursor: pointer; padding: 0 4px; font-size: 10px;
+}
+.project-actions { display: flex; align-items: center; gap: 2px; }
+.session-list { list-style: none; margin: 0; padding: 0 0 4px 18px; display: flex; flex-direction: column; }
+.session-row {
+  display: flex; align-items: center; gap: 6px; padding: 3px 8px;
+  cursor: pointer; border-radius: var(--radius); color: var(--text-dim);
+}
+.session-row:hover { background: var(--bg-hover); color: var(--text); }
+.session-row.active { background: var(--bg-active); color: var(--text); }
+.session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); }
+.session-status-running { background: var(--green); }
+.session-status-waiting { background: var(--yellow); }
+.session-status-idle { background: var(--text-faint); }
+.session-menu { position: relative; }
+.session-menu-dropdown { position: absolute; right: 0; top: 100%; z-index: 1000; }
+.session-rename-input { position: absolute; right: 0; top: 100%; z-index: 1001; width: 160px; }
 
 /* Pane header menu */
 .pane-menu { position: relative; flex: 0 0 auto; }

@@ -400,6 +400,49 @@ export default function App() {
     setActiveSessionByPath(prev => (prev[path] === id ? prev : { ...prev, [path]: id }))
   }, [])
 
+  // Sidebar "+": every new session is a native meow session, and creating it also
+  // makes it the project's active one (main appends it last in `agents`).
+  const onNewSession = useCallback(async (path: string) => {
+    const created = await window.api.addAgent(path, {
+      name: 'New session', templateId: 'meow', cwd: path, kind: 'native'
+    }).catch(() => null)
+    if (!created) return
+    setRuntimes(prev => (prev[path]
+      ? { ...prev, [path]: { ...prev[path], ...created, git: created.git ?? prev[path].git } }
+      : { ...prev, [path]: created }))
+    activate(path)
+    const newId = created.workspace.agents[created.workspace.agents.length - 1]?.id
+    if (newId) setActiveSessionByPath(prev => (prev[path] === newId ? prev : { ...prev, [path]: newId }))
+    await refreshWorkspaces()
+  }, [activate, refreshWorkspaces])
+
+  const onSelectSession = useCallback((path: string, id: string) => {
+    if (activePathRef.current !== path) activate(path)
+    handleWorkspaceActiveChange(path, id)
+  }, [activate, handleWorkspaceActiveChange])
+
+  const onRenameSession = useCallback(async (path: string, id: string, name: string) => {
+    try {
+      await window.api.renameAgent(path, id, name)
+    } catch {
+      /* surface via sidebar later; still refresh list */
+    }
+    await refreshWorkspaces()
+  }, [refreshWorkspaces])
+
+  // A project must always own at least one session, so deleting the last one
+  // immediately replaces it with a fresh one.
+  const onDeleteSession = useCallback(async (path: string, id: string) => {
+    await removeAgent(path, id)
+    const list = await window.api.listWorkspaces()
+    const ws = list.find(w => w.projectPath === path)
+    if (ws && ws.sessions.length === 0) await onNewSession(path)
+  }, [removeAgent, onNewSession])
+
+  const onStopSession = useCallback((id: string) => {
+    void window.api.stopChat(id)
+  }, [])
+
   const activeRuntime = activePath ? (runtimes[activePath] ?? null) : null
 
   return (
@@ -408,12 +451,18 @@ export default function App() {
       <div className="app-body">
         <Sidebar
           workspaces={workspaces}
-          templates={templates}
           needsInput={needsInput}
           activePath={activePath}
+          runtimes={runtimes}
+          activeSessionByPath={activeSessionByPath}
           onOpen={openWorkspace}
           onRemove={removeWorkspace}
           onRefresh={refreshWorkspaces}
+          onNewSession={onNewSession}
+          onSelectSession={onSelectSession}
+          onRenameSession={onRenameSession}
+          onDeleteSession={onDeleteSession}
+          onStopSession={onStopSession}
           onOpenSettings={() => { setSettingsTab('agents'); setShowSettings(true) }}
           onOpenProviders={() => { setSettingsTab('providers'); setShowSettings(true) }}
           onOpenGit={path => void window.api.gitOpenViewer(path)}

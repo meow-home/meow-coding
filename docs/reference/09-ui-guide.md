@@ -34,7 +34,7 @@ main window's theme (see [9.6](#96-theming)).
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-Overlays: `SettingsDialog` (full-screen tabbed), `AddProjectDialog`, `AddAgentDialog`,
+Overlays: `SettingsDialog` (full-screen tabbed), `AddProjectDialog`,
 `BrowserDialog`, `InstallGuideDialog`, `UpdateDialog`, `BackgroundPanel`, `FileContextMenu`.
 
 ## 9.3 `App.tsx` — the state hub
@@ -68,7 +68,7 @@ Update-dialog policy: `update-available` and `downloaded` open the dialog; `erro
 |---|---|
 | `TitleBar.tsx` | Custom window chrome for frameless platforms |
 | `PopupTitleBar.tsx` | Same for the FileViewer/GitViewer popups (drag region + Linux min/max/close) |
-| `Sidebar.tsx` | Workspace list, add/remove, templates, open in editor, Providers entry, theme toggle. "Open Terminal" opens a real OS terminal window (via `openSystemTerminal`), not a tab. Projects with agents waiting on a permission/question prompt show a red count badge (and a dot on the collapsed-rail avatar) |
+| `Sidebar.tsx` | Project list; each row has an expand/collapse chevron and a `+` (new session). An expanded project lists its **sessions**: status dot (green = running, yellow = waiting on input, gray = idle), the active row highlighted, and a per-row `...` menu (Rename via inline input / Stop when running / Delete). The project `...` menu holds Open, Open in VS Code, Git, Open Folder, Open Terminal (a real OS terminal window via `openSystemTerminal`) and Remove. Deleting a project's last session immediately creates a fresh one — a project always shows ≥ 1 session. Expanded state persists in `localStorage` (`meow.sidebar.expanded`). Also: Providers entry and theme toggle in the footer menu. Projects with sessions waiting on a permission/question prompt show a red count badge (and a dot on the collapsed-rail avatar) |
 | `StatusBar.tsx` | Workspace name, git branch, running count, app version |
 | `SessionPanes.tsx` | Session layout of one project: **every session stays mounted** (inactive ones carry the `hidden` attribute, hidden by CSS and never unmounted) so a session that is not showing keeps streaming/answering. The active session is **controlled** by `App` (`activeId` + `onActiveChange`, remembered per project path so switching workspaces restores the session that was showing); it reports the first session when the stored id no longer exists |
 | `Pane.tsx` | One session: header + `ChatPanel`; background badge mode |
@@ -83,7 +83,7 @@ Update-dialog policy: `update-available` and `downloaded` open the dialog; `erro
 
 ### Dialogs
 
-`AddProjectDialog`, `AddAgentDialog`, `UpdateDialog`, `BrowserDialog` (bridge pairing + status),
+`AddProjectDialog`, `UpdateDialog`, `BrowserDialog` (bridge pairing + status),
 `InstallGuideDialog` (extension install steps), `ChallengeToast` (ChatGPT web challenge).
 
 ### Chat (`components/chat/`)

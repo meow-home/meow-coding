@@ -14,8 +14,10 @@ React renderer (no direct Node/Electron access).
   (project path → agent ids waiting on a permission/question prompt, for the sidebar
   badges) and handles `onActivateAgent` (OS notification click) by opening the target
   workspace and activating the waiting agent's session.
-- `src/components/` — `Sidebar`, `SessionPanes`, `Pane`, `PaneHeader`, `EmptyState`,
-  `StatusBar`, `TitleBar`, `BackgroundPanel`, `AddProjectDialog`, `AddAgentDialog`, `UpdateDialog`,
+- `src/components/` — `Sidebar` (project list; expand a project to see its session rows with a
+  status dot and a per-row rename/stop/delete menu, plus a `+` that creates and activates a
+  session), `SessionPanes`, `Pane`, `PaneHeader`, `EmptyState`,
+  `StatusBar`, `TitleBar`, `BackgroundPanel`, `AddProjectDialog`, `UpdateDialog`,
   `BrowserDialog`, `InstallGuideDialog`, `chat/`, `settings/`.
 - `src/styles.css` — VSCode Dark+ palette (default) with a Light+ variant activated via
   `[data-theme="light"]` on `<html>`. All colors use CSS variables so theme switching is a single

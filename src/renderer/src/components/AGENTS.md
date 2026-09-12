@@ -12,7 +12,7 @@ The React UI layer (renderer process). Everything the user sees: the sessions of
 | `Pane.tsx` | A single session pane: header + `ChatPanel`; background badge mode. |
 | `PaneHeader.tsx` | Pane title bar: status dot, git info, menu (inject/log/stop/restart/background/delete — the first four only on the parked PTY path); shows a confirm dialog before deleting a session. |
 | `ConfirmDialog.tsx` | Reusable confirmation dialog (title, message, confirm/cancel, danger styling). Rendered through a React portal into `document.body` so its `position: fixed` backdrop always covers the whole window, regardless of any transformed ancestor. |
-| `Sidebar.tsx` | Left sidebar: workspace list, add/remove, templates, open in editor. Shows a red badge (count) per project whose agents are waiting on a permission/question prompt (`needsInput` prop). |
+| `Sidebar.tsx` | Left sidebar: project list with an expand/collapse chevron per row. An expanded project lists its sessions — status dot (green running / yellow waiting / gray idle), active row highlighted, and a per-row `...` menu (Rename via inline input, Stop when running, Delete). The row `+` creates a native session and activates it; deleting a project's last session immediately creates a fresh one. Expanded state persists in `localStorage` (`meow.sidebar.expanded`). Shows a red badge (count) per project whose sessions are waiting on a permission/question prompt (`needsInput` prop). |
 | `StatusBar.tsx` | Bottom bar: workspace name, git branch, running count, app version (via IPC). |
 | `TitleBar.tsx` | Custom window chrome (min/max/close) for frameless platforms. |
 | `PopupTitleBar.tsx` | Popup window chrome for the FileViewer/GitViewer BrowserWindows: drag region + (Linux) custom min/max/close, mirroring the main TitleBar so popups match the app theme. |
@@ -23,7 +23,7 @@ The React UI layer (renderer process). Everything the user sees: the sessions of
 | `InstallGuideDialog.tsx` | Extension install steps for the browser bridge. |
 
 | `ChallengeToast.tsx` | ChatGPT web challenge toast. |
-| `AddAgentDialog.tsx` / `AddProjectDialog.tsx` | Creation dialogs. |
+| `AddProjectDialog.tsx` | Project creation dialog. |
 | `chat/` | The native-agent chat UI — see its own AGENTS.md. |
 | `settings/` | Settings dialog + tabs — see its own AGENTS.md. |
 
