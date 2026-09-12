@@ -1,5 +1,5 @@
 :root {
-  font-size: 14px;
+  font-size: 12px;
 
   /* typography — VSCode-style: UI sans + mono (terminal/data/labels).
      Display fonts (Bricolage/Instrument Sans) were never loaded via @font-face
@@ -8,11 +8,11 @@
   --font-display: var(--font-ui);
   --font-ui: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrainsMonoNerdFontMono', 'JetBrains Mono', 'JetBrainsMono Nerd Font Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-  --fs-xs: 0.8rem;     /* 12px */
-  --fs-sm: 0.8667rem;  /* 13px */
-  --fs-base: 0.9333rem;/* 14px */
-  --fs-md: 1rem;       /* 15px — body/default */
-  --fs-lg: 1.2rem;     /* 18px */
+  --fs-xs: 0.8rem;     /* 9.6px */
+  --fs-sm: 0.8667rem;  /* 10.4px */
+  --fs-base: 0.9333rem;/* 11.2px */
+  --fs-md: 1rem;       /* 12px — body/default */
+  --fs-lg: 1.2rem;     /* 14.4px */
   --fw-regular: 400;
   --fw-medium: 500;
   --fw-semibold: 600;
@@ -149,14 +149,14 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 :focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 
 /* Scrollbar — slim, rounded, accent on hover */
-*::-webkit-scrollbar { width: 12px; height: 12px; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {
   background: rgba(160, 170, 188, 0.5); border-radius: 999px;
-  border: 2px solid transparent; background-clip: padding-box;
-  min-height: 40px; min-width: 40px;
+  border: 1px solid transparent; background-clip: padding-box;
+  min-height: 32px; min-width: 32px;
 }
-*::-webkit-scrollbar-thumb:hover { background: var(--accent-strong); border: 2px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: var(--accent-strong); border: 1px solid transparent; background-clip: padding-box; }
 *::-webkit-scrollbar-corner { background: transparent; }
 
 .app { height: 100%; display: flex; flex-direction: column; }
@@ -1102,15 +1102,24 @@ select.input { width: 100%; }
 .chat-image-remove { appearance: none; background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 14px; line-height: 1; padding: 2px; border-radius: var(--radius-sm); }
 .chat-image-remove:hover { color: var(--red); }
 .context-footer-wrap { position: relative; display: inline-flex; }
-.context-footer { display: flex; gap: 4px; align-items: center; padding: 2px 2px 0; color: var(--text-dim); font-size: var(--fs-sm); font-family: var(--font-mono); font-variant-numeric: tabular-nums; cursor: default; }
 .context-footer-note { font-family: var(--font-ui); font-size: var(--fs-sm); color: var(--text-faint); }
-.context-footer-label { color: var(--text-faint); }
-.context-footer.warn { color: var(--yellow); }
-.context-footer.danger { color: var(--red); }
-/* Hover popover: session tokens in/out + cost, shown when the user hovers the
-   context readout. */
+
+/* Context ring — circular progress showing % of context remaining. The arc
+   depletes as the session fills up; color escalates via warn/danger levels. */
+.context-ring {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; cursor: default; color: var(--accent-strong);
+}
+.context-ring svg { display: block; transform: rotate(0deg); }
+.context-ring-track { stroke: var(--bg-active); }
+.context-ring-arc { stroke: currentColor; transition: stroke-dashoffset 0.3s ease, stroke 0.2s ease; }
+.context-ring.warn { color: var(--yellow); }
+.context-ring.danger { color: var(--red); }
+
+/* Hover popover: token totals, session tokens in/out + cost, shown when the user
+   hovers the context ring. Anchored to the right edge since the ring sits far right. */
 .context-footer-popover {
-  position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 100;
+  position: absolute; bottom: calc(100% + 6px); right: 0; left: auto; z-index: 100;
   display: none; min-width: 200px; padding: 8px 10px; flex-direction: column; gap: 6px;
   background: var(--bg-raised); border: 1px solid var(--hairline); border-radius: var(--radius);
   box-shadow: var(--shadow-3); font-family: var(--font-mono); font-size: var(--fs-sm);
@@ -1391,8 +1400,10 @@ select.input { width: 100%; }
   transition: border-color 120ms ease, background 120ms ease;
 }
 .dropdown-trigger:hover { background: var(--bg-input-hover); border-color: var(--accent-border); color: var(--text-strong); }
+/* Portaled to <body>; position (fixed + bottom/right) is set inline from the
+   trigger's rect. High z-index so it overlays all app chrome. */
 .dropdown-menu {
-  position: absolute; bottom: calc(100% + 4px); right: 0; z-index: 40;
+  z-index: 1000;
   background: var(--bg-raised); border: 1px solid var(--hairline);
   border-radius: var(--radius);
   box-shadow: var(--shadow-3);

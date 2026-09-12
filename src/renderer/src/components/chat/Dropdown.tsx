@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
-import type { ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import type { CSSProperties, ReactNode } from 'react'
 
 interface DropdownProps {
   trigger: ReactNode
@@ -12,18 +13,47 @@ interface DropdownProps {
   children: ReactNode
 }
 
-// Reusable popup dropdown: button trigger + absolutely positioned menu.
-// Closes on outside mousedown (containment check) and on Escape.
+// Reusable popup dropdown: button trigger + menu portaled to <body> so it
+// overlays the whole app and is never clipped by an ancestor's overflow or
+// stacking context. The menu opens upward, right-aligned to the trigger.
+// Closes on outside mousedown (checks both trigger and portaled menu) and Escape.
 export default function Dropdown({
   trigger, open, onToggle, onClose, title, ariaLabel, menuClassName = '', children
 }: DropdownProps) {
-  const rootRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<CSSProperties | null>(null)
+
+  // Position the portaled menu from the trigger's viewport rect; keep it in
+  // sync while open as the layout scrolls or resizes.
+  useLayoutEffect(() => {
+    if (!open) return
+    const place = () => {
+      const el = triggerRef.current
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      setPos({
+        position: 'fixed',
+        bottom: window.innerHeight - r.top + 4,
+        right: window.innerWidth - r.right
+      })
+    }
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [open])
 
   useEffect(() => {
     if (!open) return
     const onDocClick = (e: MouseEvent) => {
       const target = e.target as Node
-      if (!rootRef.current?.contains(target)) onClose()
+      if (triggerRef.current?.contains(target)) return
+      if (menuRef.current?.contains(target)) return
+      onClose()
     }
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -37,8 +67,9 @@ export default function Dropdown({
   }, [open, onClose])
 
   return (
-    <div className="dropdown" ref={rootRef}>
+    <div className="dropdown">
       <button
+        ref={triggerRef}
         className="dropdown-trigger"
         title={title}
         aria-label={ariaLabel ?? title}
@@ -48,10 +79,11 @@ export default function Dropdown({
       >
         {trigger}
       </button>
-      {open && (
-        <div className={`dropdown-menu ${menuClassName}`.trim()}>
+      {open && pos && createPortal(
+        <div ref={menuRef} className={`dropdown-menu ${menuClassName}`.trim()} style={pos}>
           {children}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
