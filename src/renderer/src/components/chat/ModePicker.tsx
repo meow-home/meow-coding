@@ -25,10 +25,7 @@ export default function ModePicker({ value, onChange }: ModePickerProps) {
       ariaLabel="Mode"
       menuClassName="mode-menu"
       trigger={
-        <>
-          <span className={`mode-label mode-${active.value}`}>{active.label}</span>
-          <span className="mode-caret">▾</span>
-        </>
+        <span className={`mode-label mode-${active.value}`}>{active.label}</span>
       }
     >
       <div className="mode-list">

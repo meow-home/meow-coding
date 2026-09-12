@@ -111,9 +111,17 @@ async function openProject(window: Page): Promise<void> {
   await window.locator('.project-row').click()
 }
 
-/** Computed transform of an element, as a matrix string. */
-function transformOf(page: Page, sel: string): Promise<string> {
-  return page.locator(sel).evaluate(e => getComputedStyle(e).transform)
+/**
+ * An element's rotation in degrees, derived from its computed transform matrix.
+ * Reading the angle (rather than comparing matrix strings) is robust to both the
+ * 120ms transition and Chrome's float serialization of rotate(180deg).
+ * No transform resolves to identity, i.e. 0 degrees.
+ */
+function rotationDeg(page: Page, sel: string): Promise<number> {
+  return page.locator(sel).evaluate(e => {
+    const m = new DOMMatrixReadOnly(getComputedStyle(e).transform)
+    return Math.round(Math.abs(Math.atan2(m.b, m.a) * 180 / Math.PI))
+  })
 }
 
 test('selector triggers carry one shared caret that rotates while open', async () => {
@@ -130,14 +138,12 @@ test('selector triggers carry one shared caret that rotates while open', async (
       const modeTrigger = window.getByRole('button', { name: 'Mode', exact: true })
       await expect(modeTrigger.locator('svg.dropdown-caret')).toHaveCount(1)
       await expect(modeTrigger).toHaveAttribute('aria-expanded', 'false')
-      const closed = await transformOf(window, '.dropdown-trigger .dropdown-caret')
+      expect(await rotationDeg(window, '.dropdown-trigger .dropdown-caret')).toBe(0)
       await modeTrigger.click()
       await expect(window.locator('.mode-menu')).toBeVisible()
       await expect(modeTrigger).toHaveAttribute('aria-expanded', 'true')
-      const opened = await transformOf(window, '.dropdown-trigger .dropdown-caret')
-      // rotate(180deg) on a square icon resolves to the inverted matrix.
-      expect(closed).toBe('matrix(1, 0, 0, 1, 0, 0)')
-      expect(opened).toBe('matrix(-1, 0, 0, -1, 0, 0)')
+      // Poll: the caret animates over 120ms, so the final angle is what matters.
+      await expect.poll(() => rotationDeg(window, '.dropdown-trigger .dropdown-caret')).toBe(180)
       await window.keyboard.press('Escape')
       await expect(modeTrigger).toHaveAttribute('aria-expanded', 'false')
 

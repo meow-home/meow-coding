@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { ChevronDown } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 
 interface DropdownProps {
@@ -78,6 +79,7 @@ export default function Dropdown({
         onClick={onToggle}
       >
         {trigger}
+        <ChevronDown size={14} className="dropdown-caret" aria-hidden="true" />
       </button>
       {open && pos && createPortal(
         <div ref={menuRef} className={`dropdown-menu ${menuClassName}`.trim()} style={pos}>

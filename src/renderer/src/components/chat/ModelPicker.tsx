@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import type { ModelRef } from '@shared/types'
 
 interface Props {
@@ -84,10 +85,12 @@ export default function ModelPicker({ agentId }: Props) {
       <button
         className="model-trigger"
         title="Switch model"
+        aria-haspopup="listbox"
+        aria-expanded={open}
         onClick={() => { refresh(); setSearch(''); setOpen(v => !v) }}
       >
         <span className="model-label">{label}</span>
-        <span className="model-caret">▾</span>
+        <ChevronDown size={14} className="dropdown-caret" aria-hidden="true" />
       </button>
       {open && (
         <div className="model-menu">

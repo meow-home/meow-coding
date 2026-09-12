@@ -54,10 +54,12 @@ export default function GitBranchSwitcher({ projectPath, branches, current, busy
         disabled={busy}
         onClick={() => setOpen(v => !v)}
         title="Switch branch"
+        aria-haspopup="listbox"
+        aria-expanded={open}
       >
         <GitBranch size={14} aria-hidden="true" />
         <span>{current ?? '(detached)'}</span>
-        <ChevronDown size={13} aria-hidden="true" />
+        <ChevronDown size={14} className="dropdown-caret" aria-hidden="true" />
       </button>
       {open && (
         <div className="git-branch-dropdown">

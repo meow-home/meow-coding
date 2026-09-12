@@ -1310,6 +1310,14 @@ select.input { width: 100%; }
   box-shadow: var(--shadow-3);
   padding: var(--menu-pad); display: flex; flex-direction: column; gap: 0;
 }
+/* The one trigger caret for every selector. Rotation is driven by aria-expanded
+   (set by Dropdown.tsx and by the standalone ModelPicker / GitBranchSwitcher
+   triggers) so no component tracks open-state for the caret. */
+.dropdown-caret {
+  color: var(--text-dim); flex: 0 0 auto;
+  transition: transform 120ms ease;
+}
+[aria-expanded="true"] .dropdown-caret { transform: rotate(180deg); }
 .variant-menu { min-width: 140px; }
 .variant-list { display: flex; flex-direction: column; gap: 0; }
 .variant-item {
@@ -1325,9 +1333,7 @@ select.input { width: 100%; }
 .variant-item.active { background: var(--bg-active); color: var(--accent); border-left-color: var(--accent); }
 .variant-check { color: var(--accent); flex: 0 0 auto; }
 .variant-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.variant-caret { color: var(--text-dim); font-size: var(--fs-sm); }
 .model-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.model-caret { color: var(--text-dim); font-size: var(--fs-sm); }
 .model-menu {
   position: absolute; bottom: calc(100% + 4px); right: 0; z-index: 40;
   width: 300px; max-height: 340px;
@@ -1371,7 +1377,6 @@ select.input { width: 100%; }
 .mode-item.mode-build.active { color: var(--accent); }
 .mode-item.mode-plan.active { color: var(--orange); }
 .mode-check { color: var(--accent); flex: 0 0 auto; }
-.mode-caret { color: var(--text-dim); font-size: var(--fs-sm); }
 .chat-mode-hint { font-size: var(--fs-base); color: var(--yellow); margin-right: 6px; }
 .chat-prompt-actions button.always { color: var(--accent); }
 .chat-prompt-actions button.selected { outline: 1px solid var(--accent); outline-offset: -1px; }

@@ -18,10 +18,7 @@ export default function VariantPicker({ variants, value, onChange }: VariantPick
       title="Model effort"
       menuClassName="variant-menu"
       trigger={
-        <>
-          <span className="variant-label">{value || 'Default'}</span>
-          <span className="variant-caret">▾</span>
-        </>
+        <span className="variant-label">{value || 'Default'}</span>
       }
     >
       <div className="variant-list">
