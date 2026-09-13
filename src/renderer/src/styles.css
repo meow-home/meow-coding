@@ -416,10 +416,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
 }
 /* Project = lightweight group header; actions reveal on hover / when current */
-/* Square rows: the project/session list is a dense tree, so the global
-   `* { border-radius }` must not round every hover/active highlight (the
-   right corners were clipped by `.sidebar`'s overflow anyway). */
-.project-row { display: flex; align-items: center; gap: 0.416667rem; padding: 0.25rem 0.666667rem; border-radius: 0; }
+.project-row { display: flex; align-items: center; gap: 0.416667rem; padding: 0.25rem 0.666667rem; border-radius: var(--radius); }
 .project-row:hover { background: var(--menu-hover); }
 /* The name + chevron share one flex button so the whole pair is the
    expand/collapse target; flex:1 + min-width:0 lets the name ellipsis. */
@@ -1571,7 +1568,7 @@ select.input { width: 100%; }
 /* Sidebar session rows (one row per session of a project) — indented so the
    ring sits under the project name */
 .session-list { list-style: none; margin: 0 0 0.5rem; padding: 0 0 0 0; display: flex; flex-direction: column; gap: 0.083333rem; }
-.session-row { display: flex; align-items: center; gap: 0.666667rem; padding: 0.25rem 0.666667rem; cursor: pointer; border-radius: 0; color: var(--text-dim); }
+.session-row { display: flex; align-items: center; gap: 0.666667rem; padding: 0.25rem 0.666667rem; cursor: pointer; border-radius: var(--radius); color: var(--text-dim); }
 .session-row:hover { background: var(--menu-hover); color: var(--text); }
 .session-row.active { background: var(--menu-active); color: var(--text); }
 .session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); }
@@ -2032,6 +2029,7 @@ select.input { width: 100%; }
 .files-side {
   flex: 0 0 20rem; min-width: 0; display: flex; flex-direction: column;
   border-right: 0.083333rem solid var(--hairline); background: var(--bg-sidebar);
+  border-radius: 0;
 }
 .files-filter {
   display: flex; align-items: center; gap: 0.5rem; flex: 0 0 auto;
@@ -2061,7 +2059,8 @@ select.input { width: 100%; }
   padding: 0.333333rem; overflow-x: auto; overflow-y: hidden;
   /* A scrollbar would eat the 22px chip height — wheel/trackpad still scroll */
   scrollbar-width: none;
-  border-bottom: 0.083333rem solid var(--hairline); background: var(--bg-panel);
+  border-bottom: 0.083333rem solid var(--hairline); background: var(--bg-chat);
+  border-radius: 0;
 }
 .files-tabs::-webkit-scrollbar { display: none; }
 /* Transparent border on every tab (border-box) so the active one can show a
@@ -2086,7 +2085,7 @@ select.input { width: 100%; }
   border-radius: var(--radius-xs); padding: 0.166667rem;
 }
 .files-tab-close:hover { background: var(--bg-hover); color: var(--text-strong); }
-.files-content { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.files-content { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 0; }
 .files-empty {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 0.5rem; color: var(--text-faint); text-align: center; padding: 2rem;
