@@ -1,45 +1,26 @@
-# Sub-agents Tab BaseSelect Refactor Implementation Plan
+# Sub-agents Tab BaseSelect Alignment Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Refactor provider and model select dropdowns in `AgentsTab.tsx` to use the `BaseSelect` common component.
+**Goal:** Align sub-agent provider and model select dropdowns in `AgentsTab.tsx` and `styles.css` with standard `BaseSelect` layout and `.menu-item` styling.
 
-**Architecture:** Create an internal helper component `SingleSelect` inside `AgentsTab.tsx` built on top of `BaseSelect` and use it for both Provider and Model selection per subagent role.
+**Architecture:** Use standard `.menu-item`, `.menu-item-label`, and `.menu-item-check` classes inside `SingleSelect` in `AgentsTab.tsx`. Add `.submodel-fields .base-dropdown-container` flex rules in `styles.css` so that dropdowns stretch 50/50 evenly across rows.
 
-**Tech Stack:** React 19, TypeScript, Lucide React (`ChevronDown`, `Check`), `BaseSelect`.
+**Tech Stack:** React 19, TypeScript, CSS Variables, `BaseSelect`.
 
 ---
 
-### Task 1: Refactor AgentsTab.tsx to use BaseSelect
+### Task 1: Update SingleSelect in AgentsTab.tsx and submodel-fields styling in styles.css
 
 **Files:**
 - Modify: `src/renderer/src/components/settings/AgentsTab.tsx`
+- Modify: `src/renderer/src/styles.css`
 
-- [ ] **Step 1: Update AgentsTab.tsx implementation**
+- [ ] **Step 1: Update SingleSelect in AgentsTab.tsx**
 
-Replace native `<select>` controls in `AgentsTab.tsx` with a `SingleSelect` helper component wrapping `BaseSelect`.
+Update `SingleSelect` in `src/renderer/src/components/settings/AgentsTab.tsx` to use standard `.menu-item`, `.menu-item-label`, and `.menu-item-check` class names:
 
 ```tsx
-import { useState } from 'react'
-import { Check } from 'lucide-react'
-import type { AgentSettings, MeowSettings, ModelRef, SubagentType } from '@shared/types'
-import BaseSelect from '../common/BaseSelect'
-
-const SUBMODEL_ROLES = ['research', 'general', 'reviewer'] as const
-
-interface SingleSelectOption {
-  value: string
-  label: string
-}
-
-interface SingleSelectProps {
-  value: string
-  placeholder: string
-  disabled?: boolean
-  options: SingleSelectOption[]
-  onChange: (value: string) => void
-}
-
 function SingleSelect({ value, placeholder, disabled = false, options, onChange }: SingleSelectProps) {
   const [open, setOpen] = useState(false)
   const selectedOption = options.find(o => o.value === value)
@@ -61,14 +42,14 @@ function SingleSelect({ value, placeholder, disabled = false, options, onChange 
       align="left"
       trigger={<span className="select-value-label">{triggerLabel}</span>}
     >
-      <div className="select-options-list">
+      <div>
         {options.map(opt => {
           const isSelected = opt.value === value
           return (
             <button
               key={opt.value}
               type="button"
-              className={`dropdown-item select-item ${isSelected ? 'active' : ''}`}
+              className={`menu-item ${isSelected ? 'active' : ''}`}
               role="option"
               aria-selected={isSelected}
               onClick={() => {
@@ -87,97 +68,27 @@ function SingleSelect({ value, placeholder, disabled = false, options, onChange 
     </BaseSelect>
   )
 }
-
-interface Props {
-  agents: AgentSettings[]
-  providers: MeowSettings['providers']
-  subagentModels?: Partial<Record<SubagentType, ModelRef>>
-  onChangeAgents: (agents: AgentSettings[]) => void
-  onChangeSubagentModels: (models?: Partial<Record<SubagentType, ModelRef>>) => void
-}
-
-export default function AgentsTab({ providers, subagentModels, onChangeSubagentModels }: Props) {
-  const setRole = (role: SubagentType, ref: ModelRef | undefined) => {
-    const next = { ...(subagentModels ?? {}) }
-    if (ref) next[role] = ref
-    else delete next[role]
-    onChangeSubagentModels(Object.keys(next).length > 0 ? next : undefined)
-  }
-
-  return (
-    <div className="settings-tab agents-tab">
-      <div>
-        <p className="settings-hint">
-          Models used when the main session dispatches sub-agents. Leave a role empty to inherit the main session model.
-        </p>
-        <div className="subagents-grid">
-          {SUBMODEL_ROLES.map(role => {
-            const ref = subagentModels?.[role]
-            const provider = providers.find(p => p.id === ref?.provider)
-
-            const providerOptions: SingleSelectOption[] = [
-              { value: '', label: '(inherit main session model)' },
-              ...providers.map(p => ({ value: p.id, label: p.id }))
-            ]
-
-            const modelOptions: SingleSelectOption[] = (provider?.models ?? []).map(m => ({
-              value: m,
-              label: m
-            }))
-
-            return (
-              <div className="settings-row agents-row" key={role}>
-                <div className="agents-row-head">
-                  <span className="agent-name">{role}</span>
-                  {ref && (
-                    <button className="btn small" onClick={() => setRole(role, undefined)}>
-                      Use main session model
-                    </button>
-                  )}
-                </div>
-                <div className="submodel-fields">
-                  <SingleSelect
-                    value={ref?.provider ?? ''}
-                    placeholder="(inherit main session model)"
-                    options={providerOptions}
-                    onChange={pid =>
-                      setRole(
-                        role,
-                        pid
-                          ? {
-                              provider: pid,
-                              model: providers.find(p => p.id === pid)?.models[0] ?? ''
-                            }
-                          : undefined
-                      )
-                    }
-                  />
-                  <SingleSelect
-                    value={ref?.model ?? ''}
-                    placeholder={ref?.provider ? 'Select model...' : 'Select provider first'}
-                    disabled={!ref?.provider}
-                    options={modelOptions}
-                    onChange={m => setRole(role, { provider: ref!.provider, model: m })}
-                  />
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    </div>
-  )
-}
 ```
 
-- [ ] **Step 2: Typecheck & Test**
+- [ ] **Step 2: Add flex layout rules for submodel-fields in styles.css**
+
+In `src/renderer/src/styles.css`, update `.submodel-fields` section around line 1276:
+
+```css
+.submodel-fields { display: flex; flex-wrap: wrap; gap: 0.666667rem; }
+.submodel-fields .input { flex: 1; min-width: 0; }
+.submodel-fields .base-dropdown-container { flex: 1; min-width: 0; display: flex; }
+.submodel-fields .dropdown-trigger { width: 100%; justify-content: space-between; }
+```
+
+- [ ] **Step 3: Run Typecheck and Tests**
 
 Run: `npm run typecheck && npm test`
 Expected: PASS with 0 errors.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add src/renderer/src/components/settings/AgentsTab.tsx
-git commit -m "refactor(ui): update sub-agents tab dropdowns to use BaseSelect"
+git add src/renderer/src/components/settings/AgentsTab.tsx src/renderer/src/styles.css
+git commit -m "refactor(ui): align sub-agents BaseSelect layout and menu item styles"
 ```
