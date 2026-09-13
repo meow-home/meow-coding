@@ -1470,7 +1470,7 @@ select.input { width: 100%; }
 /* Sidebar menu dropdown */
 .sidebar-menu { position: relative; }
 .sidebar-menu-dropdown {
-  position: absolute; right: 0; top: calc(100% + 0.333333rem); z-index: 50;
+  position: absolute; right: 0; top: calc(100% + 0.333333rem); z-index: 2000;
   min-width: 14.166667rem; background: var(--bg-chat); border: 0.083333rem solid var(--hairline);
   border-radius: var(--menu-radius);
   padding: var(--menu-pad); display: flex; flex-direction: column; gap: 0;
@@ -1542,8 +1542,8 @@ select.input { width: 100%; }
 .session-menu .icon-btn:hover { background: var(--bg-active); color: var(--text); }
 /* Portaled to <body> (position:fixed set inline) so the sidebar's overflow
    never clips it; z-index rides above the app chrome. */
-.session-menu-dropdown { z-index: 1000; }
-.session-rename-input { position: absolute; right: 0; top: 100%; z-index: 1001; width: 13.333333rem; }
+.session-menu-dropdown { z-index: 2000; }
+.session-rename-input { position: absolute; right: 0; top: 100%; z-index: 2001; width: 13.333333rem; }
 
 /* Pane header menu */
 .pane-menu { position: relative; flex: 0 0 auto; }
