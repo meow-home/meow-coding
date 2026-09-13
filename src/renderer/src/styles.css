@@ -243,10 +243,10 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   transition: background 120ms ease, border-color 120ms ease;
 }
 .title-bar-toolbar-btn:hover { background: var(--bg-input-hover); border-color: var(--accent-dim); }
-.title-bar-controls { display: flex; height: 100%; -webkit-app-region: no-drag; }
+.title-bar-controls { display: flex; height: 100%; background: var(--bg); -webkit-app-region: no-drag; }
 .title-bar-btn {
   width: 3.833333rem; height: 100%; display: flex; align-items: center; justify-content: center;
-  background: transparent; border: none; color: var(--text); cursor: pointer; padding: 0;
+  background: var(--bg); border: none; color: var(--text); cursor: pointer; padding: 0;
   transition: background 120ms ease, color 120ms ease;
 }
 .title-bar-btn:hover { background: var(--bg-hover); color: var(--text-strong); }
