@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  ChevronDown, ChevronRight, Code, FolderOpen, FolderSymlink, GitBranch, Moon, MoreVertical,
+  ChevronDown, ChevronRight, Code, FolderOpen, FolderPlus, FolderSymlink, GitBranch, Moon, MoreVertical,
   PanelLeft, Pencil, Plus, RefreshCw, Server, Settings, Square, Sun, Terminal, Trash2, X
 } from 'lucide-react'
 import type { WorkspaceRuntime, WorkspaceSummary } from '@shared/types'
@@ -138,9 +138,29 @@ export default function Sidebar({
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       {error && <div className="sidebar-error">{error}</div>}
-      <div className="panel-head sidebar-head">
-        <span className="panel-title">Projects</span>
-        <button className="btn primary small" onClick={() => void handleAddProjectDirect()}>Add Project</button>
+      <div className="sidebar-header-actions">
+        <button
+          className="icon-btn"
+          title="New session"
+          aria-label="New session"
+          onClick={() => {
+            if (workspaces.length > 0) {
+              onNewSession(workspaces[0].projectPath)
+            } else {
+              void handleAddProjectDirect()
+            }
+          }}
+        >
+          <Plus size={14} aria-hidden="true" />
+        </button>
+        <button
+          className="icon-btn"
+          title="Add project folder"
+          aria-label="Add project folder"
+          onClick={() => void handleAddProjectDirect()}
+        >
+          <FolderPlus size={14} aria-hidden="true" />
+        </button>
       </div>
       {collapsed ? (
         <ul className="project-rail">

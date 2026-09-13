@@ -287,6 +287,14 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   overflow: hidden; /* container pinned: header/list/footer — list scrolls */
   border-radius: 0; /* flush edges — no rounded right border against the pane grid */
 }
+.sidebar-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.333333rem;
+  padding: 0.166667rem 0 0.5rem;
+  border-bottom: 0.083333rem solid var(--hairline);
+}
 .sidebar-toggle {
   -webkit-app-region: no-drag;
   flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
