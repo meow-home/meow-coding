@@ -1,9 +1,31 @@
 import { useState } from 'react'
-import { Check } from 'lucide-react'
+import { Check, Search, Cpu, ShieldCheck, RotateCcw } from 'lucide-react'
 import type { AgentSettings, MeowSettings, ModelRef, SubagentType } from '@shared/types'
 import BaseSelect from '../common/BaseSelect'
 
-const SUBMODEL_ROLES = ['research', 'general', 'reviewer'] as const
+const SUBAGENT_METADATA: Record<
+  SubagentType,
+  { name: string; icon: typeof Search; description: string; tag: string }
+> = {
+  research: {
+    name: 'Research',
+    icon: Search,
+    description: 'Explores project requirements, reads documentation, and inspects codebase structure',
+    tag: 'Search & Analysis'
+  },
+  general: {
+    name: 'General',
+    icon: Cpu,
+    description: 'Executes coding tasks, refactoring, code generation, and multi-step actions',
+    tag: 'Coding & Execution'
+  },
+  reviewer: {
+    name: 'Reviewer',
+    icon: ShieldCheck,
+    description: 'Audits diffs, checks safety guidelines, and verifies task completion quality',
+    tag: 'Audit & Safety'
+  }
+}
 
 interface SingleSelectOption {
   value: string
@@ -25,7 +47,7 @@ function SingleSelect({ value, placeholder, disabled = false, options, onChange 
 
   if (disabled) {
     return (
-      <button className="dropdown-trigger select-trigger" disabled type="button" title={placeholder}>
+      <button className="dropdown-trigger select-trigger subagent-select-disabled" disabled type="button" title={placeholder}>
         <span className="select-value-label">{placeholder}</span>
       </button>
     )
@@ -38,6 +60,7 @@ function SingleSelect({ value, placeholder, disabled = false, options, onChange 
       onClose={() => setOpen(false)}
       align="left"
       title={triggerLabel}
+      className="subagent-select-container"
       trigger={<span className="select-value-label">{triggerLabel}</span>}
     >
       <div>
@@ -85,39 +108,70 @@ export default function AgentsTab({ providers, subagentModels, onChangeSubagentM
 
   return (
     <div className="settings-tab agents-tab">
-      <div>
+      <div className="subagents-header">
         <p className="settings-hint">
-          Models used when the main session dispatches sub-agents. Leave a role empty to inherit the main session model.
+          Configure dedicated model overrides for parallel sub-agents. Unconfigured roles automatically inherit the active main session model.
         </p>
-        <div className="subagents-grid">
-          {SUBMODEL_ROLES.map(role => {
-            const ref = subagentModels?.[role]
-            const provider = providers.find(p => p.id === ref?.provider)
+      </div>
 
-            const providerOptions: SingleSelectOption[] = [
-              { value: '', label: '(inherit main session model)' },
-              ...providers.map(p => ({ value: p.id, label: p.id }))
-            ]
+      <div className="subagents-list">
+        {(['research', 'general', 'reviewer'] as SubagentType[]).map(role => {
+          const meta = SUBAGENT_METADATA[role]
+          const ref = subagentModels?.[role]
+          const isCustomized = Boolean(ref?.provider)
+          const provider = providers.find(p => p.id === ref?.provider)
 
-            const modelOptions: SingleSelectOption[] = (provider?.models ?? []).map(m => ({
-              value: m,
-              label: m
-            }))
+          const providerOptions: SingleSelectOption[] = [
+            { value: '', label: '(Inherit main session model)' },
+            ...providers.map(p => ({ value: p.id, label: p.id }))
+          ]
 
-            return (
-              <div className="settings-row agents-row" key={role}>
-                <div className="agents-row-head">
-                  <span className="agent-name">{role}</span>
-                  {ref && (
-                    <button className="btn small" onClick={() => setRole(role, undefined)}>
-                      Use main session model
+          const modelOptions: SingleSelectOption[] = (provider?.models ?? []).map(m => ({
+            value: m,
+            label: m
+          }))
+
+          const RoleIcon = meta.icon
+
+          return (
+            <div className={`subagent-card ${isCustomized ? 'customized' : ''}`} key={role}>
+              <div className="subagent-card-head">
+                <div className="subagent-role-info">
+                  <div className="subagent-icon-wrapper">
+                    <RoleIcon size={16} aria-hidden="true" />
+                  </div>
+                  <div className="subagent-title-group">
+                    <div className="subagent-title-row">
+                      <span className="subagent-role-name">{meta.name}</span>
+                      <span className="subagent-tag">{meta.tag}</span>
+                    </div>
+                    <span className="subagent-role-desc">{meta.description}</span>
+                  </div>
+                </div>
+
+                <div className="subagent-status-actions">
+                  <span className={`subagent-status-badge ${isCustomized ? 'badge-custom' : 'badge-inherit'}`}>
+                    {isCustomized ? 'Custom Model' : 'Inherits Main'}
+                  </span>
+                  {isCustomized && (
+                    <button
+                      type="button"
+                      className="btn icon-only ghost subagent-reset-btn"
+                      title="Reset to main session model"
+                      onClick={() => setRole(role, undefined)}
+                    >
+                      <RotateCcw size={13} aria-hidden="true" />
                     </button>
                   )}
                 </div>
-                <div className="submodel-fields">
+              </div>
+
+              <div className="subagent-card-body">
+                <div className="subagent-field-group">
+                  <label className="subagent-field-label">Provider</label>
                   <SingleSelect
                     value={ref?.provider ?? ''}
-                    placeholder="(inherit main session model)"
+                    placeholder="(Inherit main session model)"
                     options={providerOptions}
                     onChange={pid =>
                       setRole(
@@ -131,6 +185,10 @@ export default function AgentsTab({ providers, subagentModels, onChangeSubagentM
                       )
                     }
                   />
+                </div>
+
+                <div className="subagent-field-group">
+                  <label className="subagent-field-label">Model</label>
                   <SingleSelect
                     value={ref?.model ?? ''}
                     placeholder={ref?.provider ? 'Select model...' : 'Select provider first'}
@@ -140,9 +198,9 @@ export default function AgentsTab({ providers, subagentModels, onChangeSubagentM
                   />
                 </div>
               </div>
-            )
-          })}
-        </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

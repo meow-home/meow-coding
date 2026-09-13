@@ -20,6 +20,8 @@ export interface BaseDropdownProps {
   onOpenChange?: (open: boolean) => void
   placement?: DropdownPlacement
   offset?: number
+  containerClassName?: string
+  containerStyle?: CSSProperties
   menuClassName?: string
   menuStyle?: CSSProperties
   children: ReactNode
@@ -98,6 +100,8 @@ export default function BaseDropdown({
   onOpenChange,
   placement = 'bottom-start',
   offset = 4,
+  containerClassName = '',
+  containerStyle,
   menuClassName = '',
   menuStyle = {},
   children,
@@ -169,14 +173,18 @@ export default function BaseDropdown({
   }, [isOpen, closeOnOutsideClick, closeOnEscape])
 
   return (
-    <div className="base-dropdown-container" ref={triggerRef} style={{ display: 'inline-flex' }}>
+    <div
+      className={`base-dropdown-container ${containerClassName}`.trim()}
+      ref={triggerRef}
+      style={containerStyle}
+    >
       {typeof trigger === 'function' ? trigger({ open: isOpen, toggle }) : (
         <div
           onClick={(e) => {
             e.stopPropagation()
             toggle()
           }}
-          style={{ display: 'inline-flex', cursor: 'pointer' }}
+          className="base-dropdown-trigger-wrapper"
         >
           {trigger}
         </div>

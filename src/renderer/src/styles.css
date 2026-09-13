@@ -1848,19 +1848,8 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .provider-back-btn:hover { text-decoration: underline; }
 
 .provider-type-select-container { width: 100%; }
-.provider-type-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  background: var(--bg-input);
-  border: 0.083333rem solid var(--hairline);
-  border-radius: var(--radius);
-  font-size: var(--fs-sm);
-  color: var(--text-strong);
-  cursor: pointer;
-}
+.provider-type-select-container .dropdown-trigger { width: 100%; max-width: none; justify-content: space-between; }
+.provider-type-menu { display: flex; flex-direction: column; }
 .provider-type-menu-content { display: flex; flex-direction: column; gap: 0.1rem; text-align: left; }
 .provider-type-menu-title { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--text-strong); }
 .provider-type-menu-hint { font-size: var(--fs-xs); color: var(--text-dim); }

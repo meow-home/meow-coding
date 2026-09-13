@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { Server, Globe, Terminal, Plus, RefreshCw, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react'
 import type { McpServerConfig, McpServerStatus } from '@shared/types'
-import Modal from './Modal'
+import BaseModal from '../common/BaseModal'
 
 interface Props {
   mcp: Record<string, McpServerConfig>
@@ -11,6 +12,7 @@ interface Props {
 
 export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
   const [adding, setAdding] = useState(false)
+  const [serverType, setServerType] = useState<'command' | 'url'>('command')
   const [newName, setNewName] = useState('')
   const [newUrl, setNewUrl] = useState('')
   const [newCommand, setNewCommand] = useState('')
@@ -36,6 +38,7 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
     setNewUrl('')
     setNewCommand('')
     setNewArgs('')
+    setServerType('command')
     setAdding(true)
   }
 
@@ -43,10 +46,13 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
     const name = newName.trim()
     if (!name || mcp[name]) return
     const cfg: McpServerConfig = {}
-    if (newUrl.trim()) cfg.url = newUrl.trim()
-    Object.assign(cfg, splitCommand(newCommand))
-    const args = newArgs.split(' ').map(a => a.trim()).filter(Boolean)
-    if (args.length > 0) cfg.args = args
+    if (serverType === 'url' && newUrl.trim()) {
+      cfg.url = newUrl.trim()
+    } else {
+      Object.assign(cfg, splitCommand(newCommand))
+      const args = newArgs.split(' ').map(a => a.trim()).filter(Boolean)
+      if (args.length > 0) cfg.args = args
+    }
     onChange({ ...mcp, [name]: cfg })
     setAdding(false)
   }
@@ -69,111 +75,234 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
     }
   }
 
+  const serverCount = Object.keys(mcp).length
+  const connectedCount = status.filter(s => s.status === 'connected').length
+
   return (
     <div className="settings-tab mcp-tab">
-      <div className="mcp-head">
-        <p className="settings-hint">
-          MCP servers. Each server is a stdio command or an HTTP URL. Changes apply after Save.
-        </p>
+      <div className="mcp-header">
+        <div className="mcp-header-info">
+          <p className="settings-hint">
+            Model Context Protocol (MCP) servers extend agent capabilities with external tools, APIs, and services via stdio commands or HTTP endpoints.
+          </p>
+          {serverCount > 0 && (
+            <div className="mcp-summary-bar">
+              <div className="summary-pill badge-allow">
+                <CheckCircle2 size={13} />
+                <span>{connectedCount} / {serverCount} Connected</span>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="mcp-head-actions">
-          <button className="btn small" onClick={() => void testConnections()} disabled={testing || Object.keys(mcp).length === 0}>
-            {testing ? 'Testing…' : 'Test connection'}
+          <button
+            type="button"
+            className="btn small"
+            onClick={() => void testConnections()}
+            disabled={testing || serverCount === 0}
+          >
+            <RefreshCw size={13} className={testing ? 'spin' : ''} aria-hidden="true" />
+            <span>{testing ? 'Testing...' : 'Test Connections'}</span>
           </button>
-          <button className="btn primary small" onClick={openAdd}>+ Add server</button>
+          <button type="button" className="btn primary small" onClick={openAdd}>
+            <Plus size={14} aria-hidden="true" />
+            <span>Add Server</span>
+          </button>
         </div>
       </div>
-      {Object.keys(mcp).length > 0 && (
+
+      {serverCount === 0 ? (
+        <div className="mcp-empty-card">
+          <div className="mcp-empty-icon">
+            <Server size={24} aria-hidden="true" />
+          </div>
+          <div className="mcp-empty-text">
+            <h4>No MCP Servers Configured</h4>
+            <p>Connect a stdio command (e.g. npx @playwright/mcp) or HTTP endpoint to equip agent tools.</p>
+          </div>
+          <button type="button" className="btn primary small" onClick={openAdd}>
+            <Plus size={14} aria-hidden="true" />
+            <span>Add your first server</span>
+          </button>
+        </div>
+      ) : (
         <div className="mcp-grid">
           {Object.entries(mcp).map(([name, cfg]) => {
             const st = statusFor(name)
+            const isConnected = st?.status === 'connected'
+            const isHttp = Boolean(cfg.url)
+            const TypeIcon = isHttp ? Globe : Terminal
+
             return (
-              <div className="mcp-row" key={name}>
-                <div className="mcp-row-head">
-                  <span className={`mcp-dot ${st?.status ?? 'error'}`} />
-                  <span className="mcp-name">{name}</span>
-                  {st && (
-                    <span className="mcp-tools">
-                      {st.status === 'connected' ? `${st.tools.length} tool(s)` : 'failed'}
+              <div className="mcp-card" key={name}>
+                <div className="mcp-card-head">
+                  <div className="mcp-title-group">
+                    <div className="mcp-icon-badge">
+                      <TypeIcon size={15} aria-hidden="true" />
+                    </div>
+                    <div className="mcp-name-wrapper">
+                      <span className="mcp-name">{name}</span>
+                      <span className="mcp-type-tag">{isHttp ? 'HTTP / SSE' : 'Stdio Command'}</span>
+                    </div>
+                  </div>
+
+                  <div className="mcp-status-actions">
+                    <span className={`mcp-status-chip ${isConnected ? 'status-connected' : 'status-failed'}`}>
+                      <span className={`mcp-dot ${st?.status ?? 'error'}`} />
+                      <span>
+                        {isConnected
+                          ? `${st.tools.length} tool${st.tools.length === 1 ? '' : 's'}`
+                          : 'Disconnected'}
+                      </span>
                     </span>
-                  )}
-                  <button className="btn small" onClick={() => removeServer(name)}>Remove</button>
+                    <button
+                      type="button"
+                      className="icon-btn danger"
+                      title="Remove server"
+                      onClick={() => removeServer(name)}
+                    >
+                      <Trash2 size={15} aria-hidden="true" />
+                    </button>
+                  </div>
                 </div>
-                {st?.error && <div className="mcp-error">{st.error}</div>}
-                <div className="mcp-fields">
-                  <input
-                    className="input"
-                    placeholder="url (e.g. http://localhost:3000/mcp)"
-                    value={cfg.url ?? ''}
-                    onChange={e => updateServer(name, { url: e.target.value })}
-                  />
-                  <input
-                    className="input"
-                    placeholder="command (e.g. npx @playwright/mcp)"
-                    value={cfg.command ?? ''}
-                    onChange={e => updateServer(name, splitCommand(e.target.value))}
-                  />
-                  <input
-                    className="input"
-                    placeholder="args (space separated)"
-                    value={cfg.args?.join(' ') ?? ''}
-                    onChange={e => updateServer(name, { args: e.target.value.split(' ').filter(Boolean) })}
-                  />
+
+                {st?.error && (
+                  <div className="mcp-error-box">
+                    <AlertCircle size={14} className="mcp-error-icon" aria-hidden="true" />
+                    <span className="mcp-error-text">{st.error}</span>
+                  </div>
+                )}
+
+                <div className="mcp-fields-grid">
+                  {isHttp ? (
+                    <div className="mcp-field-item full-width">
+                      <label className="mcp-field-label">URL Endpoint</label>
+                      <input
+                        className="input"
+                        placeholder="http://localhost:3000/mcp"
+                        value={cfg.url ?? ''}
+                        onChange={e => updateServer(name, { url: e.target.value })}
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mcp-field-item">
+                        <label className="mcp-field-label">Command</label>
+                        <input
+                          className="input"
+                          placeholder="e.g. npx @playwright/mcp"
+                          value={cfg.command ?? ''}
+                          onChange={e => updateServer(name, splitCommand(e.target.value))}
+                        />
+                      </div>
+                      <div className="mcp-field-item">
+                        <label className="mcp-field-label">Arguments</label>
+                        <input
+                          className="input"
+                          placeholder="space separated arguments"
+                          value={cfg.args?.join(' ') ?? ''}
+                          onChange={e =>
+                            updateServer(name, { args: e.target.value.split(' ').filter(Boolean) })
+                          }
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )
           })}
         </div>
       )}
+
       {adding && (
-        <Modal
-          title="Add MCP server"
-          onClose={() => setAdding(false)}
-          onSubmit={addServer}
-          submitLabel="Add"
-          submitDisabled={!newName.trim()}
-        >
-          <div className="settings-field">
-            <label className="label" htmlFor="mcp-name">Name</label>
-            <input
-              id="mcp-name"
-              className="input"
-              placeholder="server name (e.g. playwright)"
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              autoFocus
-            />
-          </div>
-          <div className="settings-field">
-            <label className="label" htmlFor="mcp-url">URL</label>
-            <input
-              id="mcp-url"
-              className="input"
-              placeholder="http://localhost:3000/mcp"
-              value={newUrl}
-              onChange={e => setNewUrl(e.target.value)}
-            />
-          </div>
-          <div className="settings-field">
-            <label className="label" htmlFor="mcp-command">Command</label>
-            <input
-              id="mcp-command"
-              className="input"
-              placeholder="e.g. npx @playwright/mcp"
-              value={newCommand}
-              onChange={e => setNewCommand(e.target.value)}
-            />
-          </div>
-          <div className="settings-field">
-            <label className="label" htmlFor="mcp-args">Args</label>
-            <input
-              id="mcp-args"
-              className="input"
-              placeholder="space separated (optional)"
-              value={newArgs}
-              onChange={e => setNewArgs(e.target.value)}
-            />
-          </div>
-        </Modal>
+        <BaseModal size="md" onClose={() => setAdding(false)}>
+          <BaseModal.Header title="Add MCP Server" />
+          <BaseModal.Body>
+            <div className="mcp-modal-content">
+              <div className="mcp-type-selector">
+                <button
+                  type="button"
+                  className={`mcp-type-btn ${serverType === 'command' ? 'active' : ''}`}
+                  onClick={() => setServerType('command')}
+                >
+                  <Terminal size={15} />
+                  <span>Stdio Command</span>
+                </button>
+                <button
+                  type="button"
+                  className={`mcp-type-btn ${serverType === 'url' ? 'active' : ''}`}
+                  onClick={() => setServerType('url')}
+                >
+                  <Globe size={15} />
+                  <span>HTTP / SSE Endpoint</span>
+                </button>
+              </div>
+
+              <div className="settings-field">
+                <label className="label" htmlFor="mcp-name">Server Name</label>
+                <input
+                  id="mcp-name"
+                  className="input"
+                  placeholder="e.g. playwright, katalon, github"
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              {serverType === 'url' ? (
+                <div className="settings-field">
+                  <label className="label" htmlFor="mcp-url">HTTP Endpoint URL</label>
+                  <input
+                    id="mcp-url"
+                    className="input"
+                    placeholder="http://localhost:3000/mcp"
+                    value={newUrl}
+                    onChange={e => setNewUrl(e.target.value)}
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="settings-field">
+                    <label className="label" htmlFor="mcp-command">Executable Command</label>
+                    <input
+                      id="mcp-command"
+                      className="input"
+                      placeholder="e.g. npx @playwright/mcp"
+                      value={newCommand}
+                      onChange={e => setNewCommand(e.target.value)}
+                    />
+                  </div>
+                  <div className="settings-field">
+                    <label className="label" htmlFor="mcp-args">Arguments</label>
+                    <input
+                      id="mcp-args"
+                      className="input"
+                      placeholder="space separated arguments (optional)"
+                      value={newArgs}
+                      onChange={e => setNewArgs(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          </BaseModal.Body>
+          <BaseModal.Footer>
+            <button type="button" className="btn" onClick={() => setAdding(false)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn primary"
+              disabled={!newName.trim() || (serverType === 'url' ? !newUrl.trim() : !newCommand.trim())}
+              onClick={addServer}
+            >
+              Add Server
+            </button>
+          </BaseModal.Footer>
+        </BaseModal>
       )}
     </div>
   )

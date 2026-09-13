@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { Gauge, Bell, Sliders, ChevronDown, ChevronRight, Zap, FileText, Cpu, BellRing } from 'lucide-react'
 import type { CompactionSettings, NotificationsSettings, ToolOutputSettings } from '@shared/types'
 
 interface Props {
@@ -37,7 +39,17 @@ function displaySteps(n: number): string {
 // import main-process token helpers, so placeholders show the token count.
 const RATIO = { buffer: 0.15, keepTokens: 0.06, toolOutputMaxChars: 0.015 }
 
-export default function ContextTab({ maxSteps, compaction, toolOutput, notifications, mcpOutput, resolvedContextTokens, onChange }: Props) {
+export default function ContextTab({
+  maxSteps,
+  compaction,
+  toolOutput,
+  notifications,
+  mcpOutput,
+  resolvedContextTokens,
+  onChange
+}: Props) {
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+
   const setMaxSteps = (value: string) =>
     onChange({ maxSteps: num(value, maxSteps), compaction, toolOutput, notifications, mcpOutput })
   const setComp = (patch: Partial<CompactionSettings>) =>
@@ -50,150 +62,219 @@ export default function ContextTab({ maxSteps, compaction, toolOutput, notificat
     onChange({ maxSteps, compaction, toolOutput, notifications, mcpOutput: { ...mcpOutput, ...patch } })
 
   const ctx = typeof resolvedContextTokens === 'number' && resolvedContextTokens > 0 ? resolvedContextTokens : null
-  const auto = (key: keyof typeof RATIO) => ctx ? `auto ≈ ${Math.round(ctx * RATIO[key])} tokens` : 'auto'
+  const auto = (key: keyof typeof RATIO) => (ctx ? `auto ≈ ${Math.round(ctx * RATIO[key])} tokens` : 'auto')
 
   return (
     <div className="settings-tab context-tab">
-      <section className="settings-section">
-        <h4 className="settings-section-header">Limits</h4>
-        <div className="settings-field">
-          <label className="label">Max steps per turn</label>
-          <input
-            className="input"
-            type="number"
-            min={1}
-            value={displaySteps(maxSteps)}
-            placeholder="unlimited"
-            onChange={e => setMaxSteps(e.target.value)}
-          />
-          <p className="settings-hint">
-            Maximum tool steps before the session is forced to wrap up (empty = unlimited).
-          </p>
+      <p className="settings-hint">
+        Manage agent context limits, auto-compaction boundaries, tool result previews, and desktop notifications.
+      </p>
+
+      {/* Card 1: Primary Limits */}
+      <div className="context-card">
+        <div className="context-card-head">
+          <div className="context-icon-badge">
+            <Gauge size={16} aria-hidden="true" />
+          </div>
+          <div className="context-title-group">
+            <h4 className="context-card-title">Session & Compaction Limits</h4>
+            <p className="context-card-desc">Configure tool execution steps and token thresholds for active sessions.</p>
+          </div>
         </div>
-        <div className="settings-field">
-          <label className="settings-check">
+
+        <div className="context-card-body">
+          <div className="context-fields-grid">
+            <div className="context-field-item">
+              <label className="context-field-label">Max steps per turn</label>
+              <input
+                className="input"
+                type="number"
+                min={1}
+                value={displaySteps(maxSteps)}
+                placeholder="unlimited"
+                onChange={e => setMaxSteps(e.target.value)}
+              />
+              <span className="context-field-hint">Maximum tool steps per turn (empty = unlimited).</span>
+            </div>
+
+            <div className="context-field-item">
+              <label className="context-field-label">MCP output max tokens</label>
+              <input
+                className="input"
+                type="number"
+                min={1000}
+                value={mcpOutput?.maxTokens ?? ''}
+                placeholder="25000"
+                onChange={e => setMcpOutput({ maxTokens: numOrUndefined(e.target.value) })}
+              />
+              <span className="context-field-hint">Tool results above limit write to file preview. Empty = 25000.</span>
+            </div>
+          </div>
+
+          <div className="context-check-row" onClick={() => setComp({ auto: !compaction.auto })}>
+            <div className="context-check-info">
+              <span className="context-check-title">Auto-compact context</span>
+              <span className="context-check-desc">Automatically prune older messages when context limit is approached.</span>
+            </div>
             <input
               type="checkbox"
+              className="context-checkbox"
               checked={compaction.auto}
-              onChange={e => setComp({ auto: e.target.checked })}
+              onChange={e => e.stopPropagation()}
             />
-            Auto-compact context when approaching the limit
-          </label>
+          </div>
         </div>
-        <div className="settings-field">
-          <label className="label">MCP output max tokens</label>
-          <input
-            className="input"
-            type="number"
-            min={1000}
-            value={mcpOutput?.maxTokens ?? ''}
-            placeholder="25000"
-            onChange={e => setMcpOutput({ maxTokens: numOrUndefined(e.target.value) })}
-          />
-          <p className="settings-hint">
-            MCP tool results larger than this are written to a file and replaced by a preview. Empty = 25000.
-          </p>
-        </div>
-      </section>
+      </div>
 
-      <details className="settings-section">
-        <summary className="settings-section-header">Advanced (compaction tuning — empty = auto)</summary>
-        <div className="settings-field">
-          <label className="label">Buffer (tokens)</label>
-          <input
-            className="input"
-            type="number"
-            min={1000}
-            value={compaction.buffer ?? ''}
-            placeholder={auto('buffer')}
-            onChange={e => setComp({ buffer: numOrUndefined(e.target.value) })}
-          />
-          <p className="settings-hint">Tokens reserved for the model output before compaction triggers. Empty = auto.</p>
+      {/* Card 2: Notifications */}
+      <div className="context-card">
+        <div className="context-card-head">
+          <div className="context-icon-badge">
+            <Bell size={16} aria-hidden="true" />
+          </div>
+          <div className="context-title-group">
+            <h4 className="context-card-title">Notifications</h4>
+            <p className="context-card-desc">Choose when desktop alerts appear for background agent activity.</p>
+          </div>
         </div>
-        <div className="settings-field">
-          <label className="label">Keep recent tokens</label>
-          <input
-            className="input"
-            type="number"
-            min={1000}
-            value={compaction.keepTokens ?? ''}
-            placeholder={auto('keepTokens')}
-            onChange={e => setComp({ keepTokens: numOrUndefined(e.target.value) })}
-          />
-          <p className="settings-hint">Tokens of the recent tail kept verbatim during compaction. Empty = auto.</p>
-        </div>
-        <div className="settings-field">
-          <label className="label">Tail turns</label>
-          <input
-            className="input"
-            type="number"
-            min={0}
-            value={compaction.tailTurns}
-            onChange={e => setComp({ tailTurns: num(e.target.value, compaction.tailTurns) })}
-          />
-          <p className="settings-hint">Recent turns kept verbatim during compaction.</p>
-        </div>
-        <div className="settings-field">
-          <label className="label">Tool output max chars</label>
-          <input
-            className="input"
-            type="number"
-            min={100}
-            value={compaction.toolOutputMaxChars ?? ''}
-            placeholder={auto('toolOutputMaxChars')}
-            onChange={e => setComp({ toolOutputMaxChars: numOrUndefined(e.target.value) })}
-          />
-          <p className="settings-hint">Tool results sent to the model are truncated to this many characters. Empty = auto.</p>
-        </div>
-        <div className="settings-field">
-          <label className="label">Tool output max bytes</label>
-          <input
-            className="input"
-            type="number"
-            min={1000}
-            value={toolOutput.maxBytes}
-            onChange={e => setToolOutput({ maxBytes: num(e.target.value, toolOutput.maxBytes) })}
-          />
-          <p className="settings-hint">
-            Tool results larger than this are written to a file and replaced by a head/tail preview.
-          </p>
-        </div>
-        <div className="settings-field">
-          <label className="label">Tool output max lines</label>
-          <input
-            className="input"
-            type="number"
-            min={100}
-            value={toolOutput.maxLines}
-            onChange={e => setToolOutput({ maxLines: num(e.target.value, toolOutput.maxLines) })}
-          />
-          <p className="settings-hint">Maximum lines kept in the tool-result preview.</p>
-        </div>
-      </details>
 
-      <section className="settings-section">
-        <h4 className="settings-section-header">Notifications</h4>
-        <div className="settings-field">
-          <label className="settings-check">
+        <div className="context-card-body">
+          <div
+            className="context-check-row"
+            onClick={() => setNotifications({ needsInput: !notifications.needsInput })}
+          >
+            <div className="context-check-info">
+              <span className="context-check-title">Notify when input is required</span>
+              <span className="context-check-desc">Trigger notification when an agent pauses for user confirmation or input.</span>
+            </div>
             <input
               type="checkbox"
+              className="context-checkbox"
               checked={notifications.needsInput}
-              onChange={e => setNotifications({ needsInput: e.target.checked })}
+              onChange={e => e.stopPropagation()}
             />
-            Notify when a session needs input
-          </label>
-        </div>
-        <div className="settings-field">
-          <label className="settings-check">
+          </div>
+
+          <div
+            className="context-check-row"
+            onClick={() => setNotifications({ onDone: !notifications.onDone })}
+          >
+            <div className="context-check-info">
+              <span className="context-check-title">Notify on completion or error</span>
+              <span className="context-check-desc">Send alert when an agent finishes running or encounters an unhandled error.</span>
+            </div>
             <input
               type="checkbox"
+              className="context-checkbox"
               checked={notifications.onDone}
-              onChange={e => setNotifications({ onDone: e.target.checked })}
+              onChange={e => e.stopPropagation()}
             />
-            Notify when a turn finishes or errors
-          </label>
+          </div>
         </div>
-      </section>
+      </div>
+
+      {/* Card 3: Advanced Compaction Tuning */}
+      <div className="context-card">
+        <div
+          className="context-card-head clickable"
+          onClick={() => setAdvancedOpen(prev => !prev)}
+        >
+          <div className="context-icon-badge">
+            <Sliders size={16} aria-hidden="true" />
+          </div>
+          <div className="context-title-group">
+            <div className="context-title-row">
+              <h4 className="context-card-title">Advanced Compaction Tuning</h4>
+              <span className="context-tag">Optional</span>
+            </div>
+            <p className="context-card-desc">Fine-tune buffer allocations, tail turns, and tool result truncations (empty = auto).</p>
+          </div>
+          <button type="button" className="icon-btn" aria-label="Toggle advanced settings">
+            {advancedOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          </button>
+        </div>
+
+        {advancedOpen && (
+          <div className="context-card-body border-top">
+            <div className="context-fields-grid">
+              <div className="context-field-item">
+                <label className="context-field-label">Buffer (tokens)</label>
+                <input
+                  className="input"
+                  type="number"
+                  min={1000}
+                  value={compaction.buffer ?? ''}
+                  placeholder={auto('buffer')}
+                  onChange={e => setComp({ buffer: numOrUndefined(e.target.value) })}
+                />
+                <span className="context-field-hint">Tokens reserved before compaction triggers.</span>
+              </div>
+
+              <div className="context-field-item">
+                <label className="context-field-label">Keep recent tokens</label>
+                <input
+                  className="input"
+                  type="number"
+                  min={1000}
+                  value={compaction.keepTokens ?? ''}
+                  placeholder={auto('keepTokens')}
+                  onChange={e => setComp({ keepTokens: numOrUndefined(e.target.value) })}
+                />
+                <span className="context-field-hint">Recent tokens kept verbatim during compaction.</span>
+              </div>
+
+              <div className="context-field-item">
+                <label className="context-field-label">Tail turns</label>
+                <input
+                  className="input"
+                  type="number"
+                  min={0}
+                  value={compaction.tailTurns}
+                  onChange={e => setComp({ tailTurns: num(e.target.value, compaction.tailTurns) })}
+                />
+                <span className="context-field-hint">Recent turns kept verbatim during compaction.</span>
+              </div>
+
+              <div className="context-field-item">
+                <label className="context-field-label">Tool output max chars</label>
+                <input
+                  className="input"
+                  type="number"
+                  min={100}
+                  value={compaction.toolOutputMaxChars ?? ''}
+                  placeholder={auto('toolOutputMaxChars')}
+                  onChange={e => setComp({ toolOutputMaxChars: numOrUndefined(e.target.value) })}
+                />
+                <span className="context-field-hint">Tool results sent to model truncated to chars.</span>
+              </div>
+
+              <div className="context-field-item">
+                <label className="context-field-label">Tool output max bytes</label>
+                <input
+                  className="input"
+                  type="number"
+                  min={1000}
+                  value={toolOutput.maxBytes}
+                  onChange={e => setToolOutput({ maxBytes: num(e.target.value, toolOutput.maxBytes) })}
+                />
+                <span className="context-field-hint">Threshold for writing tool output preview file.</span>
+              </div>
+
+              <div className="context-field-item">
+                <label className="context-field-label">Tool output max lines</label>
+                <input
+                  className="input"
+                  type="number"
+                  min={100}
+                  value={toolOutput.maxLines}
+                  onChange={e => setToolOutput({ maxLines: num(e.target.value, toolOutput.maxLines) })}
+                />
+                <span className="context-field-hint">Maximum lines kept in tool-result preview.</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -59,14 +59,9 @@ function ProviderTypeSelect({
       onToggle={() => setOpen(v => !v)}
       onClose={() => setOpen(false)}
       className="provider-type-select-container"
-      trigger={
-        <div className="provider-type-trigger">
-          <span className="trigger-label">{current.label}</span>
-          <ChevronDown size={14} />
-        </div>
-      }
+      trigger={<span className="trigger-label">{current.label}</span>}
     >
-      <div role="listbox">
+      <div className="provider-type-menu">
         {PROVIDER_TYPE_OPTIONS.map(opt => {
           const isSelected = opt.value === value
           return (

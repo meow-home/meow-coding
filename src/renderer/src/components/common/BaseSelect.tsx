@@ -10,6 +10,7 @@ export interface BaseSelectProps {
   onClose: () => void
   title?: string
   ariaLabel?: string
+  className?: string
   menuClassName?: string
   align?: 'left' | 'right'
   children: ReactNode
@@ -22,8 +23,9 @@ export default function BaseSelect({
   onClose,
   title,
   ariaLabel,
+  className = '',
   menuClassName = '',
-  align = 'right',
+  align = 'left',
   children
 }: BaseSelectProps) {
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -37,7 +39,8 @@ export default function BaseSelect({
           else onClose()
         }
       }}
-      placement={align === 'left' ? 'top-start' : 'top-end'}
+      placement={align === 'left' ? 'bottom-start' : 'bottom-end'}
+      containerClassName={`base-select-container ${className}`.trim()}
       menuClassName={`dropdown-menu select-menu ${menuClassName}`.trim()}
       trigger={(
         <button
