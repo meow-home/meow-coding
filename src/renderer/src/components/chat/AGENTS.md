@@ -17,9 +17,9 @@ pushed from main over IPC (`window.api.onChatEvent`).
 | `DiffView.tsx` | Inline diff view for edit tool calls. |
 | `ContextFooter.tsx` | Context readout — a 24 × 24 icon-button ring (20px, 2.5px stroke, `--radius-xs`, `--bg-hover` on hover). Hover-only: no click handler. Hovering shows a popover with session tokens in/out + cost. |
 | `ModelPicker.tsx` | Model selector for the agent. |
-| `VariantPicker.tsx` | Variant selector (reasoning effort etc.) for the agent. |
-| `ModePicker.tsx` | Build/Plan mode selector (dropdown) in the composer footer. |
-| `Dropdown.tsx` | Reusable dropdown menu (used by ModelPicker/VariantPicker/ModePicker/AddMenu). `align` picks which menu edge lines up with the trigger: `'right'` by default (the sidebar rows and the composer's right-hand pickers hug their container's right edge), `'left'` for a trigger at the container's left edge — right-aligning the  add menu there pushed it 134px outside the composer card. |
+| `VariantPicker.tsx` | Variant selector (reasoning effort etc.) for the agent using BaseSelect. |
+| `ModePicker.tsx` | Build/Plan mode selector in the composer footer using BaseSelect. |
+| `Dropdown.tsx` | Reusable popup dropdown wrapping BaseDropdown for action menus (used by AddMenu). `align` picks which menu edge lines up with the trigger: `'right'` by default, `'left'` for a trigger at the container's left edge. |
 | `questionAnswer.ts` | `buildQuestionAnswer` — helper for permission/question answers. |
 | `markdownTable.ts` | `normalizeMarkdownTables` — repairs markdown table pipes before rendering. |
 | `ChatErrorBoundary.tsx` | Error boundary wrapping `<ChatPanel>` in `Pane.tsx` (a render/lifecycle error in the chat pane used to unmount the whole React root — a black, unresponsive window). Catches it to a contained card (Reload remounts ChatPanel via a bumped key) and logs the full stack to the system log. |
