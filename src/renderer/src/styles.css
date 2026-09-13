@@ -210,8 +210,11 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .title-bar-brand {
   display: flex; align-items: center; gap: 0.666667rem; padding-left: 0.833333rem; min-width: 0;
   height: 100%; width: 22.333333rem; flex: 0 0 auto; box-sizing: border-box;
-  background: var(--bg-sidebar); border-right: none;
+  background: var(--bg-sidebar); border-right: 0.083333rem solid var(--hairline);
   border-radius: 0;
+}
+.title-bar-brand.collapsed {
+  border-right: none;
 }
 .title-bar-darwin .title-bar-brand { padding-left: 6.5rem; }
 .title-bar-logo { width: 1.333333rem; height: 1.333333rem; flex: none; filter: drop-shadow(0 0 0.5rem var(--accent-dim)); }
