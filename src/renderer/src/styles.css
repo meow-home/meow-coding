@@ -227,7 +227,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 }
 .title-bar-right {
   display: flex; align-items: center; justify-content: flex-end; height: 100%; flex: 1; min-width: 0;
-  background: var(--bg-panel); border-bottom: 0.083333rem solid var(--hairline);
+  background: var(--bg); border-bottom: none;
   border-radius: 0;
 }
 .title-bar-toolbar-btn {
