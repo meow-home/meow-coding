@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
+import BaseModal from '../common/BaseModal'
 
 interface Props {
   title: string
@@ -12,29 +13,24 @@ interface Props {
 export default function Modal({
   title, onClose, children, submitLabel = 'Save', onSubmit, submitDisabled = false
 }: Props) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  const actions = (
+    <>
+      <button className="btn" onClick={onClose}>Cancel</button>
+      {onSubmit && (
+        <button className="btn primary submit" disabled={submitDisabled} onClick={onSubmit}>
+          {submitLabel}
+        </button>
+      )}
+    </>
+  )
 
   return (
-    <div className="dialog-backdrop">
-      <div className="dialog">
-        <h3>{title}</h3>
-        <button className="dialog-close" aria-label="Close" onClick={onClose}>✕</button>
-        {children}
-        <div className="dialog-actions">
-          <button className="btn" onClick={onClose}>Cancel</button>
-          {onSubmit && (
-            <button className="btn primary submit" disabled={submitDisabled} onClick={onSubmit}>
-              {submitLabel}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
+    <BaseModal
+      title={title}
+      onClose={onClose}
+      actions={actions}
+    >
+      {children}
+    </BaseModal>
   )
 }

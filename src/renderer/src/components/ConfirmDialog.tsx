@@ -1,5 +1,5 @@
-import { useEffect, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import type { ReactNode } from 'react'
+import BaseModal from './common/BaseModal'
 
 interface Props {
   title: string
@@ -14,28 +14,24 @@ interface Props {
 export default function ConfirmDialog({
   title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = true, onConfirm, onCancel
 }: Props) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onCancel])
+  const actions = (
+    <>
+      <button className="btn" onClick={onCancel}>{cancelLabel}</button>
+      <button className={`btn ${danger ? 'danger' : 'primary'}`} autoFocus onClick={onConfirm}>
+        {confirmLabel}
+      </button>
+    </>
+  )
 
-  return createPortal(
-    <div className="dialog-backdrop" onClick={onCancel}>
-      <div className="dialog" role="alertdialog" aria-modal="true" onClick={e => e.stopPropagation()}>
-        <h3>{title}</h3>
-        <button className="dialog-close" aria-label="Close" onClick={onCancel}>✕</button>
-        <p className="settings-hint">{message}</p>
-        <div className="dialog-actions">
-          <button className="btn" onClick={onCancel}>{cancelLabel}</button>
-          <button className={`btn ${danger ? 'danger' : 'primary'}`} autoFocus onClick={onConfirm}>
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
+  return (
+    <BaseModal
+      title={title}
+      onClose={onCancel}
+      actions={actions}
+      role="alertdialog"
+      size="sm"
+    >
+      <p className="settings-hint">{message}</p>
+    </BaseModal>
   )
 }
