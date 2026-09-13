@@ -298,7 +298,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   align-items: center;
   gap: 0.5rem;
   padding: 0.333333rem 0.5rem;
-  border-radius: 0;
+  border-radius: var(--radius-sm);
   color: var(--text-dim);
   cursor: pointer;
   text-align: left;
