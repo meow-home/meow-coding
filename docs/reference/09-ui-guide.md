@@ -124,6 +124,7 @@ Update-dialog policy: `update-available` and `downloaded` open the dialog; `erro
 | `markdownPaths.ts` | Turns file paths in markdown into clickable `openFile` links |
 | `highlight.ts` | Shiki syntax highlighting |
 | `ContextFooter.tsx` | Context readout — a 24 × 24 icon-button ring; hovering shows a popover with session tokens in/out + cost. Hover-only, not clickable |
+| `BaseModal.tsx` | Base modal overlay portaled to `document.body` with backdrop click, Escape key, and size modifiers |
 | `BaseDropdown.tsx` / `Dropdown.tsx` | Base popover component with auto-flip / smart positioning & model / variant / build-plan mode selection |
 | `parseCommandInput.ts` | `parseCommandInput(raw) → { isCommand, prefix }` for the `/` menu |
 | `questionAnswer.ts` | `buildQuestionAnswer` for permission/question responses |
@@ -153,7 +154,7 @@ normalized settings).
 | `CommandsTab` | Slash-command editor ("+ Add command" in the header) |
 | `UpdatesTab` | Update channel, check, install |
 | `RemoteTab` | Remote control enable, relay URL, pairing, revoke |
-| `Modal.tsx` | Reusable modal shell |
+| `Modal.tsx` | Reusable modal shell (built on `BaseModal`) |
 
 Adding a setting touches three places: `MeowSettings` in `src/shared/types.ts`, the normalize path in
 `src/main/agent/config.ts`, and the tab here.
