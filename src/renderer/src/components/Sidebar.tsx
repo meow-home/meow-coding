@@ -138,11 +138,10 @@ export default function Sidebar({
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       {error && <div className="sidebar-error">{error}</div>}
-      <div className="sidebar-header-actions">
+      <div className="sidebar-header-menu">
         <button
-          className="icon-btn"
-          title="New session"
-          aria-label="New session"
+          type="button"
+          className="sidebar-header-item"
           onClick={() => {
             if (workspaces.length > 0) {
               onNewSession(workspaces[0].projectPath)
@@ -152,14 +151,15 @@ export default function Sidebar({
           }}
         >
           <Plus size={14} aria-hidden="true" />
+          <span>New session</span>
         </button>
         <button
-          className="icon-btn"
-          title="Add project folder"
-          aria-label="Add project folder"
+          type="button"
+          className="sidebar-header-item"
           onClick={() => void handleAddProjectDirect()}
         >
           <FolderPlus size={14} aria-hidden="true" />
+          <span>Add folder</span>
         </button>
       </div>
       {collapsed ? (
