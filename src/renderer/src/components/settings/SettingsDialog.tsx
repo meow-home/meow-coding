@@ -14,7 +14,7 @@ import PersonalizeTab from './PersonalizeTab'
 export type TabId = 'agents' | 'permissions' | 'mcp' | 'context' | 'commands' | 'remote' | 'updates' | 'providers' | 'personalize'
 
 const TABS: Array<{ id: TabId; label: string }> = [
-  { id: 'agents', label: 'Profiles' },
+  { id: 'agents', label: 'Sub-agents' },
   { id: 'permissions', label: 'Permissions' },
   { id: 'mcp', label: 'MCP' },
   { id: 'providers', label: 'Providers' },
