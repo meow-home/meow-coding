@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { MeowAgentManager } from '../../src/main/meow-agent-manager'
@@ -16,7 +16,7 @@ import { CommandStore } from '../../src/main/agent/commands'
 import { SavedPermissions } from '../../src/main/agent/saved-permissions'
 import type { SavedPermission } from '../../src/main/agent/saved-permissions'
 import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/agent/llm'
-import type { AgentConfig, ChatEvent, PromptResponse } from '../../src/shared/types'
+import { DRAFT_SESSION_ID, type AgentConfig, type ChatEvent, type PromptResponse } from '../../src/shared/types'
 import type { ToolDefinition } from '../../src/main/agent/tools/types'
 import type { Vault } from '../../src/main/vault'
 
@@ -1774,5 +1774,27 @@ describe('MeowAgentManager subagents', () => {
       i.kind === 'message' && i.message.role === 'user'
     )
     expect(userMsg?.message.images).toEqual(images)
+  })
+})
+
+describe('MeowAgentManager draft session file suggestions', () => {
+  it('resolves @-file suggestions for a draft session from the active project path', async () => {
+    const { manager } = await makeManager()
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-draft-suggest-'))
+    try {
+      mkdirSync(path.join(dir, 'src'), { recursive: true })
+      writeFileSync(path.join(dir, 'src', 'a.ts'), 'x')
+      manager.setProjectPath(dir)
+      const items = await manager.suggestFiles(DRAFT_SESSION_ID, 'src/')
+      expect(items.map(i => i.path)).toContain('src/a.ts')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('still returns nothing for an unknown session id', async () => {
+    const { manager } = await makeManager()
+    manager.setProjectPath('/proj')
+    expect(await manager.suggestFiles('nope', 'src/')).toEqual([])
   })
 })

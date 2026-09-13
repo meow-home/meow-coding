@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, NotificationsSettings, PendingPromptInfo, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts, UsageSummary } from '../shared/types'
-import type { AgentConfig, AgentMode, ArtifactEntry, CatalogProviderSummary, Command, ModelRef, SubagentType } from '../shared/types'
+import { DRAFT_SESSION_ID, type AgentConfig, type AgentMode, type ArtifactEntry, type CatalogProviderSummary, type Command, type ModelRef, type SubagentType } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, resolveApiKey, settingsToConfig, writeMeowConfig,
   resolveOutputTokens,
@@ -192,9 +192,14 @@ export class MeowAgentManager {
   }
 
   async suggestFiles(agentId: string, prefix: string): Promise<FileSuggestion[]> {
-    const agent = this.agents.get(agentId)
-    if (!agent) return []
-    return suggestFiles(agent.cwd, prefix)
+    // A draft session has no backend agent until its first prompt, so it has no
+    // cwd of its own; suggestions come from the active project, which is where
+    // the draft is materialized.
+    const cwd = agentId === DRAFT_SESSION_ID
+      ? this.deps.projectPath
+      : this.agents.get(agentId)?.cwd
+    if (!cwd) return []
+    return suggestFiles(cwd, prefix)
   }
 
   setBackground(agentId: string, background: boolean): void {
