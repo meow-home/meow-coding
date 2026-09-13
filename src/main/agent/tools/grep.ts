@@ -1,11 +1,7 @@
-import { readFileSync, statSync } from 'node:fs'
-import { globSync } from 'glob'
 import { z } from 'zod'
 import type { ToolDefinition, ToolRunResult } from './types'
 import { resolveCwd } from './bash'
-
-const MAX_RESULTS = 200
-const MAX_FILE = 1024 * 1024
+import { searchProject } from '../../project-search'
 
 export const grepTool: ToolDefinition = {
   name: 'grep',
@@ -22,41 +18,14 @@ export const grepTool: ToolDefinition = {
       path?: string
       include?: string[]
     }
-    let regex: RegExp
+    const dir = resolveCwd(ctx.cwd, searchPath ?? '.')
+    let hits
     try {
-      regex = new RegExp(pattern)
+      hits = await searchProject(dir, pattern, { include })
     } catch {
       return { error: `grep: invalid regex: ${pattern}` }
     }
-    const dir = resolveCwd(ctx.cwd, searchPath ?? '.')
-    const includePatterns = include && include.length > 0 ? include : ['**/*']
-    const candidates = globSync(includePatterns, {
-      cwd: dir,
-      nodir: true,
-      posix: true,
-      ignore: ['**/node_modules/**', '**/.git/**'],
-      dot: false
-    })
-    const hits: string[] = []
-    for (const rel of candidates.slice(0, 500)) {
-      const full = resolveCwd(dir, rel)
-      let text: string
-      try {
-        const stat = statSync(full)
-        if (!stat.isFile() || stat.size > MAX_FILE) continue
-        text = readFileSync(full, 'utf-8')
-      } catch {
-        continue
-      }
-      const lines = text.split('\n')
-      for (let i = 0; i < lines.length && hits.length < MAX_RESULTS; i++) {
-        if (regex.test(lines[i])) {
-          hits.push(`${rel}:${i + 1}: ${lines[i].trim().slice(0, 160)}`)
-        }
-      }
-      if (hits.length >= MAX_RESULTS) break
-    }
     if (hits.length === 0) return { output: '(no matches)' }
-    return { output: hits.join('\n') }
+    return { output: hits.map(h => `${h.path}:${h.line}: ${h.text}`).join('\n') }
   }
 }

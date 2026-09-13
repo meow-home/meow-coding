@@ -430,6 +430,15 @@ export interface DirEntry {
   isDirectory: boolean
 }
 
+export interface ProjectSearchHit {
+  /** Path relative to the searched root, POSIX separators. */
+  path: string
+  /** 1-based line number. */
+  line: number
+  /** Trimmed line content, capped at SEARCH_MAX_LINE_CHARS. */
+  text: string
+}
+
 export interface ArtifactEntry {
   id: string
   path: string
