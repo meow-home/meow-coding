@@ -1,6 +1,6 @@
 # Files Overlay (project explorer) Design Spec
 
-Status: approved
+Status: Approved (user), pending spec review
 
 ## 1. Overview
 
@@ -101,7 +101,7 @@ no tab is open).
   `FileViewer`/`GitViewer` popups.
 - Empty state mirrors the mockup: folder icon, "Open files appear here", "Pick a file in the tree, or click
   a file path in the conversation." (the second line stays descriptive only — chat path clicks keep opening
-  the `FileViewer` popup, see 2. Non-Goals).
+  the `FileViewer` popup, see §2).
 - Content rendering is extracted from `components/FileViewer.tsx` into
   `components/file-content/FileContentView.tsx` (load via `api.getFileContent`, lazy highlighter preload,
   markdown rendering, Raw/Highlighted toggle, Copy, Open in VS Code) and used by both the popup and the
