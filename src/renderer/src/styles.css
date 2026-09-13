@@ -1991,12 +1991,15 @@ select.input { width: 100%; }
 .git-switch-actions .btn.danger:hover { background: rgba(255, 95, 86, 0.12); }
 
 /* Files panel (in-app project explorer) — docked on the right by default,
-   expanded over the pane area by the maximize button. */
+   expanded over the pane area by the maximize button. It is a bordered, rounded
+   card in both modes: the 4px gaps below only keep the radius from being cut off
+   by the pane edges (a corner needs ~radius/3 of clearance). */
 .files-overlay {
   flex: 0 0 auto; position: relative; display: flex; flex-direction: column; overflow: hidden;
-  background: var(--bg-chat); border-left: 0.083333rem solid var(--hairline);
-  border-radius: 0; animation: meow-rise 180ms ease-out both;
+  background: var(--bg-chat); border: 0.083333rem solid var(--hairline);
+  border-radius: var(--radius-lg); animation: meow-rise 180ms ease-out both;
 }
+.files-overlay.docked { margin: 0.333333rem 0.333333rem 0.333333rem 0; }
 .files-resizer {
   position: absolute; left: -0.25rem; top: 0; bottom: 0; width: 0.583333rem;
   cursor: col-resize; z-index: 5;
@@ -2006,8 +2009,8 @@ select.input { width: 100%; }
 .files-overlay.docked .files-side { flex-basis: 42%; }
 /* Expanded: fills the pane area only — title bar, sidebar and status bar stay visible. */
 .files-overlay.full {
-  position: absolute; z-index: 40; top: 0; left: 0; right: 0; bottom: 0;
-  border: none; border-radius: 0; box-shadow: none;
+  position: absolute; z-index: 40;
+  top: 0.333333rem; left: 0.333333rem; right: 0.333333rem; bottom: 0.333333rem;
 }
 .files-head { padding: 0 0.5rem; gap: 0.5rem; border-bottom: 0.083333rem solid var(--hairline); }
 .files-head-title {
