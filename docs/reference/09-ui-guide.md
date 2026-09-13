@@ -124,7 +124,7 @@ Update-dialog policy: `update-available` and `downloaded` open the dialog; `erro
 | `markdownPaths.ts` | Turns file paths in markdown into clickable `openFile` links |
 | `highlight.ts` | Shiki syntax highlighting |
 | `ContextFooter.tsx` | Context readout — a 24 × 24 icon-button ring; hovering shows a popover with session tokens in/out + cost. Hover-only, not clickable |
-| `ModelPicker.tsx` / `VariantPicker.tsx` / `ModePicker.tsx` / `Dropdown.tsx` | Model / variant / build-plan mode selection |
+| `BaseDropdown.tsx` / `Dropdown.tsx` | Base popover component with auto-flip / smart positioning & model / variant / build-plan mode selection |
 | `parseCommandInput.ts` | `parseCommandInput(raw) → { isCommand, prefix }` for the `/` menu |
 | `questionAnswer.ts` | `buildQuestionAnswer` for permission/question responses |
 
@@ -185,8 +185,7 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   rotates 180° while its menu is open. Rotation is driven purely by the trigger's
   `[aria-expanded="true"]`, so any new select trigger gets it by setting that attribute (`Dropdown.tsx`
   sets it; `ModelPicker` and `GitBranchSwitcher` set it on their own buttons).
-- **Menus anchor to the trigger's right edge by default; a left-edge trigger opts into
-  `align="left"`** (`Dropdown.tsx`). The sidebar rows and the composer's right-hand pickers hug their
+- **Menus anchor to the trigger's edge by default (`BaseDropdown.tsx`) with auto-flip and auto max-height overflow scrolling**. The sidebar rows and the composer's right-hand pickers hug their
   container's right edge, so right-aligning keeps the menu inside it. A trigger at the container's
   *left* edge (the composer's "+" add menu) must align the menu's **left** edge instead: right-aligning
   there pushed the 158px menu 134px outside the composer card, over the transcript.
