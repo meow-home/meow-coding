@@ -1,21 +1,51 @@
-# Sub-agents Tab BaseSelect Alignment Design Spec
+# Sub-agents Tab BaseSelect Grid Layout & Truncation Design Spec
 
 ## Overview
-Align the sub-agent provider and model select dropdowns in `src/renderer/src/components/settings/AgentsTab.tsx` with the standardized visual styling used by `ModePicker` and `VariantPicker`.
+Update the sub-agent provider and model field layout in `src/renderer/src/components/settings/AgentsTab.tsx` and `src/renderer/src/styles.css` to use a 2-column grid structure (`1fr 1fr`), enforce text truncation (`...`) on long trigger labels, and ensure dropdown menu items occupy 100% full width of the dropdown menu container.
 
 ## Motivation & Context
-While `BaseSelect` provides the core trigger structure and popup container, the menu items inside `SingleSelect` in `AgentsTab.tsx` used custom unstyled class names (`select-item`) instead of standard `.menu-item`, `.menu-item-label`, and `.menu-item-check`. Additionally, the select containers in `.submodel-fields` lacked full-width flex styling, resulting in visual misalignment compared to other pickers in the application.
+Previously, `.submodel-fields` used flex wrapping which allowed field widths to shift based on text length. Using CSS Grid ensures equal 50/50 distribution for Provider and Model dropdowns. Long model names are cleanly truncated with `...` while dropdown options stretch 100% full width inside the popover menu.
 
-## User Interface & Behavior Changes
-1. **Standard Menu Item Styling:**
-   - Option items use `className="menu-item ${isSelected ? 'active' : ''}"`.
-   - Option label is wrapped in `<span className="menu-item-label">`.
-   - Option checkmark icon is wrapped in `<span className="menu-item-check">`.
-2. **Layout & Flex Width Alignment:**
-   - In `src/renderer/src/styles.css`, update `.submodel-fields` to style `.base-dropdown-container` with `flex: 1; min-width: 0; display: flex;`.
-   - Ensure `.submodel-fields .dropdown-trigger` stretches to `width: 100%` and uses `justify-content: space-between` so the provider and model selects split row space 50/50 evenly.
-3. **Disabled Trigger State:**
-   - Render disabled state using standard `.dropdown-trigger.select-trigger` styling.
+## User Interface & CSS Changes
+1. **Grid Container (`.submodel-fields`):**
+   ```css
+   .submodel-fields {
+     display: grid;
+     grid-template-columns: 1fr 1fr;
+     gap: 0.666667rem;
+     width: 100%;
+   }
+   ```
+2. **Select Container & Trigger Truncation:**
+   ```css
+   .submodel-fields .base-dropdown-container {
+     min-width: 0;
+     display: flex;
+     width: 100%;
+   }
+   .submodel-fields .dropdown-trigger {
+     width: 100%;
+     justify-content: space-between;
+     gap: 0.5rem;
+     min-width: 0;
+     overflow: hidden;
+   }
+   .select-value-label {
+     white-space: nowrap;
+     overflow: hidden;
+     text-overflow: ellipsis;
+     flex: 1;
+     min-width: 0;
+     text-align: left;
+   }
+   ```
+3. **Dropdown Menu Items Full Width:**
+   ```css
+   .select-menu .menu-item {
+     width: 100%;
+     box-sizing: border-box;
+   }
+   ```
 
 ## Verification Plan
 1. **Type Check:** Run `npm run typecheck` to ensure full TypeScript compliance.
