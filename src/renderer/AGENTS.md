@@ -43,6 +43,7 @@ React renderer (no direct Node/Electron access).
 ## Conventions
 
 - All main access goes through `window.api` (typed `AgentApi` from shared). Do not import Node/electron.
+- Common UI components: UI popover overlays, action menus, context dropdowns, and value selectors MUST use common components (`src/renderer/src/components/common/BaseDropdown.tsx`, `BaseSelect.tsx`) rather than creating custom overlay positioning or popup logic.
 - Session layout: `SessionPanes` mounts **every** session of the active project and hides the
   inactive ones with the `hidden` attribute (CSS only). Never unmount or re-key a session on
   switch — doing so stops its run. The active session is tracked in `App` per project path (passed

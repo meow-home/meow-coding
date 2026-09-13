@@ -32,6 +32,7 @@ The React UI layer (renderer process). Everything the user sees: the sessions of
 ## Conventions
 
 - **Never** import from `electron` or `node:*` here; use `window.api` (typed `AgentApi`).
+- **Use Common Components:** UI popups, dropdown menus, context menus, and option selectors MUST use common components (`src/renderer/src/components/common/BaseDropdown.tsx`, `BaseSelect.tsx`) rather than creating custom overlay positioning or popover logic.
 - `App.tsx` (parent) owns the mounted runtimes and the active session per project; components stay
   presentational-ish.
 - A session that is not showing must stay mounted (see `SessionPanes`) — never conditionally render,

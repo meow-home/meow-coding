@@ -67,6 +67,7 @@ Alias `@shared` → `src/shared` (configured in electron.vite.config.ts, vitest.
 - Custom subagent roles live in `.meow/agents/*.md` (project) or `userData/agents/*.md` (user);
   frontmatter takes `name`, `description`, `tools`, `model`, `deny`, `ask`. There is no `allow` key —
   a role file can only narrow what the user's own permission rules already grant.
+- Common UI components: UI popups, dropdown menus, and option selectors MUST use common components (`src/renderer/src/components/common/BaseDropdown.tsx`, `BaseSelect.tsx`) rather than recreating custom overlay/positioning logic.
 
 ## Required testing before completion
 
