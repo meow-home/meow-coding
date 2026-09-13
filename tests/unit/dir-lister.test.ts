@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { listDir, shouldIgnore, sortEntries } from '../../src/main/dir-lister'
+import { listDir, listProjectDir, shouldIgnore, sortEntries } from '../../src/main/dir-lister'
 import type { DirEntry } from '../../src/shared/types'
 
 describe('shouldIgnore', () => {
@@ -55,5 +55,40 @@ describe('listDir', () => {
   it('returns [] for an empty dir', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'meow-empty-'))
     expect(await listDir(dir)).toEqual([])
+  })
+})
+
+describe('listDir ignore option', () => {
+  it('skips dotfiles and ignored dirs by default', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'meow-dir-ignore-'))
+    mkdirSync(path.join(root, 'node_modules'))
+    writeFileSync(path.join(root, '.gitignore'), 'x')
+    writeFileSync(path.join(root, 'index.ts'), 'x')
+
+    expect((await listDir(root)).map(e => e.name)).toEqual(['index.ts'])
+  })
+
+  it('lists dotfiles and node_modules when ignore is false', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'meow-dir-all-'))
+    mkdirSync(path.join(root, 'node_modules'))
+    writeFileSync(path.join(root, '.gitignore'), 'x')
+    writeFileSync(path.join(root, 'index.ts'), 'x')
+
+    expect((await listDir(root, { ignore: false })).map(e => e.name))
+      .toEqual(['node_modules', '.gitignore', 'index.ts'])
+  })
+})
+
+describe('listProjectDir', () => {
+  it('rejects a path outside the project', async () => {
+    await expect(listProjectDir('/proj', path.join('/other', 'x'))).rejects.toThrow('Not a project path')
+  })
+
+  it('accepts the project root itself and ignores nothing', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'meow-dir-proj-'))
+    mkdirSync(path.join(root, 'node_modules'))
+    writeFileSync(path.join(root, '.env'), 'x')
+
+    expect((await listProjectDir(root, root)).map(e => e.name)).toEqual(['node_modules', '.env'])
   })
 })
