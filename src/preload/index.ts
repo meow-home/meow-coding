@@ -118,8 +118,8 @@ const api: AgentApi = {
   sendChat: (agentId: string, text: string, images?: ImageAttachment[]) =>
     ipcRenderer.invoke(Channels.ChatSend, agentId, text, images),
   stopChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatStop, agentId),
-  runCommand: (agentId: string, name: string, args: string) =>
-    ipcRenderer.invoke(Channels.ChatRunCommand, agentId, name, args),
+  runCommand: (agentId: string, name: string, args: string, images?: ImageAttachment[]) =>
+    ipcRenderer.invoke(Channels.ChatRunCommand, agentId, name, args, images),
   undoChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatUndo, agentId),
   redoChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatRedo, agentId),
   listChatMessages: (agentId: string) => ipcRenderer.invoke(Channels.ChatListMessages, agentId),

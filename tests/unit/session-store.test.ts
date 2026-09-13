@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createJsonStore } from '../../src/main/json-store'
-import { SessionStore } from '../../src/main/agent/session'
+import { SessionStore, DEFAULT_SESSION_TITLE, titleFrom } from '../../src/main/agent/session'
 import type { ChatMessage, ToolCallData } from '../../src/shared/types'
 
 function makeStore(file: string) {
@@ -305,5 +305,34 @@ describe('transcriptWindow', () => {
     const w = store.transcriptWindow(s.id, { limit: 50 })
     expect(w.items).toHaveLength(1)
     expect(w.hasMore).toBe(false)
+  })
+})
+
+describe('titleFrom', () => {
+  it('derives session title from user text', () => {
+    expect(titleFrom('Hello world')).toBe('Hello world')
+  })
+
+  it('strips base64 image data URLs and markdown images from title', () => {
+    expect(titleFrom('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA')).toBe(DEFAULT_SESSION_TITLE)
+    expect(titleFrom('![image](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA) Fix this bug')).toBe('Fix this bug')
+  })
+
+  it('does not set title to base64 when appending user message with image only', () => {
+    const store = makeStore(path.join(tmpdir(), `session-test-${Math.random().toString(36).slice(2)}.json`))
+    const s = store.create('agent1', '/proj')
+    expect(s.title).toBe(DEFAULT_SESSION_TITLE)
+
+    store.appendMessage(s.id, {
+      id: 'm1',
+      role: 'user',
+      text: '',
+      displayText: '',
+      images: [{ id: 'img1', name: 'test.png', mimeType: 'image/png', dataUrl: 'data:image/png;base64,iVBORw0KGgo', size: 100 }],
+      createdAt: Date.now()
+    })
+
+    const updated = store.get(s.id)
+    expect(updated?.title).toBe(DEFAULT_SESSION_TITLE)
   })
 })

@@ -200,9 +200,12 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     setImages(prev => prev.filter(img => img.id !== id))
   }, [])
 
+  const isImageLoading = images.some(img => !img.dataUrl)
+  const canSubmit = (hasText || images.length > 0) && !isImageLoading
+
   const submit = useCallback(() => {
     const text = (fieldRef.current?.value ?? '').trim()
-    if (!text) return
+    if ((!text && images.length === 0) || isImageLoading) return
     if (fieldRef.current) fieldRef.current.value = ''
     setHasText(false)
     setMenu({ open: false, prefix: '' })
@@ -213,7 +216,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     else onSubmit(text, images)
     setImages([])
     onEditCancel?.()
-  }, [editTarget, onEditSubmit, onEditCancel, onSubmit, images, closeFileMenu])
+  }, [editTarget, onEditSubmit, onEditCancel, onSubmit, images, isImageLoading, closeFileMenu])
 
   // Load the queued message being edited into the textarea.
   useEffect(() => {
@@ -389,7 +392,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               className="chat-input-send"
               title={editTarget ? 'Save edit (Enter)' : 'Send (Enter)'}
               aria-label={editTarget ? 'Save edit' : 'Send'}
-              disabled={!hasText}
+              disabled={!canSubmit}
               onMouseDown={e => e.preventDefault()}
               onClick={submit}
             >

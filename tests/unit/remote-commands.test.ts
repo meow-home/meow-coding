@@ -182,13 +182,14 @@ describe('dispatchRemoteCommand', () => {
     expect(meowAgent.respondPrompt).not.toHaveBeenCalled()
   })
 
-  it('chat:send routes a known slash command to runCommand, not send', async () => {
+  it('chat:send routes a known slash command to runCommand with images', async () => {
     const { ctx, meowAgent } = makeCtx()
     meowAgent.listAgents.mockReturnValue([agent('a1', 'One')])
     meowAgent.listCommands.mockReturnValue([{ name: 'help', type: 'prompt', args: [] }])
-    const res = await dispatchRemoteCommand('chat:send', { agentId: 'a1', text: '/help xyz' }, ctx)
+    const images = [{ mediaType: 'image/png', dataUrl: 'data:image/png;base64,123' }]
+    const res = await dispatchRemoteCommand('chat:send', { agentId: 'a1', text: '/help xyz', images }, ctx)
     expect(res).toEqual({ ok: true, result: { queued: true } })
-    expect(meowAgent.runCommand).toHaveBeenCalledWith('a1', 'help', 'xyz')
+    expect(meowAgent.runCommand).toHaveBeenCalledWith('a1', 'help', 'xyz', images)
     expect(meowAgent.send).not.toHaveBeenCalled()
   })
 

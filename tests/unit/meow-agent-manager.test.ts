@@ -1760,4 +1760,19 @@ describe('MeowAgentManager subagents', () => {
       .map(i => i.message.text)
     expect(texts.some(t => t.includes('background answer'))).toBe(true)
   })
+
+  it('preserves image attachments when running a slash command', async () => {
+    const { manager, store } = await makeManager({
+      partsQueue: [[{ kind: 'text', text: 'response' }, { kind: 'finish' }]]
+    })
+    const images = [{ mediaType: 'image/png', dataUrl: 'data:image/png;base64,xyz' }]
+    await manager.runCommand('a1', 'init', 'arg', images)
+    const sessions = manager.listSessions('a1')
+    expect(sessions.length).toBe(1)
+    const items = store.get(sessions[0].id)?.items ?? []
+    const userMsg = items.find((i): i is { kind: 'message'; message: { role: 'user'; images?: unknown[] } } =>
+      i.kind === 'message' && i.message.role === 'user'
+    )
+    expect(userMsg?.message.images).toEqual(images)
+  })
 })

@@ -197,6 +197,33 @@ describe('toLlmMessages', () => {
     expect((content as Array<{ type: string; image?: string }>)[1]).toMatchObject({ type: 'image', image: 'data:image/png;base64,AAA' })
   })
 
+  it('omits empty text content part when user message only contains images', () => {
+    const items: TranscriptItem[] = [{
+      kind: 'message',
+      message: {
+        id: '1', role: 'user', text: '', createdAt: 0,
+        images: [{ id: 'i1', name: 'a.png', mimeType: 'image/png', dataUrl: 'data:image/png;base64,AAA', size: 3 }]
+      }
+    }]
+    const msgs = toLlmMessages(items)
+    const content = msgs[0].content
+    expect(Array.isArray(content)).toBe(true)
+    expect(content).toHaveLength(1)
+    expect((content as Array<{ type: string; image?: string }>)[0]).toEqual({ type: 'image', image: 'data:image/png;base64,AAA' })
+  })
+
+  it('filters out image attachments with empty dataUrls', () => {
+    const items: TranscriptItem[] = [{
+      kind: 'message',
+      message: {
+        id: '1', role: 'user', text: 'hello', createdAt: 0,
+        images: [{ id: 'i1', name: 'a.png', mimeType: 'image/png', dataUrl: '', size: 0 }]
+      }
+    }]
+    const msgs = toLlmMessages(items)
+    expect(msgs[0].content).toBe('hello')
+  })
+
   it('emits one ordered tool message per call, mixing text and error-text outputs', () => {
     const items = [
       { kind: 'message' as const, message: msg('user', 'go') },

@@ -663,7 +663,7 @@ if (e.type === 'usage') {
     }
     const m = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(trimmed)
     if (m && commands.some(c => c.name === m[1])) {
-      void window.api.runCommand(agentId, m[1], m[2] ?? '')
+      void window.api.runCommand(agentId, m[1], m[2] ?? '', images)
     } else {
       if (agentId === DRAFT_SESSION_ID && onSendDraftMessage) {
         onSendDraftMessage({ text: trimmed, images })

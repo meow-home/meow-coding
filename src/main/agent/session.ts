@@ -21,7 +21,12 @@ export type { SessionSummary }
 type RawSession = Partial<StoredSession> & Record<string, unknown>
 
 export function titleFrom(text: string): string {
-  const line = text.split('\n').find(l => l.trim().length > 0)
+  const cleanText = text
+    .replace(/data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g, '')
+    .replace(/!\[.*?\]\(.*?\)/g, '')
+    .trim()
+
+  const line = cleanText.split('\n').find(l => l.trim().length > 0)
   let t = (line ?? '').trim().replace(/\s+/g, ' ')
   if (t.length > 60) t = t.slice(0, 59) + '…'
   return t || DEFAULT_SESSION_TITLE
@@ -29,8 +34,11 @@ export function titleFrom(text: string): string {
 
 function titleFromItems(items: ChatTranscriptItem[]): string {
   for (const item of items) {
-    if (item.kind === 'message' && item.message.role === 'user' && item.message.text.trim()) {
-      return titleFrom(item.message.displayText ?? item.message.text)
+    if (item.kind === 'message' && item.message.role === 'user') {
+      const title = titleFrom(item.message.displayText ?? item.message.text)
+      if (title !== DEFAULT_SESSION_TITLE) {
+        return title
+      }
     }
   }
   return DEFAULT_SESSION_TITLE
@@ -224,8 +232,11 @@ export class SessionStore {
     if (idx < 0) return
     const session = all[idx]
     session.items.push({ kind: 'message', message })
-    if (session.title === DEFAULT_SESSION_TITLE && message.role === 'user' && message.text.trim()) {
-      session.title = titleFrom(message.displayText ?? message.text)
+    if (session.title === DEFAULT_SESSION_TITLE && message.role === 'user') {
+      const derived = titleFrom(message.displayText ?? message.text)
+      if (derived !== DEFAULT_SESSION_TITLE) {
+        session.title = derived
+      }
     }
     session.updatedAt = this.nextUpdatedAt()
     this.saveSessions(all)

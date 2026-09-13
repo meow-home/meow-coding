@@ -231,7 +231,7 @@ export interface AgentApi {
   suggestFiles(agentId: string, prefix: string): Promise<FileSuggestion[]>
   setAgentBackground(agentId: string, background: boolean): Promise<void>
   onAgentBackground(cb: (e: { agentId: string; background: boolean }) => void): () => void
-  runCommand(agentId: string, name: string, args: string): Promise<void>
+  runCommand(agentId: string, name: string, args: string, images?: ImageAttachment[]): Promise<void>
   undoChat(agentId: string): Promise<boolean>
   redoChat(agentId: string): Promise<boolean>
   listChatMessages(agentId: string): Promise<ChatMessage[]>

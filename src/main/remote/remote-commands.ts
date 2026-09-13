@@ -1,5 +1,5 @@
 import type { MeowAgentManager } from '../meow-agent-manager'
-import type { PromptResponse } from '../../shared/types'
+import type { ImageAttachment, PromptResponse } from '../../shared/types'
 import type { WorkspaceStore } from '../workspace-store'
 import type { RemoteCommandName, RemoteCmdResult } from '../../shared/remote-types'
 
@@ -88,6 +88,7 @@ export async function dispatchRemoteCommand(
         const missing = agentError()
         if (missing) return missing
         if (typeof params.text !== 'string' || !params.text.trim()) return { ok: false, error: 'text is required' }
+        const images = Array.isArray(params.images) ? (params.images as ImageAttachment[]) : undefined
         // Slash commands must go through runCommand (like the desktop input),
         // not send(): send() would persist the raw "/cmd …" text as a user
         // message and hand the command string to the model as a prompt.
@@ -96,11 +97,13 @@ export async function dispatchRemoteCommand(
           const agent = ctx.meowAgent.listAgents().find(a => a.id === agentId)
           const command = agent ? ctx.meowAgent.listCommands(agent.cwd).find(c => c.name === m[1]) : undefined
           if (command) {
-            await ctx.meowAgent.runCommand(agentId!, m[1], m[2] ?? '')
+            if (images) await ctx.meowAgent.runCommand(agentId!, m[1], m[2] ?? '', images)
+            else await ctx.meowAgent.runCommand(agentId!, m[1], m[2] ?? '')
             return { ok: true, result: { queued: true } }
           }
         }
-        await ctx.meowAgent.send(agentId!, params.text)
+        if (images) await ctx.meowAgent.send(agentId!, params.text, images)
+        else await ctx.meowAgent.send(agentId!, params.text)
         return { ok: true, result: { queued: true } }
       }
       default:

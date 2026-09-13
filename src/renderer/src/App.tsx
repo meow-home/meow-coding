@@ -488,7 +488,12 @@ export default function App() {
     if (newId) {
       setActiveSessionByPath(prev => ({ ...prev, [path]: newId }))
       await refreshWorkspaces()
-      void window.api.sendChat(newId, text, images)
+      const m = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(text.trim())
+      if (m) {
+        void window.api.runCommand(newId, m[1], m[2] ?? '', images)
+      } else {
+        void window.api.sendChat(newId, text, images)
+      }
     }
   }, [refreshWorkspaces])
 

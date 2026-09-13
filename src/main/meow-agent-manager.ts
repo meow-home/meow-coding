@@ -784,7 +784,7 @@ export class MeowAgentManager {
     this.deps.commands.remove(name)
   }
 
-  async runCommand(agentId: string, name: string, args: string): Promise<void> {
+  async runCommand(agentId: string, name: string, args: string, images?: ImageAttachment[]): Promise<void> {
     const agent = this.agents.get(agentId)
     if (!agent) return
     const all = this.listCommands(agent.cwd)
@@ -805,7 +805,7 @@ export class MeowAgentManager {
     const text = await resolveCommand(command, args, { cwd: agent.cwd, commands: all })
     // Keep the raw "/cmd …" input for the UI; the LLM receives the resolved prompt.
     const displayText = args.trim() ? `/${command.name} ${args.trim()}` : `/${command.name}`
-    await this.send(agentId, text, undefined, displayText)
+    await this.send(agentId, text, images, displayText)
   }
 
   getStats(): StatsSummary {

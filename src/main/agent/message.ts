@@ -104,16 +104,21 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
     if (item.kind === 'message') {
       flush()
       if (item.message.role === 'user') {
-        const images = item.message.images ?? []
+        const images = (item.message.images ?? []).filter(img => Boolean(img.dataUrl))
+        const hasText = item.message.text.trim().length > 0
         if (images.length === 0) {
           result.push({ role: 'user', content: item.message.text })
         } else {
+          const parts: Array<{ type: 'text'; text: string } | { type: 'image'; image: string }> = []
+          if (hasText) {
+            parts.push({ type: 'text', text: item.message.text })
+          }
+          for (const img of images) {
+            parts.push({ type: 'image', image: img.dataUrl })
+          }
           result.push({
             role: 'user',
-            content: [
-              { type: 'text', text: item.message.text },
-              ...images.map(img => ({ type: 'image' as const, image: img.dataUrl }))
-            ]
+            content: parts
           })
         }
       } else {
