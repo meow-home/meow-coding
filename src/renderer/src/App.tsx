@@ -94,6 +94,21 @@ export default function App() {
   const [upToDateOpen, setUpToDateOpen] = useState(false)
   const manualCheckRef = useRef(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('meow.sidebar.collapsed') === '1')
+  const [sidebarHovered, setSidebarHovered] = useState(false)
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleMouseEnterBrand = useCallback(() => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
+    setSidebarHovered(true)
+  }, [])
+
+  const handleMouseLeaveBrand = useCallback(() => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
+    hoverTimerRef.current = setTimeout(() => {
+      setSidebarHovered(false)
+    }, 200)
+  }, [])
+
   const [rightOpen, setRightOpen] = useState(() => localStorage.getItem('meow.rightpanel.open') !== '0')
   const [rightTab, setRightTab] = useState<'tree' | 'artifacts'>(() =>
     localStorage.getItem('meow.rightpanel.tab') === 'artifacts' ? 'artifacts' : 'tree')
@@ -498,29 +513,65 @@ export default function App() {
         onTogglePanel={() => setRightOpen(v => !v)}
         sidebarCollapsed={sidebarCollapsed}
         onToggleSidebar={() => setSidebarCollapsed(v => !v)}
+        onMouseEnterBrand={handleMouseEnterBrand}
+        onMouseLeaveBrand={handleMouseLeaveBrand}
       />
+      {sidebarCollapsed && sidebarHovered && (
+        <div
+          className="sidebar-popover"
+          onMouseEnter={handleMouseEnterBrand}
+          onMouseLeave={handleMouseLeaveBrand}
+        >
+          <Sidebar
+            collapsed={false}
+            workspaces={workspaces}
+            needsInput={needsInput}
+            activePath={activePath}
+            runtimes={runtimes}
+            activeSessionByPath={activeSessionByPath}
+            onOpen={openWorkspace}
+            onRemove={removeWorkspace}
+            onRefresh={refreshWorkspaces}
+            onNewSession={onNewSession}
+            onSelectSession={(path, id) => {
+              onSelectSession(path, id)
+              setSidebarHovered(false)
+            }}
+            onRenameSession={onRenameSession}
+            onDeleteSession={onDeleteSession}
+            onStopSession={onStopSession}
+            onOpenSettings={() => { setSettingsTab('agents'); setShowSettings(true); setSidebarHovered(false) }}
+            onOpenProviders={() => { setSettingsTab('providers'); setShowSettings(true); setSidebarHovered(false) }}
+            onOpenGit={path => { void window.api.gitOpenViewer(path); setSidebarHovered(false) }}
+            onCheckUpdate={handleCheckUpdate}
+            updateChecking={updateChecking}
+          />
+        </div>
+      )}
       <div className="app-body">
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          workspaces={workspaces}
-          needsInput={needsInput}
-          activePath={activePath}
-          runtimes={runtimes}
-          activeSessionByPath={activeSessionByPath}
-          onOpen={openWorkspace}
-          onRemove={removeWorkspace}
-          onRefresh={refreshWorkspaces}
-          onNewSession={onNewSession}
-          onSelectSession={onSelectSession}
-          onRenameSession={onRenameSession}
-          onDeleteSession={onDeleteSession}
-          onStopSession={onStopSession}
-          onOpenSettings={() => { setSettingsTab('agents'); setShowSettings(true) }}
-          onOpenProviders={() => { setSettingsTab('providers'); setShowSettings(true) }}
-          onOpenGit={path => void window.api.gitOpenViewer(path)}
-          onCheckUpdate={handleCheckUpdate}
-          updateChecking={updateChecking}
-        />
+        {!sidebarCollapsed && (
+          <Sidebar
+            collapsed={false}
+            workspaces={workspaces}
+            needsInput={needsInput}
+            activePath={activePath}
+            runtimes={runtimes}
+            activeSessionByPath={activeSessionByPath}
+            onOpen={openWorkspace}
+            onRemove={removeWorkspace}
+            onRefresh={refreshWorkspaces}
+            onNewSession={onNewSession}
+            onSelectSession={onSelectSession}
+            onRenameSession={onRenameSession}
+            onDeleteSession={onDeleteSession}
+            onStopSession={onStopSession}
+            onOpenSettings={() => { setSettingsTab('agents'); setShowSettings(true) }}
+            onOpenProviders={() => { setSettingsTab('providers'); setShowSettings(true) }}
+            onOpenGit={path => void window.api.gitOpenViewer(path)}
+            onCheckUpdate={handleCheckUpdate}
+            updateChecking={updateChecking}
+          />
+        )}
         <main className="main">
           {activePath && runtimes[activePath] && (
             <div className="workspace-active">

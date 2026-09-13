@@ -249,6 +249,22 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .title-bar-btn:hover { background: var(--bg-hover); color: var(--text-strong); }
 .title-bar-btn-close:hover { background: #e81123; color: #fff; }
 
+/* Sidebar Popover */
+.sidebar-popover {
+  position: fixed;
+  top: 2.833333rem;
+  left: 0.833333rem;
+  z-index: 1000;
+  width: 22.333333rem;
+  max-height: calc(100vh - 4rem);
+  background: var(--bg-sidebar);
+  border: 0.083333rem solid var(--hairline);
+  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.4);
+  border-radius: var(--radius-sm);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
 /* Sidebar */
 .sidebar {
 

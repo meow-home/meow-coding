@@ -27,9 +27,14 @@ interface Props {
   onTogglePanel: () => void
   sidebarCollapsed?: boolean
   onToggleSidebar?: () => void
+  onMouseEnterBrand?: () => void
+  onMouseLeaveBrand?: () => void
 }
 
-export default function TitleBar({ panelOpen, onTogglePanel, sidebarCollapsed, onToggleSidebar }: Props) {
+export default function TitleBar({
+  panelOpen, onTogglePanel, sidebarCollapsed, onToggleSidebar,
+  onMouseEnterBrand, onMouseLeaveBrand
+}: Props) {
   const platform = window.api.platform
   const showCustomControls = platform === 'linux'
   const [maximized, setMaximized] = useState(false)
@@ -45,7 +50,11 @@ export default function TitleBar({ panelOpen, onTogglePanel, sidebarCollapsed, o
       className={`title-bar title-bar-${platform}`}
       onDoubleClick={() => { if (showCustomControls) void window.api.toggleMaximizeWindow() }}
     >
-      <div className={`title-bar-brand ${sidebarCollapsed ? 'collapsed' : ''}`}>
+      <div
+        className={`title-bar-brand ${sidebarCollapsed ? 'collapsed' : ''}`}
+        onMouseEnter={onMouseEnterBrand}
+        onMouseLeave={onMouseLeaveBrand}
+      >
         <img src={logoMark} className="title-bar-logo" alt="" />
         {onToggleSidebar && (
           <button
