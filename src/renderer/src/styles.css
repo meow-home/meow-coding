@@ -1157,11 +1157,10 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .settings-nav-item {
   text-align: left; padding: 0.5rem 0.833333rem; border: none; background: transparent; color: var(--text-dim);
   cursor: pointer; font-size: var(--fs-md); border-radius: var(--radius-sm);
-  border-left: 0.166667rem solid transparent;
-  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+  transition: background 120ms ease, color 120ms ease;
 }
 .settings-nav-item:hover { background: var(--bg-hover); color: var(--text-strong); }
-.settings-nav-item.active { background: var(--menu-active); color: var(--text-strong); font-weight: var(--fw-semibold); border-left-color: var(--accent); }
+.settings-nav-item.active { background: var(--menu-active); color: var(--text-strong); font-weight: var(--fw-semibold); }
 .settings-content { flex: 1; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.833333rem; padding: 0.833333rem 1.25rem; }
 .settings-save-pill {
   position: absolute; right: 1.25rem; bottom: 1.25rem; z-index: 10;
