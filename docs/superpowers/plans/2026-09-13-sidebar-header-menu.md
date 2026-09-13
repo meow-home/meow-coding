@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Remove "Projects" title and "Add Project" button from `Sidebar.tsx`, replacing them with a streamlined action header containing `Plus` (New session for first project) and `FolderPlus` (Add project folder) icon buttons.
+**Goal:** Update `Sidebar.tsx` top header to render a 2-row vertical menu with "New session" (`Plus` icon) and "Add folder" (`FolderPlus` icon) full-width items.
 
-**Architecture:** Update `Sidebar.tsx` header section JSX and import `FolderPlus` from `lucide-react`. Update `styles.css` for `.sidebar-header-actions`.
+**Architecture:** Update `Sidebar.tsx` header section structure to `.sidebar-header-menu` and update `styles.css` for `.sidebar-header-menu` and `.sidebar-header-item`.
 
 **Tech Stack:** React 19, TypeScript, CSS, Vitest.
 
@@ -14,26 +14,20 @@
 
 ---
 
-### Task 1: Update Sidebar Header Menu in Sidebar & Styles
+### Task 1: Update Sidebar Header Menu to 2-Row Vertical Menu
 
 **Files:**
 - Modify: `src/renderer/src/components/Sidebar.tsx`
 - Modify: `src/renderer/src/styles.css`
 
-- [ ] **Step 1: Update `Sidebar.tsx` import and header JSX**
+- [ ] **Step 1: Update `Sidebar.tsx` header section JSX**
 
-Import `FolderPlus` from `lucide-react`:
+Replace `.sidebar-header-actions` in `Sidebar.tsx` with `.sidebar-header-menu`:
 ```tsx
-import { ChevronDown, ChevronRight, FolderPlus, MoreVertical, Plus } from 'lucide-react'
-```
-
-Replace `<div className="panel-head sidebar-head">...</div>` with:
-```tsx
-      <div className="sidebar-header-actions">
+      <div className="sidebar-header-menu">
         <button
-          className="icon-btn"
-          title="New session"
-          aria-label="New session"
+          type="button"
+          className="sidebar-header-item"
           onClick={() => {
             if (workspaces.length > 0) {
               onNewSession(workspaces[0].projectPath)
@@ -43,29 +37,48 @@ Replace `<div className="panel-head sidebar-head">...</div>` with:
           }}
         >
           <Plus size={14} aria-hidden="true" />
+          <span>New session</span>
         </button>
         <button
-          className="icon-btn"
-          title="Add project folder"
-          aria-label="Add project folder"
+          type="button"
+          className="sidebar-header-item"
           onClick={() => void handleAddProjectDirect()}
         >
           <FolderPlus size={14} aria-hidden="true" />
+          <span>Add folder</span>
         </button>
       </div>
 ```
 
-- [ ] **Step 2: Update `styles.css` for `.sidebar-header-actions`**
+- [ ] **Step 2: Update `styles.css` for `.sidebar-header-menu` and `.sidebar-header-item`**
 
-Add CSS rule for `.sidebar-header-actions`:
+In `src/renderer/src/styles.css`, replace `.sidebar-header-actions` with:
 ```css
-.sidebar-header-actions {
+.sidebar-header-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.166667rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 0.083333rem solid var(--hairline);
+}
+.sidebar-header-item {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 0.333333rem;
-  padding: 0.333333rem 0;
-  border-bottom: 0.083333rem solid var(--hairline);
+  gap: 0.5rem;
+  padding: 0.333333rem 0.5rem;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+  text-align: left;
+  background: transparent;
+  border: none;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  width: 100%;
+}
+.sidebar-header-item:hover {
+  color: var(--text-strong);
+  background: var(--bg-hover);
 }
 ```
 
@@ -78,7 +91,7 @@ Expected: PASS
 
 ```bash
 git add src/renderer/src/components/Sidebar.tsx src/renderer/src/styles.css
-git commit -m "feat(ui): update sidebar header to icon action bar with New session and Add folder"
+git commit -m "feat(ui): update sidebar header to 2-row vertical menu items"
 ```
 
 ---
@@ -91,7 +104,7 @@ git commit -m "feat(ui): update sidebar header to icon action bar with New sessi
 
 - [ ] **Step 1: Update documentation files**
 
-Update `docs/reference/09-ui-guide.md` and `src/renderer/src/components/AGENTS.md` to reflect the updated sidebar header with `Plus` and `FolderPlus` icon buttons.
+Update `docs/reference/09-ui-guide.md` and `src/renderer/src/components/AGENTS.md` to describe the vertical 2-row header menu with "New session" and "Add folder".
 
 - [ ] **Step 2: Run typecheck and tests**
 
@@ -102,5 +115,5 @@ Expected: PASS
 
 ```bash
 git add docs/reference/09-ui-guide.md src/renderer/src/components/AGENTS.md
-git commit -m "docs: update UI guide for sidebar header action bar"
+git commit -m "docs: update UI guide for 2-row vertical sidebar header menu"
 ```
