@@ -5,6 +5,7 @@ import {
   PanelLeft, Pencil, Plus, RefreshCw, Server, Settings, Square, Sun, Terminal, Trash2, X
 } from 'lucide-react'
 import type { WorkspaceRuntime, WorkspaceSummary } from '@shared/types'
+import { DRAFT_SESSION_ID } from '@shared/types'
 import { applyTheme, type Theme } from '../theme'
 
 function MoreIcon() {
@@ -306,7 +307,7 @@ export default function Sidebar({
             </div>
             {expanded[ws.projectPath] && (
               <ul className="session-list">
-                {ws.sessions.map(s => {
+                {ws.sessions.filter(s => s.id !== DRAFT_SESSION_ID).map(s => {
                   const status = sessionStatus(ws.projectPath, s.id)
                   const running = isSessionRunning(ws.projectPath, s.id)
                   const activeSession = activeSessionByPath[ws.projectPath] === s.id && ws.projectPath === activePath

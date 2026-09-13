@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import type { ImageAttachment } from '@shared/types'
 import type { PaneModel } from '../App'
 import Pane from './Pane'
 
@@ -8,12 +9,13 @@ interface Props {
   onActiveChange: (id: string) => void
   backgrounds: Record<string, boolean>
   onRemove: (id: string) => void
+  onSendDraftMessage?: (textAndImages: { text: string; images?: ImageAttachment[] }) => void
 }
 
 // All sessions stay mounted (hidden when inactive) so a hidden session keeps
 // streaming/running — switching never stops another. The hiding is CSS only
 // (the `hidden` attribute on the slot), never an unmount or a key change.
-export default function SessionPanes({ panes, activeId, onActiveChange, backgrounds, onRemove }: Props) {
+export default function SessionPanes({ panes, activeId, onActiveChange, backgrounds, onRemove, onSendDraftMessage }: Props) {
   useEffect(() => {
     if (panes.length === 0) return
     if (activeId && panes.some(p => p.agent.id === activeId)) return
@@ -32,6 +34,7 @@ export default function SessionPanes({ panes, activeId, onActiveChange, backgrou
             active={pane.agent.id === active?.agent.id}
             onFocus={() => onActiveChange(pane.agent.id)}
             onRemove={() => onRemove(pane.agent.id)}
+            onSendDraftMessage={onSendDraftMessage}
           />
         </div>
       ))}

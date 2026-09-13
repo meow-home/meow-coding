@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import type { AgentMode, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ImageAttachment, QuestionOption, QueuedMessage, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
+import { DRAFT_SESSION_ID } from '@shared/types'
 import { appendStreamDelta } from '@shared/text'
 import { contextTokens } from '@shared/usage'
 import ChatInput from './ChatInput'
@@ -127,6 +128,7 @@ interface Props {
   variant?: string
   onModeChange?: (mode: AgentMode) => void
   onVariantChange?: (variant: string | undefined) => void
+  onSendDraftMessage?: (textAndImages: { text: string; images?: ImageAttachment[] }) => void
 }
 
 function RetryCountdown({ id, attempt, maxAttempts, delayMs, unbounded }: { id: string; attempt: number; maxAttempts: number; delayMs: number; unbounded?: boolean }) {
@@ -143,7 +145,7 @@ function RetryCountdown({ id, attempt, maxAttempts, delayMs, unbounded }: { id: 
   )
 }
 
-function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVariantChange }: Props) {
+function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVariantChange, onSendDraftMessage }: Props) {
   const [items, setItems] = useState<FeedItem[]>([])
   const [running, setRunning] = useState(false)
   const [currentMode, setCurrentMode] = useState<AgentMode>(mode)
@@ -202,6 +204,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   }, [agentId, onVariantChange])
 
   const loadContextInfo = useCallback(() => {
+    if (agentId === DRAFT_SESSION_ID) return
     void window.api.getContextInfo(agentId).then(info => {
       setContextLimit(info.limit)
       setCompactThreshold(info.compactThreshold)
@@ -227,6 +230,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   }, [pendingPrompt])
 
   const loadTranscript = useCallback(() => {
+    if (agentId === DRAFT_SESSION_ID) return
     void window.api.listChatTranscript(agentId).then(({ items: tail, hasMore }) => {
       setItems(tail.map(toFeedItem))
       setHasMore(hasMore)
@@ -304,6 +308,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   }, [scroll, maybeLoadOlder])
 
   const loadTodos = useCallback(() => {
+    if (agentId === DRAFT_SESSION_ID) return
     void window.api.getChatTodos(agentId).then(setTodos)
   }, [agentId])
 
@@ -330,6 +335,17 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   }, [loadTranscript, loadTodos, loadContextInfo])
 
   useEffect(() => {
+    if (agentId === DRAFT_SESSION_ID) {
+      setItems([])
+      setHasMore(false)
+      setTodos([])
+      setQueue([])
+      queueRef.current = []
+      setPendingPrompt(null)
+      setRunning(false)
+      void window.api.listCommands(cwd).then(setCommands)
+      return
+    }
     loadTranscript()
     loadTodos()
     void window.api.listCommands(cwd).then(setCommands)
@@ -649,9 +665,13 @@ if (e.type === 'usage') {
     if (m && commands.some(c => c.name === m[1])) {
       void window.api.runCommand(agentId, m[1], m[2] ?? '')
     } else {
-      void window.api.sendChat(agentId, trimmed, images)
+      if (agentId === DRAFT_SESSION_ID && onSendDraftMessage) {
+        onSendDraftMessage({ text: trimmed, images })
+      } else {
+        void window.api.sendChat(agentId, trimmed, images)
+      }
     }
-  }, [agentId, commands, running, scroll.startTurnAnchor])
+  }, [agentId, commands, running, scroll.startTurnAnchor, onSendDraftMessage])
 
   const handleStop = useCallback(() => {
     void window.api.stopChat(agentId)

@@ -1,4 +1,6 @@
 export type AgentStatus = 'spawning' | 'running' | 'idle' | 'exited' | 'stopped' | 'error'
+export const DRAFT_SESSION_ID = 'draft'
+
 export type AlertLevel = 'normal' | 'attention' | 'error'
 export type AgentKind = 'pty' | 'native'
 export type LogLevel = 'INFO' | 'WARN' | 'ERROR'

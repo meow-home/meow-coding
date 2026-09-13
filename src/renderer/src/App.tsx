@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BrowserInstallGuideEvent } from '@shared/ipc'
 import type { BrowserStatusInfo } from '@shared/browser-types'
 import type {
-  AgentConfig, AgentState, ArtifactEntry, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
+  AgentConfig, AgentState, ArtifactEntry, ImageAttachment, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from '@shared/types'
+import { DRAFT_SESSION_ID } from '@shared/types'
 import Sidebar from './components/Sidebar'
 import SessionPanes from './components/SessionPanes'
 import BackgroundPanel from './components/BackgroundPanel'
@@ -30,29 +31,53 @@ export const MAX_KEEP_ALIVE = 5
 // `.workspace-hidden`; the app toggles which one is visible by swapping the
 // `workspace-active` wrapper, so hidden ChatPanels keep streaming events.
 function WorkspaceView({
-  runtime, backgrounds, activeSessionByPath, onActiveChange, onRemovePane
+  runtime, backgrounds, activeSessionByPath, onActiveChange, onRemovePane, onSendDraftMessage
 }: {
   runtime: WorkspaceRuntime
   backgrounds: Record<string, boolean>
   activeSessionByPath: Record<string, string>
   onActiveChange: (path: string, id: string) => void
   onRemovePane: (path: string, id: string) => void
+  onSendDraftMessage: (path: string, text: string, images?: ImageAttachment[]) => void
 }) {
-  const panes: PaneModel[] = useMemo(() =>
-    runtime.workspace.agents.map(agent => ({
+  const draftPane: PaneModel = useMemo(() => ({
+    agent: {
+      id: DRAFT_SESSION_ID,
+      name: 'New session',
+      templateId: 'meow',
+      cwd: runtime.workspace.projectPath,
+      kind: 'native'
+    },
+    state: {
+      agentId: DRAFT_SESSION_ID,
+      status: 'idle',
+      exitCode: null,
+      lastOutputAt: null,
+      alert: 'normal'
+    }
+  }), [runtime.workspace.projectPath])
+
+  const panes: PaneModel[] = useMemo(() => {
+    const realPanes: PaneModel[] = runtime.workspace.agents.map(agent => ({
       agent,
       state: runtime.agents.find(s => s.agentId === agent.id) ?? {
         agentId: agent.id, status: 'idle', exitCode: null, lastOutputAt: null, alert: 'normal'
       }
-    })), [runtime])
+    }))
+    const active = activeSessionByPath[runtime.workspace.projectPath]
+    if (realPanes.length === 0 || active === DRAFT_SESSION_ID) {
+      return [...realPanes, draftPane]
+    }
+    return realPanes
+  }, [runtime, activeSessionByPath, draftPane])
 
   const activeId = useMemo(() => {
-    if (panes.length === 0) return null
     const remembered = activeSessionByPath[runtime.workspace.projectPath]
-    return remembered && panes.some(p => p.agent.id === remembered) ? remembered : (panes[0]?.agent.id ?? null)
+    if (remembered === DRAFT_SESSION_ID || panes.length === 0) {
+      return DRAFT_SESSION_ID
+    }
+    return remembered && panes.some(p => p.agent.id === remembered) ? remembered : (panes[0]?.agent.id ?? DRAFT_SESSION_ID)
   }, [panes, runtime.workspace.projectPath, activeSessionByPath])
-
-  if (panes.length === 0) return <EmptyState hasWorkspace />
 
   return (
     <>
@@ -62,9 +87,10 @@ function WorkspaceView({
         onActiveChange={id => onActiveChange(runtime.workspace.projectPath, id)}
         backgrounds={backgrounds}
         onRemove={id => onRemovePane(runtime.workspace.projectPath, id)}
+        onSendDraftMessage={textAndImages => onSendDraftMessage(runtime.workspace.projectPath, textAndImages.text, textAndImages.images)}
       />
       <BackgroundPanel
-        panes={panes}
+        panes={panes.filter(p => p.agent.id !== DRAFT_SESSION_ID)}
         backgrounds={backgrounds}
         onOpen={agentId => void window.api.setAgentBackground(agentId, false)}
         onStop={agentId => void window.api.stopChat(agentId)}
@@ -431,30 +457,40 @@ export default function App() {
       ? { ...prev, [path]: { ...prev[path], ...rt, git: rt.git ?? prev[path].git } }
       : { ...prev, [path]: rt }))
     setWorkspaces(await window.api.listWorkspaces())
+    setActiveSessionByPath(prev => {
+      const remaining = rt.workspace.agents
+      const nextId = remaining[remaining.length - 1]?.id ?? DRAFT_SESSION_ID
+      return { ...prev, [path]: nextId }
+    })
   }, [])
 
   const handleWorkspaceActiveChange = useCallback((path: string, id: string) => {
     setActiveSessionByPath(prev => (prev[path] === id ? prev : { ...prev, [path]: id }))
   }, [])
 
-  // Sidebar "+": every new session is a native meow session, and creating it also
-  // makes it the project's active one (main appends it last in `agents`). Returns
-  // false when the create failed, so the last-session delete can abort instead of
-  // leaving a project with no sessions.
+  // Sidebar "+": switches the workspace to draft session state without creating an agent yet.
   const onNewSession = useCallback(async (path: string): Promise<boolean> => {
+    if (activePathRef.current !== path) activate(path)
+    setActiveSessionByPath(prev => ({ ...prev, [path]: DRAFT_SESSION_ID }))
+    return true
+  }, [activate])
+
+  // Materializes a draft session on backend when user sends their first prompt.
+  const onSendDraftMessage = useCallback(async (path: string, text: string, images?: ImageAttachment[]) => {
     const created = await window.api.addAgent(path, {
       name: 'New session', templateId: 'meow', cwd: path, kind: 'native'
     }).catch(() => null)
-    if (!created) return false
+    if (!created) return
     setRuntimes(prev => (prev[path]
       ? { ...prev, [path]: { ...prev[path], ...created, git: created.git ?? prev[path].git } }
       : { ...prev, [path]: created }))
-    activate(path)
     const newId = created.workspace.agents[created.workspace.agents.length - 1]?.id
-    if (newId) setActiveSessionByPath(prev => (prev[path] === newId ? prev : { ...prev, [path]: newId }))
-    await refreshWorkspaces()
-    return true
-  }, [activate, refreshWorkspaces])
+    if (newId) {
+      setActiveSessionByPath(prev => ({ ...prev, [path]: newId }))
+      await refreshWorkspaces()
+      void window.api.sendChat(newId, text, images)
+    }
+  }, [refreshWorkspaces])
 
   const onSelectSession = useCallback((path: string, id: string) => {
     if (activePathRef.current !== path) activate(path)
@@ -470,20 +506,9 @@ export default function App() {
     await refreshWorkspaces()
   }, [refreshWorkspaces])
 
-  // The single enforcement point for the "a project always has ≥ 1 session"
-  // invariant: every removal path (sidebar session-row menu, pane header menu,
-  // background panel) goes through here, so a future entry point cannot silently
-  // bypass it. When the removed session is the project's last, its replacement is
-  // created **first** (create-then-delete): the project is never left at zero
-  // sessions, and a failed create aborts the removal instead of destroying the
-  // last session. "Last" comes from `isLastSession` (see `session-guard.ts`),
-  // which reads local state before main is touched — the mounted runtime when the
-  // project is open, else the sidebar summary (a project need not be opened to
-  // have its sessions listed and deleted).
   const removeSessionGuarded = useCallback(async (path: string, id: string) => {
-    if (isLastSession(path, id, runtimesRef.current, workspaces) && !(await onNewSession(path))) return
     await removeAgent(path, id)
-  }, [onNewSession, removeAgent, workspaces])
+  }, [removeAgent])
 
   // Sidebar session-row `Delete`.
   const onDeleteSession = useCallback((path: string, id: string) => {
@@ -595,6 +620,7 @@ export default function App() {
                 activeSessionByPath={activeSessionByPath}
                 onActiveChange={handleWorkspaceActiveChange}
                 onRemovePane={handleRemovePane}
+                onSendDraftMessage={onSendDraftMessage}
               />
             </div>
           )}
@@ -611,6 +637,7 @@ export default function App() {
                   activeSessionByPath={activeSessionByPath}
                   onActiveChange={handleWorkspaceActiveChange}
                   onRemovePane={handleRemovePane}
+                  onSendDraftMessage={onSendDraftMessage}
                 />
               </div>
             ))}

@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import type { ImageAttachment } from '@shared/types'
 import type { PaneModel } from '../App'
 import PaneHeader from './PaneHeader'
 import ChatPanel from './chat/ChatPanel'
@@ -10,9 +11,10 @@ interface Props {
   active: boolean
   onFocus: () => void
   onRemove: () => void
+  onSendDraftMessage?: (textAndImages: { text: string; images?: ImageAttachment[] }) => void
 }
 
-export default function Pane({ pane, background, active, onFocus, onRemove }: Props) {
+export default function Pane({ pane, background, active, onFocus, onRemove, onSendDraftMessage }: Props) {
   const id = pane.agent.id
   const native = pane.agent.kind === 'native'
   // Stable callbacks so App-level re-renders (git poll, agent state) don't
@@ -63,6 +65,7 @@ export default function Pane({ pane, background, active, onFocus, onRemove }: Pr
             variant={pane.agent.variant}
             onModeChange={handleModeChange}
             onVariantChange={handleVariantChange}
+            onSendDraftMessage={onSendDraftMessage}
           />
         </ChatErrorBoundary>
       </div>

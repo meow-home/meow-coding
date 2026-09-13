@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import type { ModelRef } from '@shared/types'
+import { DRAFT_SESSION_ID } from '@shared/types'
 
 interface Props {
   agentId: string
@@ -21,7 +22,11 @@ export default function ModelPicker({ agentId }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
 
   const refresh = useCallback(() => {
-    void window.api.getAgentModel(agentId).then(setCurrent)
+    if (agentId === DRAFT_SESSION_ID) {
+      setCurrent(null)
+    } else {
+      void window.api.getAgentModel(agentId).then(setCurrent)
+    }
     Promise.all([
       window.api.getProviderModels(),
       window.api.getConnectionModels().catch(() => [])
