@@ -164,10 +164,10 @@ export default function BaseDropdown({
     const onKeyDown = (e: KeyboardEvent) => {
       if (closeOnEscape && e.key === 'Escape') close()
     }
-    document.addEventListener('mousedown', onMouseDown)
+    document.addEventListener('mousedown', onMouseDown, true)
     document.addEventListener('keydown', onKeyDown)
     return () => {
-      document.removeEventListener('mousedown', onMouseDown)
+      document.removeEventListener('mousedown', onMouseDown, true)
       document.removeEventListener('keydown', onKeyDown)
     }
   }, [isOpen, closeOnOutsideClick, closeOnEscape])
