@@ -210,10 +210,8 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .title-bar-brand {
   display: flex; align-items: center; gap: 0.666667rem; padding-left: 0.833333rem; min-width: 0;
   height: 100%; width: 22.333333rem; flex: 0 0 auto; box-sizing: border-box;
-  background: var(--bg-sidebar); border-right: 0.083333rem solid var(--hairline);
-}
-.title-bar-brand.collapsed {
-  width: 4.333333rem; flex: 0 0 4.333333rem; padding-left: 0.666667rem; justify-content: center;
+  background: var(--bg-sidebar); border-right: none;
+  border-radius: 0;
 }
 .title-bar-darwin .title-bar-brand { padding-left: 6.5rem; }
 .title-bar-logo { width: 1.333333rem; height: 1.333333rem; flex: none; filter: drop-shadow(0 0 0.5rem var(--accent-dim)); }
@@ -227,6 +225,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .title-bar-right {
   display: flex; align-items: center; justify-content: flex-end; height: 100%; flex: 1; min-width: 0;
   background: var(--bg-panel); border-bottom: 0.083333rem solid var(--hairline);
+  border-radius: 0;
 }
 .title-bar-toolbar-btn {
   -webkit-app-region: no-drag;
@@ -237,7 +236,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   padding: 0.416667rem 1rem;
   margin-left: 0.666667rem;
   cursor: pointer;
-  border-radius: var(--radius-sm);
+  border-radius: 0;
   transition: background 120ms ease, border-color 120ms ease;
 }
 .title-bar-toolbar-btn:hover { background: var(--bg-input-hover); border-color: var(--accent-dim); }

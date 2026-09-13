@@ -14,7 +14,7 @@ The React UI layer (renderer process). Everything the user sees: the sessions of
 | `ConfirmDialog.tsx` | Reusable confirmation dialog (title, message, confirm/cancel, danger styling). Rendered through a React portal into `document.body` so its `position: fixed` backdrop always covers the whole window, regardless of any transformed ancestor. |
 | `Sidebar.tsx` | Left sidebar: project list with an expand/collapse chevron per row. An expanded project lists its sessions — status dot (green running / yellow waiting / gray idle), active row highlighted, and a per-row `...` menu (Rename via inline input, Stop when running, Delete). The row `+` creates a native session and activates it; deleting a project's last session immediately creates a fresh one. Expanded state persists in `localStorage` (`meow.sidebar.expanded`). Shows a red badge (count) per project whose sessions are waiting on a permission/question prompt (`needsInput` prop). |
 | `StatusBar.tsx` | Bottom bar: workspace name, git branch, running count, app version (via IPC). |
-| `TitleBar.tsx` | Custom window chrome (min/max/close) for frameless platforms; contains sidebar toggle button. |
+| `TitleBar.tsx` | Custom window chrome (min/max/close) for frameless platforms; `.title-bar-brand` dynamically matches the sidebar width and background for a seamless vertical column. |
 | `PopupTitleBar.tsx` | Popup window chrome for the FileViewer/GitViewer BrowserWindows: drag region + (Linux) custom min/max/close, mirroring the main TitleBar so popups match the app theme. |
 | `EmptyState.tsx` | Shown when no pane is open (workspace vs. no-workspace hint). |
 | `BackgroundPanel.tsx` | Lists background agents; open/stop/delete them (delete shows a confirm dialog). |
