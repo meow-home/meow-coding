@@ -14,6 +14,7 @@ function MoreIcon() {
 type SessionStatus = 'running' | 'waiting' | 'idle'
 
 interface Props {
+  collapsed?: boolean
   workspaces: WorkspaceSummary[]
   /** Project path -> session ids waiting on a permission/question prompt. */
   needsInput: Record<string, string[]>
@@ -42,6 +43,7 @@ interface Props {
 const MENU_WIDTH = 200
 
 export default function Sidebar({
+  collapsed = false,
   workspaces, needsInput, activePath, runtimes, activeSessionByPath, onOpen, onRemove, onRefresh,
   onOpenSettings, onOpenProviders, onOpenGit, onCheckUpdate, updateChecking,
   onNewSession, onSelectSession, onRenameSession, onDeleteSession, onStopSession
@@ -49,7 +51,6 @@ export default function Sidebar({
   const [openProjectMenu, setOpenProjectMenu] = useState<string | null>(null)
   const [projectMenuPos, setProjectMenuPos] = useState<{ x: number; y: number } | null>(null)
   const [error, setError] = useState('')
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('meow.sidebar.collapsed') === '1')
   const [footerMenuOpen, setFooterMenuOpen] = useState(false)
   const [footerMenuPos, setFooterMenuPos] = useState<{ x: number; bottom: number } | null>(null)
   const [version, setVersion] = useState('')
@@ -140,14 +141,6 @@ export default function Sidebar({
       <div className="panel-head sidebar-head">
         <span className="panel-title">Projects</span>
         <button className="btn primary small" onClick={() => void handleAddProjectDirect()}>Add Project</button>
-        <button
-          className={`sidebar-toggle ${collapsed ? 'collapsed' : ''}`}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          onClick={() => setCollapsed(v => !v)}
-        >
-          <PanelLeft size={14} aria-hidden="true" />
-        </button>
       </div>
       {collapsed ? (
         <ul className="project-rail">

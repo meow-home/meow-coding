@@ -253,6 +253,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   border-radius: 0; /* flush edges — no rounded right border against the pane grid */
 }
 .sidebar-toggle {
+  -webkit-app-region: no-drag;
   flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
   width: 1.666667rem; height: 1.666667rem; padding: 0;
   appearance: none; background: transparent; border: 0.083333rem solid transparent;

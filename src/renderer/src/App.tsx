@@ -93,6 +93,7 @@ export default function App() {
   const [updateChecking, setUpdateChecking] = useState(false)
   const [upToDateOpen, setUpToDateOpen] = useState(false)
   const manualCheckRef = useRef(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('meow.sidebar.collapsed') === '1')
   const [rightOpen, setRightOpen] = useState(() => localStorage.getItem('meow.rightpanel.open') !== '0')
   const [rightTab, setRightTab] = useState<'tree' | 'artifacts'>(() =>
     localStorage.getItem('meow.rightpanel.tab') === 'artifacts' ? 'artifacts' : 'tree')
@@ -150,6 +151,10 @@ export default function App() {
       /* a rejected list leaves the last known sidebar intact; the next refresh retries */
     }
   }, [])
+
+  useEffect(() => {
+    localStorage.setItem('meow.sidebar.collapsed', sidebarCollapsed ? '1' : '0')
+  }, [sidebarCollapsed])
 
   useEffect(() => {
     localStorage.setItem('meow.rightpanel.open', rightOpen ? '1' : '0')
@@ -488,9 +493,15 @@ export default function App() {
   return (
     <AppActionsContext.Provider value={appActions}>
     <div className="app">
-      <TitleBar panelOpen={rightOpen} onTogglePanel={() => setRightOpen(v => !v)} />
+      <TitleBar
+        panelOpen={rightOpen}
+        onTogglePanel={() => setRightOpen(v => !v)}
+        sidebarCollapsed={sidebarCollapsed}
+        onToggleSidebar={() => setSidebarCollapsed(v => !v)}
+      />
       <div className="app-body">
         <Sidebar
+          collapsed={sidebarCollapsed}
           workspaces={workspaces}
           needsInput={needsInput}
           activePath={activePath}

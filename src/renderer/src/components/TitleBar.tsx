@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Copy, Minus, PanelRight, PanelRightClose, Square, X } from 'lucide-react'
+import { Copy, Minus, PanelLeft, PanelRight, PanelRightClose, Square, X } from 'lucide-react'
 import logoMark from '../assets/logo-mark.png'
 
 function MinimizeIcon() {
@@ -25,9 +25,11 @@ function PanelIcon({ open }: { open: boolean }) {
 interface Props {
   panelOpen: boolean
   onTogglePanel: () => void
+  sidebarCollapsed?: boolean
+  onToggleSidebar?: () => void
 }
 
-export default function TitleBar({ panelOpen, onTogglePanel }: Props) {
+export default function TitleBar({ panelOpen, onTogglePanel, sidebarCollapsed, onToggleSidebar }: Props) {
   const platform = window.api.platform
   const showCustomControls = platform === 'linux'
   const [maximized, setMaximized] = useState(false)
@@ -45,8 +47,16 @@ export default function TitleBar({ panelOpen, onTogglePanel }: Props) {
     >
       <div className="title-bar-brand">
         <img src={logoMark} className="title-bar-logo" alt="" />
-        <span className="title-bar-title">Meow Coding</span>
-
+        {onToggleSidebar && (
+          <button
+            className={`sidebar-toggle ${sidebarCollapsed ? 'collapsed' : ''}`}
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            onClick={onToggleSidebar}
+          >
+            <PanelLeft size={14} aria-hidden="true" />
+          </button>
+        )}
       </div>
       <div className="title-bar-right">
         <button

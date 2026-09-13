@@ -34,13 +34,13 @@ main window's theme (see [9.6](#96-theming)).
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-Overlays: `SettingsDialog` (full-screen tabbed), `AddProjectDialog`,
+Overlays: `SettingsDialog` (full-screen tabbed),
 `BrowserDialog`, `InstallGuideDialog`, `UpdateDialog`, `BackgroundPanel`, `FileContextMenu`.
 
 ## 9.3 `App.tsx` — the state hub
 
 Owns: workspaces, the mounted `WorkspaceRuntime`s (one per kept-alive project),
-background flags, browser status, update status, right-panel state, artifacts, and the active
+background flags, browser status, update status, sidebar collapsed state (`sidebarCollapsed`), right-panel state, artifacts, and the active
 session per project (`activeSessionByPath`).
 
 ```ts
@@ -66,7 +66,7 @@ Update-dialog policy: `update-available` and `downloaded` open the dialog; `erro
 
 | Component | Responsibility |
 |---|---|
-| `TitleBar.tsx` | Custom window chrome for frameless platforms |
+| `TitleBar.tsx` | Custom window chrome for frameless platforms; includes sidebar toggle button next to logo mark |
 | `PopupTitleBar.tsx` | Same for the FileViewer/GitViewer popups (drag region + Linux min/max/close) |
 | `Sidebar.tsx` | Project list; each project row is a lightweight group header — the project name (bright on the current project, dim otherwise) followed by a **trailing** expand/collapse chevron, with the `+` (new session) and `...` (project menu) icons revealed on hover / while the project is current. The project path lives on the row's `title`: there is no path line and no session count. An expanded project lists its **sessions**, indented: a status ring (green = running, yellow = waiting on input, hollow ring = idle), the name, and a trailing `...` menu that appears on hover / when active. The active session is a full-width rounded pill. The per-row `...` menu holds Rename (via inline input), Stop (when running) and Delete. The project `...` menu holds Open, Open in VS Code, Git, Open Folder, Open Terminal (a real OS terminal window via `openSystemTerminal`) and Remove. Deleting a project's last session immediately creates a fresh one — a project always shows ≥ 1 session. Expanded state persists in `localStorage` (`meow.sidebar.expanded`). Also: Providers entry and theme toggle in the footer menu. Projects with sessions waiting on a permission/question prompt show a red count badge (and a dot on the collapsed-rail avatar) |
 | `StatusBar.tsx` | Workspace name, git branch, running count, app version |
