@@ -251,7 +251,11 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 
 /* Sidebar Popover */
 .sidebar-popover,
-.sidebar-popover * {
+.sidebar-popover *,
+.sidebar,
+.sidebar *,
+.title-bar-brand,
+.title-bar-brand * {
   animation: none !important;
   transition: none !important;
 }
