@@ -2054,12 +2054,26 @@ select.input { width: 100%; }
   color: var(--text-faint); font-family: var(--font-mono); font-size: var(--fs-xs);
 }
 .files-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+/* 30px bar, 22px chips: the 4px padding insets the tabs from every edge and the
+   gap separates them, so no hairline divider is needed between tabs. */
 .files-tabs {
-  flex: 0 0 2.5rem; display: flex; align-items: stretch; overflow-x: auto;
+  flex: 0 0 2.5rem; display: flex; align-items: stretch; gap: 0.333333rem;
+  padding: 0.333333rem; overflow-x: auto; overflow-y: hidden;
+  /* A scrollbar would eat the 22px chip height — wheel/trackpad still scroll */
+  scrollbar-width: none;
   border-bottom: 0.083333rem solid var(--hairline); background: var(--bg-panel);
 }
-.files-tab { display: inline-flex; align-items: center; gap: 0.166667rem; padding: 0 0.5rem; border-right: 0.083333rem solid var(--hairline); }
-.files-tab.active { background: var(--bg-chat); }
+.files-tabs::-webkit-scrollbar { display: none; }
+/* Transparent border on every tab (border-box) so the active one can show a
+   hairline without changing size. */
+.files-tab {
+  display: inline-flex; align-items: center; gap: 0.166667rem; flex: 0 0 auto;
+  padding: 0 0.333333rem 0 0.5rem;
+  border: 0.083333rem solid transparent; border-radius: var(--radius-sm);
+  color: var(--text-dim);
+}
+.files-tab:hover { background: var(--bg-hover); }
+.files-tab.active { background: var(--bg-chat); border-color: var(--hairline); color: var(--text-strong); }
 .files-tab-name {
   border: none; background: transparent; color: var(--text-dim); cursor: pointer;
   font: inherit; font-size: var(--fs-base); max-width: 14rem; overflow: hidden;
