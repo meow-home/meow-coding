@@ -11,7 +11,7 @@ import BackgroundPanel from './components/BackgroundPanel'
 import EmptyState from './components/EmptyState'
 import StatusBar from './components/StatusBar'
 import TitleBar from './components/TitleBar'
-import RightPanel from './components/RightPanel'
+import FilesOverlay from './components/files/FilesOverlay'
 import SettingsDialog, { type TabId } from './components/settings/SettingsDialog'
 import BrowserDialog from './components/BrowserDialog'
 import InstallGuideDialog from './components/InstallGuideDialog'
@@ -31,7 +31,7 @@ export const MAX_KEEP_ALIVE = 5
 // `.workspace-hidden`; the app toggles which one is visible by swapping the
 // `workspace-active` wrapper, so hidden ChatPanels keep streaming events.
 function WorkspaceView({
-  runtime, backgrounds, activeSessionByPath, onActiveChange, onRemovePane, onSendDraftMessage
+  runtime, backgrounds, activeSessionByPath, onActiveChange, onRemovePane, onSendDraftMessage, onOpenFiles
 }: {
   runtime: WorkspaceRuntime
   backgrounds: Record<string, boolean>
@@ -39,6 +39,7 @@ function WorkspaceView({
   onActiveChange: (path: string, id: string) => void
   onRemovePane: (path: string, id: string) => void
   onSendDraftMessage: (path: string, text: string, images?: ImageAttachment[]) => void
+  onOpenFiles: (id: string) => void
 }) {
   const draftPane: PaneModel = useMemo(() => ({
     agent: {
@@ -88,6 +89,7 @@ function WorkspaceView({
         backgrounds={backgrounds}
         onRemove={id => onRemovePane(runtime.workspace.projectPath, id)}
         onSendDraftMessage={textAndImages => onSendDraftMessage(runtime.workspace.projectPath, textAndImages.text, textAndImages.images)}
+        onOpenFiles={() => onOpenFiles(runtime.workspace.projectPath)}
       />
       <BackgroundPanel
         panes={panes.filter(p => p.agent.id !== DRAFT_SESSION_ID)}
@@ -160,6 +162,10 @@ export default function App() {
     return Number.isFinite(w) && w >= 240 && w <= 600 ? w : 280
   })
   const [artifacts, setArtifacts] = useState<Record<string, ArtifactEntry[]>>({})
+  // Files overlay: the project it is open for (null = closed) and whether it is
+  // expanded over the whole pane area.
+  const [filesOpenFor, setFilesOpenFor] = useState<string | null>(null)
+  const [filesFull, setFilesFull] = useState(false)
   // Project path -> agent ids currently waiting on a permission/question
   // prompt (needs user reply/approval). Drives the sidebar badges.
   const [needsInput, setNeedsInput] = useState<Record<string, string[]>>({})
@@ -223,6 +229,9 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('meow.rightpanel.width', String(rightWidth))
   }, [rightWidth])
+  useEffect(() => {
+    setFilesOpenFor(prev => (prev && prev !== activePath ? null : prev))
+  }, [activePath])
   useEffect(() => {
     localStorage.setItem('meow.activeSessionByPath', JSON.stringify(activeSessionByPath))
   }, [activeSessionByPath])
@@ -627,6 +636,7 @@ export default function App() {
                 onActiveChange={handleWorkspaceActiveChange}
                 onRemovePane={handleRemovePane}
                 onSendDraftMessage={onSendDraftMessage}
+                onOpenFiles={projectPath => { setFilesFull(false); setFilesOpenFor(projectPath) }}
               />
             </div>
           )}
@@ -644,9 +654,18 @@ export default function App() {
                   onActiveChange={handleWorkspaceActiveChange}
                   onRemovePane={handleRemovePane}
                   onSendDraftMessage={onSendDraftMessage}
+                  onOpenFiles={projectPath => { setFilesFull(false); setFilesOpenFor(projectPath) }}
                 />
               </div>
             ))}
+          {filesOpenFor && (
+            <FilesOverlay
+              projectPath={filesOpenFor}
+              full={filesFull}
+              onToggleFull={() => setFilesFull(v => !v)}
+              onClose={() => setFilesOpenFor(null)}
+            />
+          )}
         </main>
       </div>
       <StatusBar

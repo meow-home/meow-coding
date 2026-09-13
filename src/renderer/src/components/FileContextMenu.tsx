@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowUpRight, Code } from 'lucide-react'
+import { ArrowUpRight, Code, Copy } from 'lucide-react'
 
 export interface FileMenuState {
   x: number
@@ -11,9 +11,10 @@ export interface FileMenuState {
 interface Props {
   menu: FileMenuState | null
   onClose: () => void
+  showCopyPath?: boolean
 }
 
-export default function FileContextMenu({ menu, onClose }: Props) {
+export default function FileContextMenu({ menu, onClose, showCopyPath = false }: Props) {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -38,6 +39,12 @@ export default function FileContextMenu({ menu, onClose }: Props) {
   const y = Math.min(menu.y, window.innerHeight - 80)
   return createPortal(
     <div ref={ref} className="right-panel-menu" style={{ position: 'fixed', left: x, top: y, zIndex: 1000 }}>
+      {showCopyPath && (
+        <button className="menu-item" onClick={() => { void navigator.clipboard.writeText(menu.absPath); onClose() }}>
+          <Copy size={16} aria-hidden="true" />
+          Copy path
+        </button>
+      )}
       <button className="menu-item" onClick={() => { void window.api.openFileInEditor(menu.absPath); onClose() }}>
         <Code size={16} aria-hidden="true" />
         Open in VS Code

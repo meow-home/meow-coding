@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { FileText, Layers, MoreVertical, Play, RotateCw, Square, Trash2 } from 'lucide-react'
+import { FileText, FolderTree, Layers, MoreVertical, Play, RotateCw, Square, Trash2 } from 'lucide-react'
 import type { AgentState } from '@shared/types'
 import ConfirmDialog from './ConfirmDialog'
 
@@ -14,6 +14,7 @@ interface Props {
   onInject: (text: string) => void
   onOpenLog: () => void
   onToggleBackground?: () => void
+  onOpenFiles?: () => void
   onRemove: () => void
 }
 
@@ -24,7 +25,7 @@ const STATUS_LABEL: Record<AgentState['status'], string> = {
 
 export default function PaneHeader({
   name, state, background = false, native = false, active = false,
-  onStop, onRestart, onInject, onOpenLog, onToggleBackground, onRemove
+  onStop, onRestart, onInject, onOpenLog, onToggleBackground, onOpenFiles, onRemove
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [injecting, setInjecting] = useState(false)
@@ -118,6 +119,12 @@ export default function PaneHeader({
                 <button className="menu-item" onClick={() => { close(); onToggleBackground() }}>
                   <Layers size={16} aria-hidden="true" />
                   {background ? 'Open pane' : 'Run in background'}
+                </button>
+              )}
+              {onOpenFiles && (
+                <button className="menu-item" onClick={() => { close(); onOpenFiles() }}>
+                  <FolderTree size={16} aria-hidden="true" />
+                  Files
                 </button>
               )}
               <div className="menu-sep" aria-hidden="true" />
