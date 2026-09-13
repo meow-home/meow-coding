@@ -1,6 +1,6 @@
 import type {
   AgentConfig, AgentState, ArtifactEntry, CatalogProviderSummary, ChatEvent, ChatMessage, Command,
-  ConnectionAccount, ContextChangedEvent, ContextInfo, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload,
+  ConnectionAccount, ContextChangedEvent, ContextInfo, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload, ImageContentResult,
   GitActionResult, GitBlameLine, GitBranch, GitCommit, GitDiffResult, GitStatus, GitStatusDetail,
   ImageAttachment, LogLevel, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PendingPromptInfo, ProjectSearchHit, PromptResponse,
   StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts,
@@ -124,6 +124,8 @@ export const Channels = {
   DirList: 'dir:list',
   FilesListDir: 'files:list-dir',
   FilesSearch: 'files:search',
+  FilesImage: 'files:image',
+  FilesOpenSystem: 'files:open-system',
   ArtifactsList: 'artifacts:list',
   ArtifactsClear: 'artifacts:clear',
   EventArtifactsChanged: 'artifacts:changed'
@@ -195,6 +197,8 @@ export interface AgentApi {
   listDir(absPath: string): Promise<DirEntry[]>
   filesListDir(projectPath: string, absPath: string): Promise<DirEntry[]>
   filesSearch(projectPath: string, query: string): Promise<ProjectSearchHit[]>
+  getFileImage(path: string): Promise<ImageContentResult>
+  openFileWithSystem(path: string): Promise<void>
   listArtifacts(projectPath: string): Promise<ArtifactEntry[]>
   clearArtifacts(projectPath: string): Promise<void>
   onArtifactsChanged(cb: (e: ArtifactsChangedEvent) => void): () => void

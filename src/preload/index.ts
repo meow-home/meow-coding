@@ -68,6 +68,10 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.FilesListDir, projectPath, absPath),
   filesSearch: (projectPath: string, query: string) =>
     ipcRenderer.invoke(Channels.FilesSearch, projectPath, query),
+  getFileImage: (path: string) =>
+    ipcRenderer.invoke(Channels.FilesImage, path),
+  openFileWithSystem: (path: string) =>
+    ipcRenderer.invoke(Channels.FilesOpenSystem, path),
   listArtifacts: (projectPath: string) =>
     ipcRenderer.invoke(Channels.ArtifactsList, projectPath),
   clearArtifacts: (projectPath: string) =>

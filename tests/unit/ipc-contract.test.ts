@@ -22,6 +22,7 @@ describe('IPC contract', () => {
       'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus', 'listCommands', 'saveCommand', 'removeCommand', 'getStats', 'onContextChanged',
       'suggestFiles', 'setAgentBackground', 'onAgentBackground',
       'filesListDir', 'filesSearch',
+      'getFileImage', 'openFileWithSystem',
       'getChatTodos',
       'isChatRunning',
       'getPendingPrompt',
@@ -139,6 +140,8 @@ describe('IPC contract', () => {
       suggestFiles: async () => [],
       filesListDir: async () => [],
       filesSearch: async () => [],
+      getFileImage: async () => ({ path: '', ext: '', mime: '', dataUrl: '', sizeBytes: 0 }),
+      openFileWithSystem: async () => {},
       setAgentBackground: async () => {},
       onAgentBackground: () => () => {}
     }

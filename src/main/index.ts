@@ -25,7 +25,7 @@ import type { LearnedLimitEntry } from './agent/learned-limits'
 import { SavedPermissions } from './agent/saved-permissions'
 import type { SavedPermission } from './agent/saved-permissions'
 import { createDefaultTools } from './agent/tools/registry'
-import { isTextPath, openFileViewer, openWithSystemApp, readFileContent } from './file-viewer'
+import { isTextPath, openFileViewer, openWithSystemApp, readFileContent, readImageDataUrl } from './file-viewer'
 import { MeowAgentManager } from './meow-agent-manager'
 import { CommandStore } from './agent/commands'
 import { FileWatcher } from './file-watcher'
@@ -479,6 +479,14 @@ export class MainApp {
     }
   }
 
+  // Spawning the OS default app is only allowed for files inside a registered
+  // project — the renderer must not be able to launch arbitrary paths.
+  openFileWithSystem(absPath: string): Promise<void> {
+    const allowed = this.workspaces.list().some(w => isPathInside(w.projectPath, absPath))
+    if (!allowed) throw new Error('Not a project path')
+    return openWithSystemApp(absPath)
+  }
+
   private startGitPoll(projectPath: string): void {
     if (this.gitTimer) clearInterval(this.gitTimer)
     const poll = async () => {
@@ -772,6 +780,8 @@ export function registerIpcHandlers(): void {
     mainApp.filesListDir(projectPath, absPath))
   ipcMain.handle(Channels.FilesSearch, (_e, projectPath: string, query: string) =>
     mainApp.filesSearch(projectPath, query))
+  ipcMain.handle(Channels.FilesImage, (_e, absPath: string) => readImageDataUrl(absPath))
+  ipcMain.handle(Channels.FilesOpenSystem, (_e, absPath: string) => mainApp.openFileWithSystem(absPath))
   ipcMain.handle(Channels.ArtifactsList, (_e, projectPath: string) =>
     mainApp.artifacts.list(projectPath))
   ipcMain.handle(Channels.ArtifactsClear, (_e, projectPath: string) => {
