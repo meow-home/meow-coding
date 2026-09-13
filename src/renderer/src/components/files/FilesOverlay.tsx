@@ -3,6 +3,7 @@ import {
   ArrowUpRight, CircleX, Code, Copy, EllipsisVertical, Files, Folder,
   ListCollapse, Maximize2, Minimize2, RefreshCw, Search, X
 } from 'lucide-react'
+import BaseDropdown from '../common/BaseDropdown'
 import FilesTree from './FilesTree'
 import FileContentView from '../file-content/FileContentView'
 import { baseName } from './file-path'
@@ -80,23 +81,6 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
     return () => document.removeEventListener('keydown', onKey)
   }, [query, onClose])
 
-  useEffect(() => {
-    if (!menuOpen) return
-    const onDocClick = (e: MouseEvent) => {
-      const target = e.target as Node
-      if (!menuRef.current?.contains(target)) setMenuOpen(false)
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenuOpen(false)
-    }
-    document.addEventListener('mousedown', onDocClick)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDocClick)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [menuOpen])
-
   return (
     <section
       className={`files-overlay${full ? ' full' : ' docked'}`}
@@ -119,60 +103,65 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
           >
             <Search size={14} aria-hidden="true" />
           </button>
-          <div className="pane-menu" ref={menuRef}>
-            <button
-              className="icon-btn"
-              title="Files menu"
-              aria-label="Files menu"
-              onClick={() => setMenuOpen(v => !v)}
+          <div className="pane-menu">
+            <BaseDropdown
+              open={menuOpen}
+              onOpenChange={setMenuOpen}
+              placement="bottom-end"
+              menuClassName="sidebar-menu-dropdown pane-menu-dropdown files-menu-dropdown"
+              trigger={(
+                <button
+                  className="icon-btn"
+                  title="Files menu"
+                  aria-label="Files menu"
+                  onClick={() => setMenuOpen(v => !v)}
+                >
+                  <EllipsisVertical size={14} aria-hidden="true" />
+                </button>
+              )}
             >
-              <EllipsisVertical size={14} aria-hidden="true" />
-            </button>
-            {menuOpen && (
-              <div className="sidebar-menu-dropdown pane-menu-dropdown files-menu-dropdown">
-                <button className="menu-item" onClick={() => { setMenuOpen(false); setReloadToken(v => v + 1) }}>
-                  <RefreshCw size={16} aria-hidden="true" />
-                  Refresh
-                </button>
-                <button className="menu-item" onClick={() => { setMenuOpen(false); setCollapseToken(v => v + 1) }}>
-                  <ListCollapse size={16} aria-hidden="true" />
-                  Collapse all
-                </button>
-                <button
-                  className="menu-item"
-                  disabled={tabs.length === 0}
-                  onClick={() => { setMenuOpen(false); setTabs([]); setActiveTab(null) }}
-                >
-                  <CircleX size={16} aria-hidden="true" />
-                  Close all tabs
-                </button>
-                <div className="menu-sep" aria-hidden="true" />
-                <button
-                  className="menu-item"
-                  disabled={!activeTab}
-                  onClick={() => { setMenuOpen(false); if (activeTab) void navigator.clipboard.writeText(activeTab) }}
-                >
-                  <Copy size={16} aria-hidden="true" />
-                  Copy path
-                </button>
-                <button
-                  className="menu-item"
-                  disabled={!activeTab}
-                  onClick={() => { setMenuOpen(false); if (activeTab) void window.api.showFileInFolder(activeTab) }}
-                >
-                  <ArrowUpRight size={16} aria-hidden="true" />
-                  Reveal in Folder
-                </button>
-                <button
-                  className="menu-item"
-                  disabled={!activeTab}
-                  onClick={() => { setMenuOpen(false); if (activeTab) void window.api.openFileInEditor(activeTab) }}
-                >
-                  <Code size={16} aria-hidden="true" />
-                  Open in VS Code
-                </button>
-              </div>
-            )}
+              <button className="menu-item" onClick={() => { setMenuOpen(false); setReloadToken(v => v + 1) }}>
+                <RefreshCw size={16} aria-hidden="true" />
+                Refresh
+              </button>
+              <button className="menu-item" onClick={() => { setMenuOpen(false); setCollapseToken(v => v + 1) }}>
+                <ListCollapse size={16} aria-hidden="true" />
+                Collapse all
+              </button>
+              <button
+                className="menu-item"
+                disabled={tabs.length === 0}
+                onClick={() => { setMenuOpen(false); setTabs([]); setActiveTab(null) }}
+              >
+                <CircleX size={16} aria-hidden="true" />
+                Close all tabs
+              </button>
+              <div className="menu-sep" aria-hidden="true" />
+              <button
+                className="menu-item"
+                disabled={!activeTab}
+                onClick={() => { setMenuOpen(false); if (activeTab) void navigator.clipboard.writeText(activeTab) }}
+              >
+                <Copy size={16} aria-hidden="true" />
+                Copy path
+              </button>
+              <button
+                className="menu-item"
+                disabled={!activeTab}
+                onClick={() => { setMenuOpen(false); if (activeTab) void window.api.showFileInFolder(activeTab) }}
+              >
+                <ArrowUpRight size={16} aria-hidden="true" />
+                Reveal in Folder
+              </button>
+              <button
+                className="menu-item"
+                disabled={!activeTab}
+                onClick={() => { setMenuOpen(false); if (activeTab) void window.api.openFileInEditor(activeTab) }}
+              >
+                <Code size={16} aria-hidden="true" />
+                Open in VS Code
+              </button>
+            </BaseDropdown>
           </div>
           <button
             className="icon-btn"
