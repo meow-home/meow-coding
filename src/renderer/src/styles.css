@@ -1483,6 +1483,7 @@ select.input { width: 100%; }
   box-shadow: var(--shadow-3);
   padding: var(--menu-pad); display: flex; flex-direction: column; gap: 0;
   contain: layout paint; will-change: transform;
+  font-family: var(--font-ui);
 }
 .chat-input { position: relative; }
 .command-item {
@@ -1492,7 +1493,7 @@ select.input { width: 100%; }
   border-left: 0.166667rem solid transparent;
 }
 .command-item.selected { background: var(--menu-active); border-left-color: var(--accent); }
-.command-name { font-family: var(--font-mono); color: var(--accent); font-size: var(--fs-md); }
+.command-name { font-family: var(--font-ui); font-weight: var(--fw-semibold); color: var(--accent); font-size: var(--fs-md); }
 .command-desc { color: var(--text-dim); font-size: var(--fs-base); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .command-more { padding: 0.333333rem 0.833333rem; color: var(--text-faint); font-size: var(--fs-base); font-style: italic; }
 
