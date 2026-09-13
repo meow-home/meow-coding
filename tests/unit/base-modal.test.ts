@@ -38,6 +38,6 @@ describe('BaseModal', () => {
     expect(css).toContain('.dialog.dialog-sm { width: 28rem; }')
     expect(css).toContain('.dialog.dialog-md { width: 35rem; }')
     expect(css).toContain('.dialog.dialog-lg { width: 45rem; }')
-    expect(css).toContain('.dialog.dialog-xl { width: 55rem; }')
+    expect(css).toContain('.dialog.dialog-xl { width: 72rem; max-width: 90vw; }')
   })
 })

@@ -616,7 +616,7 @@ select.input { width: 100%; }
 .dialog.dialog-sm { width: 28rem; }
 .dialog.dialog-md { width: 35rem; }
 .dialog.dialog-lg { width: 45rem; }
-.dialog.dialog-xl { width: 55rem; }
+.dialog.dialog-xl { width: 72rem; max-width: 90vw; }
 .update-dialog { width: 40rem; max-width: 90vw; }
 .update-version { font-family: var(--font-mono); }
 .update-changelog { max-height: 20rem; overflow-y: auto; border: 0.083333rem solid var(--hairline); border-radius: 0; padding: 0.5rem; margin: 0.666667rem 0; font-size: var(--fs-md); width: 100%; }
