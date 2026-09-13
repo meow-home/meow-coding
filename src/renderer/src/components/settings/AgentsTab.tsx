@@ -39,14 +39,14 @@ function SingleSelect({ value, placeholder, disabled = false, options, onChange 
       align="left"
       trigger={<span className="select-value-label">{triggerLabel}</span>}
     >
-      <div className="select-options-list">
+      <div>
         {options.map(opt => {
           const isSelected = opt.value === value
           return (
             <button
               key={opt.value}
               type="button"
-              className={`dropdown-item select-item ${isSelected ? 'active' : ''}`}
+              className={`menu-item ${isSelected ? 'active' : ''}`}
               role="option"
               aria-selected={isSelected}
               onClick={() => {

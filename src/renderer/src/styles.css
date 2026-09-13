@@ -1276,6 +1276,9 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .subagents-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(23.333333rem, 1fr)); gap: 0.666667rem; margin-top: 0.666667rem; }
 .submodel-fields { display: flex; flex-wrap: wrap; gap: 0.666667rem; }
 .submodel-fields .input { flex: 1; min-width: 0; }
+.submodel-fields .base-dropdown-container { flex: 1; min-width: 0; display: flex; }
+.submodel-fields .dropdown-trigger { width: 100%; justify-content: space-between; gap: 0.5rem; min-width: 0; overflow: hidden; }
+.select-value-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; text-align: left; }
 
 /* Permissions tab */
 .permission-add { display: flex; gap: 0.5rem; align-items: center; }
