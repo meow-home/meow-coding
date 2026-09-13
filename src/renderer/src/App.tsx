@@ -16,6 +16,7 @@ import SettingsDialog, { type TabId } from './components/settings/SettingsDialog
 import BrowserDialog from './components/BrowserDialog'
 import InstallGuideDialog from './components/InstallGuideDialog'
 import UpdateDialog from './components/UpdateDialog'
+import BaseModal from './components/common/BaseModal'
 import { AppActionsContext } from './app-actions'
 import { isLastSession } from './session-guard'
 
@@ -726,26 +727,16 @@ export default function App() {
 }
 
 function UpToDateDialog({ version, onClose }: { version?: string; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
   return (
-    <div className="dialog-backdrop">
-      <div className="dialog">
-        <h3>Update</h3>
-        <button className="dialog-close" aria-label="Close" onClick={onClose}>✕</button>
-        <p className="settings-hint">
-          This is the latest version{version ? ` (v${version})` : ''}.
-        </p>
-        <div className="dialog-actions">
-          <button className="btn" onClick={onClose}>Close</button>
-        </div>
-      </div>
-    </div>
+    <BaseModal
+      title="Update"
+      onClose={onClose}
+      size="sm"
+      actions={<button className="btn" onClick={onClose}>Close</button>}
+    >
+      <p className="settings-hint">
+        This is the latest version{version ? ` (v${version})` : ''}.
+      </p>
+    </BaseModal>
   )
 }

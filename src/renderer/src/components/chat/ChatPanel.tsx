@@ -15,6 +15,7 @@ import ModelPicker from './ModelPicker'
 import VariantPicker from './VariantPicker'
 import ModePicker from './ModePicker'
 import ContextFooter from './ContextFooter'
+import BaseModal from '../common/BaseModal'
 
 type FeedItem =
   | { kind: 'message'; id: string; role: ChatMessage['role']; text: string; reasoning?: string; images?: ImageAttachment[] }
@@ -831,19 +832,20 @@ if (e.type === 'usage') {
         const live = items.find(i => i.kind === 'subagent' && i.taskId === liveTaskId) as FeedItem & { kind: 'subagent' } | undefined
         if (!live) return null
         return (
-          <div className="dialog-backdrop">
-            <div className="dialog subagent-live">
-              <h3>sub-agent{live.subagentType ? ` (${live.subagentType})` : ''}{live.background ? ' · background' : ''}</h3>
-              <button className="dialog-close" aria-label="Close" onClick={() => setLiveTaskId(null)}>✕</button>
-              <div className="subagent-live-state">
-                <span className={`subagent-state state-${live.state}`}>{live.state}</span>
-                {live.tools.length > 0 && live.tools.map(t => <code key={t}>{t}</code>)}
-              </div>
-              {live.reasoning && <details className="chat-reasoning"><summary>Thinking</summary><div className="chat-reasoning-text">{live.reasoning}</div></details>}
-              <div className="subagent-live-text">{live.text || (live.state === 'running' ? '…' : '')}</div>
-              {live.result && <div className="subagent-live-result">{live.result}</div>}
+          <BaseModal
+            title={`sub-agent${live.subagentType ? ` (${live.subagentType})` : ''}${live.background ? ' · background' : ''}`}
+            onClose={() => setLiveTaskId(null)}
+            className="subagent-live"
+            closeOnBackdropClick={false}
+          >
+            <div className="subagent-live-state">
+              <span className={`subagent-state state-${live.state}`}>{live.state}</span>
+              {live.tools.length > 0 && live.tools.map(t => <code key={t}>{t}</code>)}
             </div>
-          </div>
+            {live.reasoning && <details className="chat-reasoning"><summary>Thinking</summary><div className="chat-reasoning-text">{live.reasoning}</div></details>}
+            <div className="subagent-live-text">{live.text || (live.state === 'running' ? '…' : '')}</div>
+            {live.result && <div className="subagent-live-result">{live.result}</div>}
+          </BaseModal>
         )
       })()}
       <div className="chat-history-actions">
