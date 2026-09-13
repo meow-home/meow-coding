@@ -1,6 +1,6 @@
 # AGENTS.md — src/renderer/src/components/settings
 
-The Settings screen: a full-screen, tabbed overlay editing the non-provider parts of the `meow.json`-backed `MeowSettings` object.
+The Settings dialog: a centered popup modal (size `xl`, `BaseModal` shell) editing the non-provider parts of the `meow.json`-backed `MeowSettings` object.
 Reads via `window.api.getSettings()`, saves via `saveSettings(settings)`; changes propagate to the
 main process config.
 
@@ -8,7 +8,7 @@ main process config.
 
 | File | Responsibility |
 |---|---|
-| `SettingsDialog.tsx` | Full-screen shell: loads settings/MCP status/provider catalog, tab switching, `patch()` draft state, save flow. Debounced auto-save (`saveSettings` can be slow — it reloads agents/MCP), and the normalized save result is only adopted if the draft hasn't changed while the save was in flight so edits made during a save are never clobbered. |
+| `SettingsDialog.tsx` | Centered modal popup (size `xl` via `BaseModal` shell): loads settings/MCP status/provider catalog, vertical tab switching, `patch()` draft state, save flow. Debounced auto-save (`saveSettings` can be slow — it reloads agents/MCP), and the normalized save result is only adopted if the draft hasn't changed while the save was in flight so edits made during a save are never clobbered. |
 | `ProvidersTab.tsx` | Provider management tab (opened from the sidebar Providers menu item): add/connect (API key + base URL), fetch models from the live `/models` endpoint or the catalog, hand-enter model IDs for any OpenAI-compatible API, "Sync models", default provider. |
 | `AgentsTab.tsx` | Per-agent config (name, system prompt, provider/model). |
 | `PermissionsTab.tsx` | Tool permission rules (allow/ask/deny). |
@@ -17,7 +17,7 @@ main process config.
 | `CommandsTab.tsx` | Slash-command editor (project-level). "+ Add command" button in header (top), same `agents-head` pattern as AgentsTab. |
 | `PersonalizeTab.tsx` | App-wide font size control (px, default 14, range 8-40): sets `meow.fontSize` in localStorage, applied via `applyFontSize()`. |
 | `UpdatesTab.tsx` | Update channel + check/install. |
-| `Modal.tsx` | Reusable modal shell for the settings dialog. |
+| `Modal.tsx` | Inner settings modal wrapper wrapping `BaseModal` with standard Cancel/Save footer actions. |
 
 ## Conventions
 

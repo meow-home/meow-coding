@@ -34,7 +34,7 @@ main window's theme (see [9.6](#96-theming)).
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-Overlays: `SettingsDialog` (full-screen tabbed),
+Overlays: `SettingsDialog` (centered modal size xl tabbed),
 `BrowserDialog`, `InstallGuideDialog`, `UpdateDialog`, `BackgroundPanel`, `FileContextMenu`.
 
 ### Files overlay
