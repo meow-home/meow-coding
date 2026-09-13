@@ -595,20 +595,39 @@ select.input { width: 100%; }
   border: 0.083333rem solid var(--hairline);
   box-shadow: var(--shadow-3);
   border-radius: var(--radius-lg);
-  padding: 1.5rem;
+  padding: 0;
   width: 35rem;
+  display: flex; flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+.dialog-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.833333rem 1.25rem;
+  border-bottom: 0.083333rem solid var(--hairline);
+  position: relative;
+}
+.dialog-header h3 { margin: 0; font-size: var(--fs-lg); font-family: var(--font-display); font-weight: var(--fw-semibold); }
+.dialog-body {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 1rem 1.25rem;
   display: flex; flex-direction: column; gap: 0.833333rem;
 }
-.dialog h3 { margin: 0; font-size: var(--fs-lg); font-family: var(--font-display); font-weight: var(--fw-semibold); }
+.dialog-body.no-padding { padding: 0; }
+.dialog-footer {
+  display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem;
+  padding: 0.833333rem 1.25rem;
+  border-top: 0.083333rem solid var(--hairline);
+}
+.dialog-footer .btn { min-width: 6.666667rem; text-align: center; }
 .dialog-close {
-  position: absolute; top: 0.833333rem; right: 0.833333rem;
   width: 2.166667rem; height: 2.166667rem; padding: 0;
   display: flex; align-items: center; justify-content: center;
   background: transparent; border: none; border-radius: var(--radius-sm);
   color: var(--text-dim); font-size: 1.25rem; line-height: 1; cursor: pointer;
+  margin-left: auto;
 }
 .dialog-close:hover { background: var(--bg-hover); color: var(--text-strong); }
-.dialog { position: relative; }
 .label { font-size: var(--fs-base); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-strong); font-family: var(--font-display); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
 .dialog-actions .btn { min-width: 6.666667rem; text-align: center; }
