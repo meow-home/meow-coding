@@ -145,8 +145,8 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
 `src/renderer/src/styles.css` — one file, CSS variables only.
 
 - Root font size 15px; sizes `--fs-xs` 12px … `--fs-lg` 18px.
-- Fonts: `--font-ui` (Segoe UI Variable / system-ui) for everything, `--font-mono`
-  (JetBrains Mono / Nerd Font) for terminal, data and code labels. `--font-display` aliases
+- Fonts: `--font-ui` (Segoe UI Variable / system-ui) for all UI text (including tool call headers, chat feed metadata, subagent status badges, prompt option marks, and context popover counts), reserving `--font-mono`
+  (JetBrains Mono / Nerd Font) exclusively for code, scripts, outputs, logs, and diffs. `--font-display` aliases
   `--font-ui`: the display fonts were never loaded via `@font-face` (CSP is `'self'` only) and
   silently fell back to mono, which made uppercase labels look like terminal output.
 - Spacing on a 4px scale; controls use Tailwind default sizes.
