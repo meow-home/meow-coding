@@ -11,6 +11,6 @@ Shared, reusable UI primitives used across the renderer process.
 
 | File | Responsibility |
 |---|---|
-| `BaseModal.tsx` | Reusable modal dialog overlay portaled to `document.body` with backdrop click, Escape key handling, accessibility roles, and size modifiers (`sm`, `md`, `lg`, `xl`). Used for app-wide dialogs and popups. |
+| `BaseModal.tsx` | Reusable modal dialog overlay portaled to `document.body` with backdrop click, Escape key handling, accessibility roles, and size modifiers (`sm`, `md`, `lg`, `xl`). Supports compound sub-components (`BaseModal.Header`, `BaseModal.Body`, `BaseModal.Footer`) with border dividers and optional `noPadding` for full-bleed content, as well as automatic fallback wrapping for legacy props (`title`, `actions`, `children`). Used for app-wide dialogs and popups. |
 | `BaseDropdown.tsx` | Reusable popover dropdown overlay portaled to `document.body` with smart positioning (auto-flip vertical orientation, auto-clamp horizontal boundaries, and auto max-height overflow scrolling). Used by action menus and context dropdowns app-wide. |
 | `BaseSelect.tsx` | Reusable option selection control wrapper wrapping `BaseDropdown` with `role="combobox"` and `role="listbox"` ARIA semantics for option pickers (e.g., `ModePicker`, `VariantPicker`). |
