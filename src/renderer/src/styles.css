@@ -1161,7 +1161,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
 }
 .settings-nav-item:hover { background: var(--bg-hover); color: var(--text-strong); }
-.settings-nav-item.active { background: var(--bg-active); color: var(--accent); font-weight: var(--fw-semibold); border-left-color: var(--accent); }
+.settings-nav-item.active { background: var(--menu-active); color: var(--text-strong); font-weight: var(--fw-semibold); border-left-color: var(--accent); }
 .settings-content { flex: 1; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.833333rem; padding: 0.833333rem 1.25rem; }
 .settings-save-pill {
   position: absolute; right: 1.25rem; bottom: 1.25rem; z-index: 10;
