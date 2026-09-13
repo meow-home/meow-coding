@@ -492,7 +492,7 @@ select.input { width: 100%; }
   flex-direction: column;
   overflow: hidden;
   background: var(--bg-panel);
-  box-shadow: var(--shadow-1);
+  box-shadow: none;
   min-height: 0;
   min-width: 0;
   cursor: default;
@@ -502,7 +502,7 @@ select.input { width: 100%; }
    frame and its structural containers must reset to 0 explicitly to stay flat. */
 .pane > *, .pane-body, .chat-panel { border-radius: 0; }
 .pane.active {
-  box-shadow: var(--shadow-2), 0 0 1.333333rem color-mix(in srgb, var(--accent) 10%, transparent);
+  box-shadow: none;
 }
 .pane-body {
   flex: 1;
