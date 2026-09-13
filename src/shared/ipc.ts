@@ -2,7 +2,7 @@ import type {
   AgentConfig, AgentState, ArtifactEntry, CatalogProviderSummary, ChatEvent, ChatMessage, Command,
   ConnectionAccount, ContextChangedEvent, ContextInfo, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload,
   GitActionResult, GitBlameLine, GitBranch, GitCommit, GitDiffResult, GitStatus, GitStatusDetail,
-  ImageAttachment, LogLevel, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PendingPromptInfo, PromptResponse,
+  ImageAttachment, LogLevel, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PendingPromptInfo, ProjectSearchHit, PromptResponse,
   StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts,
   UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from './types'
@@ -122,6 +122,8 @@ export const Channels = {
   EventRemoteStatus: 'remote:status',
   EventBrowserOpenInstallGuide: 'browser:install-guide',
   DirList: 'dir:list',
+  FilesListDir: 'files:list-dir',
+  FilesSearch: 'files:search',
   ArtifactsList: 'artifacts:list',
   ArtifactsClear: 'artifacts:clear',
   EventArtifactsChanged: 'artifacts:changed'
@@ -191,6 +193,8 @@ export interface AgentApi {
   gitGetBlame(projectPath: string, file: string): Promise<GitBlameLine[]>
   gitGetFileHistory(projectPath: string, file: string): Promise<GitCommit[]>
   listDir(absPath: string): Promise<DirEntry[]>
+  filesListDir(projectPath: string, absPath: string): Promise<DirEntry[]>
+  filesSearch(projectPath: string, query: string): Promise<ProjectSearchHit[]>
   listArtifacts(projectPath: string): Promise<ArtifactEntry[]>
   clearArtifacts(projectPath: string): Promise<void>
   onArtifactsChanged(cb: (e: ArtifactsChangedEvent) => void): () => void

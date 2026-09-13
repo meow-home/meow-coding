@@ -21,6 +21,7 @@ describe('IPC contract', () => {
       'sendChat', 'stopChat', 'runCommand', 'undoChat', 'redoChat', 'listChatMessages', 'listChatTranscript', 'respondPrompt', 'removeQueued', 'editQueued',
       'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus', 'listCommands', 'saveCommand', 'removeCommand', 'getStats', 'onContextChanged',
       'suggestFiles', 'setAgentBackground', 'onAgentBackground',
+      'filesListDir', 'filesSearch',
       'getChatTodos',
       'isChatRunning',
       'getPendingPrompt',
@@ -136,6 +137,8 @@ describe('IPC contract', () => {
       getStats: async () => ({ totalCost: 0, totalTokens: 0, perModel: {}, perSession: [] }),
       onContextChanged: () => () => {},
       suggestFiles: async () => [],
+      filesListDir: async () => [],
+      filesSearch: async () => [],
       setAgentBackground: async () => {},
       onAgentBackground: () => () => {}
     }
@@ -162,6 +165,8 @@ describe('IPC contract', () => {
     expect(Channels.ChatQueueEdit).toBe('chat:queue-edit')
     expect(Channels.EventChat).toBe('chat:event')
     expect(Channels.FilesSuggest).toBe('files:suggest')
+    expect(Channels.FilesListDir).toBe('files:list-dir')
+    expect(Channels.FilesSearch).toBe('files:search')
     expect(Channels.AgentSetBackground).toBe('agent:set-background')
     expect(Channels.EventAgentBackground).toBe('agent:background')
     expect(Channels.AppVersion).toBe('app:version')

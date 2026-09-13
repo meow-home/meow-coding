@@ -30,7 +30,8 @@ import { MeowAgentManager } from './meow-agent-manager'
 import { CommandStore } from './agent/commands'
 import { FileWatcher } from './file-watcher'
 import { ArtifactStore } from './artifact-store'
-import { isPathInside, listDir, shouldIgnore } from './dir-lister'
+import { isPathInside, listDir, listProjectDir, shouldIgnore } from './dir-lister'
+import { searchProject } from './project-search'
 import type { DirEntry } from '../shared/types'
 import { LspManager } from './agent/lsp/manager'
 import { ModelsCatalog } from './models-catalog'
@@ -49,7 +50,7 @@ import { RemoteSettingsStore } from './remote/remote-settings'
 import { RemotePairing } from './remote/remote-pairing'
 import { Channels } from '../shared/ipc'
 import { formatLogArg, safeJson } from '../shared/log-helpers'
-import type { AgentState, Command, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, TranscriptWindowOpts, Workspace, WorkspaceRuntime } from '../shared/types'
+import type { AgentState, Command, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, ProjectSearchHit, PromptResponse, TranscriptWindowOpts, Workspace, WorkspaceRuntime } from '../shared/types'
 
 let win: BrowserWindow | null = null
 let isQuitting = false
@@ -462,6 +463,22 @@ export class MainApp {
     return listDir(absPath)
   }
 
+  filesListDir(projectPath: string, absPath: string): Promise<DirEntry[]> {
+    if (!this.workspaces.get(projectPath)) throw new Error('Unknown project')
+    return listProjectDir(projectPath, absPath)
+  }
+
+  // The overlay searches as the user types, so an incomplete pattern ("foo(")
+  // must yield no hits rather than an error the UI has to render.
+  async filesSearch(projectPath: string, query: string): Promise<ProjectSearchHit[]> {
+    if (!query.trim() || !this.workspaces.get(projectPath)) return []
+    try {
+      return await searchProject(projectPath, query)
+    } catch {
+      return []
+    }
+  }
+
   private startGitPoll(projectPath: string): void {
     if (this.gitTimer) clearInterval(this.gitTimer)
     const poll = async () => {
@@ -751,6 +768,10 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.GitGetFileHistory, (_e, projectPath: string, file: string) =>
     mainApp.gitSvc.getFileHistory(projectPath, file))
   ipcMain.handle(Channels.DirList, (_e, absPath: string) => mainApp.dirList(absPath))
+  ipcMain.handle(Channels.FilesListDir, (_e, projectPath: string, absPath: string) =>
+    mainApp.filesListDir(projectPath, absPath))
+  ipcMain.handle(Channels.FilesSearch, (_e, projectPath: string, query: string) =>
+    mainApp.filesSearch(projectPath, query))
   ipcMain.handle(Channels.ArtifactsList, (_e, projectPath: string) =>
     mainApp.artifacts.list(projectPath))
   ipcMain.handle(Channels.ArtifactsClear, (_e, projectPath: string) => {

@@ -64,6 +64,10 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.GitGetFileHistory, projectPath, file),
   listDir: (absPath: string) =>
     ipcRenderer.invoke(Channels.DirList, absPath),
+  filesListDir: (projectPath: string, absPath: string) =>
+    ipcRenderer.invoke(Channels.FilesListDir, projectPath, absPath),
+  filesSearch: (projectPath: string, query: string) =>
+    ipcRenderer.invoke(Channels.FilesSearch, projectPath, query),
   listArtifacts: (projectPath: string) =>
     ipcRenderer.invoke(Channels.ArtifactsList, projectPath),
   clearArtifacts: (projectPath: string) =>
