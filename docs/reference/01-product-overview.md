@@ -58,7 +58,7 @@ straight to the code.
 | Context compaction | Auto prune of old tool outputs, then LLM summarization of the head with a verbatim tail; hard truncation as a last resort; also runs while idle | `agent/compact.ts` |
 | Cost & token accounting | Per-message tokens, per-session cost, per-model aggregate, cache-read/write aware | `agent/usage.ts`, `agent/token.ts`, `Channels.StatsGet` |
 | Subagents | `task` tool spawns an isolated agent with its own context, narrowed permissions, optional dedicated model, resumable sessions, and background execution | `agent/tools/task.ts`, `agent/subagent-roles.ts` |
-| Slash commands | Built-ins `/init`, `/review`, `/new`, `/frontend-design`, 14 `/sp-*` Superpowers commands; user commands in `commands.json`; project commands in `.meow/commands/*.md` | `agent/commands.ts` |
+| Slash commands | Built-ins `/init`, `/review`, `/new`, `/frontend-design`, 14 Superpowers commands; user commands in `commands.json`; project commands in `.meow/commands/*.md` | `agent/commands.ts` |
 | Skills | Markdown skill packs discovered from `.meow/skills`, `userData/skills`, and the bundled `resources/skills`; listed in the system prompt, loaded on demand by the `skill` tool | `agent/skill.ts` |
 | Instructions | `AGENTS.md` / `CLAUDE.md` walked up from the agent cwd are inlined into the system prompt; module-level ones attach automatically when a nearby file is read | `agent/instructions.ts` |
 | `@`-mentions | `@path` in the composer resolves to an absolute path and is appended as a hint (the agent reads the file itself) | `agent/references.ts`, `file-suggest.ts` |
@@ -127,7 +127,7 @@ straight to the code.
   compaction, cost tracking, MCP, skills, steering) is explicitly modeled on it. The feature-by-feature
   comparison lives in `docs/superpowers/notes/2026-08-05-opencode-feature-diff.md`, and several
   source comments say "mirrors opencode …" to mark the reference behavior.
-- **obra/superpowers** — the bundled workflow skills and the `/sp-*` commands.
+- **obra/superpowers** — the bundled workflow skills and Superpowers commands.
 - **anthropics/skills** (Apache-2.0) — the bundled frontend/design skills, shipped verbatim with
   their license files.
 - **iOfficeAI/OfficeCLI** (Apache-2.0) — the `office` tool backend.

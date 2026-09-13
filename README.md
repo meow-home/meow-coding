@@ -19,7 +19,7 @@ agent ships with a chat UI, tool registry, sessions, permissions, and skill syst
 - **Native Meow agent** — a first-party coding agent with chat UI, streaming output, markdown
   rendering, tool-call cards, image attachments, and undo/redo.
 - **Slash commands** — `/init`, `/review`, `/new`, `/frontend-design`, and Superpowers workflows
-  (`/sp-*`), plus custom commands with `$1..$N`, `$ARGUMENTS`, `@path` references and `!`cmd``
+  (such as `/brainstorming`, `/writing-plans`), plus custom commands with `$1..$N`, `$ARGUMENTS`, `@path` references and `!`cmd``
   shell interpolation.
 - **Bundled skills** — 19 skills loadable by the agent: 14 Superpowers workflow skills and 5
   Anthropic front-end/design skills (`frontend-design`, `canvas-design`, `theme-factory`,

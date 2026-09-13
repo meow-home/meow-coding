@@ -66,7 +66,7 @@ matching `docs/reference/<NN>-*.md` page in the same commit.
 
 ## 11.4 The Superpowers workflow
 
-The repository's own development process, mirrored by the bundled `/sp-*` commands:
+The repository's own development process, mirrored by the bundled Superpowers commands:
 
 ```
 brainstorm → spec → plan → execute → review → verify → finish

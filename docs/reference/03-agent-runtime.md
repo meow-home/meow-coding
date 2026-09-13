@@ -503,7 +503,7 @@ Built-ins:
 | `/review` | prompt | Review uncommitted changes read-only |
 | `/new` | **system** | Creates a new session and emits `session-created` — never reaches the LLM |
 | `/frontend-design` | prompt | Invokes the `frontend-design` skill with `$ARGUMENTS` |
-| `/sp-<name>` ×14 | prompt | Invokes the corresponding Superpowers skill: `brainstorming`, `dispatching-parallel-agents`, `executing-plans`, `finishing-a-development-branch`, `receiving-code-review`, `requesting-code-review`, `subagent-driven-development`, `systematic-debugging`, `test-driven-development`, `using-git-worktrees`, `using-superpowers`, `verification-before-completion`, `writing-plans`, `writing-skills` |
+| `/<skill-name>` ×14 | prompt | Invokes the corresponding Superpowers skill: `brainstorming`, `dispatching-parallel-agents`, `executing-plans`, `finishing-a-development-branch`, `receiving-code-review`, `requesting-code-review`, `subagent-driven-development`, `systematic-debugging`, `test-driven-development`, `using-git-worktrees`, `using-superpowers`, `verification-before-completion`, `writing-plans`, `writing-skills` |
 
 Built-in commands cannot be removed. Template resolution (`resolveCommandTemplate`):
 
