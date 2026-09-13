@@ -38,6 +38,9 @@ handlers and the app lifecycle.
 - `file-suggest.ts` — file suggestions for `@`-mentions (deep search across the entire project tree, ignores
   node_modules/.git/out/dist).
 - `file-watcher.ts` — recursively watches the project, filters text files, batches changes (debounce 500ms).
+- `project-search.ts` — project-wide content search (`searchProject`), shared by the agent's `grep` tool and
+  the renderer Files overlay (`files:search`); `dir-lister.ts` additionally exposes `listProjectDir` for the
+  overlay's non-ignoring, project-scoped tree.
 - `models-catalog.ts` / `model-variants.ts` — model provider catalog + variants (reasoning, pricing); `fetchLiveModelsInfo` syncs any OpenAI-compatible `/models` endpoint (used when connecting a provider or clicking "Sync models"). `meow-agent-manager.connectProvider` accepts a hand-typed `models[]` (the way to add an arbitrary OpenAI-compatible baseUrl + key), falling back to live `/models` → catalog → stored list.
 - `updater.ts` — electron-updater wrapper, emits `UpdaterStatusEvent`.
 - `window-chrome.ts` — `getWindowChromeOptions`: hides the title-bar on Windows/Linux; `applyTitleBarTheme` re-colors the Windows overlay (min/max/close) live when the app theme toggles dark/light. The OS draws those buttons, so `TITLE_BAR_COLORS` is their only color source and must equal the renderer's title bar surface (`.title-bar-right` → `var(--bg)`); `tests/unit/window-chrome.test.ts` parses `styles.css` and fails if the two drift apart.

@@ -18,7 +18,9 @@ React renderer (no direct Node/Electron access).
   status dot and a per-row rename/stop/delete menu, plus a `+` that creates and activates a
   session), `SessionPanes`, `Pane`, `PaneHeader`, `EmptyState`,
   `StatusBar`, `TitleBar`, `BackgroundPanel`, `UpdateDialog`,
-  `BrowserDialog`, `InstallGuideDialog`, `chat/`, `settings/`.
+  `BrowserDialog`, `InstallGuideDialog`, `files/` (the Files overlay:
+  `FilesOverlay`, `FilesTree`, `file-path`, `tree-filter`),
+  `file-content/FileContentView`, `chat/`, `settings/`.
 - `src/styles.css` — VSCode Dark+ palette (default) with a Light+ variant activated via
   `[data-theme="light"]` on `<html>`. All colors use CSS variables so theme switching is a single
   attribute flip. Spacing on a 4px scale, controls use Tailwind default sizes. Font: UI sans (Segoe UI

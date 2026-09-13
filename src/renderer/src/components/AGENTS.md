@@ -10,7 +10,7 @@ The React UI layer (renderer process). Everything the user sees: the sessions of
 |---|---|
 | `SessionPanes.tsx` | Layout of one project's sessions: **every** session stays mounted and only the active slot is shown (`hidden` attribute on the wrapper — CSS, never an unmount) so a session that is not selected keeps streaming/answering. The active session is **controlled** by `App` (`activeId` + `onActiveChange`, remembered per project path so switching workspaces restores the session that was showing); SessionPanes reports the first session when the stored id no longer exists. |
 | `Pane.tsx` | A single session pane: header + `ChatPanel`; background badge mode. |
-| `PaneHeader.tsx` | Pane title bar: status dot, git info, menu (inject/log/stop/restart/background/delete — the first four only on the parked PTY path); shows a confirm dialog before deleting a session. |
+| `PaneHeader.tsx` | Pane title bar: status dot, git info, menu (inject/log/stop/restart/background/Files/delete — the first four only on the parked PTY path; Files opens the Files overlay); shows a confirm dialog before deleting a session. |
 | `ConfirmDialog.tsx` | Reusable confirmation dialog (title, message, confirm/cancel, danger styling). Rendered through a React portal into `document.body` so its `position: fixed` backdrop always covers the whole window, regardless of any transformed ancestor. |
 | `Sidebar.tsx` | Left sidebar: header action bar with a 2-row vertical menu ("New session" with `Plus` icon and "Add folder" with `FolderPlus` icon, no border radius or bottom border), and project list with an expand/collapse chevron per row. An expanded project lists its sessions — status dot (green running / yellow waiting / gray idle), active row highlighted, and a per-row `...` menu (Rename via inline input, Stop when running, Delete). The row `+` activates a draft session (lazy creation, materialized on first prompt); deleting a project's last session transitions the workspace to a draft session pane. Expanded state persists in `localStorage` (`meow.sidebar.expanded`). Shows a red badge (count) per project whose sessions are waiting on a permission/question prompt (`needsInput` prop). |
 | `StatusBar.tsx` | Bottom bar: workspace name, git branch, running count, app version (via IPC). |
@@ -21,6 +21,9 @@ The React UI layer (renderer process). Everything the user sees: the sessions of
 | `UpdateDialog.tsx` | Auto-update status + install prompt. |
 | `BrowserDialog.tsx` | Chrome bridge pairing + status UI. |
 | `InstallGuideDialog.tsx` | Extension install steps for the browser bridge. |
+| `files/FilesOverlay.tsx` | In-app Files explorer over the chat pane area (pane `⋮` → Files): filter + tree on the left, open-file tabs on the right, header menu (Refresh, Collapse all, Close all tabs, Copy path, Reveal in Folder, Open in VS Code), maximize/restore, close; `Esc` and project switch close it. |
+| `files/FilesTree.tsx` | Lazy tree of the overlay — lists dotfiles and `node_modules`, name filter, `?`-prefixed content search (`path:line` hits), background refresh on context changes. |
+| `file-content/FileContentView.tsx` | Toolbar + body of a file (Shiki-highlighted code, rendered markdown or plain `<pre>`, Raw toggle, Copy, Open in VS Code), shared by the popup `FileViewer` window and the overlay tab. |
 | `chat/` | The native-agent chat UI — see its own AGENTS.md. |
 | `settings/` | Settings dialog + tabs — see its own AGENTS.md. |
 

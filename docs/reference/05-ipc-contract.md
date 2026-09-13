@@ -52,6 +52,8 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `FileViewerOpenInEditor` | `file-viewer:open-in-editor` | `openFileInEditor(path)` |
 | `FileViewerShowInFolder` | `file-viewer:show-in-folder` | `showFileInFolder(path)` |
 | `DirList` | `dir:list` | `listDir(absPath): DirEntry[]` — **rejects paths outside the active project** |
+| `FilesListDir` | `files:list-dir` | `filesListDir(projectPath, absPath): DirEntry[]` — directory listing for the Files overlay; lists dotfiles and `node_modules`, rejected unless `absPath` is inside `projectPath` |
+| `FilesSearch` | `files:search` | `filesSearch(projectPath, query): ProjectSearchHit[]` — content search for the Files overlay; returns `[]` for an empty query, an unknown project or an invalid pattern |
 | `FilesSuggest` | `files:suggest` | `suggestFiles(agentId, prefix): FileSuggestion[]` |
 | `ArtifactsList` | `artifacts:list` | `listArtifacts(projectPath): ArtifactEntry[]` |
 | `ArtifactsClear` | `artifacts:clear` | `clearArtifacts(projectPath)` |

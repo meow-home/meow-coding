@@ -33,8 +33,9 @@ agent ships with a chat UI, tool registry, sessions, permissions, and skill syst
   the `office` tool (powered by OfficeCLI; binary auto-downloaded on first use).
 - **Model Connections** — manage Claude Code / Codex / API-key accounts with OAuth login, account
   switching, and quota monitoring (see below).
-- **Project explorer & artifacts** — right panel with a lazy-loaded directory tree (expanded state
-  survives tab switches) and an artifacts list of the `.md` files agents created or edited.
+- **Files overlay** — an in-app explorer opened from a session's `⋮` menu: a lazy-loaded directory
+  tree (dotfiles and `node_modules` included) with a name filter and `?` content search, and open
+  files in tabs with highlighted code / rendered markdown; expandable over the whole pane area.
 - **Browser bridge** — control a real Chrome profile through a local WebSocket bridge paired with a
   Chrome extension (MV3), with browser/click/type tools for the native agent.
 
@@ -108,16 +109,21 @@ Meow Coding is built on open-source technology and openly credits its design inf
   remote control.
 - Idle/exit alert notifications; per-agent logs written to `userData/logs/<agentId>.log`.
 
-### Right panel (explorer & artifacts)
+### Files overlay
 
-- **Directory tree** — lazy-loads folders on first expand, auto-expands the project root, and
-  refreshes in the background when the project changes. Expanded folders and scroll position
-  survive switching between the Tree and Artifacts tabs.
-- **Artifacts** — lists only the `.md` files agents created or edited (via write/edit/apply-patch
-  tools, or file-watcher attribution). Spurious watcher events — reads,
-  AV scans, indexer touches — are filtered out by comparing `(mtime, size)` against a baseline, so
-  files an agent merely read never appear.
-- Resizable panel with a fixed header; both tabs stay mounted for instant switching.
+- **Entry point** — a session pane's `⋮` menu → **Files**; it opens over the chat pane area (never an
+  OS window, so the title bar, sidebar and status bar stay visible).
+- **Directory tree** — lazy-loads folders on first expand, lists dotfiles and `node_modules` too, and
+  refreshes in the background when the project changes (`⋮` → Refresh / Collapse all).
+- **Filter** — narrows the tree by name; a `?` prefix searches file contents instead and lists
+  `path:line` hits.
+- **Open-file tabs** — clicking a file in the tree or a search hit opens a tab beside the tree with
+  its content: Shiki-highlighted code, rendered markdown, or plain text, plus Raw/Highlighted, Copy
+  and Open in VS Code. `⤢` expands the overlay over the whole pane area, `Esc` / `✕` close it, and
+  switching project closes it.
+- **Parked right panel** — the earlier right panel (directory tree + the artifacts list of the `.md`
+  files agents created or edited, with `(mtime, size)` baseline filtering of spurious watcher events)
+  is no longer rendered; its components, CSS, state and the artifact store/IPC remain in the source.
 
 ### Remote control (mobile) — coming soon
 
@@ -136,7 +142,8 @@ companion pieces:
   (`src/main/browser`) and the file watcher that attributes agent edits to artifacts.
 - **`src/preload`** — context bridge exposing a typed `window.api` (implements `AgentApi`).
 - **`src/renderer`** — React UI: sidebar with per-project session rows, session panes with the
-  native-agent chat panel, and the right-panel explorer/artifacts.
+  native-agent chat panel, and the in-app Files overlay (the old right-panel explorer/artifacts is
+  parked in the source).
 - **`src/shared`** — shared types and the IPC contract (`Channels` + `AgentApi`); no Node/Electron
   imports here.
 - **`src/browser-extension`** — Chrome MV3 extension (built separately with esbuild) that pairs

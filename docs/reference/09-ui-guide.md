@@ -21,26 +21,41 @@ main window's theme (see [9.6](#96-theming)).
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ TitleBar (frameless: drag region + min/max/close)                     │
-├────────┬───────────────────────────────────────────┬─────────────────┤
-│Sidebar │ SessionPanes                              │ RightPanel      │
-│        │  ┌─────────────────────────────────┐      │  ┌───────────┐  │
-│ work-  │  │ PaneHeader                      │      │  │ Tree      │  │
-│ spaces │  │ ChatPanel (active session)      │      │  │ Artifacts │  │
-│        │  │                                 │      │  └───────────┘  │
-│ theme  │  └─────────────────────────────────┘      │  (resizable)    │
-├────────┴───────────────────────────────────────────┴─────────────────┤
-│ StatusBar (workspace · git branch · running count · app version)      │
+│ TitleBar (frameless: drag region + min/max/close)                    │
+├────────┬─────────────────────────────────────────────────────────────┤
+│Sidebar │ SessionPanes                                                │
+│        │  ┌────────────────────────────────────────────────────────┐ │
+│ work-  │  │ PaneHeader                                             │ │
+│ spaces │  │ ChatPanel (active session)                             │ │
+│        │  │                                                        │ │
+│ theme  │  └────────────────────────────────────────────────────────┘ │
+├────────┴─────────────────────────────────────────────────────────────┤
+│ StatusBar (workspace · git branch · running count · app version)     │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
 Overlays: `SettingsDialog` (full-screen tabbed),
 `BrowserDialog`, `InstallGuideDialog`, `UpdateDialog`, `BackgroundPanel`, `FileContextMenu`.
 
+### Files overlay
+
+A pane's `⋮` menu offers **Files**, which opens an in-app explorer over the chat pane area (never an OS window,
+so the title bar, sidebar and status bar stay visible). It holds a filterable, lazily loaded directory tree on
+the left — dotfiles and `node_modules` are listed — and open files in tabs on the right, next to a header with
+focus-filter, `⋮` (Refresh, Collapse all, Close all tabs, Copy path, Reveal in Folder, Open in VS Code),
+maximize/restore and close. Typing in the filter narrows the tree by name; a `?` prefix searches file contents
+instead and lists `path:line` hits. `⤢` expands the overlay over the whole pane area, `Esc` and `✕` close it,
+and switching to another project closes it.
+
+The previous `RightPanel` (directory tree + artifacts) is parked in the source — its components, CSS, state and
+the artifact store/IPC remain, but nothing renders it.
+
 ## 9.3 `App.tsx` — the state hub
 
 Owns: workspaces, the mounted `WorkspaceRuntime`s (one per kept-alive project),
-background flags, browser status, update status, sidebar collapsed state (`sidebarCollapsed`), right-panel state, artifacts, and the active
+background flags, browser status, update status, sidebar collapsed state (`sidebarCollapsed`), parked
+right-panel state, artifacts, the Files overlay state (`filesOpenFor`, `filesFull` — both closed by default,
+closed on project switch), and the active
 session per project (`activeSessionByPath`).
 
 ```ts
@@ -72,14 +87,19 @@ Update-dialog policy: `update-available` and `downloaded` open the dialog; `erro
 | `StatusBar.tsx` | Workspace name, git branch, running count, app version |
 | `SessionPanes.tsx` | Session layout of one project: **every session stays mounted** (inactive ones carry the `hidden` attribute, hidden by CSS and never unmounted) so a session that is not showing keeps streaming/answering. The active session is **controlled** by `App` (`activeId` + `onActiveChange`, remembered per project path so switching workspaces restores the session that was showing); it reports the first session when the stored id no longer exists |
 | `Pane.tsx` | One session: header + `ChatPanel`; background badge mode |
-| `PaneHeader.tsx` | Status dot (which carries the status as its accessible name — `role="img"` + the status label, with any exit code folded in), the session name, and the menu (inject / log / stop / restart / background / delete — inject/log/stop/restart exist only on the parked PTY path; a native session's lifecycle lives in its sidebar row). The `...` button is the shared `.icon-btn`. No status word (the dot already shows it) and no git readout (the status bar owns branch + dirty count) |
+| `PaneHeader.tsx` | Status dot (which carries the status as its accessible name — `role="img"` + the status label, with any exit code folded in), the session name, and the menu (inject / log / stop / restart / background / Files / delete — inject/log/stop/restart exist only on the parked PTY path; a native session's lifecycle lives in its sidebar row; Files is the entry point of the overlay above). The `...` button is the shared `.icon-btn`. No status word (the dot already shows it) and no git readout (the status bar owns branch + dirty count) |
 | `EmptyState.tsx` | No-pane hint (differs for "no workspace" vs "workspace open") |
 | `BackgroundPanel.tsx` | Background agents; open/stop |
-| `RightPanel.tsx` | Resizable panel with a fixed header; **both tabs stay mounted** for instant switching |
-| `RightPanelTree.tsx` | Lazy directory tree; auto-expands the project root; background refresh |
-| `RightPanelArtifacts.tsx` | `.md` files agents created/edited |
-| `FileViewer.tsx` | Popup file viewer with Shiki highlighting |
-| `FileContextMenu.tsx` | Context menu for tree/artifact entries |
+| `RightPanel.tsx` | Resizable panel with a fixed header; **both tabs stay mounted** for instant switching (**parked** — nothing renders it since the Files overlay replaced it) |
+| `RightPanelTree.tsx` | Lazy directory tree; auto-expands the project root; background refresh (**parked**) |
+| `RightPanelArtifacts.tsx` | `.md` files agents created/edited (**parked**) |
+| `FileViewer.tsx` | Popup file viewer: `PopupTitleBar` + the shared `file-content/FileContentView.tsx` |
+| `file-content/FileContentView.tsx` | Toolbar (Raw/Highlighted toggle, Open in VS Code, Copy) + body of a file (Shiki-highlighted code, rendered markdown, or plain `<pre>`), shared by the popup window and the Files overlay tab |
+| `files/FilesOverlay.tsx` | The Files overlay: header (focus filter, `⋮` menu, maximize/restore, close), tree side, open-file tabs and the active tab's `FileContentView` |
+| `files/FilesTree.tsx` | Lazily loaded tree of the overlay; lists dotfiles and `node_modules`; `?`-prefixed filter searches file contents and lists `path:line` hits; refreshes on context changes |
+| `files/file-path.ts` | `baseName` / `joinProjectPath` — renderer-side path helpers (the renderer must not import `node:path`) |
+| `files/tree-filter.ts` | `filterTree` — name filter over already-loaded directories, keeping the ancestor chain of every match |
+| `FileContextMenu.tsx` | Context menu for tree/artifact entries and the Files overlay (Copy path when `showCopyPath`) |
 
 ### Dialogs
 
@@ -173,7 +193,7 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   (`.command-item.selected`) and the settings nav (`.settings-nav-item`) are not selectors and still use
   the left-bar idiom.
 - **Action menus get icons and dividers; pickers get metrics only.** The action menus (project,
-  session row, sidebar footer, pane header, right-panel file context) lead every item with a 16px
+  session row, sidebar footer, pane header, right-panel file context, Files overlay) lead every item with a 16px
   lucide icon and separate groups with `.menu-sep`. The pickers (mode, variant, model, git branch)
   take the shared metrics but deliberately have no icons or dividers: the model picker is a
   searchable, sectioned list where an icon column is noise. `.command-item` is excluded from the
