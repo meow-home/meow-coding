@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import {
   ChevronDown, ChevronRight, Code, FolderOpen, FolderPlus, FolderSymlink, GitBranch, Moon, MoreVertical,
   PanelLeft, Pencil, Plus, RefreshCw, Server, Settings, Square, Sun, Terminal, Trash2, X
 } from 'lucide-react'
+import BaseDropdown from './common/BaseDropdown'
 import type { WorkspaceRuntime, WorkspaceSummary } from '@shared/types'
 import { DRAFT_SESSION_ID } from '@shared/types'
 import { applyTheme, type Theme } from '../theme'
@@ -50,10 +50,8 @@ export default function Sidebar({
   onNewSession, onSelectSession, onRenameSession, onDeleteSession, onStopSession
 }: Props) {
   const [openProjectMenu, setOpenProjectMenu] = useState<string | null>(null)
-  const [projectMenuPos, setProjectMenuPos] = useState<{ x: number; y: number } | null>(null)
   const [error, setError] = useState('')
   const [footerMenuOpen, setFooterMenuOpen] = useState(false)
-  const [footerMenuPos, setFooterMenuPos] = useState<{ x: number; bottom: number } | null>(null)
   const [version, setVersion] = useState('')
   const [theme, setTheme] = useState<Theme>(() => localStorage.getItem('meow.theme') === 'light' ? 'light' : 'dark')
   // Which projects show their session list; persisted so the sidebar reopens the
@@ -78,34 +76,6 @@ export default function Sidebar({
   useEffect(() => {
     localStorage.setItem('meow.sidebar.expanded', JSON.stringify(expanded))
   }, [expanded])
-
-  useEffect(() => {
-    const onDocClick = (e: MouseEvent) => {
-      const target = e.target as Node
-      // Menus may be portaled to <body>, so also ignore clicks inside them.
-      if (target instanceof Element &&
-        (target.closest('.project-menu') || target.closest('.project-menu-dropdown') ||
-         target.closest('.sidebar-footer-menu') || target.closest('.sidebar-footer-dropdown'))) return
-      setOpenProjectMenu(null)
-      setProjectMenuPos(null)
-      setFooterMenuOpen(false)
-      setFooterMenuPos(null)
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setOpenProjectMenu(null)
-        setProjectMenuPos(null)
-        setFooterMenuOpen(false)
-        setFooterMenuPos(null)
-      }
-    }
-    document.addEventListener('mousedown', onDocClick)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDocClick)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [])
 
   const handleAddProjectDirect = async () => {
     try {
@@ -193,7 +163,6 @@ export default function Sidebar({
               title={ws.projectPath}
               onContextMenu={e => {
                 e.preventDefault()
-                setProjectMenuPos({ x: e.clientX, y: e.clientY })
                 setOpenProjectMenu(ws.projectPath)
               }}
             >
@@ -235,74 +204,67 @@ export default function Sidebar({
                 >
                   <Plus size={14} aria-hidden="true" />
                 </button>
-                <button
-                  className="icon-btn"
-                  title="Project menu"
-                  aria-label={`menu ${ws.name}`}
-                  onClick={e => {
-                    // Anchor the portaled menu at the button, clamped to the viewport.
-                    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                    const width = MENU_WIDTH
-                    const x = Math.max(4, Math.min(r.right - width, window.innerWidth - width - 8))
-                    const y = r.bottom + 4
-                    setProjectMenuPos({ x, y })
-                    setOpenProjectMenu(p => (p === ws.projectPath ? null : ws.projectPath))
-                  }}
+                <BaseDropdown
+                  open={openProjectMenu === ws.projectPath}
+                  onOpenChange={(open) => setOpenProjectMenu(open ? ws.projectPath : null)}
+                  placement="bottom-start"
+                  menuClassName="sidebar-menu-dropdown project-menu-dropdown"
+                  trigger={(
+                    <button
+                      className="icon-btn"
+                      title="Project menu"
+                      aria-label={`menu ${ws.name}`}
+                      onClick={() => setOpenProjectMenu(p => (p === ws.projectPath ? null : ws.projectPath))}
+                    >
+                      <MoreIcon />
+                    </button>
+                  )}
                 >
-                  <MoreIcon />
-                </button>
-                {openProjectMenu === ws.projectPath && projectMenuPos && createPortal(
-                  <div
-                    className="sidebar-menu-dropdown project-menu-dropdown"
-                    style={{ position: 'fixed', left: projectMenuPos.x, top: projectMenuPos.y, right: 'auto', bottom: 'auto' }}
+                  <span className="menu-head" title={ws.projectPath}>{ws.projectPath}</span>
+                  <button
+                    className="menu-item"
+                    onClick={() => { setOpenProjectMenu(null); onOpen(ws.projectPath) }}
                   >
-                    <span className="menu-head" title={ws.projectPath}>{ws.projectPath}</span>
-                    <button
-                      className="menu-item"
-                      onClick={() => { setOpenProjectMenu(null); onOpen(ws.projectPath) }}
-                    >
-                      <FolderOpen size={16} aria-hidden="true" />
-                      Open
-                    </button>
-                    <button
-                      className="menu-item"
-                      onClick={() => { setOpenProjectMenu(null); void window.api.openInEditor(ws.projectPath) }}
-                    >
-                      <Code size={16} aria-hidden="true" />
-                      Open in VS Code
-                    </button>
-                    <button
-                      className="menu-item"
-                      onClick={() => { setOpenProjectMenu(null); onOpenGit(ws.projectPath) }}
-                    >
-                      <GitBranch size={16} aria-hidden="true" />
-                      Git
-                    </button>
-                    <button
-                      className="menu-item"
-                      onClick={() => { setOpenProjectMenu(null); void window.api.openFolder(ws.projectPath) }}
-                    >
-                      <FolderSymlink size={16} aria-hidden="true" />
-                      Open Folder
-                    </button>
-                    <button
-                      className="menu-item"
-                      onClick={() => { setOpenProjectMenu(null); void window.api.openSystemTerminal(ws.projectPath) }}
-                    >
-                      <Terminal size={16} aria-hidden="true" />
-                      Open Terminal
-                    </button>
-                    <div className="menu-sep" aria-hidden="true" />
-                    <button
-                      className="menu-item danger"
-                      onClick={() => { setOpenProjectMenu(null); onRemove(ws.projectPath) }}
-                    >
-                      <X size={16} aria-hidden="true" />
-                      Remove
-                    </button>
-                  </div>,
-                  document.body
-                )}
+                    <FolderOpen size={16} aria-hidden="true" />
+                    Open
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => { setOpenProjectMenu(null); void window.api.openInEditor(ws.projectPath) }}
+                  >
+                    <Code size={16} aria-hidden="true" />
+                    Open in VS Code
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => { setOpenProjectMenu(null); onOpenGit(ws.projectPath) }}
+                  >
+                    <GitBranch size={16} aria-hidden="true" />
+                    Git
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => { setOpenProjectMenu(null); void window.api.openFolder(ws.projectPath) }}
+                  >
+                    <FolderSymlink size={16} aria-hidden="true" />
+                    Open Folder
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => { setOpenProjectMenu(null); void window.api.openSystemTerminal(ws.projectPath) }}
+                  >
+                    <Terminal size={16} aria-hidden="true" />
+                    Open Terminal
+                  </button>
+                  <div className="menu-sep" aria-hidden="true" />
+                  <button
+                    className="menu-item danger"
+                    onClick={() => { setOpenProjectMenu(null); onRemove(ws.projectPath) }}
+                  >
+                    <X size={16} aria-hidden="true" />
+                    Remove
+                  </button>
+                </BaseDropdown>
               </div>
             </div>
             {expanded[ws.projectPath] && (
@@ -336,63 +298,55 @@ export default function Sidebar({
       </ul>
       )}
       <footer className="sidebar-footer">
-        <button
-          className="sidebar-settings-btn sidebar-footer-menu"
-          title="Menu"
-          aria-label="Menu"
-          onClick={e => {
-            const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-            const width = MENU_WIDTH
-            const x = Math.max(4, Math.min(r.right - width, window.innerWidth - width - 8))
-            // Footer sits at the bottom edge of the window, so the menu opens
-            // upward (bottom-anchored) to stay inside the viewport.
-            const bottom = window.innerHeight - r.top + 4
-            setFooterMenuPos({ x, bottom })
-            setFooterMenuOpen(v => !v)
-          }}
+        <BaseDropdown
+          open={footerMenuOpen}
+          onOpenChange={setFooterMenuOpen}
+          placement="top-start"
+          menuClassName="sidebar-menu-dropdown sidebar-footer-dropdown"
+          trigger={(
+            <button
+              className="sidebar-settings-btn sidebar-footer-menu"
+              title="Menu"
+              aria-label="Menu"
+              onClick={() => setFooterMenuOpen(v => !v)}
+            >
+              <Settings size={15} aria-hidden="true" />
+              <span className="sidebar-settings-label">Menu</span>
+            </button>
+          )}
         >
-          <Settings size={15} aria-hidden="true" />
-          <span className="sidebar-settings-label">Menu</span>
-        </button>
-        {footerMenuOpen && footerMenuPos && createPortal(
-          <div
-            className="sidebar-menu-dropdown sidebar-footer-dropdown"
-            style={{ position: 'fixed', left: footerMenuPos.x, right: 'auto', top: 'auto', bottom: footerMenuPos.bottom }}
+          <button
+            className="menu-item"
+            onClick={() => { setFooterMenuOpen(false); onOpenSettings() }}
           >
-            <button
-              className="menu-item"
-              onClick={() => { setFooterMenuOpen(false); setFooterMenuPos(null); onOpenSettings() }}
-            >
-              <Settings size={16} aria-hidden="true" />
-              Settings
-            </button>
-            <button
-              className="menu-item"
-              onClick={() => { setFooterMenuOpen(false); setFooterMenuPos(null); onOpenProviders() }}
-            >
-              <Server size={16} aria-hidden="true" />
-              Providers
-            </button>
-            <button
-              className="menu-item"
-              onClick={() => { setTheme(t => t === 'dark' ? 'light' : 'dark') }}
-            >
-              {theme === 'dark' ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
-              {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-            </button>
-            <div className="menu-sep" />
-            <button
-              className="menu-item"
-              disabled={updateChecking}
-              onClick={onCheckUpdate}
-            >
-              <RefreshCw size={16} aria-hidden="true" className={updateChecking ? 'spin' : undefined} />
-              <span className="menu-item-label">{updateChecking ? 'Checking…' : 'Check update'}</span>
-              <span className="sidebar-update-version">v{version || '…'}</span>
-            </button>
-          </div>,
-          document.body
-        )}
+            <Settings size={16} aria-hidden="true" />
+            Settings
+          </button>
+          <button
+            className="menu-item"
+            onClick={() => { setFooterMenuOpen(false); onOpenProviders() }}
+          >
+            <Server size={16} aria-hidden="true" />
+            Providers
+          </button>
+          <button
+            className="menu-item"
+            onClick={() => { setTheme(t => t === 'dark' ? 'light' : 'dark') }}
+          >
+            {theme === 'dark' ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
+            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+          </button>
+          <div className="menu-sep" />
+          <button
+            className="menu-item"
+            disabled={updateChecking}
+            onClick={onCheckUpdate}
+          >
+            <RefreshCw size={16} aria-hidden="true" className={updateChecking ? 'spin' : undefined} />
+            <span className="menu-item-label">{updateChecking ? 'Checking…' : 'Check update'}</span>
+            <span className="sidebar-update-version">v{version || '…'}</span>
+          </button>
+        </BaseDropdown>
       </footer>
     </aside>
   )
@@ -410,68 +364,43 @@ function SessionRowMenu({ running, onRename, onDelete, onStop }: {
   onStop: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const [menuPos, setMenuPos] = useState<{ right: number; top: number } | null>(null)
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState('')
-  const rootRef = useRef<HTMLSpanElement>(null)
-
-  // Close the dropdown when the click lands outside this menu. This listener is
-  // only attached while `open` — the inline rename input appears only after the
-  // dropdown has closed, so it can never be torn down mid-typing by this
-  // handler; the input's own blur closes it.
-  useEffect(() => {
-    if (!open) return
-    const onDocClick = (e: MouseEvent) => {
-      const target = e.target as Node
-      // The dropdown is portaled to <body>, so a click on a menu item lands
-      // outside rootRef — ignore clicks inside the portaled menu too.
-      if (target instanceof Element && target.closest('.session-menu-dropdown')) return
-      if (rootRef.current && !rootRef.current.contains(target)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onDocClick)
-    return () => document.removeEventListener('mousedown', onDocClick)
-  }, [open])
 
   return (
-    <span className="session-menu" ref={rootRef} onClick={e => e.stopPropagation()}>
-      <button
-        className="icon-btn"
-        title="Session menu"
-        aria-label="Session menu"
-        onClick={e => {
-          // Portal the menu to <body> so the sidebar's overflow never clips it,
-          // right-aligned to the button's right edge (width-independent, so it
-          // sits directly under the "..." button regardless of menu width).
-          const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-          setMenuPos({ right: window.innerWidth - r.right, top: r.bottom + 4 })
-          setOpen(v => !v)
-        }}
+    <span className="session-menu" onClick={e => e.stopPropagation()}>
+      <BaseDropdown
+        open={open}
+        onOpenChange={setOpen}
+        placement="bottom-end"
+        menuClassName="sidebar-menu-dropdown session-menu-dropdown"
+        trigger={(
+          <button
+            className="icon-btn"
+            title="Session menu"
+            aria-label="Session menu"
+            onClick={() => setOpen(v => !v)}
+          >
+            <MoreVertical size={13} aria-hidden="true" />
+          </button>
+        )}
       >
-        <MoreVertical size={13} aria-hidden="true" />
-      </button>
-      {open && menuPos && createPortal(
-        <div
-          className="sidebar-menu-dropdown session-menu-dropdown"
-          style={{ position: 'fixed', right: menuPos.right, top: menuPos.top, left: 'auto', bottom: 'auto' }}
-        >
-          <button className="menu-item" onClick={() => { setOpen(false); setRenaming(true) }}>
-            <Pencil size={16} aria-hidden="true" />
-            Rename
+        <button className="menu-item" onClick={() => { setOpen(false); setRenaming(true) }}>
+          <Pencil size={16} aria-hidden="true" />
+          Rename
+        </button>
+        {running && (
+          <button className="menu-item" onClick={() => { setOpen(false); onStop() }}>
+            <Square size={16} aria-hidden="true" />
+            Stop
           </button>
-          {running && (
-            <button className="menu-item" onClick={() => { setOpen(false); onStop() }}>
-              <Square size={16} aria-hidden="true" />
-              Stop
-            </button>
-          )}
-          <div className="menu-sep" aria-hidden="true" />
-          <button className="menu-item danger" onClick={() => { setOpen(false); onDelete() }}>
-            <Trash2 size={16} aria-hidden="true" />
-            Delete
-          </button>
-        </div>,
-        document.body
-      )}
+        )}
+        <div className="menu-sep" aria-hidden="true" />
+        <button className="menu-item danger" onClick={() => { setOpen(false); onDelete() }}>
+          <Trash2 size={16} aria-hidden="true" />
+          Delete
+        </button>
+      </BaseDropdown>
       {renaming && (
         <input
           className="input session-rename-input"
