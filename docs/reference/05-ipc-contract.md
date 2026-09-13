@@ -54,6 +54,8 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `DirList` | `dir:list` | `listDir(absPath): DirEntry[]` — **rejects paths outside the active project** |
 | `FilesListDir` | `files:list-dir` | `filesListDir(projectPath, absPath): DirEntry[]` — directory listing for the Files overlay; lists dotfiles and `node_modules`, rejected unless `absPath` is inside `projectPath` |
 | `FilesSearch` | `files:search` | `filesSearch(projectPath, query): ProjectSearchHit[]` — content search for the Files overlay; returns `[]` for an empty query, an unknown project or an invalid pattern |
+| `FilesImage` | `files:image` | `getFileImage(path): ImageContentResult` — reads raster image files (max 10MB) as base64 data URLs for image preview |
+| `FilesOpenSystem` | `files:open-system` | `openFileWithSystem(path)` — opens a file with the OS default application; rejected unless `path` is inside a registered project |
 | `FilesSuggest` | `files:suggest` | `suggestFiles(agentId, prefix): FileSuggestion[]` — cwd comes from the session's agent; for a draft session (`DRAFT_SESSION_ID`, no backend agent yet) it falls back to the active project path |
 | `ArtifactsList` | `artifacts:list` | `listArtifacts(projectPath): ArtifactEntry[]` |
 | `ArtifactsClear` | `artifacts:clear` | `clearArtifacts(projectPath)` |

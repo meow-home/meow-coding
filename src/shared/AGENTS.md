@@ -7,6 +7,7 @@ Shared contract between main / preload / renderer.
 - `log-helpers.ts` — pure helpers `formatLogArg`/`safeJson`/`formatConsoleArgs` dùng cho system logger (main + renderer). `formatConsoleArgs` interpolates printf-style `%s`/`%d`/`%o`/`%c` console arguments (React/devtools log `console.error('%s', message, stack)`), so renderer log lines carry the real message + stack instead of literal `%s`.
 - `ipc.ts` — `Channels` (all channel strings) + `AgentApi` (API interface) + event payload types
   (`AgentStateEvent`, `GitStatusEvent`).
+- `image.ts` — image extension list (`IMAGE_EXTENSIONS`) and MIME mapping helper (`imageMimeType`).
 - `browser-types.ts` — types specific to the browser bridge (pairing, snapshot).
 - `text.ts` — pure text helpers (append stream delta, ...).
 - `usage.ts` — pure helpers for computing context/token usage.

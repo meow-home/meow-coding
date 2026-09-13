@@ -83,7 +83,7 @@ straight to the code.
 | Directory tree | Lazy-loaded on expand, ignores `node_modules`/`.git`/`out`/`dist`/…, expansion state survives tab switches | `RightPanelTree.tsx`, `dir-lister.ts` |
 | Artifacts | Lists `.md` files agents created/edited; the file watcher filters spurious events by comparing `(mtime, size)` | `artifact-store.ts`, `file-watcher.ts` |
 | Git viewer | Separate window: changes, diff, history, blame, branch switcher, stash/discard | `git-viewer.ts`, `components/git/` |
-| File viewer | Separate window with syntax highlighting; binaries open with the system app | `file-viewer.ts`, `FileViewer.tsx` |
+| File viewer | Separate window with syntax highlighting and image preview (png, jpg, gif, webp, bmp, ico, avif); non-previewable binaries open with the system app | `file-viewer.ts`, `FileViewer.tsx` |
 
 ### Platform & desktop
 
