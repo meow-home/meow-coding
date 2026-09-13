@@ -33,8 +33,7 @@ export const NEW_COMMAND: Command = {
   type: 'system'
 }
 
-// Superpowers slash commands. Embedded built-ins modeled on the opencode
-// `.opencode/commands/sp-*.md` files: each dispatches the current request to the
+// Superpowers slash commands. Embedded built-ins: each dispatches the current request to the
 // matching Superpowers skill so the agent follows that workflow explicitly.
 const SUPERPOWERS: Array<{ name: string; context: string }> = [
   { name: 'brainstorming', context: 'Read any relevant module-level `AGENTS.md` files before proposing or changing implementation.' },
@@ -69,7 +68,7 @@ export const FRONTEND_DESIGN_COMMAND: Command = {
 }
 
 export const SUPERPOWERS_COMMANDS: Command[] = SUPERPOWERS.map(({ name, context }) => ({
-  name: `sp-${name}`,
+  name,
   description: `Invoke the Superpowers ${name} skill`,
   template: [
     `Use the Superpowers skill \`${name}\` for this request and follow it strictly.`,

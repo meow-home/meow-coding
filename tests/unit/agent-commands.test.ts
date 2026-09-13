@@ -62,8 +62,8 @@ describe('CommandStore', () => {
     const list = store.list()
     expect(list.map(c => c.name)).toContain('init')
     expect(list.map(c => c.name)).toContain('review')
-    expect(list.map(c => c.name)).toContain('sp-using-superpowers')
-    expect(list.map(c => c.name)).toContain('sp-brainstorming')
+    expect(list.map(c => c.name)).toContain('using-superpowers')
+    expect(list.map(c => c.name)).toContain('brainstorming')
     store.save({ name: '/custom', description: 'd', template: 'do $1' })
     expect(store.list().map(c => c.name)).toContain('custom')
   })
@@ -91,7 +91,7 @@ describe('CommandStore', () => {
   it('superpowers commands resolve $ARGUMENTS into the skill dispatch prompt', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'meow-sp-'))
     try {
-      const cmd = SUPERPOWERS_COMMANDS.find(c => c.name === 'sp-using-superpowers')
+      const cmd = SUPERPOWERS_COMMANDS.find(c => c.name === 'using-superpowers')
       expect(cmd).toBeDefined()
       const out = await resolveCommand(cmd!, 'analyze the build config', { cwd: dir, commands: [] })
       expect(out).toContain('Use the Superpowers skill `using-superpowers`')

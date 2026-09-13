@@ -1316,17 +1316,17 @@ describe('MeowAgentManager', () => {
     expect(stored?.text).toBe(echo.message.text)
   })
 
-  it('sp-brainstorming bubble shows the raw slash input, not the resolved template', async () => {
+  it('brainstorming bubble shows the raw slash input, not the resolved template', async () => {
     const { manager, events } = await makeManager()
-    expect(manager.listCommands('/proj').map(c => c.name)).toContain('sp-brainstorming')
-    await manager.runCommand('a1', 'sp-brainstorming', 'tôi test')
+    expect(manager.listCommands('/proj').map(c => c.name)).toContain('brainstorming')
+    await manager.runCommand('a1', 'brainstorming', 'tôi test')
     const echo = events.find(e => e.type === 'user-message') as Extract<ChatEvent, { type: 'user-message' }>
-    expect(echo.message.displayText).toBe('/sp-brainstorming tôi test')
+    expect(echo.message.displayText).toBe('/brainstorming tôi test')
     expect(echo.message.text).toContain('Use the Superpowers skill `brainstorming`')
     expect(echo.message.text).toContain('User request:')
     expect(echo.message.text).toContain('tôi test')
     // Renderer shows displayText ?? text → the raw slash input.
-    expect(echo.message.displayText ?? echo.message.text).toBe('/sp-brainstorming tôi test')
+    expect(echo.message.displayText ?? echo.message.text).toBe('/brainstorming tôi test')
   })
 
   it('queues displayText alongside the resolved text when a turn is running', async () => {
