@@ -1274,11 +1274,12 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .agents-head .settings-hint { flex: 1; min-width: 0; }
 .agents-head .btn { flex: 0 0 auto; }
 .subagents-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(23.333333rem, 1fr)); gap: 0.666667rem; margin-top: 0.666667rem; }
-.submodel-fields { display: flex; flex-wrap: wrap; gap: 0.666667rem; }
+.submodel-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.666667rem; width: 100%; }
 .submodel-fields .input { flex: 1; min-width: 0; }
-.submodel-fields .base-dropdown-container { flex: 1; min-width: 0; display: flex; }
+.submodel-fields .base-dropdown-container { min-width: 0; display: flex; width: 100%; }
 .submodel-fields .dropdown-trigger { width: 100%; justify-content: space-between; gap: 0.5rem; min-width: 0; overflow: hidden; }
 .select-value-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; text-align: left; }
+.select-menu .menu-item { width: 100%; box-sizing: border-box; }
 
 /* Permissions tab */
 .permission-add { display: flex; gap: 0.5rem; align-items: center; }

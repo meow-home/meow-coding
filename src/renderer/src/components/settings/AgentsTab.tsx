@@ -25,7 +25,7 @@ function SingleSelect({ value, placeholder, disabled = false, options, onChange 
 
   if (disabled) {
     return (
-      <button className="dropdown-trigger select-trigger" disabled type="button">
+      <button className="dropdown-trigger select-trigger" disabled type="button" title={placeholder}>
         <span className="select-value-label">{placeholder}</span>
       </button>
     )
@@ -37,6 +37,7 @@ function SingleSelect({ value, placeholder, disabled = false, options, onChange 
       onToggle={() => setOpen(v => !v)}
       onClose={() => setOpen(false)}
       align="left"
+      title={triggerLabel}
       trigger={<span className="select-value-label">{triggerLabel}</span>}
     >
       <div>
