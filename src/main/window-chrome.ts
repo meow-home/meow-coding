@@ -1,13 +1,17 @@
 import type { BrowserWindow, BrowserWindowConstructorOptions } from 'electron'
 
 const TITLE_BAR_HEIGHT = 32
-// Match the app's title bar background (--bg-panel) and text (--text) so the
-// Windows overlay buttons blend with the theme. WindowChrome only reads these
-// when a window is created; they are re-applied live via applyTitleBarTheme.
+// The OS draws the caption buttons (min/max/close) inside this strip on
+// Windows, so its color must equal what the renderer paints next to them:
+// `.title-bar-right`'s `background: var(--bg)` (NOT --bg-panel — a leftover
+// from when the title bar used the panel surface, which made the button
+// cluster visible as a differently-colored block). `window-chrome.test.ts`
+// reads styles.css and fails if these two drift apart. WindowChrome only reads
+// these when a window is created; they are re-applied live via applyTitleBarTheme.
 export type TitleBarTheme = 'dark' | 'light'
 const TITLE_BAR_COLORS: Record<TitleBarTheme, { color: string; symbolColor: string }> = {
-  dark: { color: '#0f0f11', symbolColor: '#ffffff' },
-  light: { color: '#f3f3f3', symbolColor: '#1e1e1e' }
+  dark: { color: '#0a0a0b', symbolColor: '#ffffff' },
+  light: { color: '#ffffff', symbolColor: '#1e1e1e' }
 }
 
 export function getTitleBarOverlay(theme: TitleBarTheme): { color: string; symbolColor: string } {

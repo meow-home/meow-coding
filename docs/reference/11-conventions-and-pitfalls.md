@@ -99,7 +99,7 @@ Windows is the primary development platform here, and several behaviors exist on
 | `fs.watch` fires for atime/attribute touches (AV scans, indexers) with unchanged content | `FileWatcher` keeps an `(mtime, size)` baseline; `hasContentChanged` filters spurious events out of artifact recording |
 | `cmd.exe /s /c` argument quoting mangles embedded quotes | `buildShellCommand` passes the whole command as one quoted argv element with `windowsVerbatimArguments: true` |
 | PTY input uses `\r`, not `\n` | `PtyManager.write` normalizes `\r\n` and `\n` to `\r` on Windows |
-| The Windows title-bar overlay buttons stay dark in light mode | `applyTheme` calls `setTitleBarTheme`, and `applyTitleBarTheme` recolors the overlay |
+| The Windows caption buttons (min/max/close) show as a differently-colored block against the title bar, and restyling them in CSS never helps | The OS draws them inside `titleBarOverlay`, so their color comes ONLY from `TITLE_BAR_COLORS` in `window-chrome.ts` (`.title-bar-controls`/`.title-bar-btn` exist on Linux only). That color must equal the surface the renderer paints next to them — `.title-bar-right`'s `var(--bg)`, NOT `--bg-panel` — and `applyTitleBarTheme` recolors it when the theme toggles. `window-chrome.test.ts` parses `styles.css` and fails if the two drift apart |
 | PowerShell 7 (`pwsh`) may not be installed | `electron-builder.ts` falls back to `powershell.exe` for the signing script |
 
 ## 11.6 Agent-behavior traps
