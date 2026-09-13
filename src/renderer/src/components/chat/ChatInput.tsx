@@ -15,7 +15,6 @@ interface Props {
   mode: AgentMode
   commands: Command[]
   editTarget?: { id: string; text: string } | null
-  promptSlot?: ReactNode
   onSubmit(text: string, images: ImageAttachment[]): void
   onEditSubmit?(id: string, text: string): void
   onEditCancel?(): void
@@ -54,7 +53,7 @@ const CommandMenuItem = memo(function CommandMenuItem({
 })
 
 const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
-  agentId, running, mode, commands, editTarget, promptSlot, onSubmit, onEditSubmit, onEditCancel, onStop
+  agentId, running, mode, commands, editTarget, onSubmit, onEditSubmit, onEditCancel, onStop
 }: Props, ref) {
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -263,7 +262,6 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
 
   return (
     <div className="chat-input">
-      {promptSlot}
       {menu.open && filtered.length > 0 && (
         <div className="command-menu">
           {filtered.map(c => (

@@ -978,20 +978,7 @@ if (e.type === 'usage') {
       )}
       </div>
       <div className="chat-composer">
-        <ChatInput
-          ref={chatInputRef}
-          agentId={agentId}
-          running={running}
-          mode={currentMode}
-          commands={commands}
-          editTarget={editTarget}
-          onSubmit={send}
-          onEditSubmit={(id, text) => {
-            void window.api.editQueued(agentId, id, text)
-            setEditTarget(null)
-          }}
-          onEditCancel={() => setEditTarget(null)}
-          promptSlot={pendingPrompt && (
+        {pendingPrompt && (
           <div className="chat-prompt" ref={pendingPrompt.promptType === 'permission' ? promptRef : undefined}
             tabIndex={pendingPrompt.promptType === 'permission' ? -1 : undefined}>
             <div className="chat-prompt-head">
@@ -1114,6 +1101,19 @@ if (e.type === 'usage') {
             ))}
           </div>
         )}
+        <ChatInput
+          ref={chatInputRef}
+          agentId={agentId}
+          running={running}
+          mode={currentMode}
+          commands={commands}
+          editTarget={editTarget}
+          onSubmit={send}
+          onEditSubmit={(id, text) => {
+            void window.api.editQueued(agentId, id, text)
+            setEditTarget(null)
+          }}
+          onEditCancel={() => setEditTarget(null)}
           onStop={handleStop}
         />
         <div className="chat-footer">

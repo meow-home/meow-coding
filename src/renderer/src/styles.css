@@ -148,6 +148,12 @@
 }
 
 
+/* Fine-tune icon stroke weight across the app (default 2px feels heavy at 14-16px) */
+svg.lucide,
+.lucide {
+  stroke-width: 1.5;
+}
+
 * { box-sizing: border-box; border-radius: var(--radius); }
 html, body, #root { height: 100%; margin: 0; }
 body {
@@ -885,7 +891,7 @@ select.input { width: 100%; }
   border: 0.083333rem solid rgba(255, 180, 84, 0.3);
   border-left: 0.166667rem solid var(--yellow);
   border-radius: var(--radius);
-  background: var(--bg-raised);
+  background: var(--bg-chat);
   box-shadow: var(--shadow-1);
   padding: 0.833333rem 1rem; display: flex; flex-direction: column; gap: 0.666667rem;
 }
