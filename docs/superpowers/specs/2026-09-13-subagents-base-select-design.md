@@ -1,42 +1,21 @@
-# Sub-agents Tab BaseSelect Refactor Design Spec
+# Sub-agents Tab BaseSelect Alignment Design Spec
 
 ## Overview
-Refactor the sub-agent provider and model select inputs in `src/renderer/src/components/settings/AgentsTab.tsx` from native `<select>` HTML elements to the standardized `BaseSelect` common UI component.
+Align the sub-agent provider and model select dropdowns in `src/renderer/src/components/settings/AgentsTab.tsx` with the standardized visual styling used by `ModePicker` and `VariantPicker`.
 
 ## Motivation & Context
-`AGENTS.md` and `src/renderer/src/components/common/AGENTS.md` mandate that all option selection dropdowns MUST use common components (`BaseSelect` / `BaseDropdown`). The sub-agents tab currently uses native HTML `<select>` elements, which causes visual inconsistency with the rest of the application's dropdown design.
+While `BaseSelect` provides the core trigger structure and popup container, the menu items inside `SingleSelect` in `AgentsTab.tsx` used custom unstyled class names (`select-item`) instead of standard `.menu-item`, `.menu-item-label`, and `.menu-item-check`. Additionally, the select containers in `.submodel-fields` lacked full-width flex styling, resulting in visual misalignment compared to other pickers in the application.
 
 ## User Interface & Behavior Changes
-1. **Replacement of Native Selects:**
-   - Both Provider select and Model select dropdowns for each sub-agent role (`research`, `general`, `reviewer`) will use `BaseSelect`.
-2. **Provider Selection:**
-   - Trigger shows selected provider ID or `(inherit main session model)`.
-   - Selecting `(inherit main session model)` resets the sub-agent role's `ModelRef` to `undefined`.
-   - Selecting a provider sets `provider` and defaults `model` to the first model in that provider's `models` list.
-3. **Model Selection:**
-   - Disabled when no provider is selected for the role.
-   - Trigger shows selected model ID.
-   - Selecting a model updates the sub-agent role's `model`.
-4. **Dropdown Styling:**
-   - Menu items show a checkmark (`Check` icon from `lucide-react`) next to the active option.
-   - Clicking an option selects the value and closes the dropdown menu.
-
-## Component Design
-Inside `AgentsTab.tsx`, implement a reusable helper `SingleSelect` component built on top of `BaseSelect`:
-```tsx
-interface SingleSelectOption {
-  value: string
-  label: string
-}
-
-interface SingleSelectProps {
-  value: string
-  placeholder: string
-  disabled?: boolean
-  options: SingleSelectOption[]
-  onChange: (value: string) => void
-}
-```
+1. **Standard Menu Item Styling:**
+   - Option items use `className="menu-item ${isSelected ? 'active' : ''}"`.
+   - Option label is wrapped in `<span className="menu-item-label">`.
+   - Option checkmark icon is wrapped in `<span className="menu-item-check">`.
+2. **Layout & Flex Width Alignment:**
+   - In `src/renderer/src/styles.css`, update `.submodel-fields` to style `.base-dropdown-container` with `flex: 1; min-width: 0; display: flex;`.
+   - Ensure `.submodel-fields .dropdown-trigger` stretches to `width: 100%` and uses `justify-content: space-between` so the provider and model selects split row space 50/50 evenly.
+3. **Disabled Trigger State:**
+   - Render disabled state using standard `.dropdown-trigger.select-trigger` styling.
 
 ## Verification Plan
 1. **Type Check:** Run `npm run typecheck` to ensure full TypeScript compliance.
