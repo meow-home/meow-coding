@@ -51,6 +51,7 @@ export default function Sidebar({
   onNewSession, onSelectSession, onRenameSession, onDeleteSession, onStopSession
 }: Props) {
   const [openProjectMenu, setOpenProjectMenu] = useState<string | null>(null)
+  const [confirmRemovePath, setConfirmRemovePath] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [footerMenuOpen, setFooterMenuOpen] = useState(false)
   const [version, setVersion] = useState('')
@@ -259,7 +260,7 @@ export default function Sidebar({
                   <div className="menu-sep" aria-hidden="true" />
                   <button
                     className="menu-item danger"
-                    onClick={() => { setOpenProjectMenu(null); onRemove(ws.projectPath) }}
+                    onClick={() => { setOpenProjectMenu(null); setConfirmRemovePath(ws.projectPath) }}
                   >
                     <X size={16} aria-hidden="true" />
                     Remove
@@ -347,6 +348,19 @@ export default function Sidebar({
           </button>
         </BaseDropdown>
       </footer>
+
+      {confirmRemovePath && (
+        <ConfirmDialog
+          title="Remove Project"
+          message={`Are you sure you want to remove "${workspaces.find(w => w.projectPath === confirmRemovePath)?.name ?? confirmRemovePath}" from the sidebar? (Files on disk will not be deleted).`}
+          confirmLabel="Remove"
+          onConfirm={() => {
+            onRemove(confirmRemovePath)
+            setConfirmRemovePath(null)
+          }}
+          onCancel={() => setConfirmRemovePath(null)}
+        />
+      )}
     </aside>
   )
 }
