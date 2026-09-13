@@ -497,8 +497,14 @@ export default function App() {
 
   // Materializes a draft session on backend when user sends their first prompt.
   const onSendDraftMessage = useCallback(async (path: string, text: string, images?: ImageAttachment[]) => {
+    const draftModel = await window.api.getAgentModel(DRAFT_SESSION_ID).catch(() => null)
     const created = await window.api.addAgent(path, {
-      name: 'New session', templateId: 'meow', cwd: path, kind: 'native'
+      name: 'New session',
+      templateId: 'meow',
+      cwd: path,
+      kind: 'native',
+      model: draftModel ? `${draftModel.provider}/${draftModel.model}` : undefined,
+      accountId: draftModel?.accountId
     }).catch(() => null)
     if (!created) return
     setRuntimes(prev => (prev[path]

@@ -12,6 +12,7 @@ handlers and the app lifecycle.
   events are the only way to capture that failure (a crashed renderer cannot log for itself).
 - `meow-agent-manager.ts` — `MeowAgentManager`: orchestrates the agent chat loop, sessions, commands,
   permissions, subagents, MCP/user tools, stats, settings. The only place that orchestrates the native agent.
+  Tracks draft session model preferences (`DRAFT_SESSION_ID`) and resolves default models for unmaterialized sessions;
   `suggestFiles` for a draft session (`DRAFT_SESSION_ID`) falls back to the active project path, so `@`-file
   completion works before the session exists.
   In-flight permission/question prompts are stored (with their content) so a remounted chat panel can restore

@@ -22,11 +22,7 @@ export default function ModelPicker({ agentId }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
 
   const refresh = useCallback(() => {
-    if (agentId === DRAFT_SESSION_ID) {
-      setCurrent(null)
-    } else {
-      void window.api.getAgentModel(agentId).then(setCurrent)
-    }
+    void window.api.getAgentModel(agentId).then(setCurrent)
     Promise.all([
       window.api.getProviderModels(),
       window.api.getConnectionModels().catch(() => [])

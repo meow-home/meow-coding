@@ -124,6 +124,7 @@ export class MeowAgentManager {
   private compacting = new Set<string>()
   private lastCompactionAt = new Map<string, number>()
   private registrationVersion = new Map<string, number>()
+  private draftModel: ModelRef | null = null
   private idleCompactTimer: ReturnType<typeof setInterval> | null = null
 
   constructor(private deps: MeowAgentManagerDeps) {
@@ -216,7 +217,14 @@ export class MeowAgentManager {
   }
 
   addAgent(agent: AgentConfig): void {
-    if (agent.kind === 'native') void this.register(agent)
+    if (agent.kind === 'native') {
+      if (!agent.model && this.draftModel) {
+        agent.model = `${this.draftModel.provider}/${this.draftModel.model}`
+        agent.accountId = this.draftModel.accountId
+      }
+      this.draftModel = null
+      void this.register(agent)
+    }
   }
 
   listAgents(): AgentConfig[] {
@@ -581,6 +589,10 @@ export class MeowAgentManager {
   }
 
   setModel(agentId: string, model: ModelRef): void {
+    if (agentId === DRAFT_SESSION_ID) {
+      this.draftModel = model
+      return
+    }
     const agent = this.agents.get(agentId)
     if (!agent) return
     agent.model = `${model.provider}/${model.model}`
@@ -592,6 +604,16 @@ export class MeowAgentManager {
   }
 
   getAgentModel(agentId: string): ModelRef | null {
+    if (agentId === DRAFT_SESSION_ID) {
+      if (this.draftModel) return this.draftModel
+      const cfg = loadMeowConfig(this.deps.configPath)
+      const resolved = this.resolveAgentConfig(cfg, 'New session')
+      if (!resolved.provider || !resolved.model) return null
+      return {
+        provider: resolved.provider,
+        model: resolved.model
+      }
+    }
     const agent = this.agents.get(agentId)
     if (!agent) return null
     const cfg = loadMeowConfig(this.deps.configPath)

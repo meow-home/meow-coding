@@ -119,6 +119,8 @@ export interface NewAgentInput {
   cwd: string
   kind?: AgentKind
   mode?: AgentMode
+  model?: string
+  accountId?: string
 }
 
 export interface MessageTokens {

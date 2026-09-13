@@ -1775,6 +1775,21 @@ describe('MeowAgentManager subagents', () => {
     )
     expect(userMsg?.message.images).toEqual(images)
   })
+
+  it('handles draft session model pre-filling and applies model to new agent', async () => {
+    const { manager } = await makeManager()
+    const initialModel = manager.getAgentModel(DRAFT_SESSION_ID)
+    expect(initialModel).not.toBeNull()
+
+    const customModel = { provider: 'test', model: 'test-model' }
+    manager.setModel(DRAFT_SESSION_ID, customModel)
+    expect(manager.getAgentModel(DRAFT_SESSION_ID)).toEqual(customModel)
+
+    manager.addAgent({ id: 'draft-created', name: 'New session', templateId: 'meow', cwd: '/proj', kind: 'native' })
+    expect(manager.getAgentModel('draft-created')).toEqual(customModel)
+
+    expect(manager.getAgentModel(DRAFT_SESSION_ID)).toEqual(initialModel)
+  })
 })
 
 describe('MeowAgentManager draft session file suggestions', () => {

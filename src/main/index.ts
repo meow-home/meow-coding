@@ -784,7 +784,9 @@ export function registerIpcHandlers(): void {
       name: input.name,
       templateId: 'meow',
       cwd: input.cwd,
-      kind: 'native'
+      kind: 'native',
+      model: input.model,
+      accountId: input.accountId
     })
     const added = ws.agents[ws.agents.length - 1]
     mainApp.meowAgent.addAgent(added)
