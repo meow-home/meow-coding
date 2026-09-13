@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
+import { imageMimeType } from '@shared/image'
 import MarkdownText from '../chat/MarkdownText'
 import { isHighlightable, preloadLanguage, highlightCode } from '../chat/highlight'
+import { baseName } from '../files/file-path'
 
 interface Props {
   path: string
@@ -14,12 +16,25 @@ export default function FileContentView({ path: filePath, root }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [raw, setRaw] = useState(false)
   const [highlighted, setHighlighted] = useState<string | null>(null)
+  const [image, setImage] = useState<string | null>(null)
 
   const ext = filePath.toLowerCase().split('.').pop() ?? ''
-  const isMarkdown = ext === 'md' || ext === 'markdown'
-  const code = isHighlightable(ext)
+  const isImage = imageMimeType(ext) !== null
+  const isMarkdown = !isImage && (ext === 'md' || ext === 'markdown')
+  const code = !isImage && isHighlightable(ext)
 
   useEffect(() => {
+    if (isImage) {
+      let alive = true
+      // Images are returned as data URLs by main; the renderer never reads the
+      // file itself.
+      window.api.getFileImage(filePath)
+        .then(r => { if (alive) setImage(r.dataUrl) })
+        .catch((e: unknown) => {
+          if (alive) setError(e instanceof Error ? e.message : String(e))
+        })
+      return () => { alive = false }
+    }
     let alive = true
     // Warm the highlighter + grammar while the content is read over IPC, so
     // the first highlight is near-instant and plain text never flashes.
@@ -44,7 +59,7 @@ export default function FileContentView({ path: filePath, root }: Props) {
         if (alive) setError(e instanceof Error ? e.message : String(e))
       })
     return () => { alive = false }
-  }, [filePath, ext, code])
+  }, [filePath, ext, code, isImage])
 
   const copy = useCallback(async () => {
     if (content) await navigator.clipboard.writeText(content)
@@ -70,12 +85,27 @@ export default function FileContentView({ path: filePath, root }: Props) {
             </button>
           )}
           <button className="btn small" onClick={() => void window.api.openFileInEditor(filePath)}>Open in VS Code</button>
-          <button className="btn small" onClick={() => void copy()} disabled={!content}>Copy</button>
+          {!isImage && (
+            <button className="btn small" onClick={() => void copy()} disabled={!content}>Copy</button>
+          )}
         </div>
       </div>
-      {/* Full-bleed for highlighted code (VS Code look), padded for everything else. */}
-      <div className={`viewer-body${code && !raw && highlighted ? ' viewer-body--flush' : ''}`}>
-        {error ? (
+      {/* Full-bleed for highlighted code (VS Code look), fitted for images, padded for everything else. */}
+      <div className={`viewer-body${isImage ? ' viewer-body--image' : code && !raw && highlighted ? ' viewer-body--flush' : ''}`}>
+        {isImage ? (
+          error ? (
+            <div className="viewer-image-error">
+              <span>{error}</span>
+              <button className="btn small" onClick={() => void window.api.openFileWithSystem(filePath)}>
+                Open with OS app
+              </button>
+            </div>
+          ) : image === null ? (
+            <div className="viewer-loading">Loading…</div>
+          ) : (
+            <img className="viewer-image" src={image} alt={baseName(filePath)} />
+          )
+        ) : error ? (
           <div className="viewer-error">{error}</div>
         ) : content === null ? (
           <div className="viewer-loading">Loading…</div>
