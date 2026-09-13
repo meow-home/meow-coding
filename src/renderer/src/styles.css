@@ -1147,7 +1147,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   flex: 0 0 13rem;
   display: flex; flex-direction: column; min-height: 0;
   border-right: 0.083333rem solid var(--hairline);
-  background: var(--bg-panel);
+  background: var(--bg-chat);
 }
 .settings-nav {
   display: flex; flex-direction: column; gap: 0.166667rem; flex: 1;
