@@ -1,6 +1,6 @@
 # Files Overlay (project explorer) Design Spec
 
-Status: Approved (user), pending spec review
+Status: Approved (user) — 2026-09-13
 
 ## 1. Overview
 
