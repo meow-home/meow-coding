@@ -203,18 +203,19 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 /* Title bar */
 .title-bar {
   height: 2.833333rem; flex: 0 0 2.833333rem; display: flex; align-items: center; justify-content: space-between;
-  background: transparent;
+  /* The OS paints its caption strip ~0.5px narrower than the 11.5rem the
+     content reserves, so a sliver of this bar stays visible next to the
+     min/max/close buttons. Transparent here would expose body's radial
+     gradient as a 1px line; paint the same surface as the strip instead. */
+  background: var(--bg);
   border-radius: 0; /* flush against the window edge */
   -webkit-app-region: drag; user-select: none;
 }
 .title-bar-brand {
   display: flex; align-items: center; gap: 0.666667rem; padding-left: 0.833333rem; min-width: 0;
   height: 100%; width: 22.333333rem; flex: 0 0 auto; box-sizing: border-box;
-  background: var(--bg-sidebar); border-right: 0.083333rem solid var(--hairline);
+  background: var(--bg-sidebar);
   border-radius: 0;
-}
-.title-bar-brand.collapsed {
-  border-right: none;
 }
 .title-bar-darwin .title-bar-brand { padding-left: 6.5rem; }
 .title-bar-logo { width: 1.333333rem; height: 1.333333rem; flex: none; filter: drop-shadow(0 0 0.5rem var(--accent-dim)); }
@@ -282,7 +283,6 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 
   width: 22.333333rem;
   background: var(--bg-sidebar);
-  border-right: 0.083333rem solid var(--hairline);
   display: flex;
   flex-direction: column;
   gap: 0.666667rem;
@@ -327,8 +327,8 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .sidebar-toggle svg { transition: none; }
 .sidebar-toggle.collapsed svg { transform: rotate(180deg); }
 .sidebar.collapsed {
-  /* 4rem + 0.083333rem border-right + 2x8px padding = 2.583333rem content < 2.666667rem avatar.
-     Widen to 4.333333rem so content is 2.916667rem: 2.666667rem avatars get ~0.125rem breathing
+  /* 4rem + 2x8px padding = 2.666667rem content — exactly the avatar, no breathing room.
+     Widen to 4.333333rem so content is 3rem: 2.666667rem avatars get ~0.166667rem breathing
      room each side and are never clipped (incl. the rounded corners). */
   width: 4.333333rem; padding: 0.666667rem;
   overflow-x: hidden; /* rail must never scroll horizontally */

@@ -72,6 +72,11 @@ Lessons learned from the Git viewer screen (don't repeat them):
   with a container padding override. `.project-actions .btn` and `.btn.small` are both `(0,2,0)`, so
   source order decides and the override is silently ignored (the project `+`/`...` rendered 34 × 25
   and the pane header's `...` 31 × 21 with the `.btn` 6px radius before the dedicated class existed).
+- **The title bar paints `var(--bg)` and carries no divider lines** — `.title-bar-brand` and `.sidebar`
+  used to draw a `--hairline` right border, and `.title-bar` was transparent. On Windows the OS paints
+  the caption strip ~0.5px narrower than the reserved `11.5rem`, so a transparent bar exposed `body`'s
+  radial gradient as a 1px line beside the min/max/close buttons. Don't reintroduce a transparent
+  title bar (`window-chrome.test.ts` guards the surface).
 - **Dropdowns share the `--menu-*` metric tokens** (`--menu-radius`, `--menu-pad`, `--menu-item-h`,
   `--menu-item-pad-x`, `--menu-icon`). New menu surfaces must consume them, not hardcode padding.
 - **Selector rows use `.menu-item-label` + `.menu-item-check`**, and triggers use `.dropdown-caret`.

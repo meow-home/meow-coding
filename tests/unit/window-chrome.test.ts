@@ -109,6 +109,17 @@ describe('Windows overlay color tracks the title bar surface', () => {
     )
   })
 
+  // The renderer reserves 11.5rem for the caption strip, but the OS paints its
+  // strip ~0.5px narrower, so a sliver of the renderer shows through right
+  // beside the buttons. `.title-bar` used to be transparent there, which
+  // exposed `body`'s radial gradient (#f6f6f6 next to a #ffffff strip) as a 1px
+  // line. Painting the bar with the same surface as the strip keeps it invisible.
+  it('paints the title bar with the same surface as the reserved caption strip', () => {
+    const rule = stylesheetRules().find(r => r.selectors.includes('.title-bar') && /background:/.test(r.body))
+    expect(rule, 'styles.css has no `.title-bar` background rule').toBeDefined()
+    expect(rule!.body).toMatch(new RegExp(`background:\\s*var\\(${titleBarSurfaceToken()}\\)`))
+  })
+
   it('recolors the overlay to the dark title bar surface when the theme is dark', () => {
     const surface = tokenValue(':root', titleBarSurfaceToken())
     const setTitleBarOverlay = vi.fn()

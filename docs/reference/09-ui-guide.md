@@ -232,7 +232,8 @@ string edits fail. Edit them with a script (e.g. python) if the edit tool cannot
   menu (Sun/Moon).
 - `applyTheme(theme?)` sets `data-theme` **and** calls `window.api.setTitleBarTheme(resolved)` so the
   Windows `titleBarOverlay` min/max/close buttons follow the app theme (without this they stay dark
-  in light mode).
+  in light mode). The bar itself paints `var(--bg)` — the same surface as that overlay strip — and
+  draws no divider (see [11.5](11-conventions-and-pitfalls.md) for the subpixel seam behind this).
 - `watchTheme()` listens for `storage` events, which fire across same-origin windows — this is how
   the Git viewer and File viewer popups re-theme when the main window toggles.
 - App-wide font size persists in `localStorage` under `meow.fontSize` (default 14, range 8–40px,
