@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Copy, Minus, PanelLeft, PanelRight, PanelRightClose, Square, X } from 'lucide-react'
+import { Copy, Minus, PanelLeft, Square, X } from 'lucide-react'
 import logoMark from '../assets/logo-mark.png'
 
 function MinimizeIcon() {
@@ -18,13 +18,7 @@ function CloseIcon() {
   return <X size={10} aria-hidden="true" />
 }
 
-function PanelIcon({ open }: { open: boolean }) {
-  return open ? <PanelRight size={14} aria-hidden="true" /> : <PanelRightClose size={14} aria-hidden="true" />
-}
-
 interface Props {
-  panelOpen: boolean
-  onTogglePanel: () => void
   sidebarCollapsed?: boolean
   onToggleSidebar?: () => void
   onMouseEnterBrand?: () => void
@@ -32,7 +26,7 @@ interface Props {
 }
 
 export default function TitleBar({
-  panelOpen, onTogglePanel, sidebarCollapsed, onToggleSidebar,
+  sidebarCollapsed, onToggleSidebar,
   onMouseEnterBrand, onMouseLeaveBrand
 }: Props) {
   const platform = window.api.platform
@@ -68,14 +62,6 @@ export default function TitleBar({
         )}
       </div>
       <div className="title-bar-right">
-        <button
-          className="title-bar-btn title-bar-panel-toggle"
-          aria-label={panelOpen ? 'Hide Panel' : 'Show Panel'}
-          title={panelOpen ? 'Hide Panel' : 'Show Panel'}
-          onClick={onTogglePanel}
-        >
-          <PanelIcon open={panelOpen} />
-        </button>
         {showCustomControls && (
           <div className="title-bar-controls" onDoubleClick={e => e.stopPropagation()}>
             <button className="title-bar-btn" aria-label="Minimize" onClick={() => void window.api.minimizeWindow()}>

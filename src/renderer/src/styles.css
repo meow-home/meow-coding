@@ -1756,9 +1756,7 @@ select.input { width: 100%; }
 .artifact-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono); }
 .artifact-time { flex: 0 0 auto; color: var(--text-faint); font-size: var(--fs-xs); }
 
-/* Title bar panel toggle */
 .title-bar-right { display: flex; align-items: center; height: 100%; -webkit-app-region: no-drag; }
-.title-bar-panel-toggle { width: 3.166667rem; }
 /* Windows titleBarOverlay draws the OS min/max/close buttons over the right
    ~11.5rem of the bar — keep the panel toggle clear of them. */
 .title-bar-win32 .title-bar-right { margin-right: 11.5rem; }

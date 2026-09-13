@@ -149,6 +149,9 @@ export default function App() {
     })
   }, [])
 
+  // PARKED: the RightPanel (directory tree + artifacts) is no longer rendered —
+  // the Files overlay replaces it. These values, the artifacts state below and
+  // the `onArtifactsChanged` subscription stay so re-enabling it is a small diff.
   const [rightOpen, setRightOpen] = useState(() => localStorage.getItem('meow.rightpanel.open') !== '0')
   const [rightTab, setRightTab] = useState<'tree' | 'artifacts'>(() =>
     localStorage.getItem('meow.rightpanel.tab') === 'artifacts' ? 'artifacts' : 'tree')
@@ -553,8 +556,6 @@ export default function App() {
     <AppActionsContext.Provider value={appActions}>
     <div className="app">
       <TitleBar
-        panelOpen={rightOpen}
-        onTogglePanel={() => setRightOpen(v => !v)}
         sidebarCollapsed={sidebarCollapsed}
         onToggleSidebar={handleToggleSidebar}
         onMouseEnterBrand={handleMouseEnterBrand}
@@ -647,19 +648,6 @@ export default function App() {
               </div>
             ))}
         </main>
-        {rightOpen && (
-          <RightPanel
-            root={activePath ?? null}
-            tab={rightTab}
-            width={rightWidth}
-            artifacts={artifacts[activePath ?? ''] ?? []}
-            onTabChange={setRightTab}
-            onWidthChange={setRightWidth}
-            onClearArtifacts={() => {
-              if (activePath) void window.api.clearArtifacts(activePath)
-            }}
-          />
-        )}
       </div>
       <StatusBar
         workspaceName={activeRuntime?.workspace.name ?? null}
