@@ -584,7 +584,7 @@ select.input { width: 100%; }
 }
 .status-bar .sb-item { display: inline-flex; align-items: center; gap: 0.5rem; min-width: 0; }
 .status-bar .sb-right { margin-left: auto; }
-.status-bar .sb-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: #ffffff; }
+.status-bar .sb-mono { font-family: var(--font-ui); font-variant-numeric: tabular-nums; color: #ffffff; }
 .status-bar .sb-dim { color: rgba(255, 255, 255, 0.7); }
 .status-bar .sb-git {
   appearance: none; background: transparent; border: 0.083333rem solid transparent;
