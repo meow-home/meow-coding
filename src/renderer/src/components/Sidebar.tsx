@@ -5,7 +5,6 @@ import {
   PanelLeft, Pencil, Plus, RefreshCw, Server, Settings, Square, Sun, Terminal, Trash2, X
 } from 'lucide-react'
 import type { WorkspaceRuntime, WorkspaceSummary } from '@shared/types'
-import AddProjectDialog from './AddProjectDialog'
 import { applyTheme, type Theme } from '../theme'
 
 function MoreIcon() {
@@ -47,7 +46,6 @@ export default function Sidebar({
   onOpenSettings, onOpenProviders, onOpenGit, onCheckUpdate, updateChecking,
   onNewSession, onSelectSession, onRenameSession, onDeleteSession, onStopSession
 }: Props) {
-  const [showAddProject, setShowAddProject] = useState(false)
   const [openProjectMenu, setOpenProjectMenu] = useState<string | null>(null)
   const [projectMenuPos, setProjectMenuPos] = useState<{ x: number; y: number } | null>(null)
   const [error, setError] = useState('')
@@ -107,13 +105,15 @@ export default function Sidebar({
     }
   }, [])
 
-  const handleAddProject = async (projectPath: string, name: string) => {
+  const handleAddProjectDirect = async () => {
     try {
-      await window.api.addWorkspace(projectPath, name)
-      setShowAddProject(false)
+      const folderPath = await window.api.pickFolder()
+      if (!folderPath) return
+      const name = folderPath.split(/[\\/]/).filter(Boolean).pop() || folderPath
+      await window.api.addWorkspace(folderPath, name)
       setError('')
       onRefresh()
-      onOpen(projectPath)
+      onOpen(folderPath)
     } catch (err) {
       setError(String(err))
     }
@@ -139,7 +139,7 @@ export default function Sidebar({
       {error && <div className="sidebar-error">{error}</div>}
       <div className="panel-head sidebar-head">
         <span className="panel-title">Projects</span>
-        <button className="btn primary small" onClick={() => setShowAddProject(true)}>Add Project</button>
+        <button className="btn primary small" onClick={() => void handleAddProjectDirect()}>Add Project</button>
         <button
           className={`sidebar-toggle ${collapsed ? 'collapsed' : ''}`}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -320,9 +320,6 @@ export default function Sidebar({
           )
         })}
       </ul>
-      )}
-      {showAddProject && (
-        <AddProjectDialog onAdd={(p, n) => void handleAddProject(p, n)} onClose={() => setShowAddProject(false)} />
       )}
       <footer className="sidebar-footer">
         <button

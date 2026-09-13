@@ -15,7 +15,6 @@ import SettingsDialog, { type TabId } from './components/settings/SettingsDialog
 import BrowserDialog from './components/BrowserDialog'
 import InstallGuideDialog from './components/InstallGuideDialog'
 import UpdateDialog from './components/UpdateDialog'
-import AddProjectDialog from './components/AddProjectDialog'
 import { AppActionsContext } from './app-actions'
 import { isLastSession } from './session-guard'
 
@@ -79,7 +78,6 @@ export default function App() {
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
   const [showSettings, setShowSettings] = useState(false)
   const [settingsTab, setSettingsTab] = useState<TabId>('agents')
-  const [showAddProject, setShowAddProject] = useState(false)
   // Every loaded project's workspace stays mounted (hidden via CSS display:none)
   // so switching back is instant and hidden agents keep streaming into their feed.
   const [runtimes, setRuntimesState] = useState<Record<string, WorkspaceRuntime>>({})
@@ -468,21 +466,22 @@ export default function App() {
     void window.api.stopChat(id)
   }, [])
 
-  // "Add Folder" (composer "+" menu) and Sidebar "Add Project" share this flow:
-  // add the folder as a project, then refresh the sidebar (same as the sidebar's
-  // own dialog — the new project appears there to open).
-  const handleAddProject = useCallback(async (projectPath: string, name: string) => {
+  // "Add Folder" (composer "+" menu) triggers the OS folder picker directly:
+  // adds the selected folder as a project, refreshes the sidebar, and opens it.
+  const handleAddFolderDirect = useCallback(async () => {
     try {
-      await window.api.addWorkspace(projectPath, name)
+      const folderPath = await window.api.pickFolder()
+      if (!folderPath) return
+      const name = folderPath.split(/[\\/]/).filter(Boolean).pop() || folderPath
+      await window.api.addWorkspace(folderPath, name)
+      await refreshWorkspaces()
+      openWorkspace(folderPath)
     } catch {
-      /* the dialog stays open on failure; the next attempt retries */
-      return
+      /* ignore cancel or failure */
     }
-    setShowAddProject(false)
-    await refreshWorkspaces()
-  }, [refreshWorkspaces])
+  }, [refreshWorkspaces, openWorkspace])
 
-  const appActions = useMemo(() => ({ addFolder: () => setShowAddProject(true) }), [])
+  const appActions = useMemo(() => ({ addFolder: handleAddFolderDirect }), [handleAddFolderDirect])
 
   const activeRuntime = activePath ? (runtimes[activePath] ?? null) : null
 
@@ -585,9 +584,6 @@ export default function App() {
           initialTab={settingsTab}
           agentId={activeRuntime?.workspace.agents[0]?.id}
         />
-      )}
-      {showAddProject && (
-        <AddProjectDialog onAdd={handleAddProject} onClose={() => setShowAddProject(false)} />
       )}
     </div>
     </AppActionsContext.Provider>
