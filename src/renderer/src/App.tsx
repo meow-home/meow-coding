@@ -634,7 +634,7 @@ export default function App() {
             updateChecking={updateChecking}
           />
         )}
-        <main className="main">
+        <main className={filesOpenFor ? 'main files-open' : 'main'}>
           {/* The Files panel is a sibling of the panes: docked on the right while
               it keeps its tree/tab state, or expanded over the whole pane area. */}
           <div className="main-panes">

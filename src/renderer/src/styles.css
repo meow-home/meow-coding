@@ -192,6 +192,9 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .main { position: relative; flex: 1; display: flex; min-width: 0; min-height: 0; }
 /* Holds the project panes; the Files panel docks beside it or expands over it. */
 .main-panes { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+/* The gap the docked Files panel leaves shows the chat surface — body's radial
+   gradient would otherwise frame it in a lighter shade than the chat pane. */
+.main.files-open { background: var(--bg-chat); }
 
 /* Shell entrance — staggered rise */
 @keyframes meow-rise {
@@ -2007,10 +2010,13 @@ select.input { width: 100%; }
 .files-resizer:hover { background: var(--accent-dim); }
 /* Docked: the panel is resizable, so the tree takes a share instead of a fixed 20rem. */
 .files-overlay.docked .files-side { flex-basis: 42%; }
-/* Expanded: fills the pane area only — title bar, sidebar and status bar stay visible. */
+/* Expanded: fills the pane area only — title bar, sidebar and status bar stay visible.
+   The spread shadow paints the surrounding gap as the chat surface, like the docked
+   panel's `.main.files-open` backdrop (otherwise the pane's own chrome peeks through). */
 .files-overlay.full {
   position: absolute; z-index: 40;
   top: 0.333333rem; left: 0.333333rem; right: 0.333333rem; bottom: 0.333333rem;
+  box-shadow: 0 0 0 0.333333rem var(--bg-chat);
 }
 .files-head { padding: 0 0.5rem; gap: 0.5rem; border-bottom: 0.083333rem solid var(--hairline); }
 .files-head-title {

@@ -48,7 +48,8 @@ the tree by name; a `?` prefix searches file contents instead and lists `path:li
 resizable by its left edge (320–900px, default 420px, persisted in `localStorage` as `meow.files.width`); `⤢`
 expands it over the whole pane area and restore docks it again — the tree, tabs and open files survive both
 directions. The panel is a bordered, rounded card (`--hairline` + `--radius-lg`) in both modes, sitting a 4px
-gap away from the pane edges (all four sides when docked) so the radius is never clipped. `Esc` and `✕` close it, and switching to another project closes it.
+gap away from the pane edges (all four sides when docked) so the radius is never clipped; that gap is painted
+with the chat surface (`--bg-chat`), not body's radial gradient, so the panel is framed like the chat pane. `Esc` and `✕` close it, and switching to another project closes it.
 
 The previous `RightPanel` (directory tree + artifacts) is parked in the source — its components, CSS, state and
 the artifact store/IPC remain, but nothing renders it.
