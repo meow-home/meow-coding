@@ -14,9 +14,9 @@ main process config.
 | `PermissionsTab.tsx` | Tool permission rules (allow/ask/deny). |
 | `McpTab.tsx` | MCP server configs + connection status: redesigned with server cards (HTTP vs Stdio command), status badges, exposed tools summary chips, empty state card, test connections button, and `BaseModal` server addition form. |
 | `ContextTab.tsx` | Context/compaction settings: redesigned with white background cards, 2-column grid layout, Lucide icons (`Gauge`, `Bell`, `Sliders`), toggle row selectors, and collapsible Advanced compaction tuning section. |
-| `CommandsTab.tsx` | Slash-command editor (project-level). "+ Add command" button in header (top), same `agents-head` pattern as AgentsTab. |
-| `PersonalizeTab.tsx` | App-wide font size control (px, default 14, range 8-40): sets `meow.fontSize` in localStorage, applied via `applyFontSize()`. |
-| `UpdatesTab.tsx` | Update channel + check/install. |
+| `CommandsTab.tsx` | Slash-command editor (project-level). "+ Add command" button in header (top), same `agents-head` pattern as AgentsTab. Displays delete button only for custom user commands (`!builtIn` and not `system`). |
+| `PersonalizeTab.tsx` | App-wide font size & theme controls: theme-compatible background cards, Lucide icons (`Type`, `Sparkles`, `Palette`, `Moon`, `Sun`), Color Theme selector (Dark vs Light mode), font size preset buttons (10px–20px), and live text preview box. |
+| `UpdatesTab.tsx` | Update channel + check/install: redesigned with white background card, Lucide icons (`DownloadCloud`, `CheckCircle2`, `RefreshCw`, `ArrowUpCircle`, `AlertCircle`, `Sparkles`), status badges, progress bar, and version info. |
 | `Modal.tsx` | Inner settings modal wrapper wrapping `BaseModal` with standard Cancel/Save footer actions. |
 
 ## Conventions

@@ -1,5 +1,15 @@
 import { useState } from 'react'
-import { FileText, FolderTree, Layers, MoreVertical, Play, RotateCw, Square, Trash2 } from 'lucide-react'
+import {
+  Code,
+  FileText,
+  FolderSymlink,
+  FolderTree,
+  MoreVertical,
+  Play,
+  RotateCw,
+  Square,
+  Trash2
+} from 'lucide-react'
 import type { AgentState } from '@shared/types'
 import BaseDropdown from './common/BaseDropdown'
 import ConfirmDialog from './ConfirmDialog'
@@ -7,6 +17,7 @@ import ConfirmDialog from './ConfirmDialog'
 interface Props {
   name: string
   state: AgentState
+  cwd?: string
   background?: boolean
   native?: boolean
   active?: boolean
@@ -14,7 +25,6 @@ interface Props {
   onRestart: () => void
   onInject: (text: string) => void
   onOpenLog: () => void
-  onToggleBackground?: () => void
   onOpenFiles?: () => void
   onRemove: () => void
 }
@@ -25,8 +35,17 @@ const STATUS_LABEL: Record<AgentState['status'], string> = {
 }
 
 export default function PaneHeader({
-  name, state, background = false, native = false, active = false,
-  onStop, onRestart, onInject, onOpenLog, onToggleBackground, onOpenFiles, onRemove
+  name,
+  state,
+  cwd,
+  native = false,
+  active = false,
+  onStop,
+  onRestart,
+  onInject,
+  onOpenLog,
+  onOpenFiles,
+  onRemove
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [injecting, setInjecting] = useState(false)
@@ -104,17 +123,23 @@ export default function PaneHeader({
                 </button>
               </>
             )}
-            {onToggleBackground && (
-              <button className="menu-item" onClick={() => { close(); onToggleBackground() }}>
-                <Layers size={16} aria-hidden="true" />
-                {background ? 'Open pane' : 'Run in background'}
-              </button>
-            )}
             {onOpenFiles && (
               <button className="menu-item" onClick={() => { close(); onOpenFiles() }}>
                 <FolderTree size={16} aria-hidden="true" />
                 Files
               </button>
+            )}
+            {cwd && (
+              <>
+                <button className="menu-item" onClick={() => { close(); void window.api.openFolder(cwd) }}>
+                  <FolderSymlink size={16} aria-hidden="true" />
+                  Open Folder
+                </button>
+                <button className="menu-item" onClick={() => { close(); void window.api.openInEditor(cwd) }}>
+                  <Code size={16} aria-hidden="true" />
+                  Open in VS Code
+                </button>
+              </>
             )}
             <div className="menu-sep" aria-hidden="true" />
             <button className="menu-item danger" onClick={() => { close(); setConfirmRemove(true) }}>

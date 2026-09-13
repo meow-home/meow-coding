@@ -40,14 +40,13 @@ export default function Pane({ pane, background, active, onFocus, onRemove, onSe
       <PaneHeader
         name={pane.agent.name}
         state={pane.state}
-        background={background}
+        cwd={pane.agent.cwd}
         native={native}
         active={active}
         onStop={handleStop}
         onRestart={handleRestart}
         onInject={handleInject}
         onOpenLog={handleOpenLog}
-        onToggleBackground={handleToggleBackground}
         onOpenFiles={onOpenFiles}
         onRemove={onRemove}
       />

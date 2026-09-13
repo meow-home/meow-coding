@@ -398,6 +398,7 @@ export interface Command {
   type?: 'prompt' | 'system'
   agent?: string
   model?: string
+  builtIn?: boolean
 }
 
 export interface UsageSummary {

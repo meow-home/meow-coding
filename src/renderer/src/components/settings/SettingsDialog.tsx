@@ -1,4 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  Bot,
+  Cpu,
+  Plug,
+  ShieldCheck,
+  Terminal,
+  Sliders,
+  Palette,
+  DownloadCloud
+} from 'lucide-react'
 import type { CatalogProviderSummary, McpServerStatus, MeowSettings } from '@shared/types'
 import BaseModal from '../common/BaseModal'
 import AgentsTab from './AgentsTab'
@@ -11,17 +21,57 @@ import UpdatesTab from './UpdatesTab'
 import ProvidersTab from './ProvidersTab'
 import PersonalizeTab from './PersonalizeTab'
 
-export type TabId = 'agents' | 'permissions' | 'mcp' | 'context' | 'commands' | 'remote' | 'updates' | 'providers' | 'personalize'
+export type TabId =
+  | 'agents'
+  | 'permissions'
+  | 'mcp'
+  | 'context'
+  | 'commands'
+  | 'remote'
+  | 'updates'
+  | 'providers'
+  | 'personalize'
 
-const TABS: Array<{ id: TabId; label: string }> = [
-  { id: 'agents', label: 'Sub-agents' },
-  { id: 'permissions', label: 'Permissions' },
-  { id: 'mcp', label: 'MCP' },
-  { id: 'providers', label: 'Providers' },
-  { id: 'context', label: 'Context' },
-  { id: 'commands', label: 'Commands' },
-  { id: 'updates', label: 'Updates' },
-  { id: 'personalize', label: 'Personalize' }
+interface TabItem {
+  id: TabId
+  label: string
+  icon: React.ComponentType<{ size?: number; className?: string }>
+}
+
+interface TabGroup {
+  title: string
+  isSystem?: boolean
+  items: TabItem[]
+}
+
+const TAB_GROUPS: TabGroup[] = [
+  {
+    title: 'Intelligence',
+    items: [
+      { id: 'agents', label: 'Sub-agents', icon: Bot },
+      { id: 'providers', label: 'Providers', icon: Cpu },
+      { id: 'mcp', label: 'MCP', icon: Plug }
+    ]
+  },
+  {
+    title: 'Controls & Context',
+    items: [
+      { id: 'permissions', label: 'Permissions', icon: ShieldCheck },
+      { id: 'commands', label: 'Commands', icon: Terminal },
+      { id: 'context', label: 'Context', icon: Sliders }
+    ]
+  },
+  {
+    title: 'Preferences',
+    items: [
+      { id: 'personalize', label: 'Personalize', icon: Palette }
+    ]
+  },
+  {
+    title: 'System',
+    isSystem: true,
+    items: [{ id: 'updates', label: 'Updates', icon: DownloadCloud }]
+  }
 ]
 
 interface Props {
@@ -73,7 +123,9 @@ export default function SettingsDialog({ onClose, projectPath, initialTab = 'age
     void window.api.getContextInfo(agentId).then(info => {
       if (!cancelled) setResolvedContextTokens(info.limit)
     })
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [agentId])
 
   const patch = useCallback((partial: Partial<MeowSettings>) => {
@@ -145,24 +197,35 @@ export default function SettingsDialog({ onClose, projectPath, initialTab = 'age
   }, [saveState])
 
   return (
-    <BaseModal
-      size="xl"
-      onClose={onClose}
-      className="settings-modal-dialog"
-    >
+    <BaseModal size="xl" onClose={onClose} className="settings-modal-dialog">
       <BaseModal.Header title="Settings" onClose={onClose} />
       <BaseModal.Body noPadding>
         <div className="settings-body">
           <aside className="settings-sidebar">
             <nav className="settings-nav">
-              {TABS.map(t => (
-                <button
-                  key={t.id}
-                  className={`settings-nav-item ${tab === t.id ? 'active' : ''}`}
-                  onClick={() => setTab(t.id)}
+              {TAB_GROUPS.map((group, groupIdx) => (
+                <div
+                  key={group.title || groupIdx}
+                  className={`settings-nav-group ${group.isSystem ? 'settings-nav-group-system' : ''}`}
                 >
-                  {t.label}
-                </button>
+                  {group.title && <div className="settings-nav-title">{group.title}</div>}
+                  {group.items.map(t => {
+                    const Icon = t.icon
+                    const isActive = tab === t.id
+                    return (
+                      <button
+                        key={t.id}
+                        className={`settings-nav-item ${isActive ? 'active' : ''}`}
+                        onClick={() => setTab(t.id)}
+                      >
+                        <span className="settings-nav-icon">
+                          <Icon size={16} />
+                        </span>
+                        <span>{t.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
               ))}
             </nav>
           </aside>

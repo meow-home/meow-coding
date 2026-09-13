@@ -57,15 +57,25 @@ describe('CommandStore', () => {
 
   afterEach(() => rmSync(dir, { recursive: true, force: true }))
 
-  it('lists built-ins plus saved user commands', () => {
+  it('lists built-ins plus saved user commands with builtIn flag', () => {
     const store = new CommandStore(file)
     const list = store.list()
     expect(list.map(c => c.name)).toContain('init')
     expect(list.map(c => c.name)).toContain('review')
     expect(list.map(c => c.name)).toContain('using-superpowers')
     expect(list.map(c => c.name)).toContain('brainstorming')
+
+    const brainstormingCmd = list.find(c => c.name === 'brainstorming')
+    expect(brainstormingCmd?.builtIn).toBe(true)
+
+    const initCmd = list.find(c => c.name === 'init')
+    expect(initCmd?.builtIn).toBe(true)
+
     store.save({ name: '/custom', description: 'd', template: 'do $1' })
-    expect(store.list().map(c => c.name)).toContain('custom')
+    const updatedList = store.list()
+    expect(updatedList.map(c => c.name)).toContain('custom')
+    const customCmd = updatedList.find(c => c.name === 'custom')
+    expect(customCmd?.builtIn).toBeFalsy()
   })
 
   it('lists the frontend-design built-in command', () => {

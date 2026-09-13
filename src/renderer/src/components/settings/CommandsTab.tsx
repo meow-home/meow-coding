@@ -80,7 +80,9 @@ export default function CommandsTab({ projectPath }: Props) {
           <span className="permission-tool">/{c.name}</span>
           <span className="command-tab-desc">{c.description}</span>
           <button className="btn small" onClick={() => openEdit(c)}>Edit</button>
-          <button className="btn small danger" onClick={() => setConfirmRemoveName(c.name)}>Remove</button>
+          {!c.builtIn && c.type !== 'system' && (
+            <button className="btn small danger" onClick={() => setConfirmRemoveName(c.name)}>Remove</button>
+          )}
         </div>
       ))}
       {status && <div className="settings-status">{status}</div>}

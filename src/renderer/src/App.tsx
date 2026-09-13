@@ -691,6 +691,7 @@ export default function App() {
       </div>
       <StatusBar
         workspaceName={activeRuntime?.workspace.name ?? null}
+        projectPath={activeRuntime?.workspace.projectPath ?? null}
         git={activeRuntime?.git ?? null}
         agents={activeRuntime?.agents ?? []}
         browser={browser}

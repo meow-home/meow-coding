@@ -12,7 +12,8 @@ export const INIT_COMMAND: Command = {
     'Create an AGENTS.md file for this project at the repo root. It should describe the project ' +
     'tech stack, build/test/lint commands, code conventions and project structure, so an AI ' +
     'coding agent can work here. Read the existing code first. If AGENTS.md already exists, ' +
-    'review and improve it instead of overwriting.'
+    'review and improve it instead of overwriting.',
+  builtIn: true
 }
 
 export const REVIEW_COMMAND: Command = {
@@ -21,7 +22,8 @@ export const REVIEW_COMMAND: Command = {
   template:
     'Review the current uncommitted changes. Run `git diff` and `git status`, inspect the changed ' +
     'files, and give a concise review: what changed, any bugs or regressions, style issues, and ' +
-    'suggested improvements. Do not modify files.'
+    'suggested improvements. Do not modify files.',
+  builtIn: true
 }
 
 // System commands are dispatched in main (meow-agent-manager.ts runCommand)
@@ -30,7 +32,8 @@ export const NEW_COMMAND: Command = {
   name: 'new',
   description: 'Start a new session',
   template: '',
-  type: 'system'
+  type: 'system',
+  builtIn: true
 }
 
 // Superpowers slash commands. Embedded built-ins: each dispatches the current request to the
@@ -64,7 +67,8 @@ export const FRONTEND_DESIGN_COMMAND: Command = {
     '',
     'User request:',
     '$ARGUMENTS'
-  ].join('\n')
+  ].join('\n'),
+  builtIn: true
 }
 
 export const SUPERPOWERS_COMMANDS: Command[] = SUPERPOWERS.map(({ name, context }) => ({
@@ -79,7 +83,8 @@ export const SUPERPOWERS_COMMANDS: Command[] = SUPERPOWERS.map(({ name, context 
     '',
     'User request:',
     '$ARGUMENTS'
-  ].join('\n')
+  ].join('\n'),
+  builtIn: true
 }))
 
 const SHELL_EXEC_RE = /!`([^`]*)`/g
@@ -174,13 +179,16 @@ export class CommandStore {
     const seen = new Set<string>()
     const out: Command[] = []
     for (const c of this.builtin.values()) {
-      out.push(c)
-      seen.add(c.name)
+      const clean = c.name.replace(/^\/+/, '')
+      out.push({ ...c, builtIn: true })
+      seen.add(clean)
     }
     for (const c of this.userCommands()) {
-      if (seen.has(c.name)) continue
-      out.push(c)
-      seen.add(c.name)
+      const clean = c.name.replace(/^\/+/, '')
+      if (seen.has(clean)) continue
+      const isBuiltin = this.builtin.has(clean)
+      out.push({ ...c, builtIn: isBuiltin || !!c.builtIn })
+      seen.add(clean)
     }
     return out
   }
@@ -224,7 +232,7 @@ export function projectCommands(projectDir?: string): Command[] {
     }
     const name = frontmatter.name ?? entry.replace(/\.md$/, '')
     if (!name) continue
-    out.push({ name, description: frontmatter.description ?? '', template: m[2].trim() })
+    out.push({ name, description: frontmatter.description ?? '', template: m[2].trim(), builtIn: true })
   }
   return out
 }
@@ -234,8 +242,9 @@ export function uniqueCommands(...lists: Command[][]): Command[] {
   const out: Command[] = []
   for (const list of lists) {
     for (const c of list) {
-      if (seen.has(c.name)) continue
-      seen.add(c.name)
+      const clean = c.name.replace(/^\/+/, '')
+      if (seen.has(clean)) continue
+      seen.add(clean)
       out.push(c)
     }
   }
