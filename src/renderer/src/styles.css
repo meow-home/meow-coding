@@ -586,7 +586,7 @@ select.input { width: 100%; }
   z-index: 100;
 }
 .dialog {
-  background: var(--bg-raised);
+  background: var(--bg-chat);
   border: 0.083333rem solid var(--hairline);
   box-shadow: var(--shadow-3);
   border-radius: var(--radius-lg);
@@ -1109,7 +1109,7 @@ select.input { width: 100%; }
 .settings-screen {
   position: fixed; inset: 2.833333rem 0 0; z-index: 100;
   display: flex; flex-direction: column;
-  background: var(--bg-panel); color: var(--text);
+  background: var(--bg-chat); color: var(--text);
 }
 .settings-screen * { border-radius: 0; }
 .settings-screen .btn,
@@ -1130,7 +1130,7 @@ select.input { width: 100%; }
   flex: 0 0 22.333333rem; /* same width as the project sidebar */
   display: flex; flex-direction: column; min-height: 0;
   border-right: 0.083333rem solid var(--hairline);
-  background: var(--bg-panel);
+  background: var(--bg-chat);
 }
 .settings-screen-back {
   flex: 0 0 auto;
@@ -1140,13 +1140,13 @@ select.input { width: 100%; }
   min-height: 3.333333rem;
   padding: 0.333333rem 1.166667rem;
   font-size: var(--fs-md);
-  background: var(--bg-panel);
-  border-color: var(--bg-panel);
+  background: var(--bg-chat);
+  border-color: var(--bg-chat);
   color: var(--text-strong);
 }
 .settings-screen-back:hover {
   background: var(--bg-input-hover);
-  border-color: var(--bg-panel);
+  border-color: var(--bg-chat);
   color: var(--text-strong);
 }
 .settings-nav {
@@ -1169,7 +1169,7 @@ select.input { width: 100%; }
   position: fixed; right: 1.5rem; bottom: 1.5rem; z-index: 110;
   display: flex; align-items: center; gap: 0.5rem;
   padding: 0.5rem 1rem; border-radius: var(--radius-lg);
-  background: var(--bg-raised); border: 0.083333rem solid var(--hairline);
+  background: var(--bg-chat); border: 0.083333rem solid var(--hairline);
   box-shadow: var(--shadow-2);
   font-size: var(--fs-sm); color: var(--text-dim);
 }
@@ -1177,9 +1177,9 @@ select.input { width: 100%; }
 .settings-save-pill.error { color: var(--red); border-color: rgba(255, 95, 86, 0.35); }
 
 .settings-tab { display: flex; flex-direction: column; gap: 0.833333rem; }
-.settings-row { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.833333rem 1rem; background: var(--bg-panel); border: 0.083333rem solid var(--hairline); border-radius: var(--radius); }
+.settings-row { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.833333rem 1rem; background: var(--bg-chat); border: 0.083333rem solid var(--hairline); border-radius: var(--radius); }
 .settings-field { display: flex; flex-direction: column; gap: 0.333333rem; }
-.settings-section { display: flex; flex-direction: column; gap: 0.666667rem; padding: 0.833333rem 1rem; background: var(--bg-panel); border: 0.083333rem solid var(--hairline); border-radius: var(--radius); }
+.settings-section { display: flex; flex-direction: column; gap: 0.666667rem; padding: 0.833333rem 1rem; background: var(--bg-chat); border: 0.083333rem solid var(--hairline); border-radius: var(--radius); }
 .settings-section-header { margin: 0 0 0.166667rem; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-strong); text-transform: uppercase; letter-spacing: 0.08em; }
 .settings-error { color: var(--red); font-size: var(--fs-md); }
 .providers-dialog { width: 46.666667rem; max-height: 80vh; overflow-y: auto; }
