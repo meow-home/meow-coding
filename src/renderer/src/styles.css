@@ -2033,7 +2033,7 @@ select.input { width: 100%; }
 .files-filter {
   display: flex; align-items: center; gap: 0.5rem; flex: 0 0 auto;
   margin: 0.666667rem 0.666667rem 0.333333rem; padding: 0 0.5rem;
-  background: var(--bg-input); border: 0.083333rem solid var(--hairline); border-radius: var(--radius);
+  background: var(--bg-input); border: 0.083333rem solid var(--hairline); border-radius: 0;
   color: var(--text-faint);
 }
 .files-filter-input {
