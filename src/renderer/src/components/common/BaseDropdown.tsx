@@ -52,7 +52,14 @@ export function computeDropdownPosition({
     verticalDir = 'bottom'
   }
 
-  const resultStyle: CSSProperties = { position: 'fixed', zIndex: 9999 }
+  const resultStyle: CSSProperties = {
+    position: 'fixed',
+    zIndex: 9999,
+    top: 'auto',
+    bottom: 'auto',
+    left: 'auto',
+    right: 'auto'
+  }
 
   if (verticalDir === 'top') {
     resultStyle.bottom = windowBounds.height - triggerRect.top + offset
@@ -164,7 +171,13 @@ export default function BaseDropdown({
   return (
     <div className="base-dropdown-container" ref={triggerRef} style={{ display: 'inline-flex' }}>
       {typeof trigger === 'function' ? trigger({ open: isOpen, toggle }) : (
-        <div onClick={toggle} style={{ display: 'inline-flex', cursor: 'pointer' }}>
+        <div
+          onClick={(e) => {
+            e.stopPropagation()
+            toggle()
+          }}
+          style={{ display: 'inline-flex', cursor: 'pointer' }}
+        >
           {trigger}
         </div>
       )}

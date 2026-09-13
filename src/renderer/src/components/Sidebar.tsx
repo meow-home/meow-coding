@@ -214,7 +214,6 @@ export default function Sidebar({
                       className="icon-btn"
                       title="Project menu"
                       aria-label={`menu ${ws.name}`}
-                      onClick={() => setOpenProjectMenu(p => (p === ws.projectPath ? null : ws.projectPath))}
                     >
                       <MoreIcon />
                     </button>
@@ -308,7 +307,6 @@ export default function Sidebar({
               className="sidebar-settings-btn sidebar-footer-menu"
               title="Menu"
               aria-label="Menu"
-              onClick={() => setFooterMenuOpen(v => !v)}
             >
               <Settings size={15} aria-hidden="true" />
               <span className="sidebar-settings-label">Menu</span>
@@ -379,7 +377,6 @@ function SessionRowMenu({ running, onRename, onDelete, onStop }: {
             className="icon-btn"
             title="Session menu"
             aria-label="Session menu"
-            onClick={() => setOpen(v => !v)}
           >
             <MoreVertical size={13} aria-hidden="true" />
           </button>

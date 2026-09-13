@@ -77,7 +77,6 @@ export default function PaneHeader({
                 className="icon-btn"
                 title="Pane menu"
                 aria-label={`menu ${name}`}
-                onClick={() => setMenuOpen(v => !v)}
               >
                 <MoreVertical size={14} aria-hidden="true" />
               </button>

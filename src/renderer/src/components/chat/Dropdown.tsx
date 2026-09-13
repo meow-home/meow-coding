@@ -47,7 +47,6 @@ export default function Dropdown({
           aria-label={ariaLabel ?? title}
           aria-haspopup="listbox"
           aria-expanded={open}
-          onClick={onToggle}
         >
           {trigger}
           <ChevronDown size={14} className="dropdown-caret" aria-hidden="true" />

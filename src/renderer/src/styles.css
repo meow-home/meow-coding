@@ -1523,7 +1523,6 @@ select.input { width: 100%; }
 /* Sidebar menu dropdown */
 .sidebar-menu { position: relative; }
 .sidebar-menu-dropdown {
-  position: absolute; right: 0; top: calc(100% + 0.333333rem); z-index: 2000;
   min-width: 14.166667rem; background: var(--bg-chat); border: 0.083333rem solid var(--hairline);
   border-radius: var(--menu-radius);
   padding: var(--menu-pad); display: flex; flex-direction: column; gap: 0;

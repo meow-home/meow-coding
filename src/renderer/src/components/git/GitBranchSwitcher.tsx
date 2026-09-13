@@ -45,7 +45,6 @@ export default function GitBranchSwitcher({ projectPath, branches, current, busy
           <button
             className="git-branch-current"
             disabled={busy}
-            onClick={() => setOpen(v => !v)}
             title="Switch branch"
             aria-haspopup="listbox"
             aria-expanded={open}

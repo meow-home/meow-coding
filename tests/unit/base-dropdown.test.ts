@@ -6,7 +6,7 @@ describe('computeDropdownPosition', () => {
   const triggerRect = { top: 700, bottom: 730, left: 500, right: 600, width: 100, height: 30 }
   const menuRect = { width: 200, height: 300 }
 
-  test('flips from bottom to top when space below is insufficient', () => {
+  test('flips from bottom to top when space below is insufficient and clears top/left/right defaults', () => {
     const pos = computeDropdownPosition({
       triggerRect,
       menuRect,
@@ -14,8 +14,25 @@ describe('computeDropdownPosition', () => {
       placement: 'bottom-start',
       offset: 4
     })
-    expect(pos.top).toBeUndefined()
+    expect(pos.top).toBe('auto')
     expect(pos.bottom).toBe(800 - triggerRect.top + 4) // 800 - 700 + 4 = 104
+    expect(pos.right).toBe('auto')
+    expect(typeof pos.left).toBe('number')
+  })
+
+  test('clears bottom when placement is bottom-start', () => {
+    const topTriggerRect = { top: 100, bottom: 130, left: 100, right: 200, width: 100, height: 30 }
+    const pos = computeDropdownPosition({
+      triggerRect: topTriggerRect,
+      menuRect,
+      windowBounds,
+      placement: 'bottom-start',
+      offset: 4
+    })
+    expect(pos.top).toBe(134)
+    expect(pos.bottom).toBe('auto')
+    expect(pos.right).toBe('auto')
+    expect(pos.left).toBe(100)
   })
 
   test('clamps horizontal position within screen margin when overflowing right', () => {

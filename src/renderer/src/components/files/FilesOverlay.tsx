@@ -114,7 +114,6 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
                   className="icon-btn"
                   title="Files menu"
                   aria-label="Files menu"
-                  onClick={() => setMenuOpen(v => !v)}
                 >
                   <EllipsisVertical size={14} aria-hidden="true" />
                 </button>
