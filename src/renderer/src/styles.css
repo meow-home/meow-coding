@@ -2040,7 +2040,10 @@ select.input { width: 100%; }
   flex: 1; min-width: 0; height: 1.833333rem; border: none; background: transparent;
   color: var(--text); font: inherit; outline: none;
 }
-.files-tree { padding-top: 0; }
+.files-tree { padding-top: 0; border-radius: 0; }
+/* Square rows: the tree is a dense list, so the global `* { border-radius }`
+   must not round every hover/active highlight. */
+.files-tree .tree-row { border-radius: 0; }
 .files-tree-row.active { background: var(--bg-active); color: var(--text-strong); }
 .files-hit-line { flex: 0 0 auto; color: var(--accent); font-family: var(--font-mono); font-size: var(--fs-xs); }
 .files-hit-text {
