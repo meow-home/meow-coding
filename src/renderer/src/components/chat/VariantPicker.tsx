@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Check } from 'lucide-react'
-import Dropdown from './Dropdown'
+import BaseSelect from '../common/BaseSelect'
 
 interface VariantPickerProps {
   variants: string[]
-  value: string          // '' = Default
+  value: string // '' = Default
   onChange: (v: string) => void
 }
 
@@ -12,7 +12,7 @@ export default function VariantPicker({ variants, value, onChange }: VariantPick
   const [open, setOpen] = useState(false)
 
   return (
-    <Dropdown
+    <BaseSelect
       open={open}
       onToggle={() => setOpen(v => !v)}
       onClose={() => setOpen(false)}
@@ -25,6 +25,8 @@ export default function VariantPicker({ variants, value, onChange }: VariantPick
       <div className="variant-list">
         <button
           className={`variant-item ${value === '' ? 'active' : ''}`}
+          role="option"
+          aria-selected={value === ''}
           onClick={() => { onChange(''); setOpen(false) }}
         >
           <span className="menu-item-label">Default</span>
@@ -36,6 +38,8 @@ export default function VariantPicker({ variants, value, onChange }: VariantPick
           <button
             key={v}
             className={`variant-item ${value === v ? 'active' : ''}`}
+            role="option"
+            aria-selected={value === v}
             onClick={() => { onChange(v); setOpen(false) }}
           >
             <span className="menu-item-label">{v}</span>
@@ -45,6 +49,6 @@ export default function VariantPicker({ variants, value, onChange }: VariantPick
           </button>
         ))}
       </div>
-    </Dropdown>
+    </BaseSelect>
   )
 }

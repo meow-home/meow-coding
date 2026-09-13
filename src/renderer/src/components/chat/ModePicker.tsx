@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Check } from 'lucide-react'
 import type { AgentMode } from '@shared/types'
-import Dropdown from './Dropdown'
+import BaseSelect from '../common/BaseSelect'
 
 interface ModePickerProps {
   value: AgentMode
@@ -18,7 +18,7 @@ export default function ModePicker({ value, onChange }: ModePickerProps) {
   const active = MODES.find(m => m.value === value) ?? MODES[0]
 
   return (
-    <Dropdown
+    <BaseSelect
       open={open}
       onToggle={() => setOpen(v => !v)}
       onClose={() => setOpen(false)}
@@ -35,6 +35,8 @@ export default function ModePicker({ value, onChange }: ModePickerProps) {
           <button
             key={m.value}
             className={`mode-item ${m.className} ${m.value === value ? 'active' : ''}`}
+            role="option"
+            aria-selected={m.value === value}
             onClick={() => { onChange(m.value); setOpen(false) }}
           >
             <span className="menu-item-label">{m.label}</span>
@@ -44,6 +46,6 @@ export default function ModePicker({ value, onChange }: ModePickerProps) {
           </button>
         ))}
       </div>
-    </Dropdown>
+    </BaseSelect>
   )
 }
