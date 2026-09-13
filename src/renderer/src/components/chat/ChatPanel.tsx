@@ -1140,7 +1140,6 @@ if (e.type === 'usage') {
           <div className="chat-footer-context">
             <AddMenu onAddFiles={() => chatInputRef.current?.openFilePicker()} />
             <ModePicker value={currentMode} onChange={switchMode} />
-            {currentMode === 'plan' && <span className="chat-mode-hint">read-only — edits denied</span>}
           </div>
           <div className="chat-footer-controls">
             <ModelPicker agentId={agentId} />

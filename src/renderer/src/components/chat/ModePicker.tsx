@@ -8,9 +8,19 @@ interface ModePickerProps {
   onChange: (m: AgentMode) => void
 }
 
-const MODES: { value: AgentMode; label: string; className: string }[] = [
-  { value: 'build', label: 'Build', className: 'mode-build' },
-  { value: 'plan', label: 'Plan', className: 'mode-plan' }
+const MODES: { value: AgentMode; label: string; title: string; className: string }[] = [
+  {
+    value: 'build',
+    label: 'Build',
+    title: 'Build mode — full file edits & commands permitted',
+    className: 'mode-build'
+  },
+  {
+    value: 'plan',
+    label: 'Plan',
+    title: 'Plan mode — read-only, edits denied',
+    className: 'mode-plan'
+  }
 ]
 
 export default function ModePicker({ value, onChange }: ModePickerProps) {
@@ -22,7 +32,7 @@ export default function ModePicker({ value, onChange }: ModePickerProps) {
       open={open}
       onToggle={() => setOpen(v => !v)}
       onClose={() => setOpen(false)}
-      title="Mode"
+      title={`Mode: ${active.label} (${active.title})`}
       ariaLabel="Mode"
       menuClassName="mode-menu"
       align="left"
@@ -35,6 +45,7 @@ export default function ModePicker({ value, onChange }: ModePickerProps) {
           <button
             key={m.value}
             className={`mode-item ${m.className} ${m.value === value ? 'active' : ''}`}
+            title={m.title}
             role="option"
             aria-selected={m.value === value}
             onClick={() => { onChange(m.value); setOpen(false) }}
