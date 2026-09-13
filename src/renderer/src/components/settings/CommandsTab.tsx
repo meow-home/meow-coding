@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Command } from '@shared/types'
 import Modal from './Modal'
+import ConfirmDialog from '../ConfirmDialog'
 
 interface Props {
   projectPath?: string
@@ -11,6 +12,7 @@ type ModalState = { mode: 'add' } | { mode: 'edit'; command: Command } | null
 export default function CommandsTab({ projectPath }: Props) {
   const [commands, setCommands] = useState<Command[]>([])
   const [modal, setModal] = useState<ModalState>(null)
+  const [confirmRemoveName, setConfirmRemoveName] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [template, setTemplate] = useState('')
@@ -78,11 +80,24 @@ export default function CommandsTab({ projectPath }: Props) {
           <span className="permission-tool">/{c.name}</span>
           <span className="command-tab-desc">{c.description}</span>
           <button className="btn small" onClick={() => openEdit(c)}>Edit</button>
-          <button className="btn small" onClick={() => void remove(c.name)}>Remove</button>
+          <button className="btn small danger" onClick={() => setConfirmRemoveName(c.name)}>Remove</button>
         </div>
       ))}
       {status && <div className="settings-status">{status}</div>}
       {error && <div className="settings-error">{error}</div>}
+
+      {confirmRemoveName && (
+        <ConfirmDialog
+          title="Remove Command"
+          message={`Are you sure you want to remove slash command "/${confirmRemoveName}"?`}
+          confirmLabel="Remove"
+          onConfirm={() => {
+            void remove(confirmRemoveName)
+            setConfirmRemoveName(null)
+          }}
+          onCancel={() => setConfirmRemoveName(null)}
+        />
+      )}
 
       {modal && (
         <Modal

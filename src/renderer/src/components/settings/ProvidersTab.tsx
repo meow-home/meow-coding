@@ -19,6 +19,7 @@ import {
 import type { CatalogProviderSummary, MeowSettings, ProviderSettings } from '@shared/types'
 import BaseModal from '../common/BaseModal'
 import BaseSelect from '../common/BaseSelect'
+import ConfirmDialog from '../ConfirmDialog'
 
 interface Props {
   settings: MeowSettings
@@ -90,6 +91,7 @@ function ProviderTypeSelect({
 
 export default function ProvidersTab({ settings, catalog, onChange, onPersisted, onRefresh }: Props) {
   const [modal, setModal] = useState<ModalState>(null)
+  const [confirmDisconnectId, setConfirmDisconnectId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [providerId, setProviderId] = useState('')
   const [apiKey, setApiKey] = useState('')
@@ -388,7 +390,7 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
                       type="button"
                       className="icon-btn danger"
                       title="Disconnect provider"
-                      onClick={() => void disconnect(p.id)}
+                      onClick={() => setConfirmDisconnectId(p.id)}
                     >
                       <Trash2 size={15} aria-hidden="true" />
                     </button>
@@ -593,6 +595,19 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
             )}
           </BaseModal.Footer>
         </BaseModal>
+      )}
+
+      {confirmDisconnectId && (
+        <ConfirmDialog
+          title="Disconnect Provider"
+          message={`Are you sure you want to disconnect provider "${confirmDisconnectId}"? Saved API key will be removed.`}
+          confirmLabel="Disconnect"
+          onConfirm={() => {
+            void disconnect(confirmDisconnectId)
+            setConfirmDisconnectId(null)
+          }}
+          onCancel={() => setConfirmDisconnectId(null)}
+        />
       )}
     </div>
   )

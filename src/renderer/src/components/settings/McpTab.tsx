@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Server, Globe, Terminal, Plus, RefreshCw, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react'
 import type { McpServerConfig, McpServerStatus } from '@shared/types'
 import BaseModal from '../common/BaseModal'
+import ConfirmDialog from '../ConfirmDialog'
 
 interface Props {
   mcp: Record<string, McpServerConfig>
@@ -12,6 +13,7 @@ interface Props {
 
 export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
   const [adding, setAdding] = useState(false)
+  const [confirmDeleteName, setConfirmDeleteName] = useState<string | null>(null)
   const [serverType, setServerType] = useState<'command' | 'url'>('command')
   const [newName, setNewName] = useState('')
   const [newUrl, setNewUrl] = useState('')
@@ -160,7 +162,7 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
                       type="button"
                       className="icon-btn danger"
                       title="Remove server"
-                      onClick={() => removeServer(name)}
+                      onClick={() => setConfirmDeleteName(name)}
                     >
                       <Trash2 size={15} aria-hidden="true" />
                     </button>
@@ -303,6 +305,19 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
             </button>
           </BaseModal.Footer>
         </BaseModal>
+      )}
+
+      {confirmDeleteName && (
+        <ConfirmDialog
+          title="Disconnect MCP Server"
+          message={`Are you sure you want to disconnect MCP server "${confirmDeleteName}"?`}
+          confirmLabel="Disconnect"
+          onConfirm={() => {
+            removeServer(confirmDeleteName)
+            setConfirmDeleteName(null)
+          }}
+          onCancel={() => setConfirmDeleteName(null)}
+        />
       )}
     </div>
   )

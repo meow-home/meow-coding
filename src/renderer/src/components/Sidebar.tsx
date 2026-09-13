@@ -4,6 +4,7 @@ import {
   PanelLeft, Pencil, Plus, RefreshCw, Server, Settings, Square, Sun, Terminal, Trash2, X
 } from 'lucide-react'
 import BaseDropdown from './common/BaseDropdown'
+import ConfirmDialog from './ConfirmDialog'
 import type { WorkspaceRuntime, WorkspaceSummary } from '@shared/types'
 import { DRAFT_SESSION_ID } from '@shared/types'
 import { applyTheme, type Theme } from '../theme'
@@ -363,6 +364,7 @@ function SessionRowMenu({ running, onRename, onDelete, onStop }: {
 }) {
   const [open, setOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [name, setName] = useState('')
 
   return (
@@ -393,7 +395,7 @@ function SessionRowMenu({ running, onRename, onDelete, onStop }: {
           </button>
         )}
         <div className="menu-sep" aria-hidden="true" />
-        <button className="menu-item danger" onClick={() => { setOpen(false); onDelete() }}>
+        <button className="menu-item danger" onClick={() => { setOpen(false); setConfirmDelete(true) }}>
           <Trash2 size={16} aria-hidden="true" />
           Delete
         </button>
@@ -410,6 +412,18 @@ function SessionRowMenu({ running, onRename, onDelete, onStop }: {
             if (e.key === 'Escape') { setRenaming(false); setName('') }
           }}
           onBlur={() => { setRenaming(false); setName('') }}
+        />
+      )}
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Delete session"
+          message="Are you sure you want to delete this session? This action cannot be undone."
+          confirmLabel="Delete"
+          onConfirm={() => {
+            setConfirmDelete(false)
+            onDelete()
+          }}
+          onCancel={() => setConfirmDelete(false)}
         />
       )}
     </span>
