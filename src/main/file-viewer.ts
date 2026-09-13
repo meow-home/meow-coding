@@ -3,7 +3,8 @@ import { getWindowChromeOptions } from './window-chrome'
 import { Channels } from '../shared/ipc'
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
-import type { FileContentResult, FileViewerPayload } from '../shared/types'
+import { imageMimeType } from '../shared/image'
+import type { FileContentResult, FileViewerPayload, ImageContentResult } from '../shared/types'
 
 export const TEXT_EXTENSIONS = [
   // Docs & markup
@@ -39,6 +40,8 @@ const BINARY_EXTENSIONS = [
 
 export const MAX_VIEWER_BYTES = 5 * 1024 * 1024
 
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
 export function extOf(filePath: string): string {
   const base = path.basename(filePath).toLowerCase()
   const dot = base.lastIndexOf('.')
@@ -53,6 +56,10 @@ export function isTextPath(filePath: string): boolean | null {
   if (TEXT_EXTENSIONS.includes(ext)) return true
   if (BINARY_EXTENSIONS.includes(ext)) return false
   return null
+}
+
+export function isImagePath(filePath: string): boolean {
+  return imageMimeType(extOf(filePath)) !== null
 }
 
 export function looksLikeBinaryContent(content: string): boolean {
@@ -116,6 +123,29 @@ export async function readFileContent(absPath: string): Promise<FileContentResul
     throw new Error('Binary file cannot be previewed directly — it will be opened with the OS application')
   }
   return { path: absPath, ext: extOf(absPath), content }
+}
+
+export async function readImageDataUrl(absPath: string): Promise<ImageContentResult> {
+  const ext = extOf(absPath)
+  const mime = imageMimeType(ext)
+  if (!mime) throw new Error('Not an image file')
+  let st
+  try {
+    st = await stat(absPath)
+  } catch {
+    throw new Error(`File not found: ${absPath}`)
+  }
+  if (st.size > MAX_IMAGE_BYTES) {
+    throw new Error('Image is too large to preview directly (max 10MB)')
+  }
+  const buf = await readFile(absPath)
+  return {
+    path: absPath,
+    ext,
+    mime,
+    dataUrl: `data:${mime};base64,${buf.toString('base64')}`,
+    sizeBytes: st.size
+  }
 }
 
 /** Open non-text files with the OS default app. */

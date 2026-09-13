@@ -481,6 +481,14 @@ export interface FileContentResult {
   content: string
 }
 
+export interface ImageContentResult {
+  path: string
+  ext: string
+  mime: string
+  dataUrl: string
+  sizeBytes: number
+}
+
 export interface NotificationsSettings {
   needsInput: boolean
   onDone: boolean
