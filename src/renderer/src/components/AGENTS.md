@@ -21,7 +21,7 @@ The React UI layer (renderer process). Everything the user sees: the sessions of
 | `UpdateDialog.tsx` | Auto-update status + install prompt. |
 | `BrowserDialog.tsx` | Chrome bridge pairing + status UI. |
 | `InstallGuideDialog.tsx` | Extension install steps for the browser bridge. |
-| `files/FilesOverlay.tsx` | In-app Files explorer over the chat pane area (pane `⋮` → Files): filter + tree on the left, open-file tabs on the right, header menu (Refresh, Collapse all, Close all tabs, Copy path, Reveal in Folder, Open in VS Code), maximize/restore, close; `Esc` and project switch close it. |
+| `files/FilesOverlay.tsx` | In-app Files explorer (pane `⋮` → Files), docked on the right of the pane area by default (drag its left edge to resize, 320–900px, default 420px) or expanded over the whole pane area via maximize/restore: filter + tree on the left, open-file tabs on the right, header menu (Refresh, Collapse all, Close all tabs, Copy path, Reveal in Folder, Open in VS Code), close; `Esc` and project switch close it. |
 | `files/FilesTree.tsx` | Lazy tree of the overlay — lists dotfiles and `node_modules`, name filter, `?`-prefixed content search (`path:line` hits), background refresh on context changes. |
 | `file-content/FileContentView.tsx` | Toolbar + body of a file (Shiki-highlighted code, rendered markdown or plain `<pre>`, Raw toggle, Copy, Open in VS Code), shared by the popup `FileViewer` window and the overlay tab. |
 | `chat/` | The native-agent chat UI — see its own AGENTS.md. |

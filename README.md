@@ -111,19 +111,22 @@ Meow Coding is built on open-source technology and openly credits its design inf
 
 ### Files overlay
 
-- **Entry point** — a session pane's `⋮` menu → **Files**; it opens over the chat pane area (never an
-  OS window, so the title bar, sidebar and status bar stay visible).
+- **Entry point** — a session pane's `⋮` menu → **Files**; it opens docked on the right of the pane
+  area — the slot the old right panel used (never an OS window, so the title bar, sidebar and status
+  bar stay visible), resizable by its left edge (320–900px, default 420px, remembered across runs).
 - **Directory tree** — lazy-loads folders on first expand, lists dotfiles and `node_modules` too, and
   refreshes in the background when the project changes (`⋮` → Refresh / Collapse all).
 - **Filter** — narrows the tree by name; a `?` prefix searches file contents instead and lists
   `path:line` hits.
 - **Open-file tabs** — clicking a file in the tree or a search hit opens a tab beside the tree with
   its content: Shiki-highlighted code, rendered markdown, or plain text, plus Raw/Highlighted, Copy
-  and Open in VS Code. `⤢` expands the overlay over the whole pane area, `Esc` / `✕` close it, and
-  switching project closes it.
+  and Open in VS Code. `⤢` expands the panel over the whole pane area and restore docks it again —
+  the tree, tabs and open files survive the toggle. `Esc` / `✕` close it, and switching project
+  closes it.
 - **Parked right panel** — the earlier right panel (directory tree + the artifacts list of the `.md`
   files agents created or edited, with `(mtime, size)` baseline filtering of spurious watcher events)
-  is no longer rendered; its components, CSS, state and the artifact store/IPC remain in the source.
+  is no longer rendered; its components, CSS, state and the artifact store/IPC remain in the source,
+  and the Files panel docks into its slot.
 
 ### Remote control (mobile) — coming soon
 

@@ -189,7 +189,9 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 
 .app { height: 100%; display: flex; flex-direction: column; }
 .app-body { flex: 1; display: flex; min-width: 0; min-height: 0; }
-.main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.main { position: relative; flex: 1; display: flex; min-width: 0; min-height: 0; }
+/* Holds the project panes; the Files panel docks beside it or expands over it. */
+.main-panes { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 
 /* Shell entrance — staggered rise */
 @keyframes meow-rise {
@@ -774,7 +776,7 @@ select.input { width: 100%; }
 /* Keep-alive workspace panes that stay mounted but hidden; they stream
    ChatEvents in the background and toggle back instantly. */
 .workspace-hidden { display: none; }
-/* The active project's wrapper must fill .main the same way the pane shell
+/* The active project's wrapper must fill .main-panes the same way the pane shell
    used to, or the chat panel loses its flex height (input scrolls out of view
    with a long feed, or hugs the tab bar when empty). */
 .workspace-active { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -1988,17 +1990,25 @@ select.input { width: 100%; }
 .git-switch-actions .btn.danger { border-color: rgba(255, 95, 86, 0.4); color: var(--red); }
 .git-switch-actions .btn.danger:hover { background: rgba(255, 95, 86, 0.12); }
 
-/* Files overlay (in-app project explorer) */
-.main { position: relative; }
+/* Files panel (in-app project explorer) — docked on the right by default,
+   expanded over the pane area by the maximize button. */
 .files-overlay {
-  position: absolute; z-index: 40; top: 1.333333rem; left: 1.666667rem; right: 1.666667rem; bottom: 1.333333rem;
-  display: flex; flex-direction: column; overflow: hidden;
-  background: var(--bg-chat); border: 0.083333rem solid var(--hairline);
-  border-radius: var(--radius-lg); box-shadow: var(--shadow-3);
-  animation: meow-rise 180ms ease-out both;
+  flex: 0 0 auto; position: relative; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--bg-chat); border-left: 0.083333rem solid var(--hairline);
+  border-radius: 0; animation: meow-rise 180ms ease-out both;
 }
+.files-resizer {
+  position: absolute; left: -0.25rem; top: 0; bottom: 0; width: 0.583333rem;
+  cursor: col-resize; z-index: 5;
+}
+.files-resizer:hover { background: var(--accent-dim); }
+/* Docked: the panel is resizable, so the tree takes a share instead of a fixed 20rem. */
+.files-overlay.docked .files-side { flex-basis: 42%; }
 /* Expanded: fills the pane area only — title bar, sidebar and status bar stay visible. */
-.files-overlay.full { top: 0; left: 0; right: 0; bottom: 0; border: none; border-radius: 0; box-shadow: none; }
+.files-overlay.full {
+  position: absolute; z-index: 40; top: 0; left: 0; right: 0; bottom: 0;
+  border: none; border-radius: 0; box-shadow: none;
+}
 .files-head { padding: 0 0.5rem; gap: 0.5rem; border-bottom: 0.083333rem solid var(--hairline); }
 .files-head-title {
   display: inline-flex; align-items: center; gap: 0.5rem;

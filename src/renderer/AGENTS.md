@@ -18,7 +18,7 @@ React renderer (no direct Node/Electron access).
   status dot and a per-row rename/stop/delete menu, plus a `+` that creates and activates a
   session), `SessionPanes`, `Pane`, `PaneHeader`, `EmptyState`,
   `StatusBar`, `TitleBar`, `BackgroundPanel`, `UpdateDialog`,
-  `BrowserDialog`, `InstallGuideDialog`, `files/` (the Files overlay:
+  `BrowserDialog`, `InstallGuideDialog`, `files/` (the Files panel:
   `FilesOverlay`, `FilesTree`, `file-path`, `tree-filter`),
   `file-content/FileContentView`, `chat/`, `settings/`.
 - `src/styles.css` — VSCode Dark+ palette (default) with a Light+ variant activated via

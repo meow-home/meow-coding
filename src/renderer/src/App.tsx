@@ -11,7 +11,7 @@ import BackgroundPanel from './components/BackgroundPanel'
 import EmptyState from './components/EmptyState'
 import StatusBar from './components/StatusBar'
 import TitleBar from './components/TitleBar'
-import FilesOverlay from './components/files/FilesOverlay'
+import FilesOverlay, { FILES_DEFAULT_WIDTH, FILES_MAX_WIDTH, FILES_MIN_WIDTH } from './components/files/FilesOverlay'
 import SettingsDialog, { type TabId } from './components/settings/SettingsDialog'
 import BrowserDialog from './components/BrowserDialog'
 import InstallGuideDialog from './components/InstallGuideDialog'
@@ -162,10 +162,15 @@ export default function App() {
     return Number.isFinite(w) && w >= 240 && w <= 600 ? w : 280
   })
   const [artifacts, setArtifacts] = useState<Record<string, ArtifactEntry[]>>({})
-  // Files overlay: the project it is open for (null = closed) and whether it is
-  // expanded over the whole pane area.
+  // Files panel: the project it is open for (null = closed), whether it is
+  // expanded over the whole pane area (false = docked on the right) and its
+  // docked width.
   const [filesOpenFor, setFilesOpenFor] = useState<string | null>(null)
   const [filesFull, setFilesFull] = useState(false)
+  const [filesWidth, setFilesWidth] = useState(() => {
+    const w = Number(localStorage.getItem('meow.files.width'))
+    return Number.isFinite(w) && w >= FILES_MIN_WIDTH && w <= FILES_MAX_WIDTH ? w : FILES_DEFAULT_WIDTH
+  })
   // Project path -> agent ids currently waiting on a permission/question
   // prompt (needs user reply/approval). Drives the sidebar badges.
   const [needsInput, setNeedsInput] = useState<Record<string, string[]>>({})
@@ -232,6 +237,9 @@ export default function App() {
   useEffect(() => {
     setFilesOpenFor(prev => (prev && prev !== activePath ? null : prev))
   }, [activePath])
+  useEffect(() => {
+    localStorage.setItem('meow.files.width', String(filesWidth))
+  }, [filesWidth])
   useEffect(() => {
     localStorage.setItem('meow.activeSessionByPath', JSON.stringify(activeSessionByPath))
   }, [activeSessionByPath])
@@ -627,28 +635,13 @@ export default function App() {
           />
         )}
         <main className="main">
-          {activePath && runtimes[activePath] && (
-            <div className="workspace-active">
-              <WorkspaceView
-                runtime={runtimes[activePath]}
-                backgrounds={backgrounds}
-                activeSessionByPath={activeSessionByPath}
-                onActiveChange={handleWorkspaceActiveChange}
-                onRemovePane={handleRemovePane}
-                onSendDraftMessage={onSendDraftMessage}
-                onOpenFiles={projectPath => { setFilesFull(false); setFilesOpenFor(projectPath) }}
-              />
-            </div>
-          )}
-          {/* Hidden projects stay mounted (display:none) so their ChatPanels keep
-              consuming ChatEvents and the transcript stays live — every session of
-              a kept-alive project keeps running too. */}
-          {keepAliveOrder
-            .filter(p => p !== activePath && runtimes[p])
-            .map(p => (
-              <div className="workspace-hidden" key={p} aria-hidden="true">
+          {/* The Files panel is a sibling of the panes: docked on the right while
+              it keeps its tree/tab state, or expanded over the whole pane area. */}
+          <div className="main-panes">
+            {activePath && runtimes[activePath] && (
+              <div className="workspace-active">
                 <WorkspaceView
-                  runtime={runtimes[p]}
+                  runtime={runtimes[activePath]}
                   backgrounds={backgrounds}
                   activeSessionByPath={activeSessionByPath}
                   onActiveChange={handleWorkspaceActiveChange}
@@ -657,11 +650,32 @@ export default function App() {
                   onOpenFiles={projectPath => { setFilesFull(false); setFilesOpenFor(projectPath) }}
                 />
               </div>
-            ))}
+            )}
+            {/* Hidden projects stay mounted (display:none) so their ChatPanels keep
+              consuming ChatEvents and the transcript stays live — every session of
+              a kept-alive project keeps running too. */}
+            {keepAliveOrder
+              .filter(p => p !== activePath && runtimes[p])
+              .map(p => (
+                <div className="workspace-hidden" key={p} aria-hidden="true">
+                  <WorkspaceView
+                    runtime={runtimes[p]}
+                    backgrounds={backgrounds}
+                    activeSessionByPath={activeSessionByPath}
+                    onActiveChange={handleWorkspaceActiveChange}
+                    onRemovePane={handleRemovePane}
+                    onSendDraftMessage={onSendDraftMessage}
+                    onOpenFiles={projectPath => { setFilesFull(false); setFilesOpenFor(projectPath) }}
+                  />
+                </div>
+              ))}
+          </div>
           {filesOpenFor && (
             <FilesOverlay
               projectPath={filesOpenFor}
               full={filesFull}
+              width={filesWidth}
+              onWidthChange={setFilesWidth}
               onToggleFull={() => setFilesFull(v => !v)}
               onClose={() => setFilesOpenFor(null)}
             />

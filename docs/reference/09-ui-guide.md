@@ -39,13 +39,15 @@ Overlays: `SettingsDialog` (full-screen tabbed),
 
 ### Files overlay
 
-A pane's `⋮` menu offers **Files**, which opens an in-app explorer over the chat pane area (never an OS window,
-so the title bar, sidebar and status bar stay visible). It holds a filterable, lazily loaded directory tree on
-the left — dotfiles and `node_modules` are listed — and open files in tabs on the right, next to a header with
-focus-filter, `⋮` (Refresh, Collapse all, Close all tabs, Copy path, Reveal in Folder, Open in VS Code),
-maximize/restore and close. Typing in the filter narrows the tree by name; a `?` prefix searches file contents
-instead and lists `path:line` hits. `⤢` expands the overlay over the whole pane area, `Esc` and `✕` close it,
-and switching to another project closes it.
+A pane's `⋮` menu offers **Files**, which opens an in-app explorer docked on the right of the pane area — the
+slot the old right panel used (never an OS window, so the title bar, sidebar and status bar stay visible). It
+holds a filterable, lazily loaded directory tree on the left — dotfiles and `node_modules` are listed — and
+open files in tabs on the right, next to a header with focus-filter, `⋮` (Refresh, Collapse all, Close all
+tabs, Copy path, Reveal in Folder, Open in VS Code), maximize/restore and close. Typing in the filter narrows
+the tree by name; a `?` prefix searches file contents instead and lists `path:line` hits. Docked, the panel is
+resizable by its left edge (320–900px, default 420px, persisted in `localStorage` as `meow.files.width`); `⤢`
+expands it over the whole pane area and restore docks it again — the tree, tabs and open files survive both
+directions. `Esc` and `✕` close it, and switching to another project closes it.
 
 The previous `RightPanel` (directory tree + artifacts) is parked in the source — its components, CSS, state and
 the artifact store/IPC remain, but nothing renders it.
@@ -54,8 +56,8 @@ the artifact store/IPC remain, but nothing renders it.
 
 Owns: workspaces, the mounted `WorkspaceRuntime`s (one per kept-alive project),
 background flags, browser status, update status, sidebar collapsed state (`sidebarCollapsed`), parked
-right-panel state, artifacts, the Files overlay state (`filesOpenFor`, `filesFull` — both closed by default,
-closed on project switch), and the active
+right-panel state, artifacts, the Files panel state (`filesOpenFor` — closed by default, closed on project
+switch; `filesFull` — docked by default; `filesWidth` — docked width, persisted in `localStorage`), and the active
 session per project (`activeSessionByPath`).
 
 ```ts
@@ -90,12 +92,12 @@ Update-dialog policy: `update-available` and `downloaded` open the dialog; `erro
 | `PaneHeader.tsx` | Status dot (which carries the status as its accessible name — `role="img"` + the status label, with any exit code folded in), the session name, and the menu (inject / log / stop / restart / background / Files / delete — inject/log/stop/restart exist only on the parked PTY path; a native session's lifecycle lives in its sidebar row; Files is the entry point of the overlay above). The `...` button is the shared `.icon-btn`. No status word (the dot already shows it) and no git readout (the status bar owns branch + dirty count) |
 | `EmptyState.tsx` | No-pane hint (differs for "no workspace" vs "workspace open") |
 | `BackgroundPanel.tsx` | Background agents; open/stop |
-| `RightPanel.tsx` | Resizable panel with a fixed header; **both tabs stay mounted** for instant switching (**parked** — nothing renders it since the Files overlay replaced it) |
+| `RightPanel.tsx` | Resizable panel with a fixed header; **both tabs stay mounted** for instant switching (**parked** — nothing renders it since the Files panel took its slot) |
 | `RightPanelTree.tsx` | Lazy directory tree; auto-expands the project root; background refresh (**parked**) |
 | `RightPanelArtifacts.tsx` | `.md` files agents created/edited (**parked**) |
 | `FileViewer.tsx` | Popup file viewer: `PopupTitleBar` + the shared `file-content/FileContentView.tsx` |
 | `file-content/FileContentView.tsx` | Toolbar (Raw/Highlighted toggle, Open in VS Code, Copy) + body of a file (Shiki-highlighted code, rendered markdown, or plain `<pre>`), shared by the popup window and the Files overlay tab |
-| `files/FilesOverlay.tsx` | The Files overlay: header (focus filter, `⋮` menu, maximize/restore, close), tree side, open-file tabs and the active tab's `FileContentView` |
+| `files/FilesOverlay.tsx` | The Files panel: header (focus filter, `⋮` menu, maximize/restore, close), tree side, open-file tabs and the active tab's `FileContentView`; docked on the right with a drag-to-resize left edge, or expanded over the pane area (same mounted instance, so tabs/tree survive the toggle) |
 | `files/FilesTree.tsx` | Lazily loaded tree of the overlay; lists dotfiles and `node_modules`; `?`-prefixed filter searches file contents and lists `path:line` hits; refreshes on context changes |
 | `files/file-path.ts` | `baseName` / `joinProjectPath` — renderer-side path helpers (the renderer must not import `node:path`) |
 | `files/tree-filter.ts` | `filterTree` — name filter over already-loaded directories, keeping the ancestor chain of every match |
