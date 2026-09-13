@@ -146,83 +146,85 @@ export default function SettingsDialog({ onClose, projectPath, initialTab = 'age
 
   return (
     <BaseModal
-      title="Settings"
-      onClose={onClose}
       size="xl"
+      onClose={onClose}
       className="settings-modal-dialog"
     >
-      <div className="settings-body">
-        <aside className="settings-sidebar">
-          <nav className="settings-nav">
-            {TABS.map(t => (
-              <button
-                key={t.id}
-                className={`settings-nav-item ${tab === t.id ? 'active' : ''}`}
-                onClick={() => setTab(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </nav>
-        </aside>
-        <div className="settings-content">
-          {draft && tab === 'agents' && (
-            <AgentsTab
-              agents={draft.agents}
-              providers={draft.providers}
-              subagentModels={draft.subagentModels}
-              onChangeAgents={agents => patch({ agents })}
-              onChangeSubagentModels={subagentModels => patch({ subagentModels })}
-            />
-          )}
-          {draft && tab === 'permissions' && (
-            <PermissionsTab permission={draft.permission} onChange={permission => patch({ permission })} />
-          )}
-          {draft && tab === 'mcp' && (
-            <McpTab
-              mcp={draft.mcp}
-              status={mcpStatus}
-              onChange={mcp => patch({ mcp })}
-              onReconnect={async () => {
-                const result = await window.api.reconnectMcp()
-                setMcpStatus(result)
-                return result
-              }}
-            />
-          )}
-          {draft && tab === 'providers' && (
-            <ProvidersTab
-              settings={draft}
-              catalog={catalog}
-              onChange={patch}
-              onPersisted={onPersisted}
-              onRefresh={() => void refresh()}
-            />
-          )}
-          {draft && tab === 'context' && (
-            <ContextTab
-              maxSteps={draft.maxSteps}
-              compaction={draft.compaction}
-              toolOutput={draft.toolOutput}
-              notifications={draft.notifications ?? { needsInput: true, onDone: true }}
-              mcpOutput={draft.mcpOutput}
-              resolvedContextTokens={resolvedContextTokens}
-              onChange={ctx => patch(ctx)}
-            />
-          )}
-          {tab === 'commands' && <CommandsTab projectPath={projectPath} />}
-          {tab === 'remote' && <RemoteTab />}
-          {tab === 'updates' && <UpdatesTab />}
-          {tab === 'personalize' && <PersonalizeTab />}
+      <BaseModal.Header title="Settings" onClose={onClose} />
+      <BaseModal.Body noPadding>
+        <div className="settings-body">
+          <aside className="settings-sidebar">
+            <nav className="settings-nav">
+              {TABS.map(t => (
+                <button
+                  key={t.id}
+                  className={`settings-nav-item ${tab === t.id ? 'active' : ''}`}
+                  onClick={() => setTab(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </nav>
+          </aside>
+          <div className="settings-content">
+            {draft && tab === 'agents' && (
+              <AgentsTab
+                agents={draft.agents}
+                providers={draft.providers}
+                subagentModels={draft.subagentModels}
+                onChangeAgents={agents => patch({ agents })}
+                onChangeSubagentModels={subagentModels => patch({ subagentModels })}
+              />
+            )}
+            {draft && tab === 'permissions' && (
+              <PermissionsTab permission={draft.permission} onChange={permission => patch({ permission })} />
+            )}
+            {draft && tab === 'mcp' && (
+              <McpTab
+                mcp={draft.mcp}
+                status={mcpStatus}
+                onChange={mcp => patch({ mcp })}
+                onReconnect={async () => {
+                  const result = await window.api.reconnectMcp()
+                  setMcpStatus(result)
+                  return result
+                }}
+              />
+            )}
+            {draft && tab === 'providers' && (
+              <ProvidersTab
+                settings={draft}
+                catalog={catalog}
+                onChange={patch}
+                onPersisted={onPersisted}
+                onRefresh={() => void refresh()}
+              />
+            )}
+            {draft && tab === 'context' && (
+              <ContextTab
+                maxSteps={draft.maxSteps}
+                compaction={draft.compaction}
+                toolOutput={draft.toolOutput}
+                notifications={draft.notifications ?? { needsInput: true, onDone: true }}
+                mcpOutput={draft.mcpOutput}
+                resolvedContextTokens={resolvedContextTokens}
+                onChange={ctx => patch(ctx)}
+              />
+            )}
+            {tab === 'commands' && <CommandsTab projectPath={projectPath} />}
+            {tab === 'remote' && <RemoteTab />}
+            {tab === 'updates' && <UpdatesTab />}
+            {tab === 'personalize' && <PersonalizeTab />}
+          </div>
         </div>
-      </div>
-      {saveState !== 'idle' && (
-        <div className={`settings-save-pill ${saveState}`} role="status">
-          {saveState === 'saving' && 'Saving…'}
-          {saveState === 'saved' && 'Saved ✓'}
-          {saveState === 'error' && (saveError || 'Save failed')}
-        </div>
-      )}
+        {saveState !== 'idle' && (
+          <div className={`settings-save-pill ${saveState}`} role="status">
+            {saveState === 'saving' && 'Saving…'}
+            {saveState === 'saved' && 'Saved ✓'}
+            {saveState === 'error' && (saveError || 'Save failed')}
+          </div>
+        )}
+      </BaseModal.Body>
     </BaseModal>
   )
 }
