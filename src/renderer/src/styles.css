@@ -259,8 +259,8 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   max-height: calc(100vh - 4rem);
   background: var(--bg-sidebar);
   border: 0.083333rem solid var(--hairline);
-  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.4);
-  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-3);
+  border-radius: var(--menu-radius);
   display: flex; flex-direction: column;
   overflow: hidden;
 }

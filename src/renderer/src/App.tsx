@@ -96,17 +96,31 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('meow.sidebar.collapsed') === '1')
   const [sidebarHovered, setSidebarHovered] = useState(false)
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const suppressHoverRef = useRef(false)
 
   const handleMouseEnterBrand = useCallback(() => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
+    if (suppressHoverRef.current) return
     setSidebarHovered(true)
   }, [])
 
   const handleMouseLeaveBrand = useCallback(() => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
+    suppressHoverRef.current = false
     hoverTimerRef.current = setTimeout(() => {
       setSidebarHovered(false)
     }, 200)
+  }, [])
+
+  const handleToggleSidebar = useCallback(() => {
+    setSidebarCollapsed(v => {
+      const next = !v
+      if (next) {
+        setSidebarHovered(false)
+        suppressHoverRef.current = true
+      }
+      return next
+    })
   }, [])
 
   const [rightOpen, setRightOpen] = useState(() => localStorage.getItem('meow.rightpanel.open') !== '0')
@@ -512,7 +526,7 @@ export default function App() {
         panelOpen={rightOpen}
         onTogglePanel={() => setRightOpen(v => !v)}
         sidebarCollapsed={sidebarCollapsed}
-        onToggleSidebar={() => setSidebarCollapsed(v => !v)}
+        onToggleSidebar={handleToggleSidebar}
         onMouseEnterBrand={handleMouseEnterBrand}
         onMouseLeaveBrand={handleMouseLeaveBrand}
       />
