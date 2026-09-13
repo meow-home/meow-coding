@@ -1999,7 +1999,7 @@ select.input { width: 100%; }
   background: var(--bg-chat); border: 0.083333rem solid var(--hairline);
   border-radius: var(--radius-lg); animation: meow-rise 180ms ease-out both;
 }
-.files-overlay.docked { margin: 0.333333rem 0.333333rem 0.333333rem 0; }
+.files-overlay.docked { margin: 0.333333rem; }
 .files-resizer {
   position: absolute; left: -0.25rem; top: 0; bottom: 0; width: 0.583333rem;
   cursor: col-resize; z-index: 5;

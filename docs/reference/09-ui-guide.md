@@ -47,8 +47,8 @@ tabs, Copy path, Reveal in Folder, Open in VS Code), maximize/restore and close.
 the tree by name; a `?` prefix searches file contents instead and lists `path:line` hits. Docked, the panel is
 resizable by its left edge (320–900px, default 420px, persisted in `localStorage` as `meow.files.width`); `⤢`
 expands it over the whole pane area and restore docks it again — the tree, tabs and open files survive both
-directions. The panel is a bordered, rounded card (`--hairline` + `--radius-lg`) in both modes; a 4px gap
-around it in each mode keeps the radius from being clipped by the pane edges. `Esc` and `✕` close it, and switching to another project closes it.
+directions. The panel is a bordered, rounded card (`--hairline` + `--radius-lg`) in both modes, sitting a 4px
+gap away from the pane edges (all four sides when docked) so the radius is never clipped. `Esc` and `✕` close it, and switching to another project closes it.
 
 The previous `RightPanel` (directory tree + artifacts) is parked in the source — its components, CSS, state and
 the artifact store/IPC remain, but nothing renders it.
