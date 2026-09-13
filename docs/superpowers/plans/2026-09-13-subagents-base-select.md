@@ -1,24 +1,37 @@
-# Sub-agents Tab BaseSelect Alignment Implementation Plan
+# Sub-agents Tab BaseSelect Grid Layout & Truncation Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Align sub-agent provider and model select dropdowns in `AgentsTab.tsx` and `styles.css` with standard `BaseSelect` layout and `.menu-item` styling.
+**Goal:** Update sub-agent provider and model field layout in `AgentsTab.tsx` and `styles.css` to use a 2-column grid structure (`1fr 1fr`), enforce text truncation (`...`) on long trigger labels, and ensure dropdown menu items occupy 100% full width of the dropdown menu container.
 
-**Architecture:** Use standard `.menu-item`, `.menu-item-label`, and `.menu-item-check` classes inside `SingleSelect` in `AgentsTab.tsx`. Add `.submodel-fields .base-dropdown-container` flex rules in `styles.css` so that dropdowns stretch 50/50 evenly across rows.
+**Architecture:** Configure `.submodel-fields` as a CSS Grid container with 2 equal columns (`1fr 1fr`). Apply `width: 100%; box-sizing: border-box;` to `.select-menu .menu-item`.
 
-**Tech Stack:** React 19, TypeScript, CSS Variables, `BaseSelect`.
+**Tech Stack:** React 19, TypeScript, CSS Grid, `BaseSelect`.
 
 ---
 
-### Task 1: Update SingleSelect in AgentsTab.tsx and submodel-fields styling in styles.css
+### Task 1: Update Grid Layout, Truncation, and Menu Item Full Width in styles.css & AgentsTab.tsx
 
 **Files:**
-- Modify: `src/renderer/src/components/settings/AgentsTab.tsx`
 - Modify: `src/renderer/src/styles.css`
+- Modify: `src/renderer/src/components/settings/AgentsTab.tsx`
 
-- [ ] **Step 1: Update SingleSelect in AgentsTab.tsx**
+- [ ] **Step 1: Update styles.css with Grid & 100% Menu Item Width**
 
-Update `SingleSelect` in `src/renderer/src/components/settings/AgentsTab.tsx` to use standard `.menu-item`, `.menu-item-label`, and `.menu-item-check` class names:
+In `src/renderer/src/styles.css`, update `.submodel-fields` and `.select-menu .menu-item`:
+
+```css
+.submodel-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.666667rem; width: 100%; }
+.submodel-fields .input { flex: 1; min-width: 0; }
+.submodel-fields .base-dropdown-container { min-width: 0; display: flex; width: 100%; }
+.submodel-fields .dropdown-trigger { width: 100%; justify-content: space-between; gap: 0.5rem; min-width: 0; overflow: hidden; }
+.select-value-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; text-align: left; }
+.select-menu .menu-item { width: 100%; box-sizing: border-box; }
+```
+
+- [ ] **Step 2: Update SingleSelect in AgentsTab.tsx to pass title to BaseSelect**
+
+In `src/renderer/src/components/settings/AgentsTab.tsx`, update `SingleSelect` to pass `title={triggerLabel}` to `BaseSelect`:
 
 ```tsx
 function SingleSelect({ value, placeholder, disabled = false, options, onChange }: SingleSelectProps) {
@@ -28,7 +41,7 @@ function SingleSelect({ value, placeholder, disabled = false, options, onChange 
 
   if (disabled) {
     return (
-      <button className="dropdown-trigger select-trigger" disabled type="button">
+      <button className="dropdown-trigger select-trigger" disabled type="button" title={placeholder}>
         <span className="select-value-label">{placeholder}</span>
       </button>
     )
@@ -40,6 +53,7 @@ function SingleSelect({ value, placeholder, disabled = false, options, onChange 
       onToggle={() => setOpen(v => !v)}
       onClose={() => setOpen(false)}
       align="left"
+      title={triggerLabel}
       trigger={<span className="select-value-label">{triggerLabel}</span>}
     >
       <div>
@@ -70,17 +84,6 @@ function SingleSelect({ value, placeholder, disabled = false, options, onChange 
 }
 ```
 
-- [ ] **Step 2: Add flex layout rules for submodel-fields in styles.css**
-
-In `src/renderer/src/styles.css`, update `.submodel-fields` section around line 1276:
-
-```css
-.submodel-fields { display: flex; flex-wrap: wrap; gap: 0.666667rem; }
-.submodel-fields .input { flex: 1; min-width: 0; }
-.submodel-fields .base-dropdown-container { flex: 1; min-width: 0; display: flex; }
-.submodel-fields .dropdown-trigger { width: 100%; justify-content: space-between; }
-```
-
 - [ ] **Step 3: Run Typecheck and Tests**
 
 Run: `npm run typecheck && npm test`
@@ -89,6 +92,6 @@ Expected: PASS with 0 errors.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/renderer/src/components/settings/AgentsTab.tsx src/renderer/src/styles.css
-git commit -m "refactor(ui): align sub-agents BaseSelect layout and menu item styles"
+git add src/renderer/src/styles.css src/renderer/src/components/settings/AgentsTab.tsx
+git commit -m "refactor(ui): update sub-agents fields to 2-column grid and full-width dropdown items"
 ```
