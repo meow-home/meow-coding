@@ -159,7 +159,7 @@ svg.lucide,
   stroke-width: 1.5;
 }
 
-* { box-sizing: border-box; border-radius: var(--radius); }
+* { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
 body {
   background: radial-gradient(116.666667rem 75rem at 50% -12%, var(--bg-raised) 0%, var(--bg) 58%);
