@@ -77,6 +77,10 @@ Lessons learned from the Git viewer screen (don't repeat them):
 - **The title bar paints `var(--bg)`** — `.title-bar` paints `var(--bg)`. On Windows the OS paints the caption strip ~0.5px narrower than the reserved `11.5rem`, so a transparent bar exposed `body`'s radial gradient as a 1px line beside the min/max/close buttons. Don't reintroduce a transparent title bar (`window-chrome.test.ts` guards the surface). `.title-bar-brand` (when expanded) and `.sidebar` draw a `--hairline` right border; when collapsed (`.title-bar-brand.collapsed`), it has `background: var(--bg)` to match the chat pane background and `border-right: none`.
 - **Dropdowns share the `--menu-*` metric tokens** (`--menu-radius`, `--menu-pad`, `--menu-item-h`,
   `--menu-item-pad-x`, `--menu-icon`). New menu surfaces must consume them, not hardcode padding.
+- **The Files panel's shadow is `--shadow-panel`**, not `--shadow-1/2/3`: it is bounded by the
+  0.333333rem gap between the panel and every `.main` edge (blur / 2 + offset ≤ that gap). The larger
+  dialog shadows spill past `.main` onto the title bar and status bar, which are not the panel's
+  backdrop. `files-overlay-shadow.test.ts` asserts the bound against the gap.
 - **Selector rows use `.menu-item-label` + `.menu-item-check`**, and triggers use `.dropdown-caret`.
   A selector trigger must set `aria-expanded={open}` (the caret's rotation is CSS off that attribute;
   `Dropdown.tsx` does it for `ModePicker`/`VariantPicker`, the other two set it themselves). The check
