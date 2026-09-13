@@ -1367,6 +1367,8 @@ select.input { width: 100%; }
   transition: border-color 120ms ease, background 120ms ease;
 }
 .model-trigger:hover { background: var(--bg-input-hover); border-color: var(--accent-border); color: var(--text-strong); }
+.base-dropdown-container { position: relative; display: inline-flex; }
+.base-dropdown-menu { position: fixed; z-index: 9999; box-sizing: border-box; }
 .dropdown { position: relative; display: inline-flex; }
 .dropdown-trigger {
   display: inline-flex; align-items: center; gap: 0.5rem; max-width: 18.333333rem;
