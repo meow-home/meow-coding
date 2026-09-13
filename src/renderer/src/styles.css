@@ -709,14 +709,14 @@ select.input { width: 100%; }
 .browser-pairing { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
 .browser-code {
   font-family: var(--font-mono); font-size: 1.833333rem; letter-spacing: 0.333333rem; color: var(--accent);
-  user-select: all; padding: 0.333333rem 0.666667rem; border: 0.083333rem dashed var(--accent-dim); border-radius: 0.333333rem;
+  user-select: all; padding: 0.333333rem 0.666667rem; border: 0.083333rem dashed var(--accent-dim); border-radius: 0;
 }
 .browser-guide { margin: 0; padding-left: 1.5rem; display: flex; flex-direction: column; gap: 0.666667rem; font-size: var(--fs-md); color: var(--text); line-height: 1.5; }
 .browser-guide li { margin: 0; }
 .browser-guide-dir {
   display: block; margin-top: 0.333333rem; padding: 0.333333rem 0.666667rem; font-family: var(--font-mono);
   font-size: var(--fs-md); color: var(--text-strong); background: var(--bg-panel);
-  border: 0.083333rem solid var(--hairline); border-radius: var(--radius-sm);
+  border: 0.083333rem solid var(--hairline); border-radius: 0;
   user-select: all; word-break: break-all;
 }
 
