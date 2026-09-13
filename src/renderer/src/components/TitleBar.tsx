@@ -45,7 +45,7 @@ export default function TitleBar({ panelOpen, onTogglePanel, sidebarCollapsed, o
       className={`title-bar title-bar-${platform}`}
       onDoubleClick={() => { if (showCustomControls) void window.api.toggleMaximizeWindow() }}
     >
-      <div className="title-bar-brand">
+      <div className={`title-bar-brand ${sidebarCollapsed ? 'collapsed' : ''}`}>
         <img src={logoMark} className="title-bar-logo" alt="" />
         {onToggleSidebar && (
           <button
