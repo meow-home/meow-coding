@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, Copy } from 'lucide-react'
+import { Check, CheckCircle2, ChevronDown, Circle, Clock, Copy, XCircle } from 'lucide-react'
 import type { AgentMode, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ImageAttachment, QuestionOption, QueuedMessage, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
 import { DRAFT_SESSION_ID } from '@shared/types'
 import { appendStreamDelta } from '@shared/text'
@@ -831,12 +831,16 @@ if (e.type === 'usage') {
     { label: 'Deny', key: '3', run: () => pendingPrompt && respond(pendingPrompt.promptId, false) }
   ]
 
-  const todoMark = (status: TodoStatus): string => {
+  const renderTodoStatusIcon = (status: TodoStatus) => {
     switch (status) {
-      case 'completed': return '✓'
-      case 'in_progress': return '◐'
-      case 'cancelled': return '✕'
-      default: return '□'
+      case 'completed':
+        return <CheckCircle2 size={13} style={{ color: 'var(--green)' }} aria-hidden="true" />
+      case 'in_progress':
+        return <Clock size={13} style={{ color: 'var(--blue)' }} aria-hidden="true" />
+      case 'pending':
+        return <Circle size={13} style={{ color: 'var(--text-faint)' }} aria-hidden="true" />
+      case 'cancelled':
+        return <XCircle size={13} style={{ color: 'var(--text-faint)' }} aria-hidden="true" />
     }
   }
 
@@ -875,6 +879,7 @@ if (e.type === 'usage') {
       </div>
       {todos.length > 0 && (
         <div className="chat-todos">
+          <div className="chat-todos-progress" style={{ width: `${(doneCount / todos.length) * 100}%` }} />
           <div className="chat-todos-head">
             <span className="chat-todos-title">TODO LIST</span>
             <span className="chat-todos-count">{doneCount}/{todos.length}</span>
@@ -891,7 +896,7 @@ if (e.type === 'usage') {
           <ul className="chat-todos-list">
             {todos.map((t, i) => (
               <li key={i} className={`chat-todo status-${t.status}`}>
-                <span className="chat-todo-mark">{todoMark(t.status)}</span>
+                <span className="chat-todo-mark">{renderTodoStatusIcon(t.status)}</span>
                 <span className="chat-todo-content">{t.content}</span>
               </li>
             ))}
@@ -1025,8 +1030,11 @@ if (e.type === 'usage') {
           <div className="chat-prompt" ref={pendingPrompt.promptType === 'permission' ? promptRef : undefined}
             tabIndex={pendingPrompt.promptType === 'permission' ? -1 : undefined}>
             <div className="chat-prompt-head">
+              <span className={`chat-prompt-badge ${pendingPrompt.promptType}`}>
+                {pendingPrompt.promptType.toUpperCase()}
+              </span>
               <span className="chat-prompt-head-label">
-                {pendingPrompt.promptType === 'permission' ? 'Permission' : 'Question'}
+                {pendingPrompt.promptType === 'permission' ? 'Permission Request' : 'Agent Question'}
               </span>
               <button
                 className={`chat-prompt-toggle ${promptCollapsed ? 'collapsed' : ''}`}
