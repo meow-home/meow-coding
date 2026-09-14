@@ -1048,7 +1048,7 @@ if (e.type === 'usage') {
             {promptCollapsed && (pendingPrompt.promptType === 'permission' ? (
               <div className="chat-prompt-collapsed-text">Meow wants to run <code>{pendingPrompt.call?.tool}</code></div>
             ) : (
-              <div className="chat-prompt-collapsed-text">{pendingPrompt.question}</div>
+              <div className="chat-prompt-collapsed-text"><MarkdownText text={pendingPrompt.question ?? ''} /></div>
             ))}
             {!promptCollapsed && (pendingPrompt.promptType === 'permission' ? (
               <>
@@ -1075,7 +1075,7 @@ if (e.type === 'usage') {
             ) : (
               <>
                 <div className="chat-prompt-text">
-                  {pendingPrompt.question}
+                  <MarkdownText text={pendingPrompt.question ?? ''} />
                   {pendingPrompt.multiple && <span className="chat-prompt-multi-hint"> (select all that apply)</span>}
                 </div>
                 {Array.isArray(pendingPrompt.options) && pendingPrompt.options.length > 0 && (
