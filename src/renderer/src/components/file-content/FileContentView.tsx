@@ -1,13 +1,49 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Save, FileText, Check } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Save, Check } from 'lucide-react'
+import CodeMirror, { Extension } from '@uiw/react-codemirror'
+import { oneDark } from '@codemirror/theme-one-dark'
+import { javascript } from '@codemirror/lang-javascript'
+import { json } from '@codemirror/lang-json'
+import { html } from '@codemirror/lang-html'
+import { css } from '@codemirror/lang-css'
+import { markdown } from '@codemirror/lang-markdown'
+import { python } from '@codemirror/lang-python'
+
 import { imageMimeType } from '@shared/image'
 import MarkdownText from '../chat/MarkdownText'
-import { isHighlightable, preloadLanguage, highlightCode } from '../chat/highlight'
 import { baseName } from '../files/file-path'
 
 interface Props {
   path: string
   root: string
+}
+
+function getLanguageExtension(ext: string): Extension[] {
+  switch (ext.toLowerCase()) {
+    case 'js':
+    case 'jsx':
+    case 'ts':
+    case 'tsx':
+      return [javascript({ jsx: true, typescript: true })]
+    case 'json':
+      return [json()]
+    case 'html':
+    case 'htm':
+    case 'svg':
+    case 'xml':
+      return [html()]
+    case 'css':
+    case 'scss':
+    case 'less':
+      return [css()]
+    case 'md':
+    case 'markdown':
+      return [markdown()]
+    case 'py':
+      return [python()]
+    default:
+      return []
+  }
 }
 
 // Toolbar + body of the file viewer, shared by the popup FileViewer window and
@@ -16,8 +52,7 @@ export default function FileContentView({ path: filePath, root }: Props) {
   const [content, setContent] = useState<string | null>(null)
   const [editedContent, setEditedContent] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [raw, setRaw] = useState(false)
-  const [highlighted, setHighlighted] = useState<string | null>(null)
+  const [showRawMd, setShowRawMd] = useState(false)
   const [image, setImage] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [justSaved, setJustSaved] = useState(false)
@@ -25,7 +60,8 @@ export default function FileContentView({ path: filePath, root }: Props) {
   const ext = filePath.toLowerCase().split('.').pop() ?? ''
   const isImage = imageMimeType(ext) !== null
   const isMarkdown = !isImage && (ext === 'md' || ext === 'markdown')
-  const code = !isImage && isHighlightable(ext)
+
+  const extensions = useMemo(() => getLanguageExtension(ext), [ext])
 
   useEffect(() => {
     if (isImage) {
@@ -38,29 +74,18 @@ export default function FileContentView({ path: filePath, root }: Props) {
       return () => { alive = false }
     }
     let alive = true
-    const prep = code ? preloadLanguage(ext) : Promise.resolve()
     window.api.getFileContent(filePath)
-      .then(async r => {
-        let html: string | null = null
-        if (code) {
-          try {
-            await prep
-            html = await highlightCode(r.content, ext)
-          } catch {
-            html = null
-          }
-        }
+      .then(r => {
         if (!alive) return
         setContent(r.content)
         setEditedContent(r.content)
-        setRaw(false)
-        setHighlighted(html)
+        setShowRawMd(false)
       })
       .catch((e: unknown) => {
         if (alive) setError(e instanceof Error ? e.message : String(e))
       })
     return () => { alive = false }
-  }, [filePath, ext, code, isImage])
+  }, [filePath, isImage])
 
   const isDirty = editedContent !== null && content !== null && editedContent !== content
 
@@ -76,21 +101,13 @@ export default function FileContentView({ path: filePath, root }: Props) {
         setContent(editedContent)
         setJustSaved(true)
         setTimeout(() => setJustSaved(false), 2000)
-        if (code) {
-          try {
-            const html = await highlightCode(editedContent, ext)
-            setHighlighted(html)
-          } catch {
-            setHighlighted(null)
-          }
-        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setIsSaving(false)
     }
-  }, [editedContent, isDirty, isSaving, filePath, code, ext])
+  }, [editedContent, isDirty, isSaving, filePath])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -99,8 +116,8 @@ export default function FileContentView({ path: filePath, root }: Props) {
         void save()
       }
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [save])
 
   const copy = useCallback(async () => {
@@ -112,34 +129,14 @@ export default function FileContentView({ path: filePath, root }: Props) {
     void window.api.openFile({ path: p, root })
   }, [root])
 
-  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Tab') {
-      e.preventDefault()
-      const target = e.currentTarget
-      const start = target.selectionStart
-      const end = target.selectionEnd
-      const val = target.value
-      const next = val.substring(0, start) + '  ' + val.substring(end)
-      setEditedContent(next)
-      setTimeout(() => {
-        target.selectionStart = target.selectionEnd = start + 2
-      }, 0)
-    }
-  }
-
   return (
     <>
       <div className="viewer-toolbar">
         <span className="viewer-path" title={filePath}>{filePath}</span>
         <div className="viewer-actions">
           {isMarkdown && (
-            <button className="btn small" onClick={() => setRaw(v => !v)}>
-              {raw ? 'Markdown Preview' : 'Edit Source'}
-            </button>
-          )}
-          {code && (
-            <button className="btn small" onClick={() => setRaw(v => !v)}>
-              {raw ? 'Highlight Preview' : 'Edit Source'}
+            <button className="btn small" onClick={() => setShowRawMd(v => !v)}>
+              {showRawMd ? 'Markdown Preview' : 'Edit Source'}
             </button>
           )}
           {!isImage && (
@@ -170,7 +167,7 @@ export default function FileContentView({ path: filePath, root }: Props) {
         </div>
       </div>
       
-      <div className={`viewer-body${isImage ? ' viewer-body--image' : code && !raw && highlighted ? ' viewer-body--flush' : ''}`}>
+      <div className={`viewer-body${isImage ? ' viewer-body--image' : ''}`}>
         {isImage ? (
           error ? (
             <div className="viewer-image-error">
@@ -188,18 +185,28 @@ export default function FileContentView({ path: filePath, root }: Props) {
           <div className="viewer-error">{error}</div>
         ) : content === null ? (
           <div className="viewer-loading">Loading…</div>
-        ) : isMarkdown && !raw ? (
+        ) : isMarkdown && !showRawMd ? (
           <div className="viewer-md"><MarkdownText text={editedContent ?? content} onOpenFile={openLinkedFile} /></div>
-        ) : code && !raw && highlighted ? (
-          <div className="viewer-code" dangerouslySetInnerHTML={{ __html: highlighted }} />
         ) : (
-          <textarea
-            className="viewer-textarea"
+          <CodeMirror
             value={editedContent ?? ''}
-            onChange={e => setEditedContent(e.target.value)}
-            onKeyDown={handleTextareaKeyDown}
-            placeholder="Edit file content..."
-            spellCheck={false}
+            height="100%"
+            theme={oneDark}
+            extensions={extensions}
+            onChange={(val) => setEditedContent(val)}
+            basicSetup={{
+              lineNumbers: true,
+              foldGutter: true,
+              dropCursor: true,
+              allowMultipleSelections: true,
+              indentOnInput: true,
+              bracketMatching: true,
+              closeBrackets: true,
+              autocompletion: true,
+              highlightActiveLine: true,
+              highlightSelectionMatches: true,
+              tabSize: 2,
+            }}
           />
         )}
       </div>
