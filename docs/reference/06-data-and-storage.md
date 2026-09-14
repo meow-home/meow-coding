@@ -102,7 +102,7 @@ writes it through `settingsToConfig`.
   // ── MCP servers ──────────────────────────────────────────────────────────
   "mcp": {
     "playwright": { "command": "npx", "args": ["-y", "@playwright/mcp@latest"], "env": {} },
-    "remote-thing": { "url": "https://mcp.example.com/sse" }
+    "remote-thing": { "url": "https://mcp.example.com/sse", "headers": { "Authorization": "Bearer token" } }
   },
 
   // ── Budgets ──────────────────────────────────────────────────────────────

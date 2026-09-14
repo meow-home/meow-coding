@@ -13,7 +13,7 @@ Four external-system integrations plus one companion service.
 ```jsonc
 "mcp": {
   "playwright":  { "command": "npx", "args": ["-y", "@playwright/mcp@latest"], "env": {} },
-  "remote-tool": { "url": "https://mcp.example.com/sse" }
+  "remote-tool": { "url": "https://mcp.example.com/sse", "headers": { "Authorization": "Bearer secret-token" } }
 }
 ```
 
