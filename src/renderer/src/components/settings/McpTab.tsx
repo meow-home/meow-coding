@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Server, Globe, Terminal, Plus, RefreshCw, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Server, Globe, Terminal, Plus, RefreshCw, Trash2, AlertCircle, CheckCircle2, Lock, Key } from 'lucide-react'
 import type { McpServerConfig, McpServerStatus } from '@shared/types'
 import BaseModal from '../common/BaseModal'
 import ConfirmDialog from '../ConfirmDialog'
@@ -17,6 +17,8 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
   const [serverType, setServerType] = useState<'command' | 'url'>('command')
   const [newName, setNewName] = useState('')
   const [newUrl, setNewUrl] = useState('')
+  const [newBearerToken, setNewBearerToken] = useState('')
+  const [newHeaders, setNewHeaders] = useState<Array<{ key: string; value: string }>>([])
   const [newCommand, setNewCommand] = useState('')
   const [newArgs, setNewArgs] = useState('')
   const [testing, setTesting] = useState(false)
@@ -38,6 +40,8 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
   const openAdd = () => {
     setNewName('')
     setNewUrl('')
+    setNewBearerToken('')
+    setNewHeaders([])
     setNewCommand('')
     setNewArgs('')
     setServerType('command')
@@ -50,6 +54,20 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
     const cfg: McpServerConfig = {}
     if (serverType === 'url' && newUrl.trim()) {
       cfg.url = newUrl.trim()
+      const headersMap: Record<string, string> = {}
+      if (newBearerToken.trim()) {
+        headersMap['Authorization'] = `Bearer ${newBearerToken.trim()}`
+      }
+      for (const h of newHeaders) {
+        const k = h.key.trim()
+        const v = h.value.trim()
+        if (k && v) {
+          headersMap[k] = v
+        }
+      }
+      if (Object.keys(headersMap).length > 0) {
+        cfg.headers = headersMap
+      }
     } else {
       Object.assign(cfg, splitCommand(newCommand))
       const args = newArgs.split(' ').map(a => a.trim()).filter(Boolean)
@@ -178,15 +196,37 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
 
                 <div className="mcp-fields-grid">
                   {isHttp ? (
-                    <div className="mcp-field-item full-width">
-                      <label className="mcp-field-label">URL Endpoint</label>
-                      <input
-                        className="input"
-                        placeholder="http://localhost:3000/mcp"
-                        value={cfg.url ?? ''}
-                        onChange={e => updateServer(name, { url: e.target.value })}
-                      />
-                    </div>
+                    <>
+                      <div className="mcp-field-item full-width">
+                        <label className="mcp-field-label">URL Endpoint</label>
+                        <input
+                          className="input"
+                          placeholder="http://localhost:3000/mcp"
+                          value={cfg.url ?? ''}
+                          onChange={e => updateServer(name, { url: e.target.value })}
+                        />
+                      </div>
+                      {cfg.headers && Object.keys(cfg.headers).length > 0 && (
+                        <div className="mcp-field-item full-width">
+                          <label className="mcp-field-label">Configured Headers</label>
+                          <div className="mcp-headers-summary">
+                            {Object.entries(cfg.headers).map(([hKey, hVal]) => {
+                              const isSecret = /auth|key|token|secret|password/i.test(hKey)
+                              const displayVal = isSecret
+                                ? (hVal.startsWith('Bearer ') ? `Bearer ${'•'.repeat(8)}` : '•'.repeat(8))
+                                : hVal
+                              return (
+                                <div key={hKey} className="mcp-header-badge">
+                                  <Lock size={12} className="mcp-header-lock-icon" />
+                                  <span className="header-key">{hKey}:</span>
+                                  <span className="header-val">{displayVal}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <>
                       <div className="mcp-field-item">
@@ -255,16 +295,78 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
               </div>
 
               {serverType === 'url' ? (
-                <div className="settings-field">
-                  <label className="label" htmlFor="mcp-url">HTTP Endpoint URL</label>
-                  <input
-                    id="mcp-url"
-                    className="input"
-                    placeholder="http://localhost:3000/mcp"
-                    value={newUrl}
-                    onChange={e => setNewUrl(e.target.value)}
-                  />
-                </div>
+                <>
+                  <div className="settings-field">
+                    <label className="label" htmlFor="mcp-url">HTTP Endpoint URL</label>
+                    <input
+                      id="mcp-url"
+                      className="input"
+                      placeholder="http://localhost:3000/mcp"
+                      value={newUrl}
+                      onChange={e => setNewUrl(e.target.value)}
+                    />
+                  </div>
+                  <div className="settings-field">
+                    <label className="label" htmlFor="mcp-bearer">
+                      <Key size={13} style={{ display: 'inline', marginRight: 4 }} />
+                      Bearer Token (Optional)
+                    </label>
+                    <input
+                      id="mcp-bearer"
+                      type="password"
+                      className="input"
+                      placeholder="eyJhbGciOi..."
+                      value={newBearerToken}
+                      onChange={e => setNewBearerToken(e.target.value)}
+                    />
+                    <span className="settings-hint">Sets Authorization: Bearer token header.</span>
+                  </div>
+                  <div className="settings-field">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <label className="label" style={{ marginBottom: 0 }}>Custom Headers (Optional)</label>
+                      <button
+                        type="button"
+                        className="btn small"
+                        onClick={() => setNewHeaders([...newHeaders, { key: '', value: '' }])}
+                      >
+                        <Plus size={13} />
+                        <span>Add Header</span>
+                      </button>
+                    </div>
+                    {newHeaders.map((h, idx) => (
+                      <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                        <input
+                          className="input"
+                          placeholder="Header Name (e.g. X-Api-Key)"
+                          value={h.key}
+                          onChange={e => {
+                            const next = [...newHeaders]
+                            next[idx].key = e.target.value
+                            setNewHeaders(next)
+                          }}
+                        />
+                        <input
+                          className="input"
+                          type="password"
+                          placeholder="Header Value"
+                          value={h.value}
+                          onChange={e => {
+                            const next = [...newHeaders]
+                            next[idx].value = e.target.value
+                            setNewHeaders(next)
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="icon-btn danger"
+                          onClick={() => setNewHeaders(newHeaders.filter((_, i) => i !== idx))}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
               ) : (
                 <>
                   <div className="settings-field">
