@@ -168,7 +168,12 @@ export class McpManager {
 
   private makeTransport(cfg: McpServerConfig): Transport {
     if (this.deps.createTransport) return this.deps.createTransport(cfg)
-    if (cfg.url) return new StreamableHTTPClientTransport(new URL(cfg.url))
+    if (cfg.url) {
+      const headers = cfg.headers && Object.keys(cfg.headers).length > 0 ? cfg.headers : undefined
+      return new StreamableHTTPClientTransport(new URL(cfg.url), {
+        requestInit: headers ? { headers } : undefined
+      })
+    }
     if (!cfg.command) throw new Error('MCP server needs either "command" or "url"')
     // Windows shim rule (same as PtyManager): npm-installed CLIs (npx,
     // @playwright/mcp, …) only ship as .cmd shims. cross-spawn resolves
