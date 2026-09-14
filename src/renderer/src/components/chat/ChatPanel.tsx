@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { Check, ChevronDown, Copy } from 'lucide-react'
 import type { AgentMode, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ImageAttachment, QuestionOption, QueuedMessage, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
 import { DRAFT_SESSION_ID } from '@shared/types'
 import { appendStreamDelta } from '@shared/text'
@@ -86,6 +86,15 @@ const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, c
   onOpenImage?: (dataUrl: string) => void
   onOpenFile?: (path: string) => void
 }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = useCallback(() => {
+    if (!text) return
+    void navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }, [text])
+
   return (
     <div className={`chat-msg ${role}`} data-chat-message-id={messageId}>
       {role === 'assistant' ? (
@@ -97,6 +106,18 @@ const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, c
             </details>
           ) : null}
           {text.trim() !== '' && <MarkdownText text={text} onOpenFile={onOpenFile} />}
+          {text.trim() !== '' && (
+            <div className="chat-msg-actions">
+              <button
+                className="chat-action-btn"
+                onClick={handleCopy}
+                title={copied ? 'Copied!' : 'Copy message'}
+                aria-label={copied ? 'Copied!' : 'Copy message'}
+              >
+                {copied ? <Check size={14} style={{ color: '#22c55e' }} /> : <Copy size={14} />}
+              </button>
+            </div>
+          )}
         </>
       ) : (
         <>
