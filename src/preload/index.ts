@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
+
+ipcRenderer.setMaxListeners(100)
 import type { ArtifactsChangedEvent } from '../shared/ipc'
 import type { ChatEvent, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, TranscriptWindowOpts, UpdaterStatusEvent } from '../shared/types'
 import type { ActivateAgentEvent, AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, GitStatusEvent, PromptStateEvent, WindowMaximizedChangeEvent } from '../shared/ipc'

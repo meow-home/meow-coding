@@ -28,7 +28,7 @@ A `command` containing spaces is split into `command` + `args` on load when `arg
    Playwright MCP and similar servers ask the client for workspace roots and anchor file access and
    output directories on them.
 3. Build the transport: `StdioClientTransport` (spawned through `buildSpawnCommand`, so Windows
-   `.cmd` shims work) or `StreamableHTTPClientTransport`.
+   `.cmd` shims work), `SSEClientTransport`, or `StreamableHTTPClientTransport`. HTTP endpoints support `transportType` (`auto`, `sse`, `streamable-http`) with automatic fallback from SSE to Streamable HTTP when set to `auto`.
 4. `connect()`, then `listTools()`.
 5. Record status `connected` with the tool names, or `error` with the message. **A failing server
    never crashes the app** — it just shows as `error` in Settings → MCP.

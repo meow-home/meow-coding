@@ -1,9 +1,11 @@
 import { existsSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
+import { z } from 'zod'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { ListRootsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { ToolDefinition } from '../tools/types'
 import type { McpServerConfig } from '../../../shared/types'
@@ -43,6 +45,31 @@ export interface McpManagerDeps {
   getMcpOutputMaxTokens?: () => number | undefined
 }
 
+const DEFAULT_CONNECT_TIMEOUT_MS = 10000
+
+const PermissiveListToolsResultSchema = z.object({
+  tools: z.array(
+    z.object({
+      name: z.string(),
+      description: z.string().optional(),
+      inputSchema: z.record(z.string(), z.any()).optional()
+    }).passthrough()
+  ),
+  nextCursor: z.string().optional()
+}).passthrough()
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms)
+  })
+  try {
+    return await Promise.race([promise, timeoutPromise])
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+  }
+}
+
 export class McpManager {
   private connections = new Map<string, McpConnection>()
   private statuses = new Map<string, McpServerStatus>()
@@ -53,37 +80,82 @@ export class McpManager {
     if (projectPath !== undefined) this.deps = { ...this.deps, projectPath }
     await this.closeAll()
     this.statuses.clear()
-    for (const [name, cfg] of Object.entries(servers)) {
+
+    const tasks = Object.entries(servers).map(async ([name, cfg]) => {
+      let client: Client | null = null
       try {
-        const client = new Client(
-          { name: 'meow-coding', version: '0.1.0' },
-          {
-            capabilities: {
-              roots: {
-                listChanged: false
+        const createClient = () => {
+          const c = new Client(
+            { name: 'meow-coding', version: '0.1.0' },
+            {
+              capabilities: {
+                roots: {
+                  listChanged: false
+                }
               }
             }
+          )
+          // Playwright MCP & co. ask the client for workspace roots and anchor
+          // file access/output dir on them — serve the project dir.
+          c.setRequestHandler(ListRootsRequestSchema, async () => ({
+            roots: this.rootUris()
+          }))
+          return c
+        }
+
+        client = createClient()
+
+        if (cfg.url && (!cfg.transportType || cfg.transportType === 'auto') && !this.deps.createTransport) {
+          // Auto mode: try SSEClientTransport first, fallback to StreamableHTTPClientTransport
+          try {
+            const sseTransport = this.makeTransport(cfg, 'sse')
+            await withTimeout(client.connect(sseTransport), 5000, `MCP server "${name}" (SSE)`)
+          } catch {
+            try {
+              await client.close()
+            } catch {
+              /* ignore */
+            }
+            client = createClient()
+            const httpTransport = this.makeTransport(cfg, 'streamable-http')
+            await withTimeout(client.connect(httpTransport), 5000, `MCP server "${name}" (Streamable HTTP)`)
           }
+        } else {
+          const transport = this.makeTransport(cfg)
+          await withTimeout(
+            client.connect(transport),
+            DEFAULT_CONNECT_TIMEOUT_MS,
+            `MCP server "${name}"`
+          )
+        }
+
+        const listed = await withTimeout(
+          client.request({ method: 'tools/list' }, PermissiveListToolsResultSchema),
+          DEFAULT_CONNECT_TIMEOUT_MS,
+          `MCP server "${name}" tools/list`
         )
-        // Playwright MCP & co. ask the client for workspace roots and anchor
-        // file access/output dir on them — serve the project dir.
-        client.setRequestHandler(ListRootsRequestSchema, async () => ({
-          roots: this.rootUris()
-        }))
-        const transport = this.makeTransport(cfg)
-        await client.connect(transport)
-        const listed = await client.listTools()
+
         const tools = (listed.tools ?? []).map(t => ({
           name: t.name,
           description: t.description,
-          inputSchema: t.inputSchema as unknown as Record<string, unknown>
+          inputSchema: (t.inputSchema as Record<string, unknown> | undefined) ?? { type: 'object', properties: {} }
         }))
         this.connections.set(name, { serverName: name, client, tools })
         this.statuses.set(name, { name, status: 'connected', tools: tools.map(t => t.name) })
       } catch (err) {
-        this.statuses.set(name, { name, status: 'error', error: String(err), tools: [] })
+        if (client) {
+          try {
+            await client.close()
+          } catch {
+            /* ignore */
+          }
+        }
+        const errorMessage = err instanceof Error ? err.message : String(err)
+        this.statuses.set(name, { name, status: 'error', error: errorMessage, tools: [] })
       }
-    }
+    })
+
+    await Promise.allSettled(tasks)
   }
 
   status(): McpServerStatus[] {
@@ -166,11 +238,17 @@ export class McpManager {
     this.connections.clear()
   }
 
-  private makeTransport(cfg: McpServerConfig): Transport {
+  private makeTransport(cfg: McpServerConfig, transportKind?: 'sse' | 'streamable-http'): Transport {
     if (this.deps.createTransport) return this.deps.createTransport(cfg)
     if (cfg.url) {
       const headers = cfg.headers && Object.keys(cfg.headers).length > 0 ? cfg.headers : undefined
-      return new StreamableHTTPClientTransport(new URL(cfg.url), {
+      const kind = transportKind ?? cfg.transportType ?? 'auto'
+      if (kind === 'streamable-http') {
+        return new StreamableHTTPClientTransport(new URL(cfg.url), {
+          requestInit: headers ? { headers } : undefined
+        })
+      }
+      return new SSEClientTransport(new URL(cfg.url), {
         requestInit: headers ? { headers } : undefined
       })
     }

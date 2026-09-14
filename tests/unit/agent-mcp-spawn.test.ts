@@ -3,6 +3,7 @@ import { McpManager } from '../../src/main/agent/mcp/manager'
 
 const transportCalls: Array<{ command: string; args?: string[]; cwd?: string; env?: Record<string, string> }> = []
 const httpTransportCalls: Array<{ url: URL; opts?: { requestInit?: { headers?: Record<string, string> } } }> = []
+const sseTransportCalls: Array<{ url: URL; opts?: { requestInit?: { headers?: Record<string, string> } } }> = []
 
 // Stub out StdioClientTransport so we can inspect what McpManager would
 // spawn without actually launching a process on the test host.
@@ -24,9 +25,20 @@ vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
   }
 }))
 
+vi.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
+  SSEClientTransport: class {
+    _requestInit?: { headers?: Record<string, string> }
+    constructor(url: URL, opts?: { requestInit?: { headers?: Record<string, string> } }) {
+      this._requestInit = opts?.requestInit
+      sseTransportCalls.push({ url, opts })
+    }
+  }
+}))
+
 function reset() {
   transportCalls.length = 0
   httpTransportCalls.length = 0
+  sseTransportCalls.length = 0
 }
 
 describe('McpManager.makeTransport (Windows shim rule)', () => {
@@ -56,12 +68,27 @@ describe('McpManager.makeTransport (Windows shim rule)', () => {
     expect(transportCalls[0].cwd).toBe('/proj')
   })
 
-  it('creates StreamableHTTPClientTransport with requestInit headers when headers specified', () => {
+  it('creates SSEClientTransport by default for HTTP/SSE endpoints with requestInit headers', () => {
     reset()
     const mcp = new McpManager({ projectPath: '/proj' })
     ;(mcp as unknown as { makeTransport(c: unknown): unknown }).makeTransport({
       url: 'https://example.com/mcp',
       headers: { Authorization: 'Bearer test-token' }
+    })
+    expect(sseTransportCalls).toHaveLength(1)
+    expect(sseTransportCalls[0].url.toString()).toBe('https://example.com/mcp')
+    expect(sseTransportCalls[0].opts?.requestInit?.headers).toEqual({
+      Authorization: 'Bearer test-token'
+    })
+  })
+
+  it('creates StreamableHTTPClientTransport when transportType is streamable-http', () => {
+    reset()
+    const mcp = new McpManager({ projectPath: '/proj' })
+    ;(mcp as unknown as { makeTransport(c: unknown): unknown }).makeTransport({
+      url: 'https://example.com/mcp',
+      headers: { Authorization: 'Bearer test-token' },
+      transportType: 'streamable-http'
     })
     expect(httpTransportCalls).toHaveLength(1)
     expect(httpTransportCalls[0].url.toString()).toBe('https://example.com/mcp')

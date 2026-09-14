@@ -296,6 +296,7 @@ export interface McpServerConfig {
   env?: Record<string, string>
   url?: string
   headers?: Record<string, string>
+  transportType?: 'auto' | 'sse' | 'streamable-http'
 }
 
 export interface CompactionSettings {

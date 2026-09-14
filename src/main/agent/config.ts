@@ -282,6 +282,11 @@ function normalizeMcp(raw: Record<string, McpServerConfig> | undefined): Record<
         delete next.headers
       }
     }
+    if (next.transportType && ['auto', 'sse', 'streamable-http'].includes(next.transportType)) {
+      // valid transportType preserved
+    } else {
+      delete next.transportType
+    }
     out[name] = next
   }
   return out

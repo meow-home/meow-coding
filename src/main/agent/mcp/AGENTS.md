@@ -12,5 +12,5 @@ tools, and exposes them to the Meow agent as `ToolDefinition`s alongside the bui
 ## Conventions
 
 - MCP tools are merged into the agent tool map in `MeowAgentManager.syncTools()` — after user tools, before nothing else.
-- Server config comes from `meow.json` `mcp` field; status surfaced via `getMcpStatus` IPC. Supports stdio commands and HTTP/SSE endpoints with optional HTTP headers (`headers?: Record<string, string>`) for bearer token / API key authentication.
+- Server config comes from `meow.json` `mcp` field; status surfaced via `getMcpStatus` IPC. Supports stdio commands, SSE endpoints (`SSEClientTransport`), and Streamable HTTP endpoints (`StreamableHTTPClientTransport`) with optional HTTP headers (`headers?: Record<string, string>`) and `transportType` (`auto` fallback, `sse`, `streamable-http`). Connections use per-server timeouts (10s), parallel connection execution, permissive tool schema parsing (`PermissiveListToolsResultSchema`), and auto-fallback with clean resource closing on errors.
 - Only the main process talks to MCP servers; failures mark the server `error` in status without crashing.

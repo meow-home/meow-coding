@@ -789,6 +789,9 @@ export class MeowAgentManager {
 
   async reconnectMcp(): Promise<McpServerStatus[]> {
     await this.syncTools()
+    for (const agent of this.agents.values()) {
+      if (agent.kind === 'native') await this.register(agent, true)
+    }
     return this.mcp.status()
   }
 

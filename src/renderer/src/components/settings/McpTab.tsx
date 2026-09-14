@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Server, Globe, Terminal, Plus, RefreshCw, Trash2, AlertCircle, CheckCircle2, Lock, Key } from 'lucide-react'
+import { Server, Globe, Terminal, Plus, RefreshCw, Trash2, AlertCircle, CheckCircle2, Lock, Key, Edit3, Code2 } from 'lucide-react'
 import type { McpServerConfig, McpServerStatus } from '@shared/types'
 import BaseModal from '../common/BaseModal'
 import ConfirmDialog from '../ConfirmDialog'
@@ -12,13 +12,17 @@ interface Props {
 }
 
 export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
-  const [adding, setAdding] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editingName, setEditingName] = useState<string | null>(null)
   const [confirmDeleteName, setConfirmDeleteName] = useState<string | null>(null)
   const [serverType, setServerType] = useState<'command' | 'url'>('command')
   const [newName, setNewName] = useState('')
   const [newUrl, setNewUrl] = useState('')
+  const [newTransportType, setNewTransportType] = useState<'auto' | 'sse' | 'streamable-http'>('auto')
   const [newBearerToken, setNewBearerToken] = useState('')
   const [newHeaders, setNewHeaders] = useState<Array<{ key: string; value: string }>>([])
+  const [rawJsonInput, setRawJsonInput] = useState('')
+  const [showJsonImport, setShowJsonImport] = useState(false)
   const [newCommand, setNewCommand] = useState('')
   const [newArgs, setNewArgs] = useState('')
   const [testing, setTesting] = useState(false)
@@ -31,29 +35,62 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
       : { command: parts[0], args: parts.slice(1) }
   }
 
-  const updateServer = (name: string, patch: Partial<McpServerConfig>) => {
-    const next = { ...mcp }
-    next[name] = { ...next[name], ...patch }
-    onChange(next)
-  }
-
   const openAdd = () => {
+    setEditingName(null)
     setNewName('')
     setNewUrl('')
+    setNewTransportType('auto')
     setNewBearerToken('')
     setNewHeaders([])
+    setRawJsonInput('')
+    setShowJsonImport(false)
     setNewCommand('')
     setNewArgs('')
-    setServerType('command')
-    setAdding(true)
+    setServerType('url')
+    setModalOpen(true)
   }
 
-  const addServer = () => {
+  const openEdit = (name: string) => {
+    const cfg = mcp[name]
+    if (!cfg) return
+    setEditingName(name)
+    setNewName(name)
+    const isHttp = Boolean(cfg.url)
+    setServerType(isHttp ? 'url' : 'command')
+    setNewUrl(cfg.url ?? '')
+    setNewTransportType(cfg.transportType ?? 'auto')
+
+    const headersMap = cfg.headers ?? {}
+    const headersList: Array<{ key: string; value: string }> = []
+    let bearer = ''
+
+    for (const [k, v] of Object.entries(headersMap)) {
+      if (k.toLowerCase() === 'authorization' && v.startsWith('Bearer ')) {
+        bearer = v.slice(7)
+      } else {
+        headersList.push({ key: k, value: v })
+      }
+    }
+
+    setNewBearerToken(bearer)
+    setNewHeaders(headersList)
+    setRawJsonInput('')
+    setShowJsonImport(false)
+    setNewCommand(cfg.command ?? '')
+    setNewArgs(cfg.args?.join(' ') ?? '')
+    setModalOpen(true)
+  }
+
+  const saveServer = () => {
     const name = newName.trim()
-    if (!name || mcp[name]) return
+    if (!name) return
+    if (!editingName && mcp[name]) return // duplicate check on new
+
     const cfg: McpServerConfig = {}
     if (serverType === 'url' && newUrl.trim()) {
       cfg.url = newUrl.trim()
+      cfg.transportType = newTransportType
+
       const headersMap: Record<string, string> = {}
       if (newBearerToken.trim()) {
         headersMap['Authorization'] = `Bearer ${newBearerToken.trim()}`
@@ -73,8 +110,44 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
       const args = newArgs.split(' ').map(a => a.trim()).filter(Boolean)
       if (args.length > 0) cfg.args = args
     }
-    onChange({ ...mcp, [name]: cfg })
-    setAdding(false)
+
+    const next = { ...mcp }
+    if (editingName && editingName !== name) {
+      delete next[editingName]
+    }
+    next[name] = cfg
+    onChange(next)
+    setModalOpen(false)
+  }
+
+  const handleJsonImport = (jsonStr: string) => {
+    setRawJsonInput(jsonStr)
+    try {
+      const parsed = JSON.parse(jsonStr.trim())
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const nextList = [...newHeaders]
+        let bearer = newBearerToken
+        for (const [k, v] of Object.entries(parsed)) {
+          const key = k.trim()
+          const val = String(v).trim()
+          if (!key) continue
+          if (key.toLowerCase() === 'authorization' && val.startsWith('Bearer ')) {
+            bearer = val.slice(7)
+          } else {
+            const existingIdx = nextList.findIndex(h => h.key.toLowerCase() === key.toLowerCase())
+            if (existingIdx >= 0) {
+              nextList[existingIdx].value = val
+            } else {
+              nextList.push({ key, value: val })
+            }
+          }
+        }
+        setNewHeaders(nextList)
+        setNewBearerToken(bearer)
+      }
+    } catch {
+      /* user may still be typing json */
+    }
   }
 
   const removeServer = (name: string) => {
@@ -103,7 +176,7 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
       <div className="mcp-header">
         <div className="mcp-header-info">
           <p className="settings-hint">
-            Model Context Protocol (MCP) servers extend agent capabilities with external tools, APIs, and services via stdio commands or HTTP endpoints.
+            Model Context Protocol (MCP) servers extend agent capabilities with external tools, APIs, and services via stdio commands or HTTP endpoints (SSE & Streamable HTTP).
           </p>
           {serverCount > 0 && (
             <div className="mcp-summary-bar">
@@ -139,7 +212,7 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
           </div>
           <div className="mcp-empty-text">
             <h4>No MCP Servers Configured</h4>
-            <p>Connect a stdio command (e.g. npx @playwright/mcp) or HTTP endpoint to equip agent tools.</p>
+            <p>Connect a stdio command (e.g. npx @playwright/mcp) or HTTP/SSE endpoint to equip agent tools.</p>
           </div>
           <button type="button" className="btn primary small" onClick={openAdd}>
             <Plus size={14} aria-hidden="true" />
@@ -163,7 +236,9 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
                     </div>
                     <div className="mcp-name-wrapper">
                       <span className="mcp-name">{name}</span>
-                      <span className="mcp-type-tag">{isHttp ? 'HTTP / SSE' : 'Stdio Command'}</span>
+                      <span className="mcp-type-tag">
+                        {isHttp ? `HTTP / SSE (${cfg.transportType ?? 'auto'})` : 'Stdio Command'}
+                      </span>
                     </div>
                   </div>
 
@@ -178,11 +253,19 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
                     </span>
                     <button
                       type="button"
+                      className="icon-btn"
+                      title="Edit server"
+                      onClick={() => openEdit(name)}
+                    >
+                      <Edit3 size={14} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
                       className="icon-btn danger"
                       title="Remove server"
                       onClick={() => setConfirmDeleteName(name)}
                     >
-                      <Trash2 size={15} aria-hidden="true" />
+                      <Trash2 size={14} aria-hidden="true" />
                     </button>
                   </div>
                 </div>
@@ -199,12 +282,9 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
                     <>
                       <div className="mcp-field-item full-width">
                         <label className="mcp-field-label">URL Endpoint</label>
-                        <input
-                          className="input"
-                          placeholder="http://localhost:3000/mcp"
-                          value={cfg.url ?? ''}
-                          onChange={e => updateServer(name, { url: e.target.value })}
-                        />
+                        <div className="input" style={{ background: 'var(--bg-input)', color: 'var(--text-strong)', wordBreak: 'break-all' }}>
+                          {cfg.url}
+                        </div>
                       </div>
                       {cfg.headers && Object.keys(cfg.headers).length > 0 && (
                         <div className="mcp-field-item full-width">
@@ -213,7 +293,7 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
                             {Object.entries(cfg.headers).map(([hKey, hVal]) => {
                               const isSecret = /auth|key|token|secret|password/i.test(hKey)
                               const displayVal = isSecret
-                                ? (hVal.startsWith('Bearer ') ? `Bearer ${'•'.repeat(8)}` : '•'.repeat(8))
+                                ? (hVal.startsWith('Bearer ') ? `Bearer ${'•'.repeat(8)}` : (hVal.startsWith('Basic ') ? `Basic ${'•'.repeat(8)}` : '•'.repeat(8)))
                                 : hVal
                               return (
                                 <div key={hKey} className="mcp-header-badge">
@@ -231,23 +311,15 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
                     <>
                       <div className="mcp-field-item">
                         <label className="mcp-field-label">Command</label>
-                        <input
-                          className="input"
-                          placeholder="e.g. npx @playwright/mcp"
-                          value={cfg.command ?? ''}
-                          onChange={e => updateServer(name, splitCommand(e.target.value))}
-                        />
+                        <div className="input" style={{ background: 'var(--bg-input)', color: 'var(--text-strong)' }}>
+                          {cfg.command}
+                        </div>
                       </div>
                       <div className="mcp-field-item">
                         <label className="mcp-field-label">Arguments</label>
-                        <input
-                          className="input"
-                          placeholder="space separated arguments"
-                          value={cfg.args?.join(' ') ?? ''}
-                          onChange={e =>
-                            updateServer(name, { args: e.target.value.split(' ').filter(Boolean) })
-                          }
-                        />
+                        <div className="input" style={{ background: 'var(--bg-input)', color: 'var(--text-dim)' }}>
+                          {cfg.args?.join(' ') || '(none)'}
+                        </div>
                       </div>
                     </>
                   )}
@@ -258,20 +330,12 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
         </div>
       )}
 
-      {adding && (
-        <BaseModal size="md" onClose={() => setAdding(false)}>
-          <BaseModal.Header title="Add MCP Server" />
+      {modalOpen && (
+        <BaseModal size="md" onClose={() => setModalOpen(false)}>
+          <BaseModal.Header title={editingName ? `Edit MCP Server: ${editingName}` : 'Add MCP Server'} />
           <BaseModal.Body>
             <div className="mcp-modal-content">
               <div className="mcp-type-selector">
-                <button
-                  type="button"
-                  className={`mcp-type-btn ${serverType === 'command' ? 'active' : ''}`}
-                  onClick={() => setServerType('command')}
-                >
-                  <Terminal size={15} />
-                  <span>Stdio Command</span>
-                </button>
                 <button
                   type="button"
                   className={`mcp-type-btn ${serverType === 'url' ? 'active' : ''}`}
@@ -280,6 +344,14 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
                   <Globe size={15} />
                   <span>HTTP / SSE Endpoint</span>
                 </button>
+                <button
+                  type="button"
+                  className={`mcp-type-btn ${serverType === 'command' ? 'active' : ''}`}
+                  onClick={() => setServerType('command')}
+                >
+                  <Terminal size={15} />
+                  <span>Stdio Command</span>
+                </button>
               </div>
 
               <div className="settings-field">
@@ -287,7 +359,7 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
                 <input
                   id="mcp-name"
                   className="input"
-                  placeholder="e.g. playwright, katalon, github"
+                  placeholder="e.g. pms, playwright, github"
                   value={newName}
                   onChange={e => setNewName(e.target.value)}
                   autoFocus
@@ -297,15 +369,44 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
               {serverType === 'url' ? (
                 <>
                   <div className="settings-field">
-                    <label className="label" htmlFor="mcp-url">HTTP Endpoint URL</label>
+                    <label className="label" htmlFor="mcp-url">HTTP / SSE Endpoint URL</label>
                     <input
                       id="mcp-url"
                       className="input"
-                      placeholder="http://localhost:3000/mcp"
+                      placeholder="https://pms.vgsprime.com/mcp"
                       value={newUrl}
                       onChange={e => setNewUrl(e.target.value)}
                     />
                   </div>
+
+                  <div className="settings-field">
+                    <label className="label">Transport Mode</label>
+                    <div className="mcp-type-selector">
+                      <button
+                        type="button"
+                        className={`mcp-type-btn ${newTransportType === 'auto' ? 'active' : ''}`}
+                        onClick={() => setNewTransportType('auto')}
+                      >
+                        <span>Auto (SSE → HTTP)</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`mcp-type-btn ${newTransportType === 'sse' ? 'active' : ''}`}
+                        onClick={() => setNewTransportType('sse')}
+                      >
+                        <span>SSE</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`mcp-type-btn ${newTransportType === 'streamable-http' ? 'active' : ''}`}
+                        onClick={() => setNewTransportType('streamable-http')}
+                      >
+                        <span>Streamable HTTP</span>
+                      </button>
+                    </div>
+                    <span className="settings-hint">Auto tries SSE first and falls back to Streamable HTTP if needed.</span>
+                  </div>
+
                   <div className="settings-field">
                     <label className="label" htmlFor="mcp-bearer">
                       <Key size={13} style={{ display: 'inline', marginRight: 4 }} />
@@ -319,25 +420,55 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
                       value={newBearerToken}
                       onChange={e => setNewBearerToken(e.target.value)}
                     />
-                    <span className="settings-hint">Sets Authorization: Bearer token header.</span>
+                    <span className="settings-hint">Automatically creates Authorization: Bearer &lt;token&gt; header.</span>
                   </div>
+
                   <div className="settings-field">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                      <label className="label" style={{ marginBottom: 0 }}>Custom Headers (Optional)</label>
-                      <button
-                        type="button"
-                        className="btn small"
-                        onClick={() => setNewHeaders([...newHeaders, { key: '', value: '' }])}
-                      >
-                        <Plus size={13} />
-                        <span>Add Header</span>
-                      </button>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <label className="label" style={{ marginBottom: 0 }}>Custom Headers</label>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          type="button"
+                          className="btn small"
+                          onClick={() => setShowJsonImport(!showJsonImport)}
+                        >
+                          <Code2 size={13} />
+                          <span>{showJsonImport ? 'Hide JSON Import' : 'Paste JSON'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn small"
+                          onClick={() => setNewHeaders([...newHeaders, { key: '', value: '' }])}
+                        >
+                          <Plus size={13} />
+                          <span>Add Row</span>
+                        </button>
+                      </div>
                     </div>
+
+                    {showJsonImport && (
+                      <div style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <textarea
+                          className="input"
+                          rows={3}
+                          placeholder={'{\n  "Authorization": "Basic YXBpa2V5..."\n}'}
+                          value={rawJsonInput}
+                          onChange={e => handleJsonImport(e.target.value)}
+                          style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-xs)' }}
+                        />
+                        <span className="settings-hint">Paste JSON object above to auto-populate header fields.</span>
+                      </div>
+                    )}
+
+                    {newHeaders.length === 0 && !showJsonImport && (
+                      <span className="settings-hint" style={{ fontStyle: 'italic' }}>No custom headers added yet.</span>
+                    )}
+
                     {newHeaders.map((h, idx) => (
                       <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
                         <input
                           className="input"
-                          placeholder="Header Name (e.g. X-Api-Key)"
+                          placeholder="Header (e.g. Authorization or X-Api-Key)"
                           value={h.key}
                           onChange={e => {
                             const next = [...newHeaders]
@@ -394,16 +525,16 @@ export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
             </div>
           </BaseModal.Body>
           <BaseModal.Footer>
-            <button type="button" className="btn" onClick={() => setAdding(false)}>
+            <button type="button" className="btn" onClick={() => setModalOpen(false)}>
               Cancel
             </button>
             <button
               type="button"
               className="btn primary"
               disabled={!newName.trim() || (serverType === 'url' ? !newUrl.trim() : !newCommand.trim())}
-              onClick={addServer}
+              onClick={saveServer}
             >
-              Add Server
+              {editingName ? 'Save Changes' : 'Add Server'}
             </button>
           </BaseModal.Footer>
         </BaseModal>

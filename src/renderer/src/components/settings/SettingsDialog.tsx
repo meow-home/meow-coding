@@ -95,6 +95,14 @@ export default function SettingsDialog({ onClose, projectPath, initialTab = 'age
   const pendingRef = useRef(false)
   const draftRef = useRef<MeowSettings | null>(null)
   const lastPersistedRef = useRef('')
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const refresh = useCallback(async () => {
     try {
@@ -138,24 +146,32 @@ export default function SettingsDialog({ onClose, projectPath, initialTab = 'age
   }, [])
 
   const doSave = useCallback(async () => {
-    if (!draftRef.current || savingRef.current) return
+    if (!draftRef.current) return
+    if (savingRef.current) {
+      pendingRef.current = true
+      return
+    }
     const current = draftRef.current
     if (JSON.stringify(current) === lastPersistedRef.current) return
 
     savingRef.current = true
-    setSaveState('saving')
+    if (mountedRef.current) setSaveState('saving')
     try {
       const result = await window.api.saveSettings(current)
-      if (draftRef.current === current) {
-        draftRef.current = result
-        lastPersistedRef.current = JSON.stringify(result)
-        setDraft(result)
+      lastPersistedRef.current = JSON.stringify(result)
+      if (mountedRef.current) {
+        if (draftRef.current === current) {
+          draftRef.current = result
+          setDraft(result)
+        }
+        setMcpStatus(await window.api.getMcpStatus())
+        setSaveState('saved')
       }
-      setMcpStatus(await window.api.getMcpStatus())
-      setSaveState('saved')
     } catch (err) {
-      setSaveError(String(err))
-      setSaveState('error')
+      if (mountedRef.current) {
+        setSaveError(String(err))
+        setSaveState('error')
+      }
     } finally {
       savingRef.current = false
       if (pendingRef.current) {
@@ -173,7 +189,7 @@ export default function SettingsDialog({ onClose, projectPath, initialTab = 'age
     if (!draft) return
     if (JSON.stringify(draft) === lastPersistedRef.current) return
     if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current)
-    setSaveState('idle')
+    if (mountedRef.current) setSaveState('idle')
     saveTimerRef.current = window.setTimeout(() => {
       saveTimerRef.current = null
       void doSave()
@@ -183,10 +199,11 @@ export default function SettingsDialog({ onClose, projectPath, initialTab = 'age
   useEffect(() => () => {
     if (saveTimerRef.current) {
       window.clearTimeout(saveTimerRef.current)
-      const current = draftRef.current
-      if (current && JSON.stringify(current) !== lastPersistedRef.current) {
-        void window.api.saveSettings(current)
-      }
+      saveTimerRef.current = null
+    }
+    const current = draftRef.current
+    if (current && JSON.stringify(current) !== lastPersistedRef.current) {
+      void window.api.saveSettings(current)
     }
   }, [])
 
@@ -248,6 +265,9 @@ export default function SettingsDialog({ onClose, projectPath, initialTab = 'age
                 status={mcpStatus}
                 onChange={mcp => patch({ mcp })}
                 onReconnect={async () => {
+                  if (draft) {
+                    await window.api.saveSettings(draft)
+                  }
                   const result = await window.api.reconnectMcp()
                   setMcpStatus(result)
                   return result

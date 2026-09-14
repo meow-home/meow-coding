@@ -182,6 +182,35 @@ describe('McpManager', () => {
     expect(truncation.exists('agent-1', 'mcp__big__blob')).toBe(true)
   })
 
+  it('parses tools with non-standard outputSchema (e.g. allOf) permissively', async () => {
+    const server = new Server({ name: 'custom-schema', version: '1' }, { capabilities: { tools: {} } })
+    servers.push(server)
+    server.setRequestHandler(ListToolsRequestSchema, async () => ({
+      tools: [
+        {
+          name: 'complex_tool',
+          description: 'A tool with allOf in outputSchema',
+          inputSchema: { type: 'object', properties: {} },
+          outputSchema: {
+            allOf: [{ type: 'object', properties: { ok: { type: 'boolean' } } }]
+          }
+        } as unknown as { name: string; description: string; inputSchema: { type: string; properties: Record<string, unknown> } }
+      ]
+    }))
+    const [serverSide, clientSide] = InMemoryTransport.createLinkedPair()
+    await server.connect(serverSide)
+
+    const mcp = new McpManager({ createTransport: () => clientSide })
+    managers.push(mcp)
+    await mcp.connect({ custom: { command: 'node' } })
+
+    const tools = mcp.getTools()
+    expect(tools.has('mcp__custom__complex_tool')).toBe(true)
+    const status = mcp.status()
+    expect(status[0].status).toBe('connected')
+    expect(status[0].tools).toEqual(['complex_tool'])
+  })
+
   it('passes small MCP output through unchanged', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'mcp-trunc-small-'))
     const truncation = new TruncationStore(dir)
