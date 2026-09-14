@@ -58,6 +58,7 @@ export interface MeowConfig {
   lsp: LspConfig
   notifications?: NotificationsConfig
   subagentModels?: Partial<Record<SubagentType, ModelRef>>
+  lastUsedModel?: ModelRef
   hooks?: HooksConfig
 }
 

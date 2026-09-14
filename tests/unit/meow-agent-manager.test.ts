@@ -1790,6 +1790,29 @@ describe('MeowAgentManager subagents', () => {
 
     expect(manager.getAgentModel(DRAFT_SESSION_ID)).toEqual(initialModel)
   })
+
+  it('persists lastUsedModel when setModel is called and resolves it for draft sessions', async () => {
+    const { manager } = await makeManager()
+    await manager.saveSettings({
+      providers: [
+        { id: 'openai', apiKey: 'sk-123', models: ['gpt-4o'] },
+        { id: 'anthropic', apiKey: 'sk-456', models: ['claude-3-7-sonnet'] }
+      ],
+      defaultProvider: 'openai',
+      agents: [],
+      permission: {},
+      mcp: {},
+      maxSteps: 100,
+      compaction: { auto: true, tailTurns: 2, prune: true },
+      toolOutput: { maxBytes: 51200, maxLines: 2000 },
+      lsp: { enabled: true, diagnosticsTimeoutMs: 3000 }
+    })
+
+    manager.setModel('agent-1', { provider: 'anthropic', model: 'claude-3-7-sonnet' })
+
+    const draftModel = manager.getAgentModel(DRAFT_SESSION_ID)
+    expect(draftModel).toEqual({ provider: 'anthropic', model: 'claude-3-7-sonnet' })
+  })
 })
 
 describe('MeowAgentManager draft session file suggestions', () => {
