@@ -995,7 +995,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   content: ""; flex: 1; height: 0.083333rem; background: var(--accent-border);
 }
 .chat-msg.user { align-items: flex-end; }
-.chat-msg.assistant { align-items: flex-start; }
+.chat-msg.assistant { align-items: flex-start; width: 100%; }
 .chat-text {
   max-width: 92%; white-space: pre-wrap; word-break: break-word;
   padding: 0.666667rem 1rem; background: var(--bg-bubble); color: var(--chat-text);
@@ -1004,13 +1004,24 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   user-select: text; line-height: 1.45; font-size: var(--fs-md);
   box-shadow: var(--shadow-1);
 }
-.chat-msg.user .chat-text { background: var(--accent); border-color: var(--accent); color: #ffffff; }
-.chat-mention { color: var(--md-mention); font-family: var(--font-mono); font-size: 0.92em; }
-.chat-slash { color: var(--md-mention); font-family: var(--font-mono); font-size: 0.92em; }
-/* In light mode the amber --md-mention is too muted against the blue user
-   bubble; use a brighter gold so the slash/mention stays legible on it. */
+.chat-msg.user .chat-text {
+  background: var(--bg-elevated);
+  border: 0.083333rem solid var(--accent-border);
+  color: var(--text-strong);
+  box-shadow: none;
+}
+.chat-msg.assistant .chat-text {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  max-width: 100%;
+  color: var(--chat-text);
+}
+.chat-mention { color: var(--accent); font-family: var(--font-mono); font-size: 0.92em; }
+.chat-slash { color: var(--accent); font-family: var(--font-mono); font-size: 0.92em; }
 [data-theme="light"] .chat-msg.user .chat-slash,
-[data-theme="light"] .chat-msg.user .chat-mention { color: #ffd700; }
+[data-theme="light"] .chat-msg.user .chat-mention { color: var(--accent); }
 .chat-msg-images { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; }
 .chat-thumb { max-width: 18.333333rem; max-height: 13.333333rem; border-radius: var(--radius); cursor: zoom-in; border: 0.083333rem solid var(--hairline); }
 .chat-thumb:hover { border-color: var(--accent); }
@@ -1110,38 +1121,56 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .chat-queue-remove { appearance: none; background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 1.166667rem; padding: 0.166667rem; border-radius: var(--radius-sm); }
 .chat-queue-remove:hover { color: var(--red); }
 
-/* Tool call card */
+/* Tool call card — Compact Micro-Bar */
 .tool-call {
-  background: var(--bg-bubble);
+  background: var(--bg-panel);
   border: 0.083333rem solid var(--hairline);
+  border-left: 0.25rem solid var(--hairline);
   border-radius: var(--radius);
-  max-width: 92%; margin-right: auto; width: 100%;
-  content-visibility: auto; contain-intrinsic-size: auto 8.333333rem;
+  max-width: 100%; width: 100%;
+  content-visibility: auto; contain-intrinsic-size: auto 2.5rem;
   overflow: hidden;
+  transition: border-color 120ms ease;
 }
+.tool-call.status-ok { border-left-color: var(--green); }
+.tool-call.status-err { border-left-color: var(--red); }
+.tool-call.status-running { border-left-color: var(--yellow); }
+
 .tool-call summary { list-style: none; cursor: pointer; user-select: none; }
 .tool-call summary::-webkit-details-marker { display: none; }
-.tool-call-chevron { flex-shrink: 0; width: 1.166667rem; height: 1.166667rem; transition: transform 120ms ease; color: var(--text-dim); }
+.tool-call-chevron { flex-shrink: 0; width: 1rem; height: 1rem; transition: transform 120ms ease; color: var(--text-dim); }
 .tool-call[open] .tool-call-chevron { transform: rotate(90deg); }
+.tool-call-header {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.333333rem 0.666667rem;
+  font-size: var(--fs-sm); background: var(--bg-panel); border-bottom: none;
+}
+.tool-call[open] .tool-call-header {
+  border-bottom: 0.083333rem solid var(--hairline);
+}
+.tool-call-badge {
+  font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: var(--fw-semibold);
+  text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 0.1rem 0.4rem; border-radius: var(--radius-sm);
+  background: var(--bg-code); color: var(--accent); flex-shrink: 0;
+}
 .tool-call-summary {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  color: var(--text-dim); font-family: var(--font-ui); font-size: var(--fs-sm);
+  color: var(--text-dim); font-family: var(--font-mono); font-size: var(--fs-sm);
 }
+.tool-call-status { font-size: var(--fs-sm); }
 .tool-call-status.ok { color: var(--green); }
 .tool-call-status.err { color: var(--red); }
-.tool-call-header { display: flex; align-items: center; gap: 0.666667rem; padding: 0.5rem 0.833333rem; border-bottom: 0.083333rem solid var(--hairline); border-radius: var(--radius) var(--radius) 0 0; }
-.tool-call-name { font-weight: var(--fw-semibold); color: var(--accent); font-family: var(--font-ui); font-size: var(--fs-md); }
-.tool-call-name.denied { color: var(--red); }
-.tool-call-running { color: var(--yellow); font-size: var(--fs-base); }
+.tool-call-running { color: var(--yellow); font-size: var(--fs-xs); font-family: var(--font-ui); }
+
+.tool-call-body { padding: 0; }
 .tool-call-input, .tool-call-output, .tool-call-error {
   margin: 0; padding: 0.666667rem 0.833333rem; font-size: var(--fs-sm); white-space: pre-wrap; word-break: break-word;
   user-select: text; max-height: 18.333333rem; overflow-y: auto;
   font-family: var(--font-mono);
-  border-radius: 0 0 var(--radius) var(--radius);
 }
-.tool-call-output { color: var(--green); }
-.tool-call-error { color: var(--red); }
-.tool-call-input { color: var(--text-dim); border-top: 0.083333rem solid var(--hairline); }
+.tool-call-output { color: var(--green); border-top: 0.083333rem solid var(--hairline); }
+.tool-call-error { color: var(--red); border-top: 0.083333rem solid var(--hairline); }
+.tool-call-input { color: var(--text-dim); border-top: none; }
 
 /* Prompt (permission / question) — rendered in-flow at the top of the chat
    input card, so it never overlays the chat history. */
