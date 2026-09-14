@@ -2718,6 +2718,23 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 }
 .viewer-actions { display: flex; gap: 0.5rem; }
 .viewer-body { flex: 1; overflow: auto; padding: 1.333333rem 1.666667rem; }
+.viewer-body:has(.cm-editor) {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.viewer-body .cm-theme,
+.viewer-body .cm-editor {
+  flex: 1;
+  height: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+.viewer-body .cm-scroller {
+  overflow: auto;
+  font-family: var(--font-mono);
+}
 /* Highlighted code sits a few px from the window edge; the body keeps the
    dark-plus background so the 0.333333rem gap is invisible — a small breathing room
    around the code (VS Code-like but not glued to the window). */
