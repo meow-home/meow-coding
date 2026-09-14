@@ -47,12 +47,19 @@ export default memo(function ToolCallCard({ call }: Props) {
   const patch = call.tool === 'apply-patch' && typeof input.patch === 'string'
     ? input.patch
     : null
+
+  const statusClass = pending
+    ? 'status-running'
+    : call.permission === 'denied'
+      ? 'status-err'
+      : 'status-ok'
+
   return (
-    <details className="tool-call" open={pending}>
+    <details className={`tool-call ${statusClass}`} open={pending}>
       <summary className="tool-call-header">
         <ChevronRight className="tool-call-chevron" />
-        <span className={`tool-call-name ${call.permission}`}>{call.tool}</span>
-        <span className="tool-call-summary">{describeInput(call)}</span>
+        <span className={`tool-call-badge tool-call-badge-${call.tool}`}>{call.tool}</span>
+        <span className="tool-call-summary" title={describeInput(call)}>{describeInput(call)}</span>
         {pending && <span className="tool-call-running">running…</span>}
         {!pending && (
           <span className={`tool-call-status ${call.permission === 'denied' ? 'err' : 'ok'}`}>
@@ -60,15 +67,17 @@ export default memo(function ToolCallCard({ call }: Props) {
           </span>
         )}
       </summary>
-      {patch !== null ? (
-        <pre className="tool-call-input tool-call-diff">{patch}</pre>
-      ) : editDiff ? (
-        <DiffView oldText={input.old_string as string} newText={input.new_string as string} />
-      ) : (
-        <pre className="tool-call-input">{JSON.stringify(input, null, 2)}</pre>
-      )}
-      {call.output !== undefined && <pre className="tool-call-output">{call.output}</pre>}
-      {call.error !== undefined && <pre className="tool-call-error">{call.error}</pre>}
+      <div className="tool-call-body">
+        {patch !== null ? (
+          <pre className="tool-call-input tool-call-diff">{patch}</pre>
+        ) : editDiff ? (
+          <DiffView oldText={input.old_string as string} newText={input.new_string as string} />
+        ) : (
+          <pre className="tool-call-input">{JSON.stringify(input, null, 2)}</pre>
+        )}
+        {call.output !== undefined && <pre className="tool-call-output">{call.output}</pre>}
+        {call.error !== undefined && <pre className="tool-call-error">{call.error}</pre>}
+      </div>
     </details>
   )
 })
