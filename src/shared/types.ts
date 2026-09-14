@@ -349,6 +349,8 @@ export interface MeowSettings {
   notifications?: NotificationsSettings
   /** Model override per sub-agent role. Missing role -> inherit main agent model. */
   subagentModels?: Partial<Record<SubagentType, ModelRef>>
+  /** Last model selected by the user across sessions. */
+  lastUsedModel?: ModelRef
 }
 
 export type SubagentType = string

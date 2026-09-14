@@ -275,6 +275,20 @@ describe('resolveAgentConfig', () => {
 })
 
 describe('configToSettings / settingsToConfig', () => {
+  it('preserves lastUsedModel in configToSettings and settingsToConfig', () => {
+    const config: MeowConfig = {
+      ...DEFAULT_MEOW_CONFIG,
+      provider: { openai: { apiKey: 'sk-123', models: ['gpt-4o'] } },
+      model: 'openai',
+      lastUsedModel: { provider: 'openai', model: 'gpt-4o' }
+    }
+    const settings = configToSettings(config)
+    expect(settings.lastUsedModel).toEqual({ provider: 'openai', model: 'gpt-4o' })
+
+    const backToConfig = settingsToConfig(settings, config)
+    expect(backToConfig.lastUsedModel).toEqual({ provider: 'openai', model: 'gpt-4o' })
+  })
+
   it('round-trips providers and the default provider', () => {
     const cfg = cfgWithProviders()
     const settings = configToSettings(cfg)

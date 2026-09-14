@@ -343,6 +343,7 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     lsp: normalizeLsp(raw.lsp),
     notifications: normalizeNotifications(raw.notifications),
     subagentModels: normalizeSubagentModels(raw.subagentModels, providers),
+    lastUsedModel: raw.lastUsedModel,
     hooks: normalizeHooks(raw.hooks)
   }
 }
@@ -456,7 +457,8 @@ export function configToSettings(cfg: MeowConfig): MeowSettings {
     mcpOutput: cfg.mcpOutput,
     lsp: cfg.lsp,
     notifications: cfg.notifications ? normalizeNotifications(cfg.notifications) : DEFAULT_NOTIFICATIONS,
-    ...(cfg.subagentModels ? { subagentModels: cfg.subagentModels } : {})
+    ...(cfg.subagentModels ? { subagentModels: cfg.subagentModels } : {}),
+    ...(cfg.lastUsedModel ? { lastUsedModel: cfg.lastUsedModel } : {})
   }
 }
 
@@ -510,6 +512,9 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
     hooks: normalizeHooks(base.hooks),
     ...(settings.subagentModels
       ? { subagentModels: normalizeSubagentModels(settings.subagentModels, providers) }
+      : {}),
+    ...(settings.lastUsedModel ?? base.lastUsedModel
+      ? { lastUsedModel: settings.lastUsedModel ?? base.lastUsedModel }
       : {})
   }
 }
