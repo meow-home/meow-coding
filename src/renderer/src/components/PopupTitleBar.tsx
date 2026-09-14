@@ -26,7 +26,7 @@ export default function PopupTitleBar({ title }: Props) {
 
   return (
     <div
-      className={`title-bar title-bar-${platform}`}
+      className={`title-bar title-bar-popup title-bar-${platform}`}
       onDoubleClick={() => { if (showCustomControls) void window.api.toggleMaximizeWindow() }}
     >
       <div className="title-bar-brand">

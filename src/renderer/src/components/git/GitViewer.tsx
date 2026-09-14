@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, GitBranch, RefreshCw, X } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { AlertTriangle, GitBranch, RefreshCw, X, Folder, Layers, History, FileCode } from 'lucide-react'
 import type { GitBranch as GitBranchType, GitStatusDetail } from '@shared/types'
 import PopupTitleBar from '../PopupTitleBar'
 import GitBranchSwitcher from './GitBranchSwitcher'
@@ -34,6 +34,8 @@ export default function GitViewer({ projectPath }: Props) {
   const [loaded, setLoaded] = useState(false)
 
   const currentBranch = branches.find(b => b.isCurrent)?.name ?? status?.branch ?? null
+  const projectName = projectPath.split(/[\\/]/).pop() || projectPath
+  const dirtyCount = status?.files.length ?? 0
 
   const refresh = useCallback(async () => {
     try {
@@ -142,36 +144,41 @@ export default function GitViewer({ projectPath }: Props) {
 
   return (
     <div className="git-viewer">
-      <PopupTitleBar title={projectPath} />
+      <PopupTitleBar title={`Git — ${projectName}`} />
+      
       <div className="git-header">
-        <span className="git-title" title={projectPath}>
-          <GitBranch size={14} aria-hidden="true" />
-          {projectPath}
-        </span>
-        <GitBranchSwitcher
-          projectPath={projectPath}
-          branches={branches}
-          current={currentBranch}
-          busy={busy}
-          onSwitch={branch => void switchTo(branch)}
-          onCreated={() => void refresh()}
-          onError={(error, command) => setGitError({ error, command })}
-        />
-        <button
-          className="git-header-btn"
-          title="Refresh"
-          aria-label="Refresh"
-          disabled={busy}
-          onClick={() => void refresh()}
-        >
-          <RefreshCw size={14} aria-hidden="true" className={busy ? 'spin' : undefined} />
-        </button>
-        <button className="git-header-btn" title="Close (Esc)" aria-label="Close" onClick={() => window.close()}>
-          <X size={14} aria-hidden="true" />
-        </button>
+        <div className="git-header-repo" title={projectPath}>
+          <Folder size={14} className="git-repo-icon" aria-hidden="true" />
+          <span className="git-repo-name">{projectName}</span>
+        </div>
+
+        <div className="git-header-actions">
+          <GitBranchSwitcher
+            projectPath={projectPath}
+            branches={branches}
+            current={currentBranch}
+            busy={busy}
+            onSwitch={branch => void switchTo(branch)}
+            onCreated={() => void refresh()}
+            onError={(error, command) => setGitError({ error, command })}
+          />
+          <button
+            className="git-header-btn"
+            title="Refresh Git status"
+            aria-label="Refresh"
+            disabled={busy}
+            onClick={() => void refresh()}
+          >
+            <RefreshCw size={13} aria-hidden="true" className={busy ? 'spin' : undefined} />
+          </button>
+          <button className="git-header-btn" title="Close (Esc)" aria-label="Close" onClick={() => window.close()}>
+            <X size={14} aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
-      {!loaded && !gitError && <div className="git-diff-empty git-center">Loading…</div>}
+      {!loaded && !gitError && <div className="git-diff-empty git-center">Loading Git status...</div>}
+
       {gitError && (
         <div className="git-error-banner">
           <AlertTriangle size={14} aria-hidden="true" />
@@ -189,17 +196,33 @@ export default function GitViewer({ projectPath }: Props) {
       {loaded && (
         <>
           <div className="git-tabs">
-            {(['changes', 'history', 'blame'] as Tab[]).map(t => (
-              <button
-                key={t}
-                className={`git-tab ${tab === t ? 'active' : ''}`}
-                disabled={busy}
-                onClick={() => setTab(t)}
-              >
-                {t === 'changes' ? 'Changes' : t === 'history' ? 'History' : 'Blame'}
-              </button>
-            ))}
+            <button
+              className={`git-tab ${tab === 'changes' ? 'active' : ''}`}
+              disabled={busy}
+              onClick={() => setTab('changes')}
+            >
+              <Layers size={13} aria-hidden="true" />
+              <span>Changes</span>
+              {dirtyCount > 0 && <span className="git-tab-badge">{dirtyCount}</span>}
+            </button>
+            <button
+              className={`git-tab ${tab === 'history' ? 'active' : ''}`}
+              disabled={busy}
+              onClick={() => setTab('history')}
+            >
+              <History size={13} aria-hidden="true" />
+              <span>History</span>
+            </button>
+            <button
+              className={`git-tab ${tab === 'blame' ? 'active' : ''}`}
+              disabled={busy}
+              onClick={() => setTab('blame')}
+            >
+              <FileCode size={13} aria-hidden="true" />
+              <span>Blame</span>
+            </button>
           </div>
+
           <div className="git-body">
             {tab === 'changes' && (
               <GitChangesTab projectPath={projectPath} status={status} />
@@ -213,28 +236,27 @@ export default function GitViewer({ projectPath }: Props) {
       {switchDialog && (
         <div className="dialog-backdrop">
           <div className="dialog git-switch-dialog">
-            <h3>Switch to "{switchDialog.branch}"?</h3>
+            <h3>Switch branch to "{switchDialog.branch}"?</h3>
             <p className="settings-hint">
-              The working tree has {switchDialog.dirtyCount} changed file{switchDialog.dirtyCount === 1 ? '' : 's'} that
-              would be carried over. Choose how to handle them:
+              Your working tree currently has {switchDialog.dirtyCount} modified file{switchDialog.dirtyCount === 1 ? '' : 's'}. Choose how to handle your local changes before switching:
             </p>
             <div className="git-switch-actions">
-              <button className="btn" disabled={busy} onClick={() => void doSwitchWithCleanup(switchDialog.branch, 'stash')}>
-                Stash &amp; switch
+              <button className="btn primary" disabled={busy} onClick={() => void doSwitchWithCleanup(switchDialog.branch, 'stash')}>
+                Stash &amp; Switch
               </button>
               <button className="btn" disabled={busy} onClick={() => void doSwitchWithCleanup(switchDialog.branch, 'bring')}>
-                Bring changes
+                Bring Changes Along
               </button>
               {!switchDialog.confirmDiscard ? (
                 <button className="btn danger" disabled={busy} onClick={() => setSwitchDialog({ ...switchDialog, confirmDiscard: true })}>
-                  Discard changes
+                  Discard Local Changes
                 </button>
               ) : (
                 <button className="btn danger" disabled={busy} onClick={() => void doSwitchWithCleanup(switchDialog.branch, 'discard')}>
-                  Confirm discard (loses changes)
+                  Confirm Discard (Permanent)
                 </button>
               )}
-              <button className="btn" disabled={busy} onClick={() => setSwitchDialog(null)}>Cancel</button>
+              <button className="btn link" disabled={busy} onClick={() => setSwitchDialog(null)}>Cancel</button>
             </div>
           </div>
         </div>
