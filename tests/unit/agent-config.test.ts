@@ -362,6 +362,26 @@ describe('configToSettings / settingsToConfig', () => {
     expect(read.provider.deepseek?.models).toEqual(['deepseek-chat'])
   })
 
+  it('normalizes mcp headers by trimming keys/values and omitting empty headers', () => {
+    writeFileSync(file, JSON.stringify({
+      mcp: {
+        myMcp: {
+          url: 'https://example.com/mcp',
+          headers: {
+            ' Authorization ': ' Bearer token123 ',
+            'X-Api-Key': 'key456',
+            ' Empty ': '   '
+          }
+        }
+      }
+    }))
+    const cfg = loadMeowConfig(file)
+    expect(cfg.mcp.myMcp.headers).toEqual({
+      Authorization: 'Bearer token123',
+      'X-Api-Key': 'key456'
+    })
+  })
+
   it('preserves mcp servers from the base config', () => {
     const base = cfgWithProviders()
     base.mcp = { mytools: { command: 'npx', args: ['-y', '@foo/bar'] } }

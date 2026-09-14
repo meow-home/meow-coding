@@ -269,6 +269,19 @@ function normalizeMcp(raw: Record<string, McpServerConfig> | undefined): Record<
         next.args = parts.slice(1)
       }
     }
+    if (next.headers && typeof next.headers === 'object') {
+      const cleanHeaders: Record<string, string> = {}
+      for (const [k, v] of Object.entries(next.headers)) {
+        const key = k.trim()
+        const val = typeof v === 'string' ? v.trim() : ''
+        if (key && val) cleanHeaders[key] = val
+      }
+      if (Object.keys(cleanHeaders).length > 0) {
+        next.headers = cleanHeaders
+      } else {
+        delete next.headers
+      }
+    }
     out[name] = next
   }
   return out
