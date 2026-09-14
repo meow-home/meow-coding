@@ -32,6 +32,8 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.FileOpen, payload),
   getFileContent: (path: string) =>
     ipcRenderer.invoke(Channels.FileViewerGetContent, path),
+  saveFileContent: (path: string, content: string) =>
+    ipcRenderer.invoke(Channels.FileSaveContent, path, content),
   openFileInEditor: (path: string) =>
     ipcRenderer.invoke(Channels.FileViewerOpenInEditor, path),
   showFileInFolder: (path: string) =>

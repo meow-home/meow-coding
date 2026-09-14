@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Notification, screen, shell } from 'electron'
 import { spawn } from 'node:child_process'
 import { existsSync, rmSync, writeFileSync } from 'node:fs'
-import { stat } from 'node:fs/promises'
+import { stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { createJsonStore } from './json-store'
 import { resetToSingleSession } from './fresh-start'
@@ -749,6 +749,14 @@ export function registerIpcHandlers(): void {
     }
   })
   ipcMain.handle(Channels.FileViewerGetContent, (_e, absPath: string) => readFileContent(absPath))
+  ipcMain.handle(Channels.FileSaveContent, async (_e, absPath: string, content: string) => {
+    try {
+      await writeFile(absPath, content, 'utf-8')
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
   ipcMain.handle(Channels.FileViewerOpenInEditor, (_e, absPath: string) => openInEditor(absPath))
   ipcMain.handle(Channels.FileViewerShowInFolder, (_e, absPath: string) => {
     shell.showItemInFolder(absPath)

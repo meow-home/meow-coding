@@ -19,6 +19,7 @@ export const Channels = {
   ProjectOpenInEditor: 'project:open-in-editor',
   FileOpen: 'file:open',
   FileViewerGetContent: 'file-viewer:get-content',
+  FileSaveContent: 'file:save-content',
   FileViewerOpenInEditor: 'file-viewer:open-in-editor',
   FileViewerShowInFolder: 'file-viewer:show-in-folder',
   GitOpenViewer: 'git:open-viewer',
@@ -178,6 +179,7 @@ export interface AgentApi {
   openFolder(projectPath: string): Promise<void>
   openFile(payload: FileViewerPayload): Promise<void>
   getFileContent(path: string): Promise<FileContentResult>
+  saveFileContent(path: string, content: string): Promise<{ ok: boolean; error?: string }>
   openFileInEditor(path: string): Promise<void>
   showFileInFolder(path: string): Promise<void>
   gitOpenViewer(projectPath: string): Promise<void>
