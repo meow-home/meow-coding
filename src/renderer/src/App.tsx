@@ -214,13 +214,57 @@ export default function App() {
     setActivePathState(path)
   }, [])
 
+  // Keeps at most MAX_KEEP_ALIVE projects mounted. Only the single LRU project
+  // (tail of keepAliveOrder, never the active one) is a candidate; if its agent is
+  // still running the eviction waits — stepping aside means dropping the one
+  // project the user just switched away from, which is usually the least safe to
+  // unmount. Retry happens on 'done'/'error' via evictIfNeeded().
+  const evictIfNeeded = useCallback((): void => {
+    const victims: string[] = []
+    const order = [...orderRef.current]
+    for (let i = order.length - 1; i >= 0; i--) {
+      const p = order[i]
+      if (p === activePathRef.current) continue
+      const rt = runtimesRef.current[p]
+      if (rt && rt.workspace.agents.some(a => runningAgentsRef.current.has(a.id))) break
+      victims.push(p)
+      if (order.length - victims.length <= MAX_KEEP_ALIVE) break
+    }
+    if (victims.length === 0) return
+    const victimSet = new Set(victims)
+    setRuntimes(prev => {
+      const next = { ...prev }
+      for (const p of victimSet) delete next[p]
+      return next
+    })
+    setKeepAliveOrder(prev => prev.filter(p => !victimSet.has(p)))
+  }, [setRuntimes, setKeepAliveOrder])
+
+  const openWorkspace = useCallback(async (path: string) => {
+    const rt = await window.api.openWorkspace(path)
+    const list = await window.api.listArtifacts(path)
+    setRuntimes(prev => ({ ...prev, [path]: rt }))
+    setActivePath(path)
+    // Most recently used at the head of keepAliveOrder.
+    setKeepAliveOrder(prev => [path, ...prev.filter(p => p !== path)])
+    setArtifacts(prev => ({ ...prev, [path]: list }))
+    setBackgrounds(Object.fromEntries(rt.workspace.agents.map(a => [a.id, a.background ?? false])))
+    evictIfNeeded()
+  }, [evictIfNeeded, setActivePath, setKeepAliveOrder])
+
   const refreshWorkspaces = useCallback(async () => {
     try {
-      setWorkspaces(await window.api.listWorkspaces())
+      const list = await window.api.listWorkspaces()
+      setWorkspaces(list)
+      if (!activePathRef.current && list.length > 0) {
+        const firstPath = list[0].projectPath
+        setActiveSessionByPath(prev => (prev[firstPath] ? prev : { ...prev, [firstPath]: DRAFT_SESSION_ID }))
+        void openWorkspace(firstPath)
+      }
     } catch {
       /* a rejected list leaves the last known sidebar intact; the next refresh retries */
     }
-  }, [])
+  }, [openWorkspace])
 
   useEffect(() => {
     localStorage.setItem('meow.sidebar.collapsed', sidebarCollapsed ? '1' : '0')
@@ -367,18 +411,6 @@ export default function App() {
     window.api.checkForUpdates()
   }, [])
 
-  const openWorkspace = useCallback(async (path: string) => {
-    const rt = await window.api.openWorkspace(path)
-    const list = await window.api.listArtifacts(path)
-    setRuntimes(prev => ({ ...prev, [path]: rt }))
-    setActivePath(path)
-    // Most recently used at the head of keepAliveOrder.
-    setKeepAliveOrder(prev => [path, ...prev.filter(p => p !== path)])
-    setArtifacts(prev => ({ ...prev, [path]: list }))
-    setBackgrounds(Object.fromEntries(rt.workspace.agents.map(a => [a.id, a.background ?? false])))
-    evictIfNeeded()
-  }, [])
-
   // Fast toggle for an already-loaded project: main only repoints activeProject
   // and its pollers; the mounted runtime is reused so its sessions keep running.
   const activate = useCallback((path: string) => {
@@ -393,35 +425,9 @@ export default function App() {
       // Refresh the cached entry's agent states (statuses may have moved while hidden).
       setRuntimes(prev => (prev[path] ? { ...prev, [path]: { ...prev[path], agents: rt.agents } } : prev))
     })
-  }, [openWorkspace])
+  }, [evictIfNeeded, openWorkspace, setActivePath, setKeepAliveOrder])
   const activateRef = useRef(activate)
   activateRef.current = activate
-
-  // Keeps at most MAX_KEEP_ALIVE projects mounted. Only the single LRU project
-  // (tail of keepAliveOrder, never the active one) is a candidate; if its agent is
-  // still running the eviction waits — stepping aside means dropping the one
-  // project the user just switched away from, which is usually the least safe to
-  // unmount. Retry happens on 'done'/'error' via evictIfNeeded().
-  const evictIfNeeded = useCallback((): void => {
-    const victims: string[] = []
-    const order = [...orderRef.current]
-    for (let i = order.length - 1; i >= 0; i--) {
-      const p = order[i]
-      if (p === activePathRef.current) continue
-      const rt = runtimesRef.current[p]
-      if (rt && rt.workspace.agents.some(a => runningAgentsRef.current.has(a.id))) break
-      victims.push(p)
-      if (order.length - victims.length <= MAX_KEEP_ALIVE) break
-    }
-    if (victims.length === 0) return
-    const victimSet = new Set(victims)
-    setRuntimes(prev => {
-      const next = { ...prev }
-      for (const p of victimSet) delete next[p]
-      return next
-    })
-    setKeepAliveOrder(prev => prev.filter(p => !victimSet.has(p)))
-  }, [setRuntimes, setKeepAliveOrder])
 
   // Retry eviction the moment a hidden project's turn ends (a running agent
   // previously blocked its eviction).
