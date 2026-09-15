@@ -8,15 +8,26 @@ import type { ResolvedShellCommand } from './tools/bash'
 import type { ToolRunResult } from './tools/types'
 import type { LlmClient } from './llm'
 
-export type HookEventName = 'PreToolUse' | 'PostToolUse' | 'Stop'
+export type HookEventName =
+  | 'PreToolUse' | 'PostToolUse' | 'Stop'
+  | 'UserPromptSubmit' | 'SessionStart' | 'SubagentStop' | 'PreCompact' | 'SessionEnd'
 
-export const HOOK_EVENTS: readonly HookEventName[] = ['PreToolUse', 'PostToolUse', 'Stop']
+export const HOOK_EVENTS: readonly HookEventName[] = [
+  'PreToolUse', 'PostToolUse', 'Stop',
+  'UserPromptSubmit', 'SessionStart', 'SubagentStop', 'PreCompact', 'SessionEnd'
+]
 
 export interface HooksConfig {
   PreToolUse?: HookGroup[]
   PostToolUse?: HookGroup[]
   // Stop hooks always fire; their matcher is ignored.
   Stop?: HookGroup[]
+  // These also ignore the matcher (all configured hooks fire).
+  UserPromptSubmit?: HookGroup[]
+  SessionStart?: HookGroup[]
+  SubagentStop?: HookGroup[]
+  PreCompact?: HookGroup[]
+  SessionEnd?: HookGroup[]
 }
 
 export interface HookGroup {
@@ -84,6 +95,16 @@ export interface StopResult {
   reason?: string
 }
 
+export interface UserPromptSubmitResult {
+  block?: boolean
+  reason?: string
+  additionalContext?: string
+}
+
+export interface SessionStartResult {
+  additionalContext?: string
+}
+
 // What the tool loop depends on. Narrower than HooksExecutor so the loop is not
 // coupled to how a hook is executed.
 export interface HooksRunner {
@@ -94,6 +115,11 @@ export interface HooksRunner {
     response: ToolRunResult
   ): Promise<PostToolUseResult>
   runStop(lastAssistantMessage: string, stopHookActive: boolean): Promise<StopResult>
+  runUserPromptSubmit(prompt: string): Promise<UserPromptSubmitResult>
+  runSessionStart(source: 'startup' | 'resume'): Promise<SessionStartResult>
+  runSubagentStop(lastAssistantMessage: string, stopHookActive: boolean, subagentType: string): Promise<StopResult>
+  runPreCompact(trigger: 'auto' | 'manual'): Promise<void>
+  runSessionEnd(reason: 'delete' | 'exit'): Promise<void>
 }
 
 // Claude Code's rule: a matcher of only word chars, separators and spaces is an
@@ -164,7 +190,12 @@ const MAX_HOOK_OUTPUT = 64 * 1024
 const DEFAULT_TIMEOUT_S: Record<HookEventName, number> = {
   PreToolUse: 60,
   PostToolUse: 600,
-  Stop: 600
+  Stop: 600,
+  UserPromptSubmit: 60,
+  SessionStart: 60,
+  SubagentStop: 600,
+  PreCompact: 60,
+  SessionEnd: 60
 }
 
 const PRECEDENCE: Record<'allow' | 'ask' | 'deny', number> = { allow: 0, ask: 1, deny: 2 }
@@ -504,5 +535,64 @@ export class HooksExecutor implements HooksRunner {
       }
     }
     return { block: false }
+  }
+
+  async runUserPromptSubmit(prompt: string): Promise<UserPromptSubmitResult> {
+    const result: UserPromptSubmitResult = {}
+    for (const hook of (this.config.UserPromptSubmit ?? []).flatMap(group => group.hooks)) {
+      const exec = await this.execute(hook, 'UserPromptSubmit', {
+        hook_event_name: 'UserPromptSubmit', cwd: this.deps.cwd, prompt
+      })
+      const out = hookOutput(exec.json)
+      if (exec.exitCode === 2 || out.decision === 'block' || out.ok === false) {
+        result.block = true
+        result.reason = asString(out.reason) ?? asString(exec.stderr)
+        return result
+      }
+      const context = asString(out.additionalContext)
+      if (context) result.additionalContext = result.additionalContext ? `${result.additionalContext}
+${context}` : context
+    }
+    return result
+  }
+
+  async runSessionStart(source: 'startup' | 'resume'): Promise<SessionStartResult> {
+    const result: SessionStartResult = {}
+    for (const hook of (this.config.SessionStart ?? []).flatMap(group => group.hooks)) {
+      const exec = await this.execute(hook, 'SessionStart', {
+        hook_event_name: 'SessionStart', cwd: this.deps.cwd, source
+      })
+      const out = hookOutput(exec.json)
+      const context = asString(out.additionalContext)
+      if (context) result.additionalContext = result.additionalContext ? `${result.additionalContext}
+${context}` : context
+    }
+    return result
+  }
+
+  async runSubagentStop(lastAssistantMessage: string, stopHookActive: boolean, subagentType: string): Promise<StopResult> {
+    for (const hook of (this.config.SubagentStop ?? []).flatMap(group => group.hooks)) {
+      const exec = await this.execute(hook, 'SubagentStop', {
+        hook_event_name: 'SubagentStop', cwd: this.deps.cwd,
+        last_assistant_message: lastAssistantMessage, stop_hook_active: stopHookActive, subagent_type: subagentType
+      })
+      const out = hookOutput(exec.json)
+      if (exec.exitCode === 2 || out.decision === 'block' || out.ok === false) {
+        return { block: true, reason: asString(out.reason) ?? asString(exec.stderr) }
+      }
+    }
+    return { block: false }
+  }
+
+  async runPreCompact(trigger: 'auto' | 'manual'): Promise<void> {
+    for (const hook of (this.config.PreCompact ?? []).flatMap(group => group.hooks)) {
+      await this.execute(hook, 'PreCompact', { hook_event_name: 'PreCompact', cwd: this.deps.cwd, trigger })
+    }
+  }
+
+  async runSessionEnd(reason: 'delete' | 'exit'): Promise<void> {
+    for (const hook of (this.config.SessionEnd ?? []).flatMap(group => group.hooks)) {
+      await this.execute(hook, 'SessionEnd', { hook_event_name: 'SessionEnd', cwd: this.deps.cwd, reason })
+    }
   }
 }

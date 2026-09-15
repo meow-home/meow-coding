@@ -669,3 +669,49 @@ describe('HooksExecutor prompt handler', () => {
     expect(await ex.runStop('done', false)).toEqual({ block: true, reason: 'tests not run yet' })
   })
 })
+
+describe('extended hook events', () => {
+  const cfg = (event: string) => ({ [event]: [{ matcher: '*', hooks: [{ type: 'command', command: 'h.sh' }] }] } as unknown as HooksConfig)
+
+  it('runUserPromptSubmit blocks on exit 2 and carries the prompt', async () => {
+    const spawned = fakeSpawn({ stderr: 'nope', exitCode: 2 })
+    const ex = new HooksExecutor(cfg('UserPromptSubmit'), { cwd: '/proj', spawnFn: spawned.fn as never })
+    const r = await ex.runUserPromptSubmit('do the thing')
+    expect(r.block).toBe(true)
+    expect(r.reason).toContain('nope')
+    expect(spawned.calls[0].stdin).toContain('do the thing')
+  })
+
+  it('runUserPromptSubmit aggregates additionalContext on success', async () => {
+    const spawned = fakeSpawn({ stdout: JSON.stringify({ hookSpecificOutput: { additionalContext: 'branch=main' } }), exitCode: 0 })
+    const ex = new HooksExecutor(cfg('UserPromptSubmit'), { cwd: '/proj', spawnFn: spawned.fn as never })
+    const r = await ex.runUserPromptSubmit('hi')
+    expect(r.block).toBeFalsy()
+    expect(r.additionalContext).toContain('branch=main')
+  })
+
+  it('runSessionStart injects context and cannot block', async () => {
+    const spawned = fakeSpawn({ stdout: JSON.stringify({ hookSpecificOutput: { additionalContext: 'ctx' } }), exitCode: 2 })
+    const ex = new HooksExecutor(cfg('SessionStart'), { cwd: '/proj', spawnFn: spawned.fn as never })
+    const r = await ex.runSessionStart('startup')
+    expect(r.additionalContext).toContain('ctx')
+    expect(spawned.calls[0].stdin).toContain('startup')
+  })
+
+  it('runSubagentStop blocks on decision block', async () => {
+    const spawned = fakeSpawn({ stdout: JSON.stringify({ decision: 'block', reason: 'keep going' }), exitCode: 0 })
+    const ex = new HooksExecutor(cfg('SubagentStop'), { cwd: '/proj', spawnFn: spawned.fn as never })
+    const r = await ex.runSubagentStop('done', false, 'research')
+    expect(r.block).toBe(true)
+    expect(r.reason).toContain('keep going')
+    expect(spawned.calls[0].stdin).toContain('research')
+  })
+
+  it('runPreCompact and runSessionEnd fire without throwing', async () => {
+    const spawned = fakeSpawn({ exitCode: 0 })
+    const ex = new HooksExecutor({ ...cfg('PreCompact'), ...cfg('SessionEnd') } as HooksConfig, { cwd: '/proj', spawnFn: spawned.fn as never })
+    await expect(ex.runPreCompact('auto')).resolves.toBeUndefined()
+    await expect(ex.runSessionEnd('exit')).resolves.toBeUndefined()
+    expect(spawned.calls.length).toBe(2)
+  })
+})
