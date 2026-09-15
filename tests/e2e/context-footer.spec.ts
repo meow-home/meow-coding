@@ -101,7 +101,7 @@ test('context footer shows real token usage, persists across reload, resets on n
       provider: { mock: { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}`, models: ['mock-model'] } },
       model: 'mock',
       maxContextTokens: 200000,
-      compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000, prune: true }
+      compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000 }
     })
 
     let app = await electron.launch({
@@ -169,7 +169,7 @@ test('context footer turns danger and shows the compacting note past the auto-co
       provider: { mock: { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}`, models: ['mock-model'] } },
       model: 'mock',
       maxContextTokens: 1100,
-      compaction: { auto: true, buffer: 100, keepTokens: 200, tailTurns: 2, toolOutputMaxChars: 2000, prune: true }
+      compaction: { auto: true, buffer: 100, keepTokens: 200, tailTurns: 2, toolOutputMaxChars: 2000 }
     })
 
     const app = await electron.launch({
@@ -207,7 +207,7 @@ test('the context readout is a 24x24 icon button with a hover background', async
       provider: { mock: { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}`, models: ['mock-model'] } },
       model: 'mock',
       maxContextTokens: 200000,
-      compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000, prune: true }
+      compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000 }
     })
 
     const app = await electron.launch({
@@ -268,7 +268,7 @@ test('the context popover is wider than the 200px floor and keeps its rows on on
       provider: { mock: { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}`, models: ['mock-model'] } },
       model: 'mock',
       maxContextTokens: 200000,
-      compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000, prune: true }
+      compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000 }
     })
 
     const app = await electron.launch({

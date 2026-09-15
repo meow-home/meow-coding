@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { usableContextTokens, fitHeadToBudget, selectHeadTail, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, truncateToolOutput, serializeItems, pruneToolOutputs, hardTruncate, resolveCompactionSettings, COMPACTION_RATIOS, CLEARED_OUTPUT } from '../../src/main/agent/compact'
+import { usableContextTokens, fitHeadToBudget, selectHeadTail, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, truncateToolOutput, serializeItems, hardTruncate, resolveCompactionSettings, COMPACTION_RATIOS, CLEARED_OUTPUT } from '../../src/main/agent/compact'
 import type { CompactionSettings } from '../../src/main/agent/compact'
 import { estimateTokens, estimateUsage } from '../../src/main/agent/token'
 import type { TranscriptItem } from '../../src/main/agent/message'
@@ -138,69 +138,6 @@ describe('compactTranscript', () => {
   })
 })
 
-describe('pruneToolOutputs', () => {
-  const cfg = { auto: true, buffer: 100, keepTokens: 100, tailTurns: 2, toolOutputMaxChars: 2000, prune: true }
-
-  it('clears outputs of old tool calls beyond the recent turns', () => {
-    const items: TranscriptItem[] = [
-      msg('user', 'u0'),
-      msg('assistant', 'a0'),
-      tool('P'.repeat(50000)),
-      msg('user', 'u1'),
-      msg('assistant', 'a1'),
-      msg('user', 'u2'),
-      msg('assistant', 'a2')
-    ]
-    const changed = pruneToolOutputs(items, cfg)
-    expect(changed).toBe(true)
-    const toolItem = items.find(i => i.kind === 'tool')
-    // The cleared marker goes in the normal output channel, not error, so the
-    // model reads it as an intentional omission rather than a tool failure.
-    expect(toolItem && toolItem.kind === 'tool' ? toolItem.tool.output : '').toBe(CLEARED_OUTPUT)
-    expect(toolItem && toolItem.kind === 'tool' ? toolItem.tool.error : 'set').toBeUndefined()
-  })
-
-  it('does nothing when prune is disabled', () => {
-    const items: TranscriptItem[] = [
-      msg('user', 'u1'),
-      msg('assistant', 'a1'),
-      tool('P'.repeat(50000)),
-      msg('user', 'u2')
-    ]
-    expect(pruneToolOutputs(items, { ...cfg, prune: false })).toBe(false)
-    const toolItem = items.find(i => i.kind === 'tool')
-    expect(toolItem && toolItem.kind === 'tool' ? toolItem.tool.output : '').toContain('P')
-  })
-
-  it('protects skill tool outputs and recent turns', () => {
-    const skillItem: ToolCallData = { id: 's', tool: 'skill', input: {}, permission: 'allowed', output: 'S'.repeat(100000) }
-    const items: TranscriptItem[] = [
-      msg('user', 'u0'),
-      msg('assistant', 'a0'),
-      { kind: 'tool', tool: skillItem },
-      msg('user', 'u1'),
-      msg('assistant', 'a1'),
-      msg('user', 'u2'),
-      msg('assistant', 'a2')
-    ]
-    expect(pruneToolOutputs(items, cfg)).toBe(false)
-    expect(skillItem.output).toBe('S'.repeat(100000))
-  })
-
-  it('returns false when reclaimable space is below the minimum', () => {
-    const items: TranscriptItem[] = [
-      msg('user', 'u0'),
-      msg('assistant', 'a0'),
-      tool('P'.repeat(25000)),
-      msg('user', 'u1'),
-      msg('assistant', 'a1'),
-      msg('user', 'u2'),
-      msg('assistant', 'a2')
-    ]
-    expect(pruneToolOutputs(items, cfg)).toBe(false)
-  })
-})
-
 describe('hardTruncate', () => {
   it('clears tool outputs to get the transcript under the target', () => {
     const items = [msg('user', 'q'), msg('assistant', 'a'), tool('x'.repeat(20000))]
@@ -285,35 +222,8 @@ describe('fitHeadToBudget', () => {
   })
 })
 
-describe('pruneToolOutputs context scaling', () => {
-  const cfg = { auto: true, buffer: 100, keepTokens: 100, tailTurns: 2, toolOutputMaxChars: 2000, prune: true }
-
-  function transcript() {
-    return [
-      msg('user', 'u0'),
-      msg('assistant', 'a0'),
-      tool('P'.repeat(120000)),
-      msg('user', 'u1'),
-      msg('assistant', 'a1'),
-      msg('user', 'u2')
-    ]
-  }
-
-  it('prunes that output on a 128k model', () => {
-    const items = transcript()
-    expect(pruneToolOutputs(items, cfg, 128000)).toBe(true)
-  })
-
-  it('leaves the same output alone on a million-token model', () => {
-    const items = transcript()
-    expect(pruneToolOutputs(items, cfg, 1_000_000)).toBe(false)
-    const toolItem = items.find(i => i.kind === 'tool')
-    expect(toolItem && toolItem.kind === 'tool' ? toolItem.tool.output : '').toContain('P')
-  })
-})
-
 describe('resolveCompactionSettings', () => {
-  const full: CompactionSettings = { auto: true, tailTurns: 2, prune: true }
+  const full: CompactionSettings = { auto: true, tailTurns: 2 }
 
   it('scales buffer/keepTokens/toolOutputMaxChars by ratio of context window', () => {
     const r = resolveCompactionSettings(full, 200000, 0)
@@ -347,10 +257,9 @@ describe('resolveCompactionSettings', () => {
     expect(r.keepTokens).toBeLessThanOrEqual(Math.floor(usable / 2))
   })
 
-  it('passes through tailTurns and auto/prune untouched', () => {
-    const r = resolveCompactionSettings({ auto: false, tailTurns: 4, prune: false }, 200000, 0)
+  it('passes through tailTurns and auto untouched', () => {
+    const r = resolveCompactionSettings({ auto: false, tailTurns: 4 }, 200000, 0)
     expect(r.auto).toBe(false)
     expect(r.tailTurns).toBe(4)
-    expect(r.prune).toBe(false)
   })
 })

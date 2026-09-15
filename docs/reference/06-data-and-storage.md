@@ -115,7 +115,6 @@ writes it through `settingsToConfig`.
   "compaction": {
     "auto": true,               // enable automatic compaction
     "tailTurns": 2,             // turns kept verbatim (also = keepFullTurns for tool-output caps)
-    "prune": true,              // clear old tool outputs before spending an LLM call
     "buffer": null,             // undefined/absent = auto (15% of context, floor 10000)
     "keepTokens": null,         // undefined = auto (6%, floor 4000, clamped to half usable)
     "toolOutputMaxChars": null  // undefined = auto (1.5%, floor 1500)

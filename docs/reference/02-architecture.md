@@ -121,7 +121,7 @@ and the tsconfigs.
 | `config.ts` | `meow.json` load/normalize/write, `MeowConfig` ↔ `MeowSettings` conversion, `resolveAgentConfig`, `resolveApiKey`, `resolveOutputTokens`, and every default constant. |
 | `limits.ts` | `LimitsService.resolveLimits` (override → learned → live `/models` → catalog → 128k), `classifyContextOverflowError`, `parseContextLimitFromError`. |
 | `learned-limits.ts` | Persisted, monotonically tightening caps learned from provider rejections. |
-| `compact.ts` | `usableContextTokens`, `resolveCompactionSettings`, `pruneToolOutputs`, `selectHeadTail`, `buildCompactionPrompt`, `compactTranscript`, `fitHeadToBudget`, `hardTruncate`. |
+| `compact.ts` | `usableContextTokens`, `resolveCompactionSettings`, `selectHeadTail`, `buildCompactionPrompt`, `compactTranscript`, `fitHeadToBudget`, `hardTruncate`. |
 | `token.ts` | `estimateTokens`, `estimateUsage`, `charsForTokens` (inline image data URLs charged a flat cost). |
 | `usage.ts` | `calcCost`, `EMPTY_USAGE`, `ModelPrice`. |
 | `permission.ts` | `decide` / `decidePermission`, `PLAN_RULES`, `isWriteBashCommand`, `matchPattern`, `deriveSubagentContext`. |

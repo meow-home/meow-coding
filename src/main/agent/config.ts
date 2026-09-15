@@ -112,8 +112,7 @@ export function resolveOutputTokens(
 }
 export const DEFAULT_COMPACTION: MeowCompactionConfig = {
   auto: true,
-  tailTurns: 2,
-  prune: true
+  tailTurns: 2
 }
 export const DEFAULT_TOOL_OUTPUT: ToolOutputConfig = {
   maxBytes: 51200,
@@ -227,8 +226,7 @@ export function normalizeCompaction(raw: Partial<MeowCompactionConfig> | undefin
     buffer: raw?.buffer,
     keepTokens: raw?.keepTokens,
     tailTurns: raw?.tailTurns ?? DEFAULT_COMPACTION.tailTurns,
-    toolOutputMaxChars: raw?.toolOutputMaxChars,
-    prune: raw?.prune ?? DEFAULT_COMPACTION.prune
+    toolOutputMaxChars: raw?.toolOutputMaxChars
   }
 }
 

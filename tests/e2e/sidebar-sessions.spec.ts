@@ -83,7 +83,7 @@ function seedMeowConfig(userData: string, port: number): void {
     provider: { mock: { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}`, models: ['mock-model'] } },
     model: 'mock',
     maxContextTokens: 200000,
-    compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000, prune: true }
+    compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000 }
   }, null, 2))
 }
 

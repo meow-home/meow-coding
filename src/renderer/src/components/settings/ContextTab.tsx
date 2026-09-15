@@ -114,7 +114,7 @@ export default function ContextTab({
           <div className="context-check-row" onClick={() => setComp({ auto: !compaction.auto })}>
             <div className="context-check-info">
               <span className="context-check-title">Auto-compact context</span>
-              <span className="context-check-desc">Automatically prune older messages when context limit is approached.</span>
+              <span className="context-check-desc">Automatically summarize older context when the context limit is approached.</span>
             </div>
             <input
               type="checkbox"

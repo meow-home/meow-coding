@@ -430,8 +430,7 @@ describe('configToSettings / settingsToConfig', () => {
       buffer: undefined,
       keepTokens: undefined,
       tailTurns: 2,
-      toolOutputMaxChars: undefined,
-      prune: true
+      toolOutputMaxChars: undefined
     })
     expect(cfg.toolOutput).toEqual({ maxBytes: 51200, maxLines: 2000 })
     expect(cfg.lsp).toEqual({ enabled: true, diagnosticsTimeoutMs: 3000 })
@@ -492,7 +491,7 @@ describe('configToSettings / settingsToConfig', () => {
     cfg.maxContextTokens = 123000
     cfg.maxOutputTokens = 64000
     cfg.maxSteps = 300
-    cfg.compaction = { auto: false, buffer: 7000, keepTokens: 900, tailTurns: 1, toolOutputMaxChars: 400, prune: false }
+    cfg.compaction = { auto: false, buffer: 7000, keepTokens: 900, tailTurns: 1, toolOutputMaxChars: 400 }
     cfg.toolOutput = { maxBytes: 100000, maxLines: 500 }
 
     const settings = configToSettings(cfg)
@@ -512,7 +511,7 @@ describe('configToSettings / settingsToConfig', () => {
     expect(back.maxContextTokens).toBe(123000)
     expect(back.maxOutputTokens).toBe(64000)
     expect(back.maxSteps).toBe(300)
-    expect(back.compaction).toEqual({ auto: false, buffer: 7000, keepTokens: 900, tailTurns: 1, toolOutputMaxChars: 400, prune: false })
+    expect(back.compaction).toEqual({ auto: false, buffer: 7000, keepTokens: 900, tailTurns: 1, toolOutputMaxChars: 400 })
     expect(back.toolOutput).toEqual({ maxBytes: 100000, maxLines: 500 })
     expect(back.lsp).toEqual({ enabled: true, diagnosticsTimeoutMs: 3000 })
   })
@@ -607,7 +606,6 @@ describe('normalizeCompaction optional fields', () => {
     expect(out.toolOutputMaxChars).toBeUndefined()
     expect(out.auto).toBe(true)
     expect(out.tailTurns).toBe(2)
-    expect(out.prune).toBe(true)
   })
 
   it('preserves explicit values as overrides', () => {
@@ -624,7 +622,6 @@ describe('normalizeCompaction optional fields', () => {
     expect(DEFAULT_COMPACTION.toolOutputMaxChars).toBeUndefined()
     expect(DEFAULT_COMPACTION.auto).toBe(true)
     expect(DEFAULT_COMPACTION.tailTurns).toBe(2)
-    expect(DEFAULT_COMPACTION.prune).toBe(true)
   })
 })
 

@@ -308,7 +308,6 @@ export interface CompactionSettings {
   tailTurns: number
   /** Undefined = auto. */
   toolOutputMaxChars?: number
-  prune?: boolean
 }
 
 export interface ToolOutputSettings {

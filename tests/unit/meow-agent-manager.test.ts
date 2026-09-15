@@ -676,7 +676,7 @@ describe('MeowAgentManager', () => {
       const draft = {
         ...base,
         maxSteps: 42,
-        compaction: { ...base.compaction, auto: false, buffer: 12345, keepTokens: 6789, tailTurns: 5, toolOutputMaxChars: 9999, prune: false },
+        compaction: { ...base.compaction, auto: false, buffer: 12345, keepTokens: 6789, tailTurns: 5, toolOutputMaxChars: 9999 },
         toolOutput: { maxBytes: 11111, maxLines: 222 },
         notifications: { needsInput: false, onDone: true },
         mcpOutput: { maxTokens: 33333 }
@@ -686,7 +686,7 @@ describe('MeowAgentManager', () => {
       const reread = manager.getSettings()
       expect(reread.maxSteps).toBe(42)
       expect(reread.compaction).toMatchObject({
-        auto: false, buffer: 12345, keepTokens: 6789, tailTurns: 5, toolOutputMaxChars: 9999, prune: false
+        auto: false, buffer: 12345, keepTokens: 6789, tailTurns: 5, toolOutputMaxChars: 9999
       })
       expect(reread.toolOutput).toEqual({ maxBytes: 11111, maxLines: 222 })
       expect(reread.notifications).toEqual({ needsInput: false, onDone: true })
@@ -1803,7 +1803,7 @@ describe('MeowAgentManager subagents', () => {
       permission: {},
       mcp: {},
       maxSteps: 100,
-      compaction: { auto: true, tailTurns: 2, prune: true },
+      compaction: { auto: true, tailTurns: 2 },
       toolOutput: { maxBytes: 51200, maxLines: 2000 },
       lsp: { enabled: true, diagnosticsTimeoutMs: 3000 }
     })

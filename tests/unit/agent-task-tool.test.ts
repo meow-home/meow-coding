@@ -173,7 +173,7 @@ describe('task tool context and lifecycle', () => {
       model: 'm',
       tools: new Map([['read', bigOutputTool('read', 40000)]]),
       maxContextTokens: 2000,
-      compaction: { auto: true, buffer: 200, keepTokens: 500, tailTurns: 2, toolOutputMaxChars: 500, prune: true },
+      compaction: { auto: true, buffer: 200, keepTokens: 500, tailTurns: 2, toolOutputMaxChars: 500 },
       permission: allowAll()
     })
     const ctx: ToolContext = { cwd: '/proj', ask: async () => null }

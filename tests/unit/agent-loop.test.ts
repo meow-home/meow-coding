@@ -485,7 +485,7 @@ describe('SessionRunner', () => {
     const h = makeHarness({
       tools: new Map<string, ToolDefinition>(),
       maxContextTokens: 200,
-      compaction: { auto: true, buffer: 20, keepTokens: 100, tailTurns: 2, toolOutputMaxChars: 2000, prune: true },
+      compaction: { auto: true, buffer: 20, keepTokens: 100, tailTurns: 2, toolOutputMaxChars: 2000 },
       replaceItems: (items) => replaced.push(items),
       maxSteps: 1,
       llm: {
@@ -1083,7 +1083,7 @@ describe('SessionRunner compaction fallback', () => {
   function overflowHarness(replaced: TranscriptItem[][]) {
     return makeHarness({
       maxContextTokens: 200,
-      compaction: { auto: true, buffer: 20, keepTokens: 100000, tailTurns: 2, toolOutputMaxChars: 2000, prune: true },
+      compaction: { auto: true, buffer: 20, keepTokens: 100000, tailTurns: 2, toolOutputMaxChars: 2000 },
       maxSteps: 1,
       replaceItems: (items) => replaced.push(items)
     })
@@ -1115,7 +1115,7 @@ describe('SessionRunner compaction fallback', () => {
     const replaced: TranscriptItem[][] = []
     const h = makeHarness({
       maxContextTokens: 200000,
-      compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000, prune: true },
+      compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000 },
       maxSteps: 1,
       replaceItems: (items) => replaced.push(items)
     })
@@ -1205,7 +1205,7 @@ describe('SessionRunner output reserve', () => {
     return makeHarness({
       maxContextTokens: 1000,
       maxOutputTokens,
-      compaction: { auto: true, buffer: 100, keepTokens: 100, tailTurns: 1, toolOutputMaxChars: 2000, prune: true },
+      compaction: { auto: true, buffer: 100, keepTokens: 100, tailTurns: 1, toolOutputMaxChars: 2000 },
       maxSteps: 1,
       replaceItems: (items) => replaced.push(items)
     })
@@ -1265,7 +1265,7 @@ describe('SessionRunner compact-on-reject', () => {
     let items: TranscriptItem[] = []
     const h = makeHarness({
       maxContextTokens: 1000,
-      compaction: { auto: true, buffer: 100, keepTokens: 100, tailTurns: 1, toolOutputMaxChars: 2000, prune: true },
+      compaction: { auto: true, buffer: 100, keepTokens: 100, tailTurns: 1, toolOutputMaxChars: 2000 },
       maxSteps: 3,
       getItems: () => items,
       replaceItems: (next) => { replaced.push(next); items = next },
@@ -1382,7 +1382,7 @@ describe('SessionRunner compaction prompt size', () => {
     const calls: LlmStreamOptions[] = []
     const h = makeHarness({
       maxContextTokens: 4000,
-      compaction: { auto: true, buffer: 200, keepTokens: 200, tailTurns: 1, toolOutputMaxChars: 500, prune: true },
+      compaction: { auto: true, buffer: 200, keepTokens: 200, tailTurns: 1, toolOutputMaxChars: 500 },
       maxSteps: 1,
       replaceItems: () => {},
       llm: {

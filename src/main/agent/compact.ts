@@ -2,74 +2,13 @@ import type { TranscriptItem } from './message'
 import type { LlmClient, LlmStreamOptions } from './llm'
 import { charsForTokens, estimateTokens, estimateUsage } from './token'
 import { DEFAULT_MAX_CONTEXT_TOKENS } from './config'
+import type { CompactionSettings } from '../../shared/types'
 
 // ---------------------------------------------------------------------------
 // Token-based compaction (modeled on opencode session/compaction.ts)
 // ---------------------------------------------------------------------------
 
-export interface CompactionSettings {
-  auto: boolean
-  /** Undefined = auto (ratio × context window, with floor). */
-  buffer?: number
-  /** Undefined = auto. */
-  keepTokens?: number
-  tailTurns: number
-  /** Undefined = auto. */
-  toolOutputMaxChars?: number
-  prune?: boolean
-}
-
-// Shares of the model's context that pruning leaves alone / must be able to
-// free before it is worth clearing anything. Fixed byte counts treated a 1M
-// model like a 128k one; these ratios reproduce the old numbers at 128k and
-// scale from there.
-const PRUNE_PROTECT_RATIO = 0.09
-const PRUNE_MINIMUM_RATIO = 0.045
-const DEFAULT_PRUNE_CONTEXT_TOKENS = 128000
-const PRUNE_PROTECTED_TOOLS = ['skill']
-
-// Clears the output of older completed tool calls (beyond the last two turns)
-// to free context, mirroring opencode compaction.prune. Returns true if any
-// output was cleared. Mutates items in place.
-export function pruneToolOutputs(
-  items: TranscriptItem[],
-  cfg: CompactionSettings,
-  contextTokens = DEFAULT_PRUNE_CONTEXT_TOKENS
-): boolean {
-  if (!cfg.prune) return false
-  const protectChars = charsForTokens(contextTokens * PRUNE_PROTECT_RATIO)
-  const minimumChars = charsForTokens(contextTokens * PRUNE_MINIMUM_RATIO)
-  let turns = 0
-  let total = 0
-  let pruned = 0
-  const targets: TranscriptItem[] = []
-  for (let i = items.length - 1; i >= 0; i--) {
-    const item = items[i]
-    if (item.kind === 'message' && item.message.role === 'user') turns++
-    if (turns < 2) continue
-    if (item.kind !== 'tool') continue
-    const call = item.tool
-    if (call.output === undefined) continue
-    if (PRUNE_PROTECTED_TOOLS.includes(call.tool)) continue
-    const size = call.output.length
-    total += size
-    if (total <= protectChars) continue
-    pruned += size
-    targets.push(item)
-  }
-  if (pruned <= minimumChars) return false
-  for (const item of targets) {
-    if (item.kind === 'tool') {
-      // Put the marker in the normal output channel (not `error`): message.ts
-      // renders `error` as an error-type tool_result, which the model reads as
-      // a channel/tool failure ("results are being stripped"). As benign output
-      // it reads as an intentional omission it can undo by re-running.
-      item.tool.output = CLEARED_OUTPUT
-      item.tool.error = undefined
-    }
-  }
-  return true
-}
+export type { CompactionSettings }
 
 export const CLEARED_OUTPUT = '[Older tool output omitted to save context. Re-run the tool if you still need this result.]'
 
@@ -100,7 +39,6 @@ export interface ResolvedCompaction {
   keepTokens: number
   tailTurns: number
   toolOutputMaxChars: number
-  prune?: boolean
 }
 
 /**
@@ -125,7 +63,6 @@ export function resolveCompactionSettings(
     keepTokens: raw.keepTokens ?? Math.min(autoKeep, Math.floor(usable / 2)),
     tailTurns: raw.tailTurns,
     toolOutputMaxChars: raw.toolOutputMaxChars ?? pct(COMPACTION_RATIOS.toolOutputMaxChars, FLOOR.toolOutputMaxChars),
-    prune: raw.prune,
   }
 }
 

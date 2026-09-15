@@ -284,11 +284,7 @@ lags behind tool outputs appended after the last response — hence the `max`.
 
 ### Ladder
 
-1. **Prune** (`pruneToolOutputs`, enabled by `compaction.prune`): clears the `output` of completed
-   tool calls older than the last two turns, replacing it with `[Old tool result content cleared]`.
-   Protects the newest ~9% of the context window worth of tool output and only fires if it can free
-   more than ~4.5%. `skill` outputs are never pruned. Re-checks against a fresh estimate afterwards.
-2. **LLM summarization** (`compact`):
+1. **LLM summarization** (`compact`) — always summary-first once the threshold is crossed:
    - `selectHeadTail(items, keepTokens, tailTurns)` splits the transcript; the tail is the most
      recent `tailTurns` turns that fit in `keepTokens` (always at least one turn).
    - Any previous compaction pair is stripped from the head and its summary is passed separately as
@@ -300,8 +296,8 @@ lags behind tool outputs appended after the last response — hence the `max`.
    - On success the transcript is replaced with `[marker user message, summary assistant message,
      ...tail]` and `compacted` is emitted. The marker text is the constant
      `COMPACTION_MARKER = 'What did we do so far?'`.
-   - On failure `compaction-failed` is emitted and the ladder falls through to step 3.
-3. **Hard truncate** (`hardTruncate`) — last resort when the head is empty, the per-run compaction
+   - On failure `compaction-failed` is emitted and the ladder falls through to step 2.
+2. **Hard truncate** (`hardTruncate`) — last resort when the head is empty, the per-run compaction
    budget (`MAX_COMPACT_PER_RUN = 2`) is spent, or the summary call failed: clear every tool output,
    then drop the oldest turns, always keeping the final turn even if it alone exceeds the target.
 

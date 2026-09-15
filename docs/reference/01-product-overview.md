@@ -55,7 +55,7 @@ straight to the code.
 | Sessions | Create / switch / rename / delete per agent; auto-titled from the first user message; transcript persisted | `agent/session.ts` |
 | Undo / redo | Per-turn file snapshots; undo restores files *and* truncates the transcript; redo re-applies both | `agent/snapshot.ts`, `MeowAgentManager.undo/redo` |
 | Message queue & steering | Messages sent while a turn runs are queued (max 5) and injected at the next step boundary, resetting the step budget | `MeowAgentManager.enqueueMessage`, `loop.ts` `takeSteers` |
-| Context compaction | Auto prune of old tool outputs, then LLM summarization of the head with a verbatim tail; hard truncation as a last resort; also runs while idle | `agent/compact.ts` |
+| Context compaction | When the context limit is approached, LLM summarization of the older head with a verbatim tail; hard truncation as a last resort; also runs while idle | `agent/compact.ts` |
 | Cost & token accounting | Per-message tokens, per-session cost, per-model aggregate, cache-read/write aware | `agent/usage.ts`, `agent/token.ts`, `Channels.StatsGet` |
 | Subagents | `task` tool spawns an isolated agent with its own context, narrowed permissions, optional dedicated model, resumable sessions, and background execution | `agent/tools/task.ts`, `agent/subagent-roles.ts` |
 | Slash commands | Built-ins `/init`, `/review`, `/new`, `/frontend-design`, 14 Superpowers commands; user commands in `commands.json`; project commands in `.meow/commands/*.md` | `agent/commands.ts` |
@@ -108,7 +108,7 @@ straight to the code.
 | **Turn** | One user message and everything the agent does in response, until `done` or `error`. |
 | **Step** | One LLM request inside a turn. A turn runs many steps; `maxSteps` bounds an uninterrupted run. |
 | **Steering** | Injecting queued user messages at a step boundary of a running turn (rather than waiting for it to finish). Resets the step budget. |
-| **Compaction** | Shrinking the transcript so it fits the model's context window: prune old tool outputs → LLM-summarize the head, keep the recent tail verbatim → hard-truncate as a last resort. |
+| **Compaction** | Shrinking the transcript so it fits the model's context window: LLM-summarize the head, keep the recent tail verbatim → hard-truncate as a last resort. |
 | **Variant** | A provider-specific option bundle for a model, typically reasoning effort (`low`/`medium`/`high`/`xhigh`). |
 | **Mode** | `build` (default, full tools) or `plan` (read-only: writes denied, write-shaped bash denied). |
 | **Subagent / task** | An isolated agent run spawned by the `task` tool with its own context and a *narrowed* copy of the parent's permissions. Cannot nest. |
