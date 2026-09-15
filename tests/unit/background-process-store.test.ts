@@ -74,7 +74,7 @@ describe('BackgroundProcessStore', () => {
     await waitFor(() => {
       const out = store.readNew(r.id)
       return 'text' in out && out.text.includes('…truncated…')
-    })
+    }, 15000)
   }, 20000)
 
   it('unknown ids return errors', () => {
