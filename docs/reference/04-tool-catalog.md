@@ -68,6 +68,7 @@ in Settings → Permissions.
 | `bash` | **ask** | Run a shell command |
 | `bash_output` | (unset → ask) | Read stdout/stderr from a background shell |
 | `kill_shell` | (unset → ask) | Stop a background shell process tree |
+| `monitor` | allow | Watch a background shell and get woken on match/exit/timeout |
 | `office` | **ask** | Run OfficeCLI on `.docx`/`.xlsx`/`.pptx` |
 | `git` | (unset → ask) | Run a git command |
 | `webfetch` | (unset → ask) | Fetch a URL as markdown |
@@ -151,6 +152,18 @@ Reads new stdout/stderr produced by a background shell (started with `bash run_i
 `{ id: string }`
 
 Stops a background shell process, killing its entire process tree via `tree-kill`.
+
+### `monitor`
+
+`{ id: string, until_regex?: string, until_exit?: boolean | number, timeout_s?: number }`
+
+Watches a background shell (started with `bash run_in_background`) and returns immediately with
+`background: true`. The agent is woken when a condition is met: a new output line matches
+`until_regex`, the shell exits (`until_exit`), or `timeout_s` seconds elapse — whichever comes
+first. At least one of `until_regex`/`until_exit` is required. On resolve, an assistant message is
+appended to the session, a notification is sent, and the idle agent is woken. Monitors observe the
+store via `data`/`exit` events — never `bash_output` — so they do not consume the agent's read
+offset. Max 10 monitors per agent.
 
 ### `git`
 

@@ -170,6 +170,8 @@ Notable details:
 | `onFileRead(filePath)` | Returns a `<system-reminder>` block with nearby `AGENTS.md`/`CLAUDE.md` content, deduped across the session |
 | `onArtifact(entry)` | Records a created/edited file for the Artifacts panel |
 | `backgroundProcs` | Store for long-lived background shell processes (`bash run_in_background` / `bash_output` / `kill_shell`) |
+| `monitors` | Store for async watches over background shells (`monitor` tool); absent for subagents |
+| `monitors` | Store for async watches over background shells (`monitor` tool); absent for subagents |
 
 4. `await def.run(input, ctx)` → `{ output?, error? }`; thrown errors become `call.error` formatted by `formatToolError` (Error.message / string / JSON, never `[object Object]`).
 5. Append the tool item to the transcript and emit `tool-result`.
