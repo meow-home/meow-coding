@@ -15,6 +15,10 @@ handlers and the app lifecycle.
   Tracks draft session model preferences (`DRAFT_SESSION_ID`) and resolves default models for unmaterialized sessions;
   `suggestFiles` for a draft session (`DRAFT_SESSION_ID`) falls back to the active project path, so `@`-file
   completion works before the session exists.
+  Bridges background shells to the renderer for the Processes overlay: owns a `procSubscriptions` set and, on
+  construction, forwards a shell's `data`/`exit` only while it is subscribed (`backgroundProcsList(agentId)`,
+  `monitorsList(agentId)`, `killBackgroundProc(id)`, `subscribeBackgroundProc(id)` returning backlog+status,
+  `unsubscribeBackgroundProc(id)`), via the `onBackgroundProcData`/`onBackgroundProcExit` deps; cleared on dispose.
   In-flight permission/question prompts are stored (with their content) so a remounted chat panel can restore
   them via `getPendingPrompt` instead of leaving the agent waiting forever. Emits `onPromptStateChange`
   (agent started/stopped waiting on input) and exposes `listPendingPrompts()` for the sidebar "needs input"

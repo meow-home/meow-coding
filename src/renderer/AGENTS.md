@@ -10,7 +10,11 @@ React renderer (no direct Node/Electron access).
 - `src/App.tsx` — state hub: workspaces, the mounted `WorkspaceRuntime` per kept-alive
   project; defines `PaneModel` (agent + state + git) for each pane; owns the active session per
   project path (`activeSessionByPath`, persisted to localStorage `meow.activeSessionByPath`) so
-  switching workspaces restores the previously active session. On startup, if no workspace path is
+  switching workspaces restores the previously active session. It also owns the Processes overlay
+  state (`processesOpenFor` agent id — closed by default, closed on project switch; `processesFull`;
+  `processesWidth`, persisted to localStorage `meow.processes.width`), mirroring Files, and wires
+  `onOpenProcesses(agentId)` from the pane `⋮` menu through `WorkspaceView` → `SessionPanes` → `Pane`
+  → `PaneHeader`. On startup, if no workspace path is
   active and workspaces exist, automatically opens the first workspace with a draft session (`DRAFT_SESSION_ID`).
   Also tracks `needsInput`
   (project path → agent ids waiting on a permission/question prompt, for the sidebar
@@ -22,6 +26,7 @@ React renderer (no direct Node/Electron access).
   `StatusBar`, `TitleBar`, `BackgroundPanel`, `UpdateDialog`,
   `BrowserDialog`, `InstallGuideDialog`, `files/` (the Files panel:
   `FilesOverlay`, `FilesTree`, `file-path`, `tree-filter`),
+  `processes/` (the Processes overlay: `ProcessesOverlay`),
   `file-content/FileContentView`, `chat/`, `settings/`.
 - `src/styles.css` — VSCode Dark+ palette (default) with a Light+ variant activated via
   `[data-theme="light"]` on `<html>`. All colors use CSS variables so theme switching is a single

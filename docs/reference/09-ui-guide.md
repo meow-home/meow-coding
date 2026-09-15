@@ -54,6 +54,20 @@ with the chat surface (`--bg-chat`), not body's radial gradient, so the panel is
 The previous `RightPanel` (directory tree + artifacts) is parked in the source — its components, CSS, state and
 the artifact store/IPC remain, but nothing renders it.
 
+### Processes overlay
+
+A pane's `⋮` menu offers **Processes**, which opens a per-session overlay for that pane's agent, mirroring the
+Files overlay's docking: docked on the right of the pane area with a drag-to-resize left edge (320–900px,
+default 420px, persisted in `localStorage` as `meow.processes.width`), `⤢` expands it over the whole pane area,
+`Esc`/`✕` closes it, and switching projects closes it. It lists the agent's **background shells** (`bash
+run_in_background`) and **monitors** on the left — each shell row shows a status dot, the command, its exit code
+when exited, and a **Kill** button for running shells; each monitor row shows the target shell id and the `until`
+condition summary. Selecting a shell streams its output live in the right column (the store's buffer plus
+`data`/`exit` events, never consuming the agent's `bash_output` read offset). The lists poll
+`backgroundProcsList`/`monitorsList` every ~1.5s while open; output streaming is subscription-based
+(`backgroundProcSubscribe`/`unsubscribe` + `onBackgroundProcData`/`onBackgroundProcExit`) and only shells the
+panel is watching are forwarded to the renderer.
+
 ## 9.3 `App.tsx` — the state hub
 
 Owns: workspaces, the mounted `WorkspaceRuntime`s (one per kept-alive project),
@@ -73,7 +87,16 @@ stale value.
 Event subscriptions set up in `App`: `onAgentState`, `onGitStatus`,
 `onAgentBackground`, `onAgentConfig`, `onBrowserStatus`, `onBrowserOpenInstallGuide`,
 `onUpdaterStatus`, `onArtifactsChanged`. Every one returns an unsubscribe function
-that must be called in the effect cleanup.
+that must be called in the effect cleanup. (The Processes overlay subscribes to
+`onBackgroundProcData`/`onBackgroundProcExit` itself, per selected shell, so the app hub does not.)
+
+## 9.3.1 `App.tsx` — the Processes overlay state
+
+Mirrors the Files overlay but keyed by **agent id** (from the pane's `⋮` menu), not project
+path: `processesOpenFor` (agentId — closed by default, closed on project switch),
+`processesFull` (docked by default) and `processesWidth` (docked width, persisted in
+`localStorage`). Render `<ProcessesOverlay>` as a sibling of the panes next to the Files
+overlay.
 
 Update-dialog policy: `update-available` and `downloaded` open the dialog; `error` and
 `not-supported` close it; `up-to-date` only opens a dialog when the check was **manual**
@@ -91,7 +114,7 @@ Update-dialog policy: `update-available` and `downloaded` open the dialog; `erro
 | `StatusBar.tsx` | Workspace name, git branch, running count, app version |
 | `SessionPanes.tsx` | Session layout of one project: **every session stays mounted** (inactive ones carry the `hidden` attribute, hidden by CSS and never unmounted) so a session that is not showing keeps streaming/answering. The active session is **controlled** by `App` (`activeId` + `onActiveChange`, remembered per project path so switching workspaces restores the session that was showing); it reports the first session when the stored id no longer exists |
 | `Pane.tsx` | One session: header + `ChatPanel`; background badge mode |
-| `PaneHeader.tsx` | Status dot (which carries the status as its accessible name — `role="img"` + the status label, with any exit code folded in), the session name, and the menu (inject / log / stop / restart / background / Files / delete — inject/log/stop/restart exist only on the parked PTY path; a native session's lifecycle lives in its sidebar row; Files is the entry point of the overlay above). The `...` button is the shared `.icon-btn`. No status word (the dot already shows it) and no git readout (the status bar owns branch + dirty count) |
+| `PaneHeader.tsx` | Status dot (which carries the status as its accessible name — `role="img"` + the status label, with any exit code folded in), the session name, and the menu (inject / log / stop / restart / background / Files / Processes / delete — inject/log/stop/restart exist only on the parked PTY path; a native session's lifecycle lives in its sidebar row; Files opens the Files overlay, Processes opens the Processes overlay). The `...` button is the shared `.icon-btn`. No status word (the dot already shows it) and no git readout (the status bar owns branch + dirty count) |
 | `EmptyState.tsx` | No-pane hint (differs for "no workspace" vs "workspace open") |
 | `BackgroundPanel.tsx` | Background agents; open/stop |
 | `RightPanel.tsx` | Resizable panel with a fixed header; **both tabs stay mounted** for instant switching (**parked** — nothing renders it since the Files panel took its slot) |
@@ -101,6 +124,7 @@ Update-dialog policy: `update-available` and `downloaded` open the dialog; `erro
 | `file-content/FileContentView.tsx` | Toolbar (Raw/Highlighted toggle, Open in VS Code, Copy) + body of a file (Shiki-highlighted code, rendered markdown, or plain `<pre>`), shared by the popup window and the Files overlay tab |
 | `files/FilesOverlay.tsx` | The Files panel: header (focus filter, `⋮` menu, maximize/restore, close), tree side, open-file tabs and the active tab's `FileContentView`; docked on the right with a drag-to-resize left edge, or expanded over the pane area (same mounted instance, so tabs/tree survive the toggle). Both modes are elevated by `--shadow-panel`, whose blur is tuned to fade out inside the panel's 0.333333rem offset from `.main` (expanded mode layers it on top of the `--bg-chat` backdrop ring that hides the pane chrome) |
 | `files/FilesTree.tsx` | Lazily loaded tree of the overlay; lists dotfiles and `node_modules`; `?`-prefixed filter searches file contents and lists `path:line` hits; refreshes on context changes |
+| `processes/ProcessesOverlay.tsx` | The Processes overlay (`ProcessesOverlay` default export + `PROCESSES_MIN_WIDTH`/`MAX`/`DEFAULT`): per-agent background shells + monitors list on the left (Kill button on running shells), live streamed output of the selected shell on the right; reuses the Files overlay's `.files-overlay` layout and CSS variables with `processes-*` classes |
 | `files/file-path.ts` | `baseName` / `joinProjectPath` — renderer-side path helpers (the renderer must not import `node:path`) |
 | `files/tree-filter.ts` | `filterTree` — name filter over already-loaded directories, keeping the ancestor chain of every match |
 | `FileContextMenu.tsx` | Context menu for tree/artifact entries and the Files overlay (Copy path when `showCopyPath`) |

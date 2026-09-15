@@ -57,6 +57,11 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `FilesImage` | `files:image` | `getFileImage(path): ImageContentResult` — reads raster image files (max 10MB) as base64 data URLs for image preview |
 | `FilesOpenSystem` | `files:open-system` | `openFileWithSystem(path)` — opens a file with the OS default application; rejected unless `path` is inside a registered project |
 | `FilesSuggest` | `files:suggest` | `suggestFiles(agentId, prefix): FileSuggestion[]` — cwd comes from the session's agent; for a draft session (`DRAFT_SESSION_ID`, no backend agent yet) it falls back to the active project path |
+| `BackgroundProcsList` | `procs:list` | `backgroundProcsList(agentId): BackgroundProcInfo[]` — running + exited background shells for the agent, for the Processes overlay |
+| `MonitorsList` | `procs:monitors` | `monitorsList(agentId): MonitorInfo[]` — active monitors (`until` is a human summary, e.g. `/READY/ or exit or 30s`) |
+| `BackgroundProcKill` | `procs:kill` | `backgroundProcKill(id)` — kills a background shell |
+| `BackgroundProcSubscribe` | `procs:subscribe` | `backgroundProcSubscribe(id): { backlog, status, exitCode } \| null` — returns the shell's current buffer and starts forwarding its `data`/`exit` events to the renderer |
+| `BackgroundProcUnsubscribe` | `procs:unsubscribe` | `backgroundProcUnsubscribe(id)` — stops forwarding events for the shell |
 | `ArtifactsList` | `artifacts:list` | `listArtifacts(projectPath): ArtifactEntry[]` |
 | `ArtifactsClear` | `artifacts:clear` | `clearArtifacts(projectPath)` |
 
@@ -176,6 +181,8 @@ captured in preload).
 | `EventAgentState` | `agent:state` | `AgentStateEvent { agentId, state }` | `onAgentState` |
 | `EventAgentConfig` | `agent:config-changed` | `AgentConfigEvent { agentId, config }` | `onAgentConfig` |
 | `EventAgentBackground` | `agent:background` | `{ agentId, background }` | `onAgentBackground` |
+| `EventBackgroundProcData` | `procs:data` | `{ id, chunk }` — forwarded only for subscribed shells | `onBackgroundProcData` |
+| `EventBackgroundProcExit` | `procs:exit` | `{ id, exitCode }` — forwarded only for subscribed shells | `onBackgroundProcExit` |
 | `EventGitStatus` | `git:status` | `GitStatusEvent { projectPath, git }` | `onGitStatus` |
 | `EventContextChanged` | `context:changed` | `ContextChangedEvent { projectPath, files }` | `onContextChanged` |
 | `EventChat` | `chat:event` | `ChatEvent` | `onChatEvent` |
