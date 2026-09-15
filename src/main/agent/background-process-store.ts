@@ -113,10 +113,16 @@ export class BackgroundProcessStore extends EventEmitter {
   private appendOutput(entry: Entry, text: string): void {
     this.emit('data', { id: entry.id, chunk: text })
     entry.buffer += text
+    const marker = '[…truncated…]\n'
+    // The marker is anchored at the oldest position, so a plain front `slice`
+    // would evict it on the very next chunk, leaving only the read/timing race
+    // to observe it. Reserve its bytes and re-anchor it after each front trim.
+    const markerBytes = entry.truncatedMarked ? marker.length : 0
     let dropped = 0
-    if (entry.buffer.length > this.maxBytes) {
-      const d = entry.buffer.length - this.maxBytes
-      entry.buffer = entry.buffer.slice(d)
+    if (entry.buffer.length - markerBytes > this.maxBytes) {
+      const d = entry.buffer.length - markerBytes - this.maxBytes
+      entry.buffer = entry.buffer.slice(markerBytes + d)
+      if (entry.truncatedMarked) entry.buffer = marker + entry.buffer
       dropped += d
     }
     const lines = entry.buffer.split('\n')
@@ -127,7 +133,7 @@ export class BackgroundProcessStore extends EventEmitter {
     }
     if (dropped > 0) {
       if (!entry.truncatedMarked) {
-        entry.buffer = '[…truncated…]\n' + entry.buffer
+        entry.buffer = marker + entry.buffer
         entry.truncatedMarked = true
         entry.readOffset = 0
       } else {
