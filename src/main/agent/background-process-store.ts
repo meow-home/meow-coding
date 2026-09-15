@@ -120,9 +120,11 @@ export class BackgroundProcessStore {
       try { re = new RegExp(filter) } catch { return { error: 'bash_output: invalid filter regex' } }
       text = text.split('\n').filter(l => re.test(l)).join('\n')
     }
-    const out = { text, status: entry.status, exitCode: entry.exitCode }
-    if (entry.status === 'exited') this.entries.delete(id)
-    return out
+    // Do not delete an exited entry on read: bash_output may be called more
+    // than once (the agent re-checks after the exit notice), and a second read
+    // should return "no new output, exited" rather than "unknown id". The TTL
+    // timer scheduled on exit is the sole reaper, so the buffer still can't leak.
+    return { text, status: entry.status, exitCode: entry.exitCode }
   }
 
   kill(id: string): { killed: boolean } | { error: string } {

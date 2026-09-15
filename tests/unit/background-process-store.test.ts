@@ -80,4 +80,19 @@ describe('BackgroundProcessStore', () => {
     expect('error' in store.readNew('nope')).toBe(true)
     expect('error' in store.kill('nope')).toBe(true)
   })
+
+  it('stays readable across repeated reads after exit (not deleted on first read)', async () => {
+    const { store, exits } = makeStore()
+    const r = store.start('a1', 'echo BG_DONE', dir) as { id: string }
+    await waitFor(() => exits.some(e => e.id === r.id))
+    const first = store.readNew(r.id)
+    expect('error' in first).toBe(false)
+    expect('status' in first && first.status).toBe('exited')
+    // A second read must not fail with "unknown id"; it returns no new text
+    // but still reports the exited status until the TTL sweep removes it.
+    const second = store.readNew(r.id)
+    expect('error' in second).toBe(false)
+    expect('text' in second && second.text).toBe('')
+    expect('status' in second && second.status).toBe('exited')
+  }, 20000)
 })
