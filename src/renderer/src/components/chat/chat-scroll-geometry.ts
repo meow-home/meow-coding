@@ -75,3 +75,22 @@ export function nextChatScrollMode(mode: ChatScrollMode, event: ChatScrollEvent)
   if (event === 'user-away') return 'manual'
   return mode
 }
+
+export type ChatScrollAction = 'none' | 'follow' | 'detach'
+
+// What a `scroll` event means for follow mode. A scroll event is NOT a reliable
+// user-intent signal: the browser also fires them when the DOM grows (streamed
+// deltas, content-visibility rows resolving their height, the session-load pin's
+// per-frame writes) and scrollTop lags the new scrollHeight. Only a real gesture
+// may detach — wheel, touch and keyboard detach in their own handlers, and a
+// scrollbar drag is recognised here through the flag onPointerDown sets.
+export function scrollEventAction(input: {
+  programmatic: boolean
+  scrollbarDrag: boolean
+  atTrueBottom: boolean
+}): ChatScrollAction {
+  if (input.programmatic) return 'none'
+  if (input.atTrueBottom) return 'follow'
+  if (input.scrollbarDrag) return 'detach'
+  return 'none'
+}

@@ -8,6 +8,7 @@ import {
   isAtTrueBottom,
   isInBottomFollowZone,
   nextChatScrollMode,
+  scrollEventAction,
   tailSpacerHeight
 } from '../../src/renderer/src/components/chat/chat-scroll-geometry'
 
@@ -63,5 +64,24 @@ describe('chat scroll geometry', () => {
     expect(nextChatScrollMode('manual', 'user-bottom')).toBe('following')
     expect(nextChatScrollMode('manual', 'jump-end')).toBe('following')
     expect(nextChatScrollMode('manual', 'session-load')).toBe('following')
+  })
+
+  it('only detaches follow mode on a real scroll gesture', () => {
+    // The browser fires scroll events while the DOM itself grows (streamed
+    // deltas, content-visibility rows resolving their height). A scroll event
+    // off the bottom with no gesture must change nothing, or the feed detaches
+    // on its own.
+    expect(scrollEventAction({ programmatic: false, scrollbarDrag: false, atTrueBottom: false })).toBe('none')
+    // A programmatic write (session-load pin, reconcile, jump-to-end) is never
+    // user intent, whatever the position says.
+    expect(scrollEventAction({ programmatic: true, scrollbarDrag: false, atTrueBottom: false })).toBe('none')
+    expect(scrollEventAction({ programmatic: true, scrollbarDrag: true, atTrueBottom: false })).toBe('none')
+    expect(scrollEventAction({ programmatic: true, scrollbarDrag: true, atTrueBottom: true })).toBe('none')
+    // A scrollbar drag is the one gesture with no wheel/touch/key handler, so it
+    // is recognised here.
+    expect(scrollEventAction({ programmatic: false, scrollbarDrag: true, atTrueBottom: false })).toBe('detach')
+    // Reaching the literal bottom always re-engages following, and outranks a drag.
+    expect(scrollEventAction({ programmatic: false, scrollbarDrag: false, atTrueBottom: true })).toBe('follow')
+    expect(scrollEventAction({ programmatic: false, scrollbarDrag: true, atTrueBottom: true })).toBe('follow')
   })
 })
