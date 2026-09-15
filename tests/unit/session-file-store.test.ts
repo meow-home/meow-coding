@@ -1,6 +1,7 @@
 // tests/unit/session-file-store.test.ts
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync as read } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { SessionFileStore } from '../../src/main/agent/session-file-store'
@@ -42,5 +43,48 @@ describe('SessionFileStore reads', () => {
     expect(s?.items).toHaveLength(1)
     expect(s?.title).toBe('T-s1')
     expect(store.get('missing')).toBeNull()
+  })
+})
+
+describe('SessionFileStore writes', () => {
+  let root: string
+  beforeEach(() => { root = mkdtempSync(path.join(tmpdir(), 'meow-fsw-')) })
+  afterEach(() => rmSync(root, { recursive: true, force: true }))
+
+  it('create writes a meta line and indexes the session', () => {
+    const store = new SessionFileStore(root)
+    const s = session('s1', 'a1')
+    s.items = []
+    store.create(s)
+    expect(store.list().map(e => e.id)).toEqual(['s1'])
+    const file = path.join(root, 'projects', encodeProjectPath('/p'), 's1.jsonl')
+    const first = read(file, 'utf-8').split('\n')[0]
+    expect(JSON.parse(first).type).toBe('meta')
+  })
+
+  it('append adds one line per record without rewriting earlier lines', () => {
+    const store = new SessionFileStore(root)
+    const s = session('s1', 'a1'); s.items = []
+    store.create(s)
+    const file = path.join(root, 'projects', encodeProjectPath('/p'), 's1.jsonl')
+    const before = read(file, 'utf-8')
+    store.append('s1', [{ type: 'message', uuid: randomUUID(), parentUuid: null, ts: 5, message: { id: 'm1', role: 'user', text: 'hi', createdAt: 5 } }])
+    const after = read(file, 'utf-8')
+    expect(after.startsWith(before)).toBe(true)      // earlier bytes untouched
+    expect(after.trimEnd().split('\n')).toHaveLength(before.trimEnd().split('\n').length + 1)
+  })
+
+  it('rewrite replaces the file and reindexes; remove deletes it', () => {
+    const store = new SessionFileStore(root)
+    const s = session('s1', 'a1')
+    store.create(s)
+    const s2 = { ...s, items: [], title: 'Empty' }
+    store.rewrite(s2)
+    store['cache'].delete('s1')                       // force re-read from disk
+    expect(store.get('s1')?.items).toHaveLength(0)
+    expect(store.list().find(e => e.id === 's1')?.title).toBe('Empty')
+    store.remove('s1')
+    expect(store.get('s1')).toBeNull()
+    expect(store.list()).toEqual([])
   })
 })

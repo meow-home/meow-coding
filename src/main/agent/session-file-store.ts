@@ -1,5 +1,5 @@
 // src/main/agent/session-file-store.ts
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, appendFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import type { UsageSummary } from '../../shared/types'
 import type { StoredSession } from './session'
@@ -99,6 +99,42 @@ export class SessionFileStore {
   }
 
   // Write methods (create/append/rewrite/remove/reindex) added in Task 5.
+
+  create(session: StoredSession): void {
+    writeFileAtomic(this.fileFor(session), serializeSessionJsonl(session))
+    this.cache.set(session.id, session)
+    this.reindex(session)
+  }
+
+  append(id: string, records: SessionRecord[]): void {
+    const entry = this.loadIndex().get(id)
+    if (!entry) return
+    const text = records.map(r => JSON.stringify(r)).join('\n') + '\n'
+    mkdirSync(path.dirname(this.fileFor(entry)), { recursive: true })
+    appendFileSync(this.fileFor(entry), text)
+  }
+
+  rewrite(session: StoredSession): void {
+    writeFileAtomic(this.fileFor(session), serializeSessionJsonl(session))
+    this.cache.set(session.id, session)
+    this.reindex(session)
+  }
+
+  reindex(session: StoredSession): void {
+    this.loadIndex().set(session.id, summaryOf(session))
+    this.scheduleIndexWrite()
+  }
+
+  remove(id: string): void {
+    const index = this.loadIndex()
+    const entry = index.get(id)
+    if (entry) {
+      try { rmSync(this.fileFor(entry), { force: true }) } catch { /* best effort */ }
+    }
+    index.delete(id)
+    this.cache.delete(id)
+    this.scheduleIndexWrite()
+  }
 
   private scheduleIndexWrite(): void {
     if (this.debounceMs <= 0) { this.writeIndex(); return }
