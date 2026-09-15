@@ -35,7 +35,7 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 
 | Key | Channel | Method |
 |---|---|---|
-| `WorkspaceList` | `workspace:list` | `listWorkspaces(): WorkspaceSummary[]` |
+| `WorkspaceList` | `workspace:list` | `listWorkspaces(): WorkspaceSummary[]` — lists project sessions newest-first |
 | `WorkspaceAdd` | `workspace:add` | `addWorkspace(projectPath, name): WorkspaceRuntime \| null` — auto-creates a native `meow` agent when the workspace has none |
 | `WorkspaceRemove` | `workspace:remove` | `removeWorkspace(projectPath)` — removes agents, kills PTYs, clears state/alerts/logs |
 | `WorkspaceOpen` | `workspace:open` | `openWorkspace(projectPath): WorkspaceRuntime` |

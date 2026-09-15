@@ -23,7 +23,7 @@ handlers and the app lifecycle.
 - `pty-manager.ts` — node-pty wrapper, emits `data`/`exit` events. `buildSpawnCommand` wraps non-`.exe`
   commands through `cmd.exe` on Windows (ConPTY cannot spawn `.cmd` shims directly). Uses `tree-kill`
   to kill the entire process tree on stop.
-- `workspace-store.ts` — CRUD on `JsonStore<T>` (`userData/workspaces.json`).
+- `workspace-store.ts` — CRUD on `JsonStore<T>` (`userData/workspaces.json`); `list()` returns session summaries newest-first.
 - `fresh-start.ts` — one-time **destructive** v0.37 model switch: `resetToSingleSession` replaces every
   project's agents with a single fresh native session and deletes `userData/sessions.json`. Runs once,
   guarded by the flag file `userData/.sessions-model-reset` (written only after the reset succeeds). The
