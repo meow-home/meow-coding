@@ -13,6 +13,7 @@ import StatusBar from './components/StatusBar'
 import TitleBar from './components/TitleBar'
 import FilesOverlay, { FILES_DEFAULT_WIDTH, FILES_MAX_WIDTH, FILES_MIN_WIDTH } from './components/files/FilesOverlay'
 import ProcessesOverlay, { PROCESSES_DEFAULT_WIDTH, PROCESSES_MAX_WIDTH, PROCESSES_MIN_WIDTH } from './components/processes/ProcessesOverlay'
+import SubagentOverlay, { type SubagentOverlayItem } from './components/chat/SubagentOverlay'
 import SettingsDialog, { type TabId } from './components/settings/SettingsDialog'
 import BrowserDialog from './components/BrowserDialog'
 import InstallGuideDialog from './components/InstallGuideDialog'
@@ -33,7 +34,7 @@ export const MAX_KEEP_ALIVE = 5
 // `.workspace-hidden`; the app toggles which one is visible by swapping the
 // `workspace-active` wrapper, so hidden ChatPanels keep streaming events.
 function WorkspaceView({
-  runtime, backgrounds, activeSessionByPath, onActiveChange, onRemovePane, onSendDraftMessage, onOpenFiles, onOpenProcesses
+  runtime, backgrounds, activeSessionByPath, onActiveChange, onRemovePane, onSendDraftMessage, onOpenFiles, onOpenProcesses, onOpenSubagent
 }: {
   runtime: WorkspaceRuntime
   backgrounds: Record<string, boolean>
@@ -43,6 +44,7 @@ function WorkspaceView({
   onSendDraftMessage: (path: string, text: string, images?: ImageAttachment[]) => void
   onOpenFiles: (id: string) => void
   onOpenProcesses: (id: string) => void
+  onOpenSubagent: (item: SubagentOverlayItem) => void
 }) {
   const draftPane: PaneModel = useMemo(() => ({
     agent: {
@@ -94,6 +96,7 @@ function WorkspaceView({
         onSendDraftMessage={textAndImages => onSendDraftMessage(runtime.workspace.projectPath, textAndImages.text, textAndImages.images)}
         onOpenFiles={() => onOpenFiles(runtime.workspace.projectPath)}
         onOpenProcesses={onOpenProcesses}
+        onOpenSubagent={onOpenSubagent}
       />
       <BackgroundPanel
         panes={panes.filter(p => p.agent.id !== DRAFT_SESSION_ID)}
@@ -182,6 +185,50 @@ export default function App() {
     return Number.isFinite(w) && w >= PROCESSES_MIN_WIDTH && w <= PROCESSES_MAX_WIDTH ? w : PROCESSES_DEFAULT_WIDTH
   })
   useEffect(() => { localStorage.setItem('meow.processes.width', String(processesWidth)) }, [processesWidth])
+
+  const [openSubagents, setOpenSubagents] = useState<SubagentOverlayItem[]>([])
+  const [subagentFullTaskId, setSubagentFullTaskId] = useState<string | null>(null)
+  const [rightPanelsWidth, setRightPanelsWidth] = useState(() => {
+    const w = Number(localStorage.getItem('meow.rightPanels.width'))
+    return Number.isFinite(w) && w >= 320 && w <= 1600 ? w : 420
+  })
+  useEffect(() => { localStorage.setItem('meow.rightPanels.width', String(rightPanelsWidth)) }, [rightPanelsWidth])
+
+  const handleOpenSubagent = useCallback((item: SubagentOverlayItem) => {
+    setOpenSubagents(prev => {
+      const idx = prev.findIndex(i => i.taskId === item.taskId)
+      if (idx >= 0) {
+        const arr = [...prev]
+        arr[idx] = { ...arr[idx], ...item }
+        return arr
+      }
+      return [...prev, item]
+    })
+  }, [])
+
+  const handleCloseSubagent = useCallback((taskId: string) => {
+    setOpenSubagents(prev => prev.filter(i => i.taskId !== taskId))
+    setSubagentFullTaskId(prev => (prev === taskId ? null : prev))
+  }, [])
+
+  const rightPanelsDragRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  const startRightPanelsDrag = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    rightPanelsDragRef.current = { startX: e.clientX, startWidth: rightPanelsWidth }
+    const onMove = (ev: MouseEvent) => {
+      if (!rightPanelsDragRef.current) return
+      const delta = rightPanelsDragRef.current.startX - ev.clientX
+      const next = Math.min(1600, Math.max(320, rightPanelsDragRef.current.startWidth + delta))
+      setRightPanelsWidth(next)
+    }
+    const onUp = () => {
+      rightPanelsDragRef.current = null
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [rightPanelsWidth])
   // Project path -> agent ids currently waiting on a permission/question
   // prompt (needs user reply/approval). Drives the sidebar badges.
   const [needsInput, setNeedsInput] = useState<Record<string, string[]>>({})
@@ -462,6 +509,27 @@ export default function App() {
         runningAgentsRef.current.delete(e.agentId)
         evictIfNeeded()
       }
+      if (e.type === 'subagent-event') {
+        setOpenSubagents(prev => {
+          const idx = prev.findIndex(item => item.taskId === e.taskId)
+          if (idx < 0) return prev
+          const base = prev[idx]
+          const next = { ...base }
+          if (e.sub === 'delta' && e.text) next.text += e.text
+          if (e.sub === 'delta' && e.reasoning) next.reasoning = (next.reasoning ?? '') + e.reasoning
+          if (e.sub === 'tool' && e.tool && !next.tools.includes(e.tool)) next.tools = [...next.tools, e.tool]
+          if (e.sub === 'start' && e.subagentType) next.subagentType = e.subagentType
+          if (e.sub === 'start' && e.background) next.background = true
+          if (e.sub === 'done') {
+            next.state = e.state ?? 'completed'
+            if (e.result) next.result = e.result
+            if (e.state === 'error' && e.text) next.text = e.text
+          }
+          const arr = [...prev]
+          arr[idx] = next
+          return arr
+        })
+      }
     })
   }, [evictIfNeeded])
 
@@ -672,9 +740,9 @@ export default function App() {
             onReorder={handleReorderWorkspaces}
           />
         )}
-        <main className={filesOpenFor ? 'main files-open' : 'main'}>
-          {/* The Files panel is a sibling of the panes: docked on the right while
-              it keeps its tree/tab state, or expanded over the whole pane area. */}
+        <main className={((filesOpenFor ? 1 : 0) + (processesOpenFor ? 1 : 0) + openSubagents.length) > 0 ? 'main files-open' : 'main'}>
+          {/* The Files, Processes, and Subagent overlays are siblings of the panes,
+              docked on the right inside a unified grid container or expanded full-screen. */}
           <div className="main-panes">
             {activePath && runtimes[activePath] && (
               <div className="workspace-active">
@@ -687,6 +755,7 @@ export default function App() {
                   onSendDraftMessage={onSendDraftMessage}
                   onOpenFiles={projectPath => { setFilesFull(false); setFilesOpenFor(projectPath) }}
                   onOpenProcesses={agentId => { setProcessesFull(false); setProcessesOpenFor(agentId) }}
+                  onOpenSubagent={handleOpenSubagent}
                 />
               </div>
             )}
@@ -706,30 +775,60 @@ export default function App() {
                     onSendDraftMessage={onSendDraftMessage}
                     onOpenFiles={projectPath => { setFilesFull(false); setFilesOpenFor(projectPath) }}
                     onOpenProcesses={agentId => { setProcessesFull(false); setProcessesOpenFor(agentId) }}
+                    onOpenSubagent={handleOpenSubagent}
                   />
                 </div>
               ))}
           </div>
-          {filesOpenFor && (
-            <FilesOverlay
-              projectPath={filesOpenFor}
-              full={filesFull}
-              width={filesWidth}
-              onWidthChange={setFilesWidth}
-              onToggleFull={() => setFilesFull(v => !v)}
-              onClose={() => setFilesOpenFor(null)}
-            />
-          )}
-          {processesOpenFor && (
-            <ProcessesOverlay
-              agentId={processesOpenFor}
-              full={processesFull}
-              width={processesWidth}
-              onWidthChange={setProcessesWidth}
-              onToggleFull={() => setProcessesFull(v => !v)}
-              onClose={() => setProcessesOpenFor(null)}
-            />
-          )}
+          {(() => {
+            const totalCount = (filesOpenFor ? 1 : 0) + (processesOpenFor ? 1 : 0) + openSubagents.length
+            if (totalCount === 0) return null
+            const rows = Math.ceil(Math.sqrt(totalCount))
+            const cols = Math.ceil(totalCount / (rows || 1))
+            const containerWidth = Math.max(rightPanelsWidth, cols * 360)
+            return (
+              <div className="right-panels-container" style={{ width: containerWidth }}>
+                <div className="right-panels-resizer" onMouseDown={startRightPanelsDrag} title="Drag to resize panels" />
+                <div
+                  className="right-panels-grid"
+                  style={{
+                    gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                    gridTemplateRows: `repeat(${rows}, 1fr)`
+                  }}
+                >
+                  {filesOpenFor && (
+                    <FilesOverlay
+                      projectPath={filesOpenFor}
+                      full={filesFull}
+                      width={filesWidth}
+                      onWidthChange={setFilesWidth}
+                      onToggleFull={() => setFilesFull(v => !v)}
+                      onClose={() => setFilesOpenFor(null)}
+                    />
+                  )}
+                  {processesOpenFor && (
+                    <ProcessesOverlay
+                      agentId={processesOpenFor}
+                      full={processesFull}
+                      width={processesWidth}
+                      onWidthChange={setProcessesWidth}
+                      onToggleFull={() => setProcessesFull(v => !v)}
+                      onClose={() => setProcessesOpenFor(null)}
+                    />
+                  )}
+                  {openSubagents.map(subItem => (
+                    <SubagentOverlay
+                      key={subItem.taskId}
+                      item={subItem}
+                      full={subagentFullTaskId === subItem.taskId}
+                      onToggleFull={() => setSubagentFullTaskId(v => (v === subItem.taskId ? null : subItem.taskId))}
+                      onClose={() => handleCloseSubagent(subItem.taskId)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
         </main>
       </div>
       <StatusBar
