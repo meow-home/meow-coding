@@ -4271,3 +4271,43 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .git-resizer:active {
   background: var(--accent);
 }
+
+/* Processes overlay: reuses .files-overlay layout; only the inner list/output differ. */
+.processes-side { padding: 6px 0; overflow-y: auto; }
+.processes-group-title {
+  font: var(--font-display);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  padding: 8px 12px 4px;
+}
+.processes-empty { padding: 4px 12px 8px; color: var(--text-faint); font-size: 12px; }
+.processes-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.processes-row:hover { background: var(--menu-hover); }
+.processes-row.active { background: var(--menu-hover); }
+.processes-cmd { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono, monospace); }
+.processes-exit { color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.processes-until { color: var(--text-faint); font-family: var(--font-mono, monospace); }
+.processes-kill { color: var(--text-faint); }
+.processes-kill:hover { color: var(--red, #e5484d); }
+.processes-monitor { cursor: default; }
+.processes-main { display: flex; }
+.processes-output {
+  flex: 1;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+}
