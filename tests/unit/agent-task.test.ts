@@ -147,7 +147,17 @@ describe('task subagent roles', () => {
     const hooks = () => ({
       runPreToolUse: async () => ({}),
       runPostToolUse: async () => ({}),
-      runStop: async () => ({ block: false })
+      runStop: async () => ({ block: false }),
+      runUserPromptSubmit: async () => ({}),
+      runSessionStart: async () => ({}),
+      runSubagentStop: async () => ({ block: false }),
+      runPreCompact: async () => {},
+      runSessionEnd: async () => {},
+      runUserPromptSubmit: async () => ({}),
+      runSessionStart: async () => ({}),
+      runSubagentStop: async () => ({ block: false }),
+      runPreCompact: async () => {},
+      runSessionEnd: async () => {}
     })
     const tool = createTaskTool({
       llm: stubLlm([[{ kind: 'text', text: 'ok' }, { kind: 'finish' }]]),

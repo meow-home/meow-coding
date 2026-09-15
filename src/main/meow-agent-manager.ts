@@ -140,6 +140,10 @@ export class MeowAgentManager {
   private turnPromises = new Map<string, Promise<void>>()
   private onEvent: (e: ChatEvent) => void = () => {}
   private turnCounters = new Map<string, number>()
+  // Per-agent hooks factory (built in register) so lifecycle events can fire
+  // outside the tool loop; and which sessions have already fired SessionStart.
+  private agentHooks = new Map<string, () => HooksExecutor>()
+  private startedSessions = new Set<string>()
   private lastUsageByAgent = new Map<string, MessageTokens>()
   private compacting = new Set<string>()
   private lastCompactionAt = new Map<string, number>()
@@ -260,6 +264,9 @@ export class MeowAgentManager {
   }
 
   removeAgent(agentId: string): void {
+    void this.agentHooks.get(agentId)?.().runSessionEnd('delete')
+    this.startedSessions.delete(this.activeSessionId(agentId))
+    this.agentHooks.delete(agentId)
     this.registrationVersion.set(agentId, (this.registrationVersion.get(agentId) ?? 0) + 1)
     this.stop(agentId)
     this.runners.delete(agentId)
@@ -488,11 +495,52 @@ export class MeowAgentManager {
   private async runTurnInner(agentId: string, text: string, images?: ImageAttachment[], displayText?: string): Promise<void> {
     const agent = this.agents.get(agentId)
     if (!agent) return
+
+    let runner = this.runners.get(agentId)
+    if (!runner) {
+      await this.register(agent)
+      runner = this.runners.get(agentId)
+    }
+    if (!runner) return
+    // Sync contract: send()/drainQueue() expect the running slot to flip on
+    // the same call that starts the turn, so claim it here, before any await
+    // from the lifecycle hooks below.
+    this.running.add(agentId)
+
+    // UserPromptSubmit/SessionStart run at the moment a genuine prompt's turn
+    // begins. Lifecycle hooks are async, so they must run after the runner is
+    // captured and `running` is claimed, or a mid-turn mutation (setMode/register)
+    // would swap the runner the in-flight turn is about to use.
+    let injected = ''
+    const hooks = this.agentHooks.get(agentId)?.()
+    if (hooks) {
+      const sessionId = this.activeSessionId(agentId)
+      if (!this.startedSessions.has(sessionId)) {
+        this.startedSessions.add(sessionId)
+        const source = (this.deps.store.get(sessionId)?.items?.length ?? 0) > 0 ? 'resume' : 'startup'
+        const start = await hooks.runSessionStart(source)
+        if (start.additionalContext) injected += `${start.additionalContext}
+`
+      }
+      const ups = await hooks.runUserPromptSubmit(text)
+      if (ups.block) {
+        this.running.delete(agentId)
+        this.emit({ type: 'error', agentId, message: `[hook] prompt blocked${ups.reason ? `: ${ups.reason}` : ''}` })
+        return
+      }
+      if (ups.additionalContext) injected += `${ups.additionalContext}
+`
+    }
+    const finalText = injected ? `<system-reminder>
+${injected.trim()}
+</system-reminder>
+${text}` : text
+    const finalDisplay = injected ? (displayText ?? text) : displayText
     const message: ChatMessage = {
       id: randomUUID(),
       role: 'user',
-      text: referenceHints(agent.cwd, text),
-      displayText: displayText ?? text,
+      text: referenceHints(agent.cwd, finalText),
+      displayText: finalDisplay ?? finalText,
       images,
       createdAt: Date.now()
     }
@@ -501,6 +549,7 @@ export class MeowAgentManager {
     this.deps.onUserMessage?.(agentId, message)
     const config = this.resolved.get(agentId)
     if (!config?.apiKey) {
+      this.running.delete(agentId)
       this.emit({
         type: 'error',
         agentId,
@@ -510,15 +559,8 @@ export class MeowAgentManager {
       return
     }
 
-    let runner = this.runners.get(agentId)
-    if (!runner) {
-      await this.register(agent)
-      runner = this.runners.get(agentId)
-    }
-    if (!runner) return
     const controller = new AbortController()
     this.controllers.set(agentId, controller)
-    this.running.add(agentId)
     this.nextTurn(agentId)
     this.emit({ type: 'turn-started', agentId })
     this.redoStacks.delete(agentId)
@@ -1021,6 +1063,7 @@ export class MeowAgentManager {
 
   async dispose(): Promise<void> {
     if (this.idleCompactTimer) { clearInterval(this.idleCompactTimer); this.idleCompactTimer = null }
+    for (const factory of this.agentHooks.values()) void factory().runSessionEnd('exit')
     this.stopAll()
     this.monitors.cancelAll()
     this.pollMonitors.cancelAll()
@@ -1200,6 +1243,7 @@ export class MeowAgentManager {
         getModel: () => ({ llm: llmClient, model: resolved.model })
       }
     )
+    this.agentHooks.set(agent.id, hooks)
 
     const taskTool = createTaskTool({
       llm: llmClient,
