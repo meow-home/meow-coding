@@ -43,6 +43,24 @@ export class WorkspaceStore {
     this.store.save(this.store.load().filter(w => w.projectPath !== projectPath))
   }
 
+  reorder(projectPaths: string[]): WorkspaceSummary[] {
+    const all = this.store.load()
+    const map = new Map(all.map(w => [w.projectPath, w]))
+    const reordered: Workspace[] = []
+    for (const path of projectPaths) {
+      const ws = map.get(path)
+      if (ws) {
+        reordered.push(ws)
+        map.delete(path)
+      }
+    }
+    for (const ws of map.values()) {
+      reordered.push(ws)
+    }
+    this.store.save(reordered)
+    return this.list()
+  }
+
   addAgent(projectPath: string, input: NewAgentInput): Workspace {
     const all = this.store.load()
     const ws = all.find(w => w.projectPath === projectPath)

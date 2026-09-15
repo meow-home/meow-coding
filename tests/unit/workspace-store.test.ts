@@ -72,4 +72,13 @@ describe('WorkspaceStore', () => {
     store.updateAgent('/proj/a', agentId, { mode: 'plan' })
     expect(store.get('/proj/a')?.agents[0].mode).toBe('plan')
   })
+
+  it('reorders workspaces by path order', () => {
+    store.add('/proj/a', 'Project A')
+    store.add('/proj/b', 'Project B')
+    store.add('/proj/c', 'Project C')
+    const reordered = store.reorder(['/proj/c', '/proj/a', '/proj/b'])
+    expect(reordered.map(w => w.projectPath)).toEqual(['/proj/c', '/proj/a', '/proj/b'])
+    expect(store.list().map(w => w.projectPath)).toEqual(['/proj/c', '/proj/a', '/proj/b'])
+  })
 })

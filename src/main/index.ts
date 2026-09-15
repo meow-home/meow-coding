@@ -717,6 +717,10 @@ export function registerIpcHandlers(): void {
     mainApp.workspaces.remove(projectPath)
   })
 
+  ipcMain.handle(Channels.WorkspaceReorder, (_e, projectPaths: string[]) => {
+    return mainApp.workspaces.reorder(projectPaths)
+  })
+
   ipcMain.handle(Channels.WorkspaceOpen, (_e, projectPath: string) =>
     mainApp.openWorkspace(projectPath))
 

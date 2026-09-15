@@ -13,6 +13,7 @@ export const Channels = {
   WorkspaceList: 'workspace:list',
   WorkspaceAdd: 'workspace:add',
   WorkspaceRemove: 'workspace:remove',
+  WorkspaceReorder: 'workspace:reorder',
   WorkspaceOpen: 'workspace:open',
   WorkspaceActivate: 'workspace:activate',
   ProjectOpenFolder: 'project:open-folder',
@@ -177,6 +178,7 @@ export interface AgentApi {
   listWorkspaces(): Promise<WorkspaceSummary[]>
   addWorkspace(projectPath: string, name: string): Promise<WorkspaceRuntime | null>
   removeWorkspace(projectPath: string): Promise<void>
+  reorderWorkspaces(projectPaths: string[]): Promise<WorkspaceSummary[]>
   openWorkspace(projectPath: string): Promise<WorkspaceRuntime>
   // Lightweight re-activation of an already-open workspace: repoints main's
   // activeProject + git/file pollers, but does NOT re-register agents or
