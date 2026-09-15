@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   CHAT_BOTTOM_FOLLOW_ZONE,
+  CHAT_TRUE_BOTTOM_EPSILON,
   CHAT_TURN_TOP_INSET,
   anchorScrollTop,
   followScrollDelta,
+  isAtTrueBottom,
   isInBottomFollowZone,
   nextChatScrollMode,
   tailSpacerHeight
@@ -30,6 +32,17 @@ describe('chat scroll geometry', () => {
     expect(isInBottomFollowZone({ scrollHeight: 1000, scrollTop: 620, clientHeight: 300 })).toBe(true)
     expect(isInBottomFollowZone({ scrollHeight: 1000, scrollTop: 619, clientHeight: 300 })).toBe(false)
     expect(CHAT_BOTTOM_FOLLOW_ZONE).toBe(80)
+  })
+
+  it('resumes following only at the literal bottom, not the loose follow zone', () => {
+    // 80px above the real bottom is inside the follow zone but must NOT count as
+    // "true bottom": re-engaging there re-arms following on a streaming turn and
+    // snaps the viewport back down.
+    expect(isAtTrueBottom({ scrollHeight: 1000, scrollTop: 620, clientHeight: 300 })).toBe(false)
+    expect(isAtTrueBottom({ scrollHeight: 1000, scrollTop: 697, clientHeight: 300 })).toBe(false)
+    expect(isAtTrueBottom({ scrollHeight: 1000, scrollTop: 698, clientHeight: 300 })).toBe(true)
+    expect(isAtTrueBottom({ scrollHeight: 1000, scrollTop: 700, clientHeight: 300 })).toBe(true)
+    expect(CHAT_TRUE_BOTTOM_EPSILON).toBe(2)
   })
 
   it('shrinks turn tail space as rendered output grows', () => {

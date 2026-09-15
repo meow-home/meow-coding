@@ -1,6 +1,13 @@
 export const CHAT_TURN_TOP_INSET = 20
 export const CHAT_BOTTOM_FOLLOW_ZONE = 80
 export const CHAT_FOLLOW_BOTTOM_INSET = 14
+// After the user scrolls away (manual mode), following only resumes when the
+// feed reaches the real bottom again. The 80px follow zone is too loose to
+// re-engage on — a slight upward nudge from a long, still-streaming turn keeps
+// the scroller inside it, so re-engaging there makes every new delta snap the
+// viewport back down (up/down jitter). Re-engage must therefore require getting
+// to the actual bottom (within a couple of px).
+export const CHAT_TRUE_BOTTOM_EPSILON = 2
 // Frames the turn anchor keeps re-asserting itself after the row first lands on
 // the inset. Rows above it can still resolve their content-visibility height a
 // few frames later and push it down; a released anchor is never repaired, since
@@ -30,6 +37,14 @@ export function anchorScrollTop(input: {
 }): number {
   const target = input.currentScrollTop + input.rowTop - input.feedTop - CHAT_TURN_TOP_INSET
   return clamp(target, 0, Math.max(0, input.scrollHeight - input.clientHeight))
+}
+
+export function isAtTrueBottom(input: {
+  scrollHeight: number
+  scrollTop: number
+  clientHeight: number
+}): boolean {
+  return input.scrollHeight - input.scrollTop - input.clientHeight <= CHAT_TRUE_BOTTOM_EPSILON
 }
 
 export function isInBottomFollowZone(input: {

@@ -5,6 +5,7 @@ import {
   CHAT_TURN_TOP_INSET,
   anchorScrollTop,
   followScrollDelta,
+  isAtTrueBottom as isFeedAtTrueBottom,
   isInBottomFollowZone,
   nextChatScrollMode,
   tailSpacerHeight
@@ -78,6 +79,21 @@ export function useChatScroll(): ChatScrollController {
     const feed = feedRef.current
     if (!feed) return false
     return isInBottomFollowZone({
+      scrollHeight: feed.scrollHeight,
+      scrollTop: feed.scrollTop,
+      clientHeight: feed.clientHeight
+    })
+  }, [])
+
+  // Whether the feed is at the literal bottom (within a couple of px). Used as
+  // the gate to resume following after the user scrolls away: re-engaging from
+  // the loose 80px follow zone would make a slight upward nudge on a long,
+  // still-streaming turn re-arm following, and the next streamed delta would
+  // snap the viewport back down — the up/down jitter this fixes.
+  const isAtTrueBottom = useCallback(() => {
+    const feed = feedRef.current
+    if (!feed) return false
+    return isFeedAtTrueBottom({
       scrollHeight: feed.scrollHeight,
       scrollTop: feed.scrollTop,
       clientHeight: feed.clientHeight
@@ -265,13 +281,27 @@ export function useChatScroll(): ChatScrollController {
 
   const onScroll = useCallback(() => {
     if (programmaticRef.current) return
+    // Once the user has scrolled away (manual), only resume following at the
+    // literal bottom. Re-arming from the loose 80px follow zone while a long
+    // turn is still streaming would let the next delta snap the viewport back
+    // down mid-scroll — the up/down jitter. In that zone without a drag we stay
+    // manual; the jump button handles the explicit "get me back" case.
+    if (modeRef.current === 'manual') {
+      if (isAtTrueBottom()) {
+        modeRef.current = nextChatScrollMode(modeRef.current, 'user-bottom')
+        setShowJumpToEnd(false)
+      } else if (scrollbarDragRef.current) {
+        enterManual()
+      }
+      return
+    }
     if (isAtBottom()) {
       modeRef.current = nextChatScrollMode(modeRef.current, 'user-bottom')
       setShowJumpToEnd(false)
     } else if (scrollbarDragRef.current) {
       enterManual()
     }
-  }, [enterManual, isAtBottom])
+  }, [enterManual, isAtBottom, isAtTrueBottom])
 
   useEffect(() => {
     const content = contentRef.current
