@@ -34,4 +34,22 @@ describe('monitor tool', () => {
     expect(unknown.error).toMatch(/unknown background shell/)
     procs.killAllForAgent('a1')
   })
+
+  it('command mode returns immediately with a monitor id', async () => {
+    const { PollMonitorStore } = await import('../../src/main/agent/poll-monitor-store')
+    const pollMonitors = new PollMonitorStore({ getSessionId: () => 'sess-1', onResolve: () => {} })
+    const c = { cwd: dir, ask: async () => null, agentId: 'a1', pollMonitors } as unknown as import('../../src/main/agent/tools/types').ToolContext
+    const r = await monitorTool.run({ command: 'exit 1', until_regex: 'never', timeout_s: 1 }, c)
+    expect(r.background).toBe(true)
+    expect(r.output).toMatch(/monitor [0-9a-f]{8}/)
+    pollMonitors.cancelAllForAgent('a1')
+  }, 20000)
+
+  it('errors when neither id nor command (and when both) are given', async () => {
+    const { ctx: c } = ctx()
+    const none = await monitorTool.run({}, c)
+    expect(none.error).toMatch(/exactly one/)
+    const both = await monitorTool.run({ id: 'x', command: 'y' }, c)
+    expect(both.error).toMatch(/exactly one/)
+  })
 })

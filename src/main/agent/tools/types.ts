@@ -2,6 +2,7 @@ import type { z } from 'zod'
 import type { SnapshotStore } from '../snapshot'
 import type { BackgroundProcessStore } from '../background-process-store'
 import type { MonitorStore } from '../monitor-store'
+import type { PollMonitorStore } from '../poll-monitor-store'
 import type { ArtifactEntry, QuestionPrompt, TodoItem } from '../../../shared/types'
 
 export type ToolSchema = z.ZodType | Record<string, unknown>
@@ -36,6 +37,8 @@ export interface ToolContext {
   backgroundProcs?: BackgroundProcessStore
   // Async watches over background shells (monitor tool).
   monitors?: MonitorStore
+  // Interval polling of a command (monitor tool, command mode).
+  pollMonitors?: PollMonitorStore
 }
 
 export interface SubagentToolEvent {
