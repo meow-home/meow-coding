@@ -68,6 +68,14 @@ export class BackgroundProcessStore extends EventEmitter {
     return n
   }
 
+  list(agentId: string): { id: string; command: string; status: 'running' | 'exited'; exitCode: number | null }[] {
+    const out: { id: string; command: string; status: 'running' | 'exited'; exitCode: number | null }[] = []
+    for (const e of this.entries.values()) {
+      if (e.agentId === agentId) out.push({ id: e.id, command: e.command, status: e.status, exitCode: e.exitCode })
+    }
+    return out
+  }
+
   start(agentId: string, command: string, cwd: string): { id: string } | { error: string } {
     if (!command || typeof command !== 'string') return { error: 'bash: missing "command" (string)' }
     if (this.count(agentId) >= this.maxPerAgent) {

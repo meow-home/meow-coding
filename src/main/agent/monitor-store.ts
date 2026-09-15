@@ -32,6 +32,7 @@ interface Entry {
   targetId: string
   untilRegex?: RegExp
   untilExit?: boolean | number
+  until: string
   status: 'watching' | 'resolved'
   onData: (e: BgDataEvent) => void
   onExit: (e: BgExitEvent) => void
@@ -52,6 +53,14 @@ export class MonitorStore {
     let n = 0
     for (const e of this.entries.values()) if (e.agentId === agentId && e.status === 'watching') n++
     return n
+  }
+
+  list(agentId: string): { id: string; targetId: string; until: string }[] {
+    const out: { id: string; targetId: string; until: string }[] = []
+    for (const e of this.entries.values()) {
+      if (e.agentId === agentId && e.status === 'watching') out.push({ id: e.id, targetId: e.targetId, until: e.until })
+    }
+    return out
   }
 
   start(agentId: string, targetId: string, opts: MonitorStartOpts): { id: string } | { error: string } {
@@ -76,8 +85,13 @@ export class MonitorStore {
       return { id }
     }
 
+    const until = [
+      opts.untilRegex ? `/${opts.untilRegex}/` : null,
+      opts.untilExit !== undefined ? 'exit' : null,
+      opts.timeoutMs ? `${Math.round(opts.timeoutMs / 1000)}s` : null
+    ].filter(Boolean).join(' or ')
     const entry: Entry = {
-      id, agentId, sessionId, targetId, untilRegex, untilExit: opts.untilExit,
+      id, agentId, sessionId, targetId, untilRegex, untilExit: opts.untilExit, until,
       status: 'watching', onData: () => {}, onExit: () => {}
     }
     entry.onData = (e: BgDataEvent) => {

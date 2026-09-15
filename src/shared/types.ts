@@ -498,3 +498,16 @@ export interface NotificationsSettings {
   needsInput: boolean
   onDone: boolean
 }
+
+export interface BackgroundProcInfo {
+  id: string
+  command: string
+  status: 'running' | 'exited'
+  exitCode: number | null
+}
+
+export interface MonitorInfo {
+  id: string
+  targetId: string
+  until: string
+}

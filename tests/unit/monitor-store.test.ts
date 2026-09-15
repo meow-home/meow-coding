@@ -86,6 +86,17 @@ describe('MonitorStore', () => {
     expect('error' in m2.start('a1', bg.id, { untilExit: true })).toBe(true)
     procs.killAllForAgent('a1')
   })
+
+  it('list(agentId) returns active monitors with a readable until', () => {
+    const { procs, monitors } = makeStores()
+    const bg = procs.start('a1', 'sleep 5', dir) as { id: string }
+    monitors.start('a1', bg.id, { untilRegex: 'READY', timeoutMs: 30000 })
+    const list = monitors.list('a1')
+    expect(list.length).toBe(1)
+    expect(list[0].targetId).toBe(bg.id)
+    expect(list[0].until).toContain('READY')
+    procs.killAllForAgent('a1')
+  })
 })
 
 describe('handleMonitorResolve', () => {

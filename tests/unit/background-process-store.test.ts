@@ -110,4 +110,16 @@ describe('BackgroundProcessStore', () => {
     expect(info?.status).toBe('exited')
     expect(store.inspect('nope')).toBeUndefined()
   }, 20000)
+
+  it('list(agentId) returns running and exited entries for that agent', async () => {
+    const { store } = makeStore()
+    const a = store.start('a1', 'echo L1', dir) as { id: string }
+    store.start('a2', 'sleep 5', dir)
+    await waitFor(() => store.inspect(a.id)?.status === 'exited')
+    const list = store.list('a1')
+    expect(list.length).toBe(1)
+    expect(list[0].command).toBe('echo L1')
+    expect(list[0].status).toBe('exited')
+    store.killAllForAgent('a2')
+  }, 20000)
 })
