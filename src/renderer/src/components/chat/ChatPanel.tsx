@@ -15,7 +15,7 @@ import ModelPicker from './ModelPicker'
 import VariantPicker from './VariantPicker'
 import ModePicker from './ModePicker'
 import ContextFooter from './ContextFooter'
-import SubagentOverlay, { SUBAGENT_DEFAULT_WIDTH } from './SubagentOverlay'
+import SubagentOverlay, { SUBAGENT_DEFAULT_WIDTH, type SubagentOverlayItem } from './SubagentOverlay'
 
 type FeedItem =
   | { kind: 'message'; id: string; role: ChatMessage['role']; text: string; reasoning?: string; images?: ImageAttachment[] }
@@ -151,6 +151,7 @@ interface Props {
   onModeChange?: (mode: AgentMode) => void
   onVariantChange?: (variant: string | undefined) => void
   onSendDraftMessage?: (textAndImages: { text: string; images?: ImageAttachment[] }) => void
+  onOpenSubagent?: (item: SubagentOverlayItem) => void
 }
 
 function RetryCountdown({ id, attempt, maxAttempts, delayMs, unbounded }: { id: string; attempt: number; maxAttempts: number; delayMs: number; unbounded?: boolean }) {
@@ -167,7 +168,7 @@ function RetryCountdown({ id, attempt, maxAttempts, delayMs, unbounded }: { id: 
   )
 }
 
-function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVariantChange, onSendDraftMessage }: Props) {
+function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVariantChange, onSendDraftMessage, onOpenSubagent }: Props) {
   const [items, setItems] = useState<FeedItem[]>([])
   const [running, setRunning] = useState(false)
   const [currentMode, setCurrentMode] = useState<AgentMode>(mode)
@@ -958,8 +959,8 @@ if (e.type === 'usage') {
               <div
                 key={item.taskId}
                 className={`subagent ${item.state === 'running' ? 'running' : ''} ${item.background ? 'background' : ''}`}
-                onClick={() => setLiveTaskId(item.taskId)}
-                title="Open live view"
+                onClick={() => onOpenSubagent?.(item)}
+                title="Open sub-agent details"
               >
                 <div className="subagent-head">
                   <span className="subagent-name">sub-agent{item.subagentType ? ` (${item.subagentType})` : ''}</span>
@@ -1188,20 +1189,6 @@ if (e.type === 'usage') {
         </div>
       </div>
       </div>
-      {liveTaskId && (() => {
-        const live = items.find(i => i.kind === 'subagent' && i.taskId === liveTaskId) as FeedItem & { kind: 'subagent' } | undefined
-        if (!live) return null
-        return (
-          <SubagentOverlay
-            item={live}
-            full={subagentFull}
-            width={subagentWidth}
-            onWidthChange={handleSubagentWidthChange}
-            onToggleFull={() => setSubagentFull(v => !v)}
-            onClose={() => setLiveTaskId(null)}
-          />
-        )
-      })()}
     </div>
   )
 }

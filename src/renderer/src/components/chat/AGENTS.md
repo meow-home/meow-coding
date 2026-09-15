@@ -22,6 +22,7 @@ pushed from main over IPC (`window.api.onChatEvent`).
 | `Dropdown.tsx` | Reusable popup dropdown wrapping BaseDropdown for action menus (used by AddMenu). `align` picks which menu edge lines up with the trigger: `'right'` by default, `'left'` for a trigger at the container's left edge. |
 | `questionAnswer.ts` | `buildQuestionAnswer` — helper for permission/question answers. |
 | `markdownTable.ts` | `normalizeMarkdownTables` — repairs markdown table pipes before rendering. |
+| `SubagentOverlay.tsx` | Sub-agent detail panel: redesigned UI matching Files and Processes overlay structure (header bar, side pane with sub-agent profile card, live status badge, copyable task ID metadata card, and tool execution timeline; main pane for output stream and task result). Supports flexible grid embedding. |
 | `ChatErrorBoundary.tsx` | Error boundary wrapping `<ChatPanel>` in `Pane.tsx` (a render/lifecycle error in the chat pane used to unmount the whole React root — a black, unresponsive window). Catches it to a contained card (Reload remounts ChatPanel via a bumped key) and logs the full stack to the system log. |
 
 ## Conventions

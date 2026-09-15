@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import type { ImageAttachment } from '@shared/types'
 import type { PaneModel } from '../App'
 import Pane from './Pane'
+import type { SubagentOverlayItem } from './chat/SubagentOverlay'
 
 interface Props {
   panes: PaneModel[]
@@ -12,12 +13,13 @@ interface Props {
   onSendDraftMessage?: (textAndImages: { text: string; images?: ImageAttachment[] }) => void
   onOpenFiles?: (id: string) => void
   onOpenProcesses?: (id: string) => void
+  onOpenSubagent?: (item: SubagentOverlayItem) => void
 }
 
 // All sessions stay mounted (hidden when inactive) so a hidden session keeps
 // streaming/running — switching never stops another. The hiding is CSS only
 // (the `hidden` attribute on the slot), never an unmount or a key change.
-export default function SessionPanes({ panes, activeId, onActiveChange, backgrounds, onRemove, onSendDraftMessage, onOpenFiles, onOpenProcesses }: Props) {
+export default function SessionPanes({ panes, activeId, onActiveChange, backgrounds, onRemove, onSendDraftMessage, onOpenFiles, onOpenProcesses, onOpenSubagent }: Props) {
   useEffect(() => {
     if (panes.length === 0) return
     if (activeId && panes.some(p => p.agent.id === activeId)) return
@@ -39,6 +41,7 @@ export default function SessionPanes({ panes, activeId, onActiveChange, backgrou
             onSendDraftMessage={onSendDraftMessage}
             onOpenFiles={onOpenFiles ? () => onOpenFiles(pane.agent.id) : undefined}
             onOpenProcesses={onOpenProcesses ? () => onOpenProcesses(pane.agent.id) : undefined}
+            onOpenSubagent={onOpenSubagent}
           />
         </div>
       ))}

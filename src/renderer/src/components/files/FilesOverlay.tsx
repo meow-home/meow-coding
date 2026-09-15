@@ -15,8 +15,8 @@ export const FILES_DEFAULT_WIDTH = 420
 interface Props {
   projectPath: string
   full: boolean
-  width: number
-  onWidthChange: (width: number) => void
+  width?: number
+  onWidthChange?: (width: number) => void
   onToggleFull: () => void
   onClose: () => void
 }
@@ -38,10 +38,11 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
 
   const startDrag = useCallback((e: React.MouseEvent) => {
+    if (!onWidthChange || width === undefined) return
     e.preventDefault()
     dragRef.current = { startX: e.clientX, startWidth: width }
     const onMove = (ev: MouseEvent) => {
-      if (!dragRef.current) return
+      if (!dragRef.current || !onWidthChange) return
       const delta = dragRef.current.startX - ev.clientX
       const next = Math.min(FILES_MAX_WIDTH, Math.max(FILES_MIN_WIDTH, dragRef.current.startWidth + delta))
       onWidthChange(next)
@@ -84,11 +85,11 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
   return (
     <section
       className={`files-overlay${full ? ' full' : ' docked'}`}
-      style={full ? undefined : { width }}
+      style={full ? undefined : (width !== undefined ? { width } : undefined)}
       role="dialog"
       aria-label="Files"
     >
-      {!full && <div className="files-resizer" onMouseDown={startDrag} />}
+      {!full && onWidthChange && width !== undefined && <div className="files-resizer" onMouseDown={startDrag} />}
       <div className="files-head title-bar">
         <div className="files-head-title">
           <Files size={14} aria-hidden="true" />

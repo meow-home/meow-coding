@@ -4,6 +4,7 @@ import type { PaneModel } from '../App'
 import PaneHeader from './PaneHeader'
 import ChatPanel from './chat/ChatPanel'
 import ChatErrorBoundary from './chat/ChatErrorBoundary'
+import type { SubagentOverlayItem } from './chat/SubagentOverlay'
 
 interface Props {
   pane: PaneModel
@@ -14,9 +15,10 @@ interface Props {
   onSendDraftMessage?: (textAndImages: { text: string; images?: ImageAttachment[] }) => void
   onOpenFiles?: () => void
   onOpenProcesses?: () => void
+  onOpenSubagent?: (item: SubagentOverlayItem) => void
 }
 
-export default function Pane({ pane, background, active, onFocus, onRemove, onSendDraftMessage, onOpenFiles, onOpenProcesses }: Props) {
+export default function Pane({ pane, background, active, onFocus, onRemove, onSendDraftMessage, onOpenFiles, onOpenProcesses, onOpenSubagent }: Props) {
   const id = pane.agent.id
   const native = pane.agent.kind === 'native'
   // Stable callbacks so App-level re-renders (git poll, agent state) don't
@@ -69,6 +71,7 @@ export default function Pane({ pane, background, active, onFocus, onRemove, onSe
             onModeChange={handleModeChange}
             onVariantChange={handleVariantChange}
             onSendDraftMessage={onSendDraftMessage}
+            onOpenSubagent={onOpenSubagent}
           />
         </ChatErrorBoundary>
       </div>
