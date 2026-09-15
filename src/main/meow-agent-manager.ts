@@ -11,7 +11,7 @@ import {
   type MeowConfig, type ResolvedAgentConfig
 } from './agent/config'
 import { SessionRunner } from './agent/loop'
-import { BackgroundProcessStore, type BgExitInfo } from './agent/background-process-store'
+import { BackgroundProcessStore, type BgExitInfo, type BgDataEvent, type BgExitEvent } from './agent/background-process-store'
 import { handleBackgroundExit } from './agent/background-exit'
 import { MonitorStore, handleMonitorResolve, type MonitorResolveInfo } from './agent/monitor-store'
 import { resolveCompactionSettings, usableContextTokens } from './agent/compact'
@@ -83,6 +83,8 @@ export interface MeowAgentManagerDeps {
   /** Fired when an agent starts (pending=true) or stops (pending=false) waiting on user input. */
   onPromptStateChange?: (agentId: string, pending: boolean) => void
   onBackgroundChange?: (agentId: string, background: boolean) => void
+  onBackgroundProcData?: (e: { id: string; chunk: string }) => void
+  onBackgroundProcExit?: (e: { id: string; exitCode: number | null }) => void
   onVariantInvalidated?: (agentId: string) => void
   /** Fired for every user message sent to an agent (typed, slash command, or remote). */
   onUserMessage?: (agentId: string, message: ChatMessage) => void
@@ -124,6 +126,7 @@ export class MeowAgentManager {
     getSessionId: (agentId) => this.activeSessionId(agentId),
     onResolve: (info) => this.onMonitorResolve(info)
   })
+  private procSubscriptions = new Set<string>()
   private queues = new Map<string, QueuedMessage[]>()
   // In-flight turn per agent. A turn aborted mid-tool is still winding down
   // after `running` is cleared (process-tree kill takes time, and its tool
@@ -161,6 +164,14 @@ export class MeowAgentManager {
     // (compaction otherwise only runs at the start of a turn step).
     this.idleCompactTimer = setInterval(() => void this.maybeCompactIdle(), 20_000)
     this.idleCompactTimer.unref?.()
+    // Bridge background-shell output to the renderer, but only for shells the
+    // Processes panel has subscribed to (avoids flooding the renderer).
+    this.backgroundProcs.on('data', (e: BgDataEvent) => {
+      if (this.procSubscriptions.has(e.id)) this.deps.onBackgroundProcData?.(e)
+    })
+    this.backgroundProcs.on('exit', (e: BgExitEvent) => {
+      if (this.procSubscriptions.has(e.id)) this.deps.onBackgroundProcExit?.(e)
+    })
   }
 
   setOnEvent(cb: (e: ChatEvent) => void): void {
@@ -328,6 +339,29 @@ export class MeowAgentManager {
     q[idx] = { ...q[idx], text, displayText: undefined }
     this.queues.set(agentId, q)
     this.emitQueue(agentId)
+  }
+
+  backgroundProcsList(agentId: string): { id: string; command: string; status: 'running' | 'exited'; exitCode: number | null }[] {
+    return this.backgroundProcs.list(agentId)
+  }
+
+  monitorsList(agentId: string): { id: string; targetId: string; until: string }[] {
+    return this.monitors.list(agentId)
+  }
+
+  killBackgroundProc(id: string): void {
+    this.backgroundProcs.kill(id)
+  }
+
+  subscribeBackgroundProc(id: string): { backlog: string; status: 'running' | 'exited'; exitCode: number | null } | null {
+    const info = this.backgroundProcs.inspect(id)
+    if (!info) return null
+    this.procSubscriptions.add(id)
+    return { backlog: info.buffer, status: info.status, exitCode: info.exitCode }
+  }
+
+  unsubscribeBackgroundProc(id: string): void {
+    this.procSubscriptions.delete(id)
   }
 
   private onMonitorResolve(info: MonitorResolveInfo): void {
@@ -984,6 +1018,7 @@ export class MeowAgentManager {
     this.stopAll()
     this.monitors.cancelAll()
     this.backgroundProcs.killAll()
+    this.procSubscriptions.clear()
     this.deps.store.flush()
     await this.mcp.closeAll()
     this.deps.lsp?.dispose()
