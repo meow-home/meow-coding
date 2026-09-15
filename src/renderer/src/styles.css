@@ -1583,7 +1583,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   flex-direction: column;
   gap: 0.75rem;
   padding: 0.875rem 1rem;
-  background: #ffffff;
+  background: var(--bg-raised);
   border: 0.083333rem solid var(--hairline);
   border-radius: var(--radius);
   transition: border-color 150ms ease, box-shadow 150ms ease;
@@ -1681,13 +1681,13 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   justify-content: space-between;
   gap: 1rem;
   padding: 0.666667rem 0.833333rem;
-  background: #ffffff;
+  background: var(--bg-raised);
   border: 0.083333rem solid var(--hairline);
   border-radius: var(--radius);
   transition: border-color 120ms ease, background 120ms ease;
 }
 .permission-row:hover {
-  background: #f8fafc;
+  background: var(--bg-hover);
   border-color: var(--accent-border);
 }
 .permission-info { display: flex; flex-direction: column; gap: 0.166667rem; flex: 1; min-width: 0; }
@@ -1764,7 +1764,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   flex-direction: column;
   gap: 0.75rem;
   padding: 0.875rem 1rem;
-  background: #ffffff;
+  background: var(--bg-raised);
   border: 0.083333rem solid var(--hairline);
   border-radius: var(--radius);
   transition: border-color 150ms ease, box-shadow 150ms ease;
@@ -3534,7 +3534,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .personalize-card {
   display: flex;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--bg-raised);
   border: 0.083333rem solid var(--hairline);
   border-radius: var(--radius);
   overflow: hidden;
@@ -3620,7 +3620,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .updates-card {
   display: flex;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--bg-raised);
   border: 0.083333rem solid var(--hairline);
   border-radius: var(--radius);
   overflow: hidden;
@@ -3728,7 +3728,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .browser-card {
   display: flex;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--bg-raised);
   border: 0.083333rem solid var(--hairline);
   border-radius: var(--radius);
   overflow: hidden;
@@ -3779,7 +3779,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   font-weight: var(--fw-bold);
   letter-spacing: 0.2em;
   color: var(--accent);
-  background: #ffffff;
+  background: var(--bg-input);
   padding: 0.35rem 1rem;
   border-radius: var(--radius-sm);
   border: 0.083333rem solid var(--hairline);
@@ -3796,7 +3796,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   display: flex;
   gap: 0.875rem;
   padding: 0.875rem 1rem;
-  background: #ffffff;
+  background: var(--bg-raised);
   border: 0.083333rem solid var(--hairline);
   border-radius: var(--radius);
   transition: border-color 150ms ease;
