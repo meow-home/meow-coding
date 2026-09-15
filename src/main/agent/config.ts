@@ -155,6 +155,7 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
     revert: 'allow',
     skill: 'allow',
     bash: 'ask',
+    monitor: 'allow',
     office: 'ask',
     question: 'allow',
     'browser_*': 'allow'

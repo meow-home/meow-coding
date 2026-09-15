@@ -1,6 +1,7 @@
 import type { z } from 'zod'
 import type { SnapshotStore } from '../snapshot'
 import type { BackgroundProcessStore } from '../background-process-store'
+import type { MonitorStore } from '../monitor-store'
 import type { ArtifactEntry, QuestionPrompt, TodoItem } from '../../../shared/types'
 
 export type ToolSchema = z.ZodType | Record<string, unknown>
@@ -33,6 +34,8 @@ export interface ToolContext {
   onArtifact?(entry: Omit<ArtifactEntry, 'id' | 'ts'>): void
   // Long-lived background shell processes (bash run_in_background / bash_output / kill_shell).
   backgroundProcs?: BackgroundProcessStore
+  // Async watches over background shells (monitor tool).
+  monitors?: MonitorStore
 }
 
 export interface SubagentToolEvent {

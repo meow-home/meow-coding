@@ -1,5 +1,6 @@
 import type { ToolDefinition } from './types'
 import { bashTool, bashOutputTool, killShellTool } from './bash'
+import { monitorTool } from './monitor'
 import { readTool } from './read'
 import { writeTool } from './write'
 import { editTool } from './edit'
@@ -28,6 +29,7 @@ export function createDefaultTools(opts: DefaultToolsOptions = {}): Map<string, 
     bashTool,
     bashOutputTool,
     killShellTool,
+    monitorTool,
     readTool,
     writeTool,
     editTool,
