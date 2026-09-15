@@ -10,7 +10,7 @@ The tool registry for the native Meow agent. Each file exports a `ToolDefinition
 |---|---|
 | `types.ts` | `ToolDefinition` interface + `ToolSchema` type — the contract every tool implements. |
 | `registry.ts` | `createDefaultTools()` — the default tool map handed to `MeowAgentManager`. |
-| `bash.ts` | Runs shell commands (Windows: wraps via git-bash fallback; kills process tree on timeout). |
+| `bash.ts` | Runs shell commands (`bashTool`, `bashOutputTool`, `killShellTool`). Windows: wraps via git-bash fallback; kills process tree on timeout/abort; supports `run_in_background` to spawn long-lived processes managed via `BackgroundProcessStore`. |
 | `edit.ts` | Line-based file edit (old_string/new_string) with safety checks. |
 | `write.ts` | Write/overwrite a file. |
 | `read.ts` | Read a file (size-capped). |

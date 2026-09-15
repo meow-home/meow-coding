@@ -169,6 +169,7 @@ Notable details:
 | `ask(question)` | Emits `prompt-request` (`kind: 'question'`) and awaits the answer |
 | `onFileRead(filePath)` | Returns a `<system-reminder>` block with nearby `AGENTS.md`/`CLAUDE.md` content, deduped across the session |
 | `onArtifact(entry)` | Records a created/edited file for the Artifacts panel |
+| `backgroundProcs` | Store for long-lived background shell processes (`bash run_in_background` / `bash_output` / `kill_shell`) |
 
 4. `await def.run(input, ctx)` → `{ output?, error? }`; thrown errors become `call.error` formatted by `formatToolError` (Error.message / string / JSON, never `[object Object]`).
 5. Append the tool item to the transcript and emit `tool-result`.

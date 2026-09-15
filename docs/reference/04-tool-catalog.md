@@ -66,6 +66,8 @@ in Settings → Permissions.
 | `question` | allow | Ask the user an interactive question |
 | `browser_*` | allow | Drive the paired Chrome profile |
 | `bash` | **ask** | Run a shell command |
+| `bash_output` | (unset → ask) | Read stdout/stderr from a background shell |
+| `kill_shell` | (unset → ask) | Stop a background shell process tree |
 | `office` | **ask** | Run OfficeCLI on `.docx`/`.xlsx`/`.pptx` |
 | `git` | (unset → ask) | Run a git command |
 | `webfetch` | (unset → ask) | Fetch a URL as markdown |
@@ -114,7 +116,7 @@ Candidate files from `include` (default `**/*`), ignoring `node_modules`/`.git`.
 
 ### `bash`
 
-`{ command: string, timeoutMs?: number (default 120 000) }`
+`{ command: string, timeoutMs?: number (default 120 000), run_in_background?: boolean }`
 
 Shell selection (`buildShellCommand`):
 
@@ -131,10 +133,24 @@ Output: `stdout` plus `\n[stderr]\n<stderr>` when present, capped at 1MB per str
 becomes an error containing the output. A missing cwd falls back to the home directory with a
 `[meow]` note.
 
+**Background execution**: when `run_in_background: true` is passed, the process is spawned in the background via `BackgroundProcessStore`. It returns immediately with `output: "Background bash started. id=<id>..."` and `background: true`. Max 10 running background processes per agent.
+
 **Kill behavior**: timeout and user-abort both go through `killAfterGrace`, which on Windows waits
 until 600ms after spawn before `tree-kill`. Git Bash re-execs itself once, so a `taskkill /t`
 snapshot taken too early can miss the innermost command. This is a heuristic, not a guarantee — a
 heavy `~/.bash_profile` can push tree formation past the window.
+
+### `bash_output`
+
+`{ id: string, filter?: string }`
+
+Reads new stdout/stderr produced by a background shell (started with `bash run_in_background`) since the last read. `filter` is an optional regex pattern to filter lines. Returns `<bash id="..." status="...">...</bash>`. If the background process has exited, calling `bash_output` returns its final output and cleans up the process entry.
+
+### `kill_shell`
+
+`{ id: string }`
+
+Stops a background shell process, killing its entire process tree via `tree-kill`.
 
 ### `git`
 
