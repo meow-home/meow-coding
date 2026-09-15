@@ -46,6 +46,9 @@ handlers and the app lifecycle.
 - `file-suggest.ts` — file suggestions for `@`-mentions (deep search across the entire project tree, ignores
   node_modules/.git/out/dist).
 - `file-watcher.ts` — recursively watches the project, filters text files, batches changes (debounce 500ms).
+- `project-encode.ts` — `encodeProjectPath(projectPath)`: encodes a project path into a single
+  directory-name segment (Claude CLI scheme: every `:`, `\`, `/` → `-`). Not reversible; the true
+  projectPath lives in each session file's meta record.
 - `project-search.ts` — project-wide content search (`searchProject`), shared by the agent's `grep` tool and
   the renderer Files overlay (`files:search`); `dir-lister.ts` additionally exposes `listProjectDir` for the
   overlay's non-ignoring, project-scoped tree.
@@ -72,7 +75,7 @@ handlers and the app lifecycle.
 
 - Unit: `tests/unit/` — one test file per module: pty-spawn-command,
   window-chrome, updater, models-catalog, model-variants, notification-service, file-suggest,
-  file-watcher, git-status-service, alert-service, atomic-write, json-store, log-manager,
+  file-watcher, git-status-service, alert-service, atomic-write, json-store, project-encode, log-manager,
   workspace-store, meow-agent-manager, ipc-contract, ...
 - Integration: `tests/integration/pty-manager.test.ts` (real spawn via ConPTY, uses fixture CLI),
   `agent-stream-overlap.test.ts`, `browser/bridge-flow.test.ts`.
