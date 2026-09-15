@@ -67,14 +67,12 @@ describe('BackgroundProcessStore', () => {
 
   it('trims the buffer and marks truncation', async () => {
     const { store } = makeStore({ maxBufferBytes: 40, maxBufferLines: 1000 })
-    const cmd = process.platform === 'win32'
-      ? 'for /L %i in (1,1,50) do @echo LINE%i'
-      : 'for i in $(seq 1 50); do echo LINE$i; done'
+    const cmd = `${process.execPath} -e "for(let i=1;i<=50;i++) console.log('LINE'+i)"`
     const r = store.start('a1', cmd, dir) as { id: string }
     await waitFor(() => {
       const out = store.readNew(r.id)
       return 'text' in out && out.text.includes('…truncated…')
-    }, 15000)
+    })
   }, 20000)
 
   it('unknown ids return errors', () => {
