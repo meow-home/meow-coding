@@ -95,4 +95,19 @@ describe('BackgroundProcessStore', () => {
     expect('text' in second && second.text).toBe('')
     expect('status' in second && second.status).toBe('exited')
   }, 20000)
+
+  it('emits data and exit events and exposes inspect()', async () => {
+    const { store } = makeStore()
+    const chunks: string[] = []
+    let exitedCode: number | null | undefined
+    store.on('data', (e: { id: string; chunk: string }) => chunks.push(e.chunk))
+    store.on('exit', (e: { id: string; exitCode: number | null }) => { exitedCode = e.exitCode })
+    const r = store.start('a1', 'echo EV_MARKER', dir) as { id: string }
+    await waitFor(() => chunks.join('').includes('EV_MARKER') && exitedCode !== undefined)
+    expect(chunks.join('')).toContain('EV_MARKER')
+    expect(exitedCode).toBe(0)
+    const info = store.inspect(r.id)
+    expect(info?.status).toBe('exited')
+    expect(store.inspect('nope')).toBeUndefined()
+  }, 20000)
 })

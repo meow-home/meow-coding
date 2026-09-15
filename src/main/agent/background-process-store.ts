@@ -1,9 +1,13 @@
+import { EventEmitter } from 'node:events'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { randomUUID } from 'node:crypto'
 import kill from 'tree-kill'
 import { buildShellCommand } from './tools/bash'
+
+export interface BgDataEvent { id: string; chunk: string }
+export interface BgExitEvent { id: string; exitCode: number | null }
 
 export interface BgExitInfo {
   id: string
@@ -39,10 +43,20 @@ const DEFAULT_MAX_BYTES = 256 * 1024
 const DEFAULT_MAX_LINES = 2000
 const EXITED_TTL_MS = 5 * 60_000
 
-export class BackgroundProcessStore {
+export class BackgroundProcessStore extends EventEmitter {
   private entries = new Map<string, Entry>()
 
-  constructor(private opts: BackgroundProcessStoreOpts) {}
+  constructor(private opts: BackgroundProcessStoreOpts) {
+    super()
+    // Many monitors may subscribe to one store; lift the 10-listener warning cap.
+    this.setMaxListeners(0)
+  }
+
+  /** Read-only view of a process for observers (monitors), without touching readOffset. */
+  inspect(id: string): { status: 'running' | 'exited'; exitCode: number | null; buffer: string } | undefined {
+    const e = this.entries.get(id)
+    return e ? { status: e.status, exitCode: e.exitCode, buffer: e.buffer } : undefined
+  }
 
   private get maxPerAgent(): number { return this.opts.maxPerAgent ?? DEFAULT_MAX_PER_AGENT }
   private get maxBytes(): number { return this.opts.maxBufferBytes ?? DEFAULT_MAX_BYTES }
@@ -81,6 +95,7 @@ export class BackgroundProcessStore {
       entry.status = 'exited'
       entry.exitCode = code
       this.opts.onExit({ id, agentId, sessionId: entry.sessionId, command, exitCode: code })
+      this.emit('exit', { id, exitCode: code })
       const timer = setTimeout(() => this.entries.delete(id), EXITED_TTL_MS)
       timer.unref?.()
     })
@@ -88,6 +103,7 @@ export class BackgroundProcessStore {
   }
 
   private appendOutput(entry: Entry, text: string): void {
+    this.emit('data', { id: entry.id, chunk: text })
     entry.buffer += text
     let dropped = 0
     if (entry.buffer.length > this.maxBytes) {
