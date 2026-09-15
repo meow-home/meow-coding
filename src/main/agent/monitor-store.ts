@@ -84,7 +84,7 @@ export class MonitorStore {
 
     // Target already gone: resolve immediately as exited.
     if (target.status === 'exited') {
-      this.opts.onResolve({ id, agentId, sessionId, targetId, reason: 'exited', detail: `exit code ${target.exitCode}` })
+      this.opts.onResolve({ id, agentId, sessionId, targetId, reason: 'exited', detail: `exit code ${target.exitCode}`, kind: 'shell' })
       return { id }
     }
 
