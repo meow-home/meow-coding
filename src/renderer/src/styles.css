@@ -3434,6 +3434,25 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   box-shadow: var(--shadow-panel);
 }
 .files-overlay.docked { margin: 0.333333rem; }
+
+/* Subagent overlay — docked on the right side of the chat pane */
+.subagent-overlay {
+  flex: 0 0 auto; position: relative; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--bg-chat); border: 0.083333rem solid var(--hairline);
+  border-radius: var(--radius-lg); animation: meow-rise 180ms ease-out both;
+  box-shadow: var(--shadow-panel);
+}
+.subagent-overlay.docked { margin: 0.333333rem 0.333333rem 0.333333rem 0; }
+.subagent-resizer {
+  position: absolute; left: -0.25rem; top: 0; bottom: 0; width: 0.583333rem;
+  cursor: col-resize; z-index: 5;
+}
+.subagent-resizer:hover { background: var(--accent-dim); }
+.subagent-overlay.full {
+  position: absolute; z-index: 40;
+  top: 0.333333rem; left: 0.333333rem; right: 0.333333rem; bottom: 0.333333rem;
+  box-shadow: var(--shadow-panel), 0 0 0 0.333333rem var(--bg-chat);
+}
 .files-resizer {
   position: absolute; left: -0.25rem; top: 0; bottom: 0; width: 0.583333rem;
   cursor: col-resize; z-index: 5;
