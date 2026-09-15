@@ -751,6 +751,7 @@ export class SessionRunner {
     const previousSummary = this.findPreviousSummary(items)
     const summarizable = fitHeadToBudget(head, usable, compaction.toolOutputMaxChars)
     const prompt = buildCompactionPrompt(previousSummary, serializeItems(summarizable, compaction.toolOutputMaxChars))
+    await this.hooks?.runPreCompact('auto')
     this.deps.onEvent({ type: 'compaction-start', agentId: this.deps.agentId })
     const summary = await compactTranscript({ llm: this.deps.llm, model: this.deps.model, prompt, signal })
     if (signal?.aborted) return
