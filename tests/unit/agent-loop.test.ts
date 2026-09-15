@@ -480,6 +480,41 @@ describe('SessionRunner', () => {
     expect(h.events.some(e => e.type === 'compacted')).toBe(true)
   })
 
+  it('summarizes over-threshold instead of pruning old tool outputs away', async () => {
+    const replaced: TranscriptItem[][] = []
+    const h = makeHarness({
+      tools: new Map<string, ToolDefinition>(),
+      maxContextTokens: 200,
+      compaction: { auto: true, buffer: 20, keepTokens: 100, tailTurns: 2, toolOutputMaxChars: 2000, prune: true },
+      replaceItems: (items) => replaced.push(items),
+      maxSteps: 1,
+      llm: {
+        async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
+          h.llm.calls.push(opts)
+          if (opts.tools.length === 0) {
+            yield { kind: 'text', text: '## Objective\n- compacted' }
+          } else {
+            yield { kind: 'text', text: 'answer' }
+          }
+        }
+      } as unknown as LlmClient
+    })
+    // 3 user turns; the oldest carries a large tool output that prune would have
+    // cleared (beyond the last 2 turns), letting the old code return without a summary.
+    h.items.push(
+      { kind: 'message', message: { id: 'u0', role: 'user', text: 'first', createdAt: 1 } },
+      { kind: 'message', message: { id: 'a0', role: 'assistant', text: 'ok', createdAt: 1 } },
+      { kind: 'tool', tool: { id: 't0', tool: 'bash', input: {}, permission: 'allowed', output: 'x'.repeat(8000) } },
+      { kind: 'message', message: { id: 'u1', role: 'user', text: 'second', createdAt: 2 } },
+      { kind: 'message', message: { id: 'a1', role: 'assistant', text: 'ok2', createdAt: 2 } },
+      { kind: 'message', message: { id: 'u2', role: 'user', text: 'third', createdAt: 3 } }
+    )
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+
+    expect(h.events.some(e => e.type === 'compacted')).toBe(true)
+  })
+
   it('compacts based on the model-reported token usage from the previous turn', async () => {
     const replaced: TranscriptItem[][] = []
     const h = makeHarness({

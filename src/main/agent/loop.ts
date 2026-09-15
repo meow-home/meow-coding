@@ -7,7 +7,7 @@ import { toLlmMessages } from './message'
 import type { ToLlmOptions, TranscriptItem } from './message'
 import type { ToolContext, ToolDefinition } from './tools/types'
 import type { PermissionDecision } from './permission'
-import { selectHeadTail, serializeItems, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, pruneToolOutputs, hardTruncate, usableContextTokens, fitHeadToBudget, resolveCompactionSettings } from './compact'
+import { selectHeadTail, serializeItems, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, hardTruncate, usableContextTokens, fitHeadToBudget, resolveCompactionSettings } from './compact'
 import { instructionFilesForFile } from './instructions'
 import { gitFreshnessReminder } from './env'
 import { isMemoryPath } from './memory'
@@ -692,15 +692,6 @@ export class SessionRunner {
     const usedTokens = Math.max(estimate, providerTokens)
     if (usedTokens < usable) return
 
-    // Prune old tool outputs first (cheap) before spending an LLM compact call.
-    // The provider-reported count still includes the pruned bytes, so re-check
-    // against a fresh estimate of the smaller transcript.
-    const pruned = pruneToolOutputs(items, compaction, maxContextTokens)
-    if (pruned) {
-      replaceItems(items)
-      if (estimateUsage(toLlmMessages(items, opts)) < usable) return
-    }
-
     // Phần thân compaction thật, dùng chung cho cả ngưỡng lẫn force-compact.
     await this.compact(signal)
   }
@@ -714,14 +705,6 @@ export class SessionRunner {
     const compaction = this.compaction
     const { replaceItems } = this.deps
     if (!compaction?.auto || !replaceItems) return
-    const usable = this.compactionTarget(
-      this.deps.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
-      compaction.buffer,
-      this.deps.maxOutputTokens
-    )
-    const items = this.deps.getItems()
-    const pruned = pruneToolOutputs(items, compaction, this.deps.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS)
-    if (pruned) replaceItems(items)
     await this.compact(signal)
   }
 
