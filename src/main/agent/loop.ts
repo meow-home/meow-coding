@@ -21,6 +21,7 @@ import type { LoopDetector, ToolLoopDetector } from './repetition'
 import type { TruncationStore } from './truncation'
 import type { SnapshotStore } from './snapshot'
 import type { HooksRunner } from './hooks'
+import type { BackgroundProcessStore } from './background-process-store'
 
 export interface LoopDeps {
   agentId: string
@@ -73,6 +74,8 @@ export interface LoopDeps {
   snapshotAgentId?: string
   onEvent: (e: ChatEvent) => void
   onArtifact?: (entry: Omit<ArtifactEntry, 'id' | 'ts'>) => void
+  /** Long-lived background shell processes for bash run_in_background. */
+  backgroundProcs?: BackgroundProcessStore
   getItems: () => TranscriptItem[]
   appendMessage: (msg: ChatMessage) => void
   appendTool: (tool: ToolCallData) => void
@@ -580,7 +583,8 @@ export class SessionRunner {
             for (const f of files) this.attachedInstructions.add(f.path)
             return `<system-reminder>\n${files.map(f => `Instructions from: ${f.path}\n${f.content}`).join('\n\n')}\n</system-reminder>`
           },
-          onArtifact: (entry) => this.deps.onArtifact?.(entry)
+          onArtifact: (entry) => this.deps.onArtifact?.(entry),
+          backgroundProcs: this.deps.backgroundProcs
         }
         try {
           const r = await def.run(call.input, toolCtx)
