@@ -13,7 +13,8 @@ export const monitorTool: ToolDefinition = {
   description:
     'Watch a background shell (started with bash run_in_background) and get woken when a condition is met: ' +
     'a regex appears in its output (until_regex), it exits (until_exit), or a timeout elapses (timeout_s). ' +
-    'Returns immediately; you are notified in the feed when it resolves. Provide at least one condition.',
+    'Returns immediately; you are notified in the feed when it resolves. Provide at least one condition. ' +
+    'Use monitor to wait for a background shell to become ready or finish instead of calling bash_output in a loop.',
   schema: z.object({
     id: z.string().describe('The background shell id to watch.'),
     until_regex: z.string().optional().describe('Resolve when a new output line matches this regex.'),

@@ -71,6 +71,8 @@ describe('bash tool', () => {
       : 'sleep 30'
     const r = await bashTool.run({ command: cmd, timeoutMs: 500 }, ctx)
     expect(r.error).toMatch(/timeout/)
+    // Nudges the model toward the right tool when it foreground-ran a long command.
+    expect(r.error).toMatch(/run_in_background/)
   }, 20000)
 
   it('kills the process when aborted mid-run', async () => {

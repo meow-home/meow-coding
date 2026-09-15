@@ -33,8 +33,9 @@ export const bashTool: ToolDefinition = {
   description:
     'Run a shell command in the project directory and return stdout+stderr. On Windows this runs in ' +
     'Git Bash, so use unix commands (ls, pwd, cat, sed, awk, find, grep, git, npm). ' +
-    'Pass run_in_background: true to start a long-lived command (dev server, watcher, long build) ' +
-    'without waiting, then read its output with bash_output and stop it with kill_shell.',
+    'Prefer run_in_background: true for any command that does not return promptly (dev servers, watchers, ' +
+    'long builds, log tails) instead of waiting for it to finish; then read its output with bash_output and ' +
+    'stop it with kill_shell.',
   schema: z.object({
     command: z.string().describe('The shell command to run.'),
     timeoutMs: z.number().int().optional().describe('Optional timeout in milliseconds.'),
@@ -104,7 +105,7 @@ export const bashTool: ToolDefinition = {
       }
       const timer = setTimeout(() => {
         timedOut = true
-        killAfterGrace(() => done({ error: `bash: timeout after ${timeoutMs}ms` }))
+        killAfterGrace(() => done({ error: `bash: timeout after ${timeoutMs}ms. If this is a long-running command (a dev server, watcher, or long build), re-run it with run_in_background and read its output with bash_output.` }))
       }, timeoutMs)
       const onAbort = () => {
         aborted = true
