@@ -100,7 +100,7 @@ describe('MonitorStore', () => {
 })
 
 describe('handleMonitorResolve', () => {
-  const info: MonitorResolveInfo = { id: 'm1', agentId: 'a1', sessionId: 's9', targetId: 'bg1', reason: 'matched', detail: 'Local: http://x' }
+  const info: MonitorResolveInfo = { id: 'm1', agentId: 'a1', sessionId: 's9', targetId: 'bg1', reason: 'matched', detail: 'Local: http://x', kind: 'shell' }
 
   it('builds a message naming the monitor and target', () => {
     const msg = monitorResolveMessage(info)
@@ -119,5 +119,17 @@ describe('handleMonitorResolve', () => {
     const wakeBusy = vi.fn()
     handleMonitorResolve(info, { appendMessage: vi.fn(), isRunning: () => true, wake: wakeBusy })
     expect(wakeBusy).not.toHaveBeenCalled()
+  })
+
+  it('poll-kind message omits the bash_output hint; shell-kind keeps it', () => {
+    const shellMsg = monitorResolveMessage({ ...info, kind: 'shell' })
+    expect(shellMsg).toContain('bash_output')
+    const pollMsg = monitorResolveMessage({
+      id: 'm2', agentId: 'a1', sessionId: 's9', targetId: 'curl -sf localhost:3000',
+      reason: 'succeeded', detail: 'exit code 0', kind: 'poll'
+    })
+    expect(pollMsg).toContain('curl -sf localhost:3000')
+    expect(pollMsg).toContain('succeeded')
+    expect(pollMsg).not.toContain('bash_output')
   })
 })

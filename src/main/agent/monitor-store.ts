@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { BackgroundProcessStore, BgDataEvent, BgExitEvent } from './background-process-store'
 
-export type MonitorReason = 'matched' | 'exited' | 'timeout'
+export type MonitorReason = 'matched' | 'exited' | 'timeout' | 'succeeded'
 
 export interface MonitorResolveInfo {
   id: string
@@ -10,6 +10,9 @@ export interface MonitorResolveInfo {
   targetId: string
   reason: MonitorReason
   detail: string
+  // 'shell' = watching a background shell (targetId is a shell id);
+  // 'poll'  = polling a command (targetId is the command string).
+  kind: 'shell' | 'poll'
 }
 
 export interface MonitorStartOpts {
@@ -129,7 +132,7 @@ export class MonitorStore {
     this.teardown(entry)
     this.opts.onResolve({
       id: entry.id, agentId: entry.agentId, sessionId: entry.sessionId,
-      targetId: entry.targetId, reason, detail
+      targetId: entry.targetId, reason, detail, kind: 'shell'
     })
   }
 
@@ -160,7 +163,11 @@ export interface MonitorResolveDeps {
 export function monitorResolveMessage(info: MonitorResolveInfo): string {
   const head = info.reason === 'matched' ? `matched: ${info.detail}`
     : info.reason === 'exited' ? `shell exited (${info.detail})`
+    : info.reason === 'succeeded' ? `command succeeded (${info.detail})`
     : `timed out after ${info.detail}`
+  if (info.kind === 'poll') {
+    return `[monitor ${info.id}] command \`${info.targetId}\` — ${head}.`
+  }
   return `[monitor ${info.id}] shell ${info.targetId} — ${head}. ` +
     `Read output with bash_output({ id: "${info.targetId}" }).`
 }
