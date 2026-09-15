@@ -33,7 +33,8 @@ handlers and the app lifecycle.
   guarded by the flag file `userData/.sessions-model-reset` (written only after the reset succeeds). The
   boot call in `index.ts` is wrapped in `try/catch`, so a locked/read-only `userData` skips the migration
   for that launch and retries on the next one instead of rejecting the ready chain.
-- `json-store.ts` — `JsonStore<T>` interface + `createJsonStore` (in-memory cache, atomic temp+rename write, retries the rename on transient Windows locks then falls back to an in-place write, optional `debounceMs` batching with `flush()`, parse error → `[]` after parking the file as `.corrupt`).
+- `atomic-write.ts` — `writeFileAtomic(filePath, data)`: atomic write via temp file + rename, retrying transient Windows rename locks (EPERM/EACCES/EBUSY) with backoff before falling back to an in-place write; creates parent dirs. Shared by `json-store.ts` and the session JSONL store.
+- `json-store.ts` — `JsonStore<T>` interface + `createJsonStore` (in-memory cache, atomic temp+rename write via `writeFileAtomic`, retries the rename on transient Windows locks then falls back to an in-place write, optional `debounceMs` batching with `flush()`, parse error → `[]` after parking the file as `.corrupt`).
 - `log-manager.ts` — appends each agent's output to `userData/logs/<agentId>.log`.
 - `system-logger.ts` — appends app-wide logs (main/render/agent, INFO/WARN/ERROR) to `userData/logs/<YYYY-MM-DD>-log.txt`, prunes files older than 7 days on startup.
 - `git-status-service.ts` — `git status --porcelain=v2 -b` (5s timeout), parses branch + dirty count.
@@ -71,7 +72,7 @@ handlers and the app lifecycle.
 
 - Unit: `tests/unit/` — one test file per module: pty-spawn-command,
   window-chrome, updater, models-catalog, model-variants, notification-service, file-suggest,
-  file-watcher, git-status-service, alert-service, json-store, log-manager,
+  file-watcher, git-status-service, alert-service, atomic-write, json-store, log-manager,
   workspace-store, meow-agent-manager, ipc-contract, ...
 - Integration: `tests/integration/pty-manager.test.ts` (real spawn via ConPTY, uses fixture CLI),
   `agent-stream-overlap.test.ts`, `browser/bridge-flow.test.ts`.
