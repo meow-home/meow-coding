@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { formatToolError, MAX_STOP_BLOCKS, SessionRunner } from '../../src/main/agent/loop'
+import { CLEARED_OUTPUT } from '../../src/main/agent/compact'
 import type { LoopDeps } from '../../src/main/agent/loop'
 import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/agent/llm'
 import type { ToolDefinition, ToolRunResult } from '../../src/main/agent/tools/types'
@@ -1068,7 +1069,10 @@ describe('SessionRunner compaction fallback', () => {
     expect(replaced.length).toBeGreaterThan(0)
     const last = replaced[replaced.length - 1]
     const toolItem = last.find(i => i.kind === 'tool')
-    expect(toolItem?.kind === 'tool' && toolItem.tool.output).toBeUndefined()
+    // Cleared output is a benign note in the output channel, with no error set,
+    // so the model reads it as an intentional omission, not a tool failure.
+    expect(toolItem?.kind === 'tool' && toolItem.tool.output).toBe(CLEARED_OUTPUT)
+    expect(toolItem?.kind === 'tool' ? toolItem.tool.error : 'set').toBeUndefined()
     expect(h.events.map(e => e.type)).not.toContain('error')
   })
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { usableContextTokens, fitHeadToBudget, selectHeadTail, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, truncateToolOutput, serializeItems, pruneToolOutputs, hardTruncate, resolveCompactionSettings, COMPACTION_RATIOS } from '../../src/main/agent/compact'
+import { usableContextTokens, fitHeadToBudget, selectHeadTail, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, truncateToolOutput, serializeItems, pruneToolOutputs, hardTruncate, resolveCompactionSettings, COMPACTION_RATIOS, CLEARED_OUTPUT } from '../../src/main/agent/compact'
 import type { CompactionSettings } from '../../src/main/agent/compact'
 import { estimateTokens, estimateUsage } from '../../src/main/agent/token'
 import type { TranscriptItem } from '../../src/main/agent/message'
@@ -154,8 +154,10 @@ describe('pruneToolOutputs', () => {
     const changed = pruneToolOutputs(items, cfg)
     expect(changed).toBe(true)
     const toolItem = items.find(i => i.kind === 'tool')
-    expect(toolItem && toolItem.kind === 'tool' ? toolItem.tool.output : 'kept').toBeUndefined()
-    expect(toolItem && toolItem.kind === 'tool' ? toolItem.tool.error : '').toContain('cleared')
+    // The cleared marker goes in the normal output channel, not error, so the
+    // model reads it as an intentional omission rather than a tool failure.
+    expect(toolItem && toolItem.kind === 'tool' ? toolItem.tool.output : '').toBe(CLEARED_OUTPUT)
+    expect(toolItem && toolItem.kind === 'tool' ? toolItem.tool.error : 'set').toBeUndefined()
   })
 
   it('does nothing when prune is disabled', () => {
@@ -204,8 +206,8 @@ describe('hardTruncate', () => {
     const items = [msg('user', 'q'), msg('assistant', 'a'), tool('x'.repeat(20000))]
     const out = hardTruncate(items, 2000)
     const t = out.find(i => i.kind === 'tool')
-    expect(t?.kind === 'tool' && t.tool.output).toBeUndefined()
-    expect(t?.kind === 'tool' && t.tool.error).toBe('[Old tool result content cleared]')
+    expect(t?.kind === 'tool' && t.tool.output).toBe(CLEARED_OUTPUT)
+    expect(t?.kind === 'tool' ? t.tool.error : 'set').toBeUndefined()
     expect(estimateUsage(out)).toBeLessThan(2000)
   })
 

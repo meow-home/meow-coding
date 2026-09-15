@@ -60,14 +60,18 @@ export function pruneToolOutputs(
   if (pruned <= minimumChars) return false
   for (const item of targets) {
     if (item.kind === 'tool') {
-      item.tool.output = undefined
-      item.tool.error = CLEARED_OUTPUT
+      // Put the marker in the normal output channel (not `error`): message.ts
+      // renders `error` as an error-type tool_result, which the model reads as
+      // a channel/tool failure ("results are being stripped"). As benign output
+      // it reads as an intentional omission it can undo by re-running.
+      item.tool.output = CLEARED_OUTPUT
+      item.tool.error = undefined
     }
   }
   return true
 }
 
-export const CLEARED_OUTPUT = '[Old tool result content cleared]'
+export const CLEARED_OUTPUT = '[Older tool output omitted to save context. Re-run the tool if you still need this result.]'
 
 /**
  * How much of the model's context a prompt may occupy. The buffer covers what
@@ -140,7 +144,7 @@ export function hardTruncate(
   if (measure(items) <= targetTokens) return items
   const cleared: TranscriptItem[] = items.map(item =>
     item.kind === 'tool' && item.tool.output !== undefined
-      ? { kind: 'tool', tool: { ...item.tool, output: undefined, error: CLEARED_OUTPUT } }
+      ? { kind: 'tool', tool: { ...item.tool, output: CLEARED_OUTPUT, error: undefined } }
       : item
   )
   if (measure(cleared) <= targetTokens) return cleared
