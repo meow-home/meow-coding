@@ -51,6 +51,7 @@ export function useChatScroll(): ChatScrollController {
   const pendingAnchorIdRef = useRef<string | null>(null)
   const programmaticRef = useRef(false)
   const scrollbarDragRef = useRef(false)
+  const lastScrollTopRef = useRef<number>(0)
   const reconcileRafRef = useRef<number | null>(null)
   const pinRafRef = useRef<number | null>(null)
   // The anchor is re-applied until the layout settles (content-visibility rows
@@ -65,6 +66,7 @@ export function useChatScroll(): ChatScrollController {
     if (!feed) return
     programmaticRef.current = true
     feed.scrollTop = top
+    lastScrollTopRef.current = top
     requestAnimationFrame(() => { programmaticRef.current = false })
   }, [])
 
@@ -246,8 +248,11 @@ export function useChatScroll(): ChatScrollController {
   const leaveFollowMode = useCallback(() => { enterManual() }, [enterManual])
 
   const onWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
-    if (event.deltaY < 0 || !isAtBottom()) enterManual()
-  }, [enterManual, isAtBottom])
+    // Scrolling up (deltaY < 0) immediately cancels follow mode.
+    if (event.deltaY < 0) {
+      enterManual()
+    }
+  }, [enterManual])
 
   const onTouchMove = useCallback(() => { enterManual() }, [enterManual])
 
@@ -273,32 +278,37 @@ export function useChatScroll(): ChatScrollController {
     if (event.target !== event.currentTarget) return
     const key = event.key
     if (!['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', 'Space'].includes(key)) return
-    // Keys that scroll toward the bottom do not leave the follow zone when the
-    // feed is already there; keep following instead of showing the jump button.
-    if (['ArrowDown', 'PageDown', 'End', 'Space'].includes(key) && isAtBottom()) return
-    enterManual()
-  }, [enterManual, isAtBottom])
-
-  const onScroll = useCallback(() => {
-    if (programmaticRef.current) return
-    // Once the user has scrolled away (manual), only resume following at the
-    // literal bottom. Re-arming from the loose 80px follow zone while a long
-    // turn is still streaming would let the next delta snap the viewport back
-    // down mid-scroll — the up/down jitter. In that zone without a drag we stay
-    // manual; the jump button handles the explicit "get me back" case.
-    if (modeRef.current === 'manual') {
-      if (isAtTrueBottom()) {
-        modeRef.current = nextChatScrollMode(modeRef.current, 'user-bottom')
-        setShowJumpToEnd(false)
-      } else if (scrollbarDragRef.current) {
-        enterManual()
-      }
+    if (['ArrowUp', 'PageUp', 'Home'].includes(key)) {
+      enterManual()
       return
     }
-    if (isAtBottom()) {
+    // Keys scrolling down only keep following if already at the literal end.
+    if (['ArrowDown', 'PageDown', 'End', 'Space'].includes(key) && isAtTrueBottom()) return
+    enterManual()
+  }, [enterManual, isAtTrueBottom])
+
+  const onScroll = useCallback(() => {
+    const feed = feedRef.current
+    if (!feed) return
+    const currentScrollTop = feed.scrollTop
+    const prevScrollTop = lastScrollTopRef.current
+    if (!programmaticRef.current) {
+      lastScrollTopRef.current = currentScrollTop
+    }
+
+    if (programmaticRef.current) return
+
+    // Any upward scroll movement immediately cancels follow mode.
+    if (currentScrollTop < prevScrollTop - 1) {
+      enterManual()
+      return
+    }
+
+    // Following is ONLY enabled when scrolled to the literal end (true bottom).
+    if (isAtTrueBottom()) {
       modeRef.current = nextChatScrollMode(modeRef.current, 'user-bottom')
       setShowJumpToEnd(false)
-    } else if (scrollbarDragRef.current) {
+    } else if (modeRef.current !== 'manual' && !isAtBottom()) {
       enterManual()
     }
   }, [enterManual, isAtBottom, isAtTrueBottom])
