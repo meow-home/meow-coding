@@ -193,6 +193,8 @@ export class MainApp {
     onBackgroundChange: (agentId, background) => {
       win?.webContents.send(Channels.EventAgentBackground, { agentId, background })
     },
+    onBackgroundProcData: (e) => { win?.webContents.send(Channels.EventBackgroundProcData, e) },
+    onBackgroundProcExit: (e) => { win?.webContents.send(Channels.EventBackgroundProcExit, e) },
     onVariantInvalidated: (agentId) => {
       const ws = this.findWorkspaceByAgent(agentId)
       if (!ws) return
@@ -525,6 +527,12 @@ export class MainApp {
     }
   }
 
+  backgroundProcsList(agentId: string) { return this.meowAgent.backgroundProcsList(agentId) }
+  monitorsList(agentId: string) { return this.meowAgent.monitorsList(agentId) }
+  killBackgroundProc(id: string): void { this.meowAgent.killBackgroundProc(id) }
+  subscribeBackgroundProc(id: string) { return this.meowAgent.subscribeBackgroundProc(id) }
+  unsubscribeBackgroundProc(id: string): void { this.meowAgent.unsubscribeBackgroundProc(id) }
+
   setAgentVariant(agentId: string, variant: string | null): void {
     this.meowAgent.setVariant(agentId, variant ?? undefined)
     const ws = this.findWorkspaceByAgent(agentId)
@@ -835,6 +843,11 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.AgentGetContext, (_e, agentId: string) => mainApp.meowAgent.getContextInfo(agentId))
   ipcMain.handle(Channels.AgentSetBackground, (_e, agentId: string, background: boolean) =>
     mainApp.setAgentBackground(agentId, background))
+  ipcMain.handle(Channels.BackgroundProcsList, (_e, agentId: string) => mainApp.backgroundProcsList(agentId))
+  ipcMain.handle(Channels.MonitorsList, (_e, agentId: string) => mainApp.monitorsList(agentId))
+  ipcMain.handle(Channels.BackgroundProcKill, (_e, id: string) => mainApp.killBackgroundProc(id))
+  ipcMain.handle(Channels.BackgroundProcSubscribe, (_e, id: string) => mainApp.subscribeBackgroundProc(id))
+  ipcMain.handle(Channels.BackgroundProcUnsubscribe, (_e, id: string) => mainApp.unsubscribeBackgroundProc(id))
   ipcMain.handle(Channels.FilesSuggest, (_e, agentId: string, prefix: string) =>
     mainApp.meowAgent.suggestFiles(agentId, prefix))
   ipcMain.handle(Channels.ProviderModels, () => mainApp.meowAgent.getProviderModels())

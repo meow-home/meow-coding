@@ -1,6 +1,6 @@
 import type {
   AgentConfig, AgentState, ArtifactEntry, CatalogProviderSummary, ChatEvent, ChatMessage, Command,
-  ConnectionAccount, ContextChangedEvent, ContextInfo, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload, ImageContentResult,
+  BackgroundProcInfo, ConnectionAccount, ContextChangedEvent, ContextInfo, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload, ImageContentResult, MonitorInfo,
   GitActionResult, GitBlameLine, GitBranch, GitCommit, GitDiffResult, GitStatus, GitStatusDetail,
   ImageAttachment, LogLevel, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PendingPromptInfo, ProjectSearchHit, PromptResponse,
   StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts,
@@ -106,6 +106,13 @@ export const Channels = {
   FilesSuggest: 'files:suggest',
   AgentSetBackground: 'agent:set-background',
   EventAgentBackground: 'agent:background',
+  BackgroundProcsList: 'procs:list',
+  MonitorsList: 'procs:monitors',
+  BackgroundProcKill: 'procs:kill',
+  BackgroundProcSubscribe: 'procs:subscribe',
+  BackgroundProcUnsubscribe: 'procs:unsubscribe',
+  EventBackgroundProcData: 'procs:data',
+  EventBackgroundProcExit: 'procs:exit',
   EventAgentConfig: 'agent:config-changed',
   BrowserGetStatus: 'browser:get-status',
   BrowserPair: 'browser:pair',
@@ -241,6 +248,13 @@ export interface AgentApi {
   suggestFiles(agentId: string, prefix: string): Promise<FileSuggestion[]>
   setAgentBackground(agentId: string, background: boolean): Promise<void>
   onAgentBackground(cb: (e: { agentId: string; background: boolean }) => void): () => void
+  backgroundProcsList(agentId: string): Promise<BackgroundProcInfo[]>
+  monitorsList(agentId: string): Promise<MonitorInfo[]>
+  backgroundProcKill(id: string): Promise<void>
+  backgroundProcSubscribe(id: string): Promise<{ backlog: string; status: 'running' | 'exited'; exitCode: number | null } | null>
+  backgroundProcUnsubscribe(id: string): Promise<void>
+  onBackgroundProcData(cb: (e: { id: string; chunk: string }) => void): () => void
+  onBackgroundProcExit(cb: (e: { id: string; exitCode: number | null }) => void): () => void
   runCommand(agentId: string, name: string, args: string, images?: ImageAttachment[]): Promise<void>
   undoChat(agentId: string): Promise<boolean>
   redoChat(agentId: string): Promise<boolean>

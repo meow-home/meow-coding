@@ -191,7 +191,16 @@ const api: AgentApi = {
   setAgentBackground: (agentId: string, background: boolean) =>
     ipcRenderer.invoke(Channels.AgentSetBackground, agentId, background),
   onAgentBackground: (cb: (e: { agentId: string; background: boolean }) => void) =>
-    subscribe(Channels.EventAgentBackground, cb)
+    subscribe(Channels.EventAgentBackground, cb),
+  backgroundProcsList: (agentId: string) => ipcRenderer.invoke(Channels.BackgroundProcsList, agentId),
+  monitorsList: (agentId: string) => ipcRenderer.invoke(Channels.MonitorsList, agentId),
+  backgroundProcKill: (id: string) => ipcRenderer.invoke(Channels.BackgroundProcKill, id),
+  backgroundProcSubscribe: (id: string) => ipcRenderer.invoke(Channels.BackgroundProcSubscribe, id),
+  backgroundProcUnsubscribe: (id: string) => ipcRenderer.invoke(Channels.BackgroundProcUnsubscribe, id),
+  onBackgroundProcData: (cb: (e: { id: string; chunk: string }) => void) =>
+    subscribe(Channels.EventBackgroundProcData, cb),
+  onBackgroundProcExit: (cb: (e: { id: string; exitCode: number | null }) => void) =>
+    subscribe(Channels.EventBackgroundProcExit, cb)
 }
 
 contextBridge.exposeInMainWorld('api', api)

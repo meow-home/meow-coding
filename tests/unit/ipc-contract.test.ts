@@ -21,6 +21,7 @@ describe('IPC contract', () => {
       'sendChat', 'stopChat', 'runCommand', 'undoChat', 'redoChat', 'listChatMessages', 'listChatTranscript', 'respondPrompt', 'removeQueued', 'editQueued',
       'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus', 'listCommands', 'saveCommand', 'removeCommand', 'getStats', 'onContextChanged',
       'suggestFiles', 'setAgentBackground', 'onAgentBackground',
+      'backgroundProcsList', 'monitorsList', 'backgroundProcKill', 'backgroundProcSubscribe', 'backgroundProcUnsubscribe', 'onBackgroundProcData', 'onBackgroundProcExit',
       'filesListDir', 'filesSearch',
       'getFileImage', 'openFileWithSystem',
       'getChatTodos',
@@ -143,7 +144,14 @@ describe('IPC contract', () => {
       getFileImage: async () => ({ path: '', ext: '', mime: '', dataUrl: '', sizeBytes: 0 }),
       openFileWithSystem: async () => {},
       setAgentBackground: async () => {},
-      onAgentBackground: () => () => {}
+      onAgentBackground: () => () => {},
+      backgroundProcsList: async () => [],
+      monitorsList: async () => [],
+      backgroundProcKill: async () => {},
+      backgroundProcSubscribe: async () => null,
+      backgroundProcUnsubscribe: async () => {},
+      onBackgroundProcData: () => () => {},
+      onBackgroundProcExit: () => () => {}
     }
     for (const key of required) {
       expect(typeof api[key]).toBe('function')
@@ -172,6 +180,13 @@ describe('IPC contract', () => {
     expect(Channels.FilesSearch).toBe('files:search')
     expect(Channels.AgentSetBackground).toBe('agent:set-background')
     expect(Channels.EventAgentBackground).toBe('agent:background')
+    expect(Channels.BackgroundProcsList).toBe('procs:list')
+    expect(Channels.MonitorsList).toBe('procs:monitors')
+    expect(Channels.BackgroundProcKill).toBe('procs:kill')
+    expect(Channels.BackgroundProcSubscribe).toBe('procs:subscribe')
+    expect(Channels.BackgroundProcUnsubscribe).toBe('procs:unsubscribe')
+    expect(Channels.EventBackgroundProcData).toBe('procs:data')
+    expect(Channels.EventBackgroundProcExit).toBe('procs:exit')
     expect(Channels.AppVersion).toBe('app:version')
     expect(Channels.SettingsGet).toBe('settings:get')
     expect(Channels.SettingsSave).toBe('settings:save')
