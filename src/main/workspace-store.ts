@@ -20,7 +20,7 @@ export class WorkspaceStore {
     return this.store.load().map(w => ({
       projectPath: w.projectPath,
       name: w.name,
-      sessions: w.agents.map(a => ({ id: a.id, name: a.name }))
+      sessions: w.agents.slice().reverse().map(a => ({ id: a.id, name: a.name }))
     }))
   }
 

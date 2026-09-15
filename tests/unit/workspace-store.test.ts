@@ -28,12 +28,14 @@ describe('WorkspaceStore', () => {
     expect(store.get('/proj/a')?.name).toBe('Project A')
   })
 
-  it('lists session id+name metas per project', () => {
+  it('lists session id+name metas per project in newest-first order', () => {
     store.add('/proj/a', 'Project A')
-    const ws = store.addAgent('/proj/a', { name: 'Session 1', templateId: 'meow', cwd: '/proj/a', kind: 'native' })
-    expect(store.list()).toEqual([
-      { projectPath: '/proj/a', name: 'Project A', sessions: [{ id: ws.agents[0].id, name: 'Session 1' }] }
-    ])
+    store.addAgent('/proj/a', { name: 'Session 1', templateId: 'meow', cwd: '/proj/a', kind: 'native' })
+    store.addAgent('/proj/a', { name: 'Session 2', templateId: 'meow', cwd: '/proj/a', kind: 'native' })
+    const list = store.list()
+    expect(list[0].sessions).toHaveLength(2)
+    expect(list[0].sessions[0].name).toBe('Session 2')
+    expect(list[0].sessions[1].name).toBe('Session 1')
   })
 
   it('adds an agent and keeps its config', () => {
