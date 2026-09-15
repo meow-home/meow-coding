@@ -1,0 +1,163 @@
+import { randomUUID } from 'node:crypto'
+import type { BackgroundProcessStore, BgDataEvent, BgExitEvent } from './background-process-store'
+
+export type MonitorReason = 'matched' | 'exited' | 'timeout'
+
+export interface MonitorResolveInfo {
+  id: string
+  agentId: string
+  sessionId: string
+  targetId: string
+  reason: MonitorReason
+  detail: string
+}
+
+export interface MonitorStartOpts {
+  untilRegex?: string
+  untilExit?: boolean | number
+  timeoutMs?: number
+}
+
+export interface MonitorStoreOpts {
+  procs: BackgroundProcessStore
+  getSessionId: (agentId: string) => string
+  onResolve: (info: MonitorResolveInfo) => void
+  maxPerAgent?: number
+}
+
+interface Entry {
+  id: string
+  agentId: string
+  sessionId: string
+  targetId: string
+  untilRegex?: RegExp
+  untilExit?: boolean | number
+  status: 'watching' | 'resolved'
+  onData: (e: BgDataEvent) => void
+  onExit: (e: BgExitEvent) => void
+  timer?: ReturnType<typeof setTimeout>
+}
+
+const DEFAULT_MAX_PER_AGENT = 10
+const DETAIL_CAP = 500
+
+export class MonitorStore {
+  private entries = new Map<string, Entry>()
+
+  constructor(private opts: MonitorStoreOpts) {}
+
+  private get maxPerAgent(): number { return this.opts.maxPerAgent ?? DEFAULT_MAX_PER_AGENT }
+
+  count(agentId: string): number {
+    let n = 0
+    for (const e of this.entries.values()) if (e.agentId === agentId && e.status === 'watching') n++
+    return n
+  }
+
+  start(agentId: string, targetId: string, opts: MonitorStartOpts): { id: string } | { error: string } {
+    if (opts.untilRegex === undefined && opts.untilExit === undefined) {
+      return { error: 'monitor: provide at least one of until_regex or until_exit' }
+    }
+    let untilRegex: RegExp | undefined
+    if (opts.untilRegex !== undefined) {
+      try { untilRegex = new RegExp(opts.untilRegex) } catch { return { error: 'monitor: invalid until_regex' } }
+    }
+    const target = this.opts.procs.inspect(targetId)
+    if (!target) return { error: `monitor: unknown background shell id "${targetId}"` }
+    if (this.count(agentId) >= this.maxPerAgent) {
+      return { error: `monitor: too many monitors (max ${this.maxPerAgent})` }
+    }
+    const id = randomUUID().slice(0, 8)
+    const sessionId = this.opts.getSessionId(agentId)
+
+    // Target already gone: resolve immediately as exited.
+    if (target.status === 'exited') {
+      this.opts.onResolve({ id, agentId, sessionId, targetId, reason: 'exited', detail: `exit code ${target.exitCode}` })
+      return { id }
+    }
+
+    const entry: Entry = {
+      id, agentId, sessionId, targetId, untilRegex, untilExit: opts.untilExit,
+      status: 'watching', onData: () => {}, onExit: () => {}
+    }
+    entry.onData = (e: BgDataEvent) => {
+      if (e.id !== targetId || entry.status !== 'watching' || !entry.untilRegex) return
+      for (const line of e.chunk.split('\n')) {
+        if (entry.untilRegex.test(line)) { this.resolve(entry, 'matched', line.trim().slice(0, DETAIL_CAP)); return }
+      }
+    }
+    entry.onExit = (e: BgExitEvent) => {
+      if (e.id !== targetId || entry.status !== 'watching') return
+      this.resolve(entry, 'exited', `exit code ${e.exitCode}`)
+    }
+    this.opts.procs.on('data', entry.onData)
+    this.opts.procs.on('exit', entry.onExit)
+    if (opts.timeoutMs && opts.timeoutMs > 0) {
+      const ms = opts.timeoutMs
+      entry.timer = setTimeout(() => this.resolve(entry, 'timeout', `${Math.round(ms / 1000)}s`), ms)
+      entry.timer.unref?.()
+    }
+    this.entries.set(id, entry)
+
+    // Close the subscribe gap: a matching line may already be in the buffer
+    // (printed before we attached the listener). Re-inspect after subscribing.
+    if (untilRegex) {
+      const current = this.opts.procs.inspect(targetId)
+      for (const line of (current?.buffer ?? '').split('\n')) {
+        if (untilRegex.test(line)) { this.resolve(entry, 'matched', line.trim().slice(0, DETAIL_CAP)); break }
+      }
+    }
+    return { id }
+  }
+
+  private resolve(entry: Entry, reason: MonitorReason, detail: string): void {
+    if (entry.status !== 'watching') return
+    this.teardown(entry)
+    this.opts.onResolve({
+      id: entry.id, agentId: entry.agentId, sessionId: entry.sessionId,
+      targetId: entry.targetId, reason, detail
+    })
+  }
+
+  private teardown(entry: Entry): void {
+    entry.status = 'resolved'
+    this.opts.procs.removeListener('data', entry.onData)
+    this.opts.procs.removeListener('exit', entry.onExit)
+    if (entry.timer) clearTimeout(entry.timer)
+    this.entries.delete(entry.id)
+  }
+
+  cancelAllForAgent(agentId: string): void {
+    for (const e of [...this.entries.values()]) if (e.agentId === agentId) this.teardown(e)
+  }
+
+  cancelAll(): void {
+    for (const e of [...this.entries.values()]) this.teardown(e)
+  }
+}
+
+export interface MonitorResolveDeps {
+  appendMessage: (sessionId: string, text: string) => void
+  notify?: (info: MonitorResolveInfo) => void
+  isRunning: (agentId: string) => boolean
+  wake: (agentId: string, text: string) => void
+}
+
+export function monitorResolveMessage(info: MonitorResolveInfo): string {
+  const head = info.reason === 'matched' ? `matched: ${info.detail}`
+    : info.reason === 'exited' ? `shell exited (${info.detail})`
+    : `timed out after ${info.detail}`
+  return `[monitor ${info.id}] shell ${info.targetId} — ${head}. ` +
+    `Read output with bash_output({ id: "${info.targetId}" }).`
+}
+
+export function handleMonitorResolve(info: MonitorResolveInfo, deps: MonitorResolveDeps): void {
+  deps.appendMessage(info.sessionId, monitorResolveMessage(info))
+  deps.notify?.(info)
+  if (!deps.isRunning(info.agentId)) {
+    deps.wake(
+      info.agentId,
+      `A monitor (${info.id}) resolved (${info.reason}). Read the shell's output with bash_output if relevant and continue.`
+    )
+  }
+}
