@@ -6,6 +6,7 @@ import type { StoredSession } from './session'
 import { encodeProjectPath } from '../project-encode'
 import { parseSessionJsonl, serializeSessionJsonl, type SessionRecord } from './session-records'
 import { writeFileAtomic } from '../atomic-write'
+import { migrateSessions } from './session-migrate'
 
 export interface SessionIndexEntry {
   id: string
@@ -38,6 +39,9 @@ export class SessionFileStore {
     this.indexFile = path.join(rootDir, 'sessions-index.json')
     this.debounceMs = opts.debounceMs ?? 0
     if (this.debounceMs > 0) process.on('exit', () => this.flush())
+    // One-time move of the legacy sessions.json into per-session jsonl files.
+    // Best-effort: a failure must not break store construction (app boot).
+    try { migrateSessions(rootDir) } catch { /* best effort */ }
   }
 
   private loadIndex(): Map<string, SessionIndexEntry> {

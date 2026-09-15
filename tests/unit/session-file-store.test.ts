@@ -1,6 +1,6 @@
 // tests/unit/session-file-store.test.ts
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync as read } from 'node:fs'
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync as read, existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -86,5 +86,22 @@ describe('SessionFileStore writes', () => {
     store.remove('s1')
     expect(store.get('s1')).toBeNull()
     expect(store.list()).toEqual([])
+  })
+})
+
+describe('SessionFileStore constructor migration', () => {
+  let root: string
+  beforeEach(() => { root = mkdtempSync(path.join(tmpdir(), 'meow-fsmig-')) })
+  afterEach(() => rmSync(root, { recursive: true, force: true }))
+
+  it('migrates a legacy sessions.json on first construction', () => {
+    writeFileSync(path.join(root, 'sessions.json'), JSON.stringify([
+      { id: 's1', agentId: 'a1', projectPath: '/p', title: 'One',
+        items: [{ kind: 'message', message: { id: 'm', role: 'user', text: 'hi', createdAt: 1 } }],
+        todos: [], usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 }, createdAt: 1, updatedAt: 2 }
+    ]))
+    const store = new SessionFileStore(root)
+    expect(store.list().map(e => e.id)).toEqual(['s1'])
+    expect(existsSync(path.join(root, '.sessions-migrated-v1'))).toBe(true)
   })
 })
