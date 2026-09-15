@@ -203,6 +203,26 @@ export function createTaskTool(opts: {
 
     await runner.run(signal)
 
+    // SubagentStop hooks fire when the subagent finishes; a block resumes it,
+    // bounded so a misbehaving hook cannot loop forever.
+    const lastText = (): string => {
+      for (let i = items.length - 1; i >= 0; i--) {
+        const item = items[i]
+        if (item.kind === 'message' && item.message.role === 'assistant' && item.message.text.trim() !== '') return item.message.text
+      }
+      return ''
+    }
+    const hooks = opts.hooks?.()
+    if (hooks) {
+      const MAX_SUBAGENT_STOP_BLOCKS = 3
+      for (let blocks = 0; blocks < MAX_SUBAGENT_STOP_BLOCKS && !signal?.aborted; blocks++) {
+        const stop = await hooks.runSubagentStop(lastText(), blocks > 0, input.role.name)
+        if (!stop.block) break
+        items.push({ kind: 'message', message: { id: randomUUID(), role: 'user', text: stop.reason ?? 'Please continue.', createdAt: Date.now() } })
+        await runner.run(signal)
+      }
+    }
+
     let text = ''
     for (let i = items.length - 1; i >= 0; i--) {
       const item = items[i]
