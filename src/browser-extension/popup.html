@@ -3,19 +3,51 @@
 <head>
   <meta charset="UTF-8" />
   <style>
-    body { font-family: system-ui, sans-serif; width: 280px; margin: 0; padding: 12px; color: #1e1e1e; background: #fff; }
-    h1 { font-size: 14px; margin: 0 0 8px; }
+    :root {
+      --bg: #ffffff;
+      --text: #1e1e1e;
+      --text-dim: #666666;
+      --text-hint: #888888;
+      --input-bg: #ffffff;
+      --input-border: #cccccc;
+      --btn-bg: #f5f5f5;
+      --btn-border: #cccccc;
+      --btn-text: #1e1e1e;
+      --accent: #1565c0;
+      --dot-green: #2e7d32;
+      --dot-red: #c62828;
+      --dot-amber: #f9a825;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #161618;
+        --text: #ffffff;
+        --text-dim: #b0b0b0;
+        --text-hint: #808080;
+        --input-bg: #1a1a1d;
+        --input-border: rgba(255, 255, 255, 0.15);
+        --btn-bg: #242428;
+        --btn-border: rgba(255, 255, 255, 0.15);
+        --btn-text: #ffffff;
+        --accent: #007acc;
+        --dot-green: #4ade9f;
+        --dot-red: #ff5f56;
+        --dot-amber: #ffb454;
+      }
+    }
+    body { font-family: system-ui, sans-serif; width: 280px; margin: 0; padding: 12px; color: var(--text); background: var(--bg); }
+    h1 { font-size: 14px; margin: 0 0 8px; color: var(--text); }
     .row { margin: 6px 0; font-size: 12px; }
-    label { display: block; font-size: 11px; color: #666; margin-bottom: 2px; }
-    input { width: 100%; box-sizing: border-box; padding: 4px 6px; font-size: 12px; border: 1px solid #ccc; border-radius: 4px; }
-    .status { font-size: 12px; margin-bottom: 8px; }
+    label { display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 2px; }
+    input { width: 100%; box-sizing: border-box; padding: 4px 6px; font-size: 12px; color: var(--text); background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 4px; }
+    .status { font-size: 12px; margin-bottom: 8px; color: var(--text); }
     .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
-    .dot.green { background: #2e7d32; }
-    .dot.red { background: #c62828; }
-    .dot.amber { background: #f9a825; }
-    button { margin-top: 8px; padding: 5px 10px; font-size: 12px; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; cursor: pointer; }
-    button.primary { background: #1565c0; border-color: #1565c0; color: #fff; }
-    .hint { font-size: 11px; color: #888; margin-top: 8px; }
+    .dot.green { background: var(--dot-green); }
+    .dot.red { background: var(--dot-red); }
+    .dot.amber { background: var(--dot-amber); }
+    button { margin-top: 8px; padding: 5px 10px; font-size: 12px; border: 1px solid var(--btn-border); border-radius: 4px; background: var(--btn-bg); color: var(--btn-text); cursor: pointer; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .hint { font-size: 11px; color: var(--text-hint); margin-top: 8px; }
   </style>
 </head>
 <body>
