@@ -22,6 +22,7 @@ import type { TruncationStore } from './truncation'
 import type { SnapshotStore } from './snapshot'
 import type { HooksRunner } from './hooks'
 import type { BackgroundProcessStore } from './background-process-store'
+import type { MonitorStore } from './monitor-store'
 
 export interface LoopDeps {
   agentId: string
@@ -76,6 +77,8 @@ export interface LoopDeps {
   onArtifact?: (entry: Omit<ArtifactEntry, 'id' | 'ts'>) => void
   /** Long-lived background shell processes for bash run_in_background. */
   backgroundProcs?: BackgroundProcessStore
+  /** Async watches over background shells for the monitor tool. */
+  monitors?: MonitorStore
   getItems: () => TranscriptItem[]
   appendMessage: (msg: ChatMessage) => void
   appendTool: (tool: ToolCallData) => void
@@ -584,7 +587,8 @@ export class SessionRunner {
             return `<system-reminder>\n${files.map(f => `Instructions from: ${f.path}\n${f.content}`).join('\n\n')}\n</system-reminder>`
           },
           onArtifact: (entry) => this.deps.onArtifact?.(entry),
-          backgroundProcs: this.deps.backgroundProcs
+          backgroundProcs: this.deps.backgroundProcs,
+          monitors: this.deps.monitors
         }
         try {
           const r = await def.run(call.input, toolCtx)

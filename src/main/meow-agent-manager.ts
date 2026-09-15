@@ -13,6 +13,7 @@ import {
 import { SessionRunner } from './agent/loop'
 import { BackgroundProcessStore, type BgExitInfo } from './agent/background-process-store'
 import { handleBackgroundExit } from './agent/background-exit'
+import { MonitorStore, handleMonitorResolve, type MonitorResolveInfo } from './agent/monitor-store'
 import { resolveCompactionSettings, usableContextTokens } from './agent/compact'
 import { LimitsService, parseContextLimitFromError } from './agent/limits'
 import { LearnedLimitsStore, normalizeLearnedKey } from './agent/learned-limits'
@@ -117,6 +118,11 @@ export class MeowAgentManager {
   private backgroundProcs = new BackgroundProcessStore({
     getSessionId: (agentId) => this.activeSessionId(agentId),
     onExit: (info) => this.onBackgroundBashExit(info)
+  })
+  private monitors = new MonitorStore({
+    procs: this.backgroundProcs,
+    getSessionId: (agentId) => this.activeSessionId(agentId),
+    onResolve: (info) => this.onMonitorResolve(info)
   })
   private queues = new Map<string, QueuedMessage[]>()
   // In-flight turn per agent. A turn aborted mid-tool is still winding down
@@ -324,6 +330,32 @@ export class MeowAgentManager {
     this.emitQueue(agentId)
   }
 
+  private onMonitorResolve(info: MonitorResolveInfo): void {
+    handleMonitorResolve(info, {
+      appendMessage: (sessionId, text) => this.deps.store.appendMessage(sessionId, {
+        id: randomUUID(),
+        role: 'assistant',
+        text,
+        createdAt: Date.now()
+      }),
+      notify: (i) => {
+        if (this.deps.notifications?.onDone === false) return
+        this.deps.notify?.notify({
+          title: '[meow] Monitor resolved',
+          body: `${this.agents.get(i.agentId)?.name ?? i.agentId}: ${i.reason} — ${i.detail}`,
+          agentId: i.agentId,
+          kind: 'done',
+          onActivate: () => this.deps.onActivateAgent?.(i.agentId)
+        })
+      },
+      isRunning: (agentId) => this.running.has(agentId),
+      wake: (agentId, text) => {
+        this.enqueueMessage(agentId, text)
+        void this.drainQueue(agentId)
+      }
+    })
+  }
+
   private onBackgroundBashExit(info: BgExitInfo): void {
     handleBackgroundExit(info, {
       appendMessage: (sessionId, text) => this.deps.store.appendMessage(sessionId, {
@@ -524,6 +556,7 @@ export class MeowAgentManager {
     // the session that spawned each one; it deletes them as they settle.
     for (const entry of this.backgroundTasks.get(agentId)?.values() ?? []) entry.cancel()
     this.running.delete(agentId)
+    this.monitors.cancelAllForAgent(agentId)
     this.backgroundProcs.killAllForAgent(agentId)
     this.resolvePendingFor(agentId, null)
   }
@@ -949,6 +982,7 @@ export class MeowAgentManager {
   async dispose(): Promise<void> {
     if (this.idleCompactTimer) { clearInterval(this.idleCompactTimer); this.idleCompactTimer = null }
     this.stopAll()
+    this.monitors.cancelAll()
     this.backgroundProcs.killAll()
     this.deps.store.flush()
     await this.mcp.closeAll()
@@ -1271,6 +1305,7 @@ export class MeowAgentManager {
       appendMessage: (msg) => this.deps.store.appendMessage(this.activeSessionId(agent.id), msg),
       appendTool: (tool) => this.deps.store.appendTool(this.activeSessionId(agent.id), tool),
       backgroundProcs: this.backgroundProcs,
+      monitors: this.monitors,
       takeSteers: () => {
         const q = this.queues.get(agent.id)
         if (!q || q.length === 0) return []
