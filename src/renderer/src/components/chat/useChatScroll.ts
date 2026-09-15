@@ -6,8 +6,8 @@ import {
   anchorScrollTop,
   followScrollDelta,
   isAtTrueBottom as isFeedAtTrueBottom,
-  isInBottomFollowZone,
   nextChatScrollMode,
+  scrollEventAction,
   tailSpacerHeight
 } from './chat-scroll-geometry'
 import type { ChatScrollMode } from './chat-scroll-geometry'
@@ -51,7 +51,6 @@ export function useChatScroll(): ChatScrollController {
   const pendingAnchorIdRef = useRef<string | null>(null)
   const programmaticRef = useRef(false)
   const scrollbarDragRef = useRef(false)
-  const lastScrollTopRef = useRef<number>(0)
   const reconcileRafRef = useRef<number | null>(null)
   const pinRafRef = useRef<number | null>(null)
   // The anchor is re-applied until the layout settles (content-visibility rows
@@ -66,7 +65,6 @@ export function useChatScroll(): ChatScrollController {
     if (!feed) return
     programmaticRef.current = true
     feed.scrollTop = top
-    lastScrollTopRef.current = top
     requestAnimationFrame(() => { programmaticRef.current = false })
   }, [])
 
@@ -75,16 +73,6 @@ export function useChatScroll(): ChatScrollController {
     if (!id) return null
     return Array.from(feedRef.current?.querySelectorAll<HTMLElement>('[data-chat-message-id]') ?? [])
       .find(row => row.dataset.chatMessageId === id) ?? null
-  }, [])
-
-  const isAtBottom = useCallback(() => {
-    const feed = feedRef.current
-    if (!feed) return false
-    return isInBottomFollowZone({
-      scrollHeight: feed.scrollHeight,
-      scrollTop: feed.scrollTop,
-      clientHeight: feed.clientHeight
-    })
   }, [])
 
   // Whether the feed is at the literal bottom (within a couple of px). Used as
@@ -248,10 +236,17 @@ export function useChatScroll(): ChatScrollController {
   const leaveFollowMode = useCallback(() => { enterManual() }, [enterManual])
 
   const onWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
-    // Scrolling up or scrolling down when not at true bottom yields control to user.
-    if (event.deltaY < 0 || (event.deltaY > 0 && !isAtTrueBottom())) {
-      enterManual()
+    const feed = feedRef.current
+    if (!feed) return
+    if (event.deltaY > 0) {
+      // Scrolling down away from the literal end yields control to the user.
+      if (!isAtTrueBottom()) enterManual()
+      return
     }
+    // Wheel up only detaches when the feed can actually move up: a wheel-up at
+    // scrollTop 0 (or on a transcript that does not overflow) emits no scroll
+    // event, so nothing would ever re-engage following.
+    if (event.deltaY < 0 && feed.scrollTop > 0) enterManual()
   }, [enterManual, isAtTrueBottom])
 
   const onTouchMove = useCallback(() => { enterManual() }, [enterManual])
@@ -290,27 +285,18 @@ export function useChatScroll(): ChatScrollController {
   const onScroll = useCallback(() => {
     const feed = feedRef.current
     if (!feed) return
-    const currentScrollTop = feed.scrollTop
-    const prevScrollTop = lastScrollTopRef.current
-    if (!programmaticRef.current) {
-      lastScrollTopRef.current = currentScrollTop
-    }
-
-    if (programmaticRef.current) return
-
-    // Any upward scroll movement immediately cancels follow mode.
-    if (currentScrollTop < prevScrollTop - 1) {
+    const action = scrollEventAction({
+      programmatic: programmaticRef.current,
+      scrollbarDrag: scrollbarDragRef.current,
+      atTrueBottom: isAtTrueBottom()
+    })
+    if (action === 'none') return
+    if (action === 'detach') {
       enterManual()
       return
     }
-
-    // Following is ONLY enabled when scrolled to the literal end (true bottom).
-    if (isAtTrueBottom()) {
-      modeRef.current = nextChatScrollMode(modeRef.current, 'user-bottom')
-      setShowJumpToEnd(false)
-    } else if (modeRef.current !== 'manual') {
-      enterManual()
-    }
+    modeRef.current = nextChatScrollMode(modeRef.current, 'user-bottom')
+    setShowJumpToEnd(false)
   }, [enterManual, isAtTrueBottom])
 
   useEffect(() => {
