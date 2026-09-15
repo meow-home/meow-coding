@@ -570,7 +570,8 @@ drop a global policy hook:
 ```
 
 `matcher` mirrors Claude Code and is case-sensitive; a malformed regex matches nothing rather than
-failing the turn. `Stop` hooks ignore their matcher and always fire.
+failing the turn. `Stop` and the lifecycle events (`UserPromptSubmit`, `SessionStart`,
+`SubagentStop`, `PreCompact`, `SessionEnd`) ignore their matcher and always fire.
 
 Handler types: `command` (shell form via `buildShellCommand`, or exec form with `args` to skip the
 shell; `shell: "powershell"` on Windows), `mcp_tool` (`server` + `tool`), `http` (POST, with `$VAR`
@@ -592,7 +593,8 @@ channel and **stdout** carries the detail:
 
 stdout is parsed as a decision **only** when it is a bare JSON object (`{`…`}`), so a hook can print
 human-readable notes freely. Decisions are read from `hookSpecificOutput` (or the top level, for
-older hooks). Output is capped at 64 KiB. Defaults: `PreToolUse` 60s, `PostToolUse`/`Stop` 600s.
+older hooks). Output is capped at 64 KiB. Defaults: `PreToolUse`/`UserPromptSubmit`/`SessionStart`/
+`PreCompact`/`SessionEnd` 60s, `PostToolUse`/`Stop`/`SubagentStop` 600s.
 
 ### Events
 
@@ -621,6 +623,24 @@ Hooks are invisible unless they act: the model and the user see a blocked call's
 tool output, appended context, or a Stop reason in the feed; a hook's own lifecycle
 (`started` → `ok` | `blocked` | `failed` | `timeout`) is never written to the transcript.
 
-**Out of scope** (phase 2): the other Claude Code events (`UserPromptSubmit`, `SessionStart`,
-`SessionEnd`, `PreCompact`, `Notification`, …), the `if` per-handler filter, `asyncRewake`, the
-`defer` decision, plugin/frontmatter hooks, and `disableAllHooks`.
+#### Lifecycle events
+
+Beyond the gating `PreToolUse`/`PostToolUse`/`Stop` events above, the hook engine also exposes
+matcher-ignoring lifecycle events fired at their integration points:
+
+- **`UserPromptSubmit`** — per genuine user prompt whose turn actually starts (queued nudges bypass
+  it). Exit 2 / `{"decision":"block"}` / `{"ok":false}` blocks the prompt, emitting `[hook] prompt
+  blocked: …`. `additionalContext` is injected as a `<system-reminder>` prefix on the prompt.
+- **`SessionStart`** — once per session, before the first prompt; `source` is `"startup"` for a fresh
+  session or `"resume"` when it already has items. Never blocks; `additionalContext` is injected as
+  above. Fired from `runTurnInner`, after the runner and running slot are claimed, so a mid-turn
+  `setMode`/`register` cannot swap the in-flight runner.
+- **`SubagentStop`** — when a subagent finishes; `last_assistant_message`, `stop_hook_active`, and
+  `subagent_type` are passed. A block resumes the subagent with `reason` (bounded by
+  `MAX_SUBAGENT_STOP_BLOCKS` = 3, and aborts if the signal is aborted).
+- **`PreCompact`** — before transcript compaction; `trigger` is `"auto"` | `"manual"`. Never blocks.
+- **`SessionEnd`** — on agent removal (`"delete"`) and app dispose (`"exit"`). Fire-and-forget.
+
+**Out of scope** (phase 2): the remaining Claude Code events (`Notification`, …), the `if`
+per-handler filter, `asyncRewake`, the `defer` decision, plugin/frontmatter hooks, and
+`disableAllHooks`.
