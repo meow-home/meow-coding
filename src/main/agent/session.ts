@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import type { JsonStore } from '../json-store'
 import type { ChatMessage, ChatTranscriptItem, SessionSummary, TodoItem, ToolCallData, TranscriptWindow, TranscriptWindowOpts, UsageSummary } from '../../shared/types'
+import { SessionFileStore } from './session-file-store'
 
 export const DEFAULT_SESSION_TITLE = 'New session'
 
@@ -18,8 +18,6 @@ export interface StoredSession {
 
 export type { SessionSummary }
 
-type RawSession = Partial<StoredSession> & Record<string, unknown>
-
 export function titleFrom(text: string): string {
   const cleanText = text
     .replace(/data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g, '')
@@ -32,62 +30,11 @@ export function titleFrom(text: string): string {
   return t || DEFAULT_SESSION_TITLE
 }
 
-function titleFromItems(items: ChatTranscriptItem[]): string {
-  for (const item of items) {
-    if (item.kind === 'message' && item.message.role === 'user') {
-      const title = titleFrom(item.message.displayText ?? item.message.text)
-      if (title !== DEFAULT_SESSION_TITLE) {
-        return title
-      }
-    }
-  }
-  return DEFAULT_SESSION_TITLE
-}
-
-function normalize(raw: RawSession): StoredSession {
-  const items: ChatTranscriptItem[] = Array.isArray(raw.items) ? (raw.items as ChatTranscriptItem[]) : []
-  const id = String(raw.id ?? randomUUID())
-  return {
-    id,
-    agentId: String(raw.agentId ?? raw.id ?? ''),
-    projectPath: String(raw.projectPath ?? ''),
-    title: typeof raw.title === 'string' && raw.title ? raw.title : titleFromItems(items),
-    items,
-    todos: Array.isArray(raw.todos) ? (raw.todos as TodoItem[]) : [],
-    usage: raw.usage ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 },
-    createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : (raw.updatedAt ?? Date.now()),
-    updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : Date.now()
-  }
-}
-
 export class SessionStore {
-  // Guarantees strictly-increasing updatedAt so ordering by it is always
-  // deterministic even when mutations happen within the same millisecond.
   private lastUpdatedAt = 0
+  constructor(private store: SessionFileStore) {}
 
-  constructor(private store: JsonStore<StoredSession>) {}
-
-  // Normalizing on every read walked every transcript item of every session —
-  // the agent loop reads the transcript several times per step, so a long
-  // session paid that cost repeatedly. Normalize once and keep the result.
-  private sessions: StoredSession[] | null = null
-
-  private loadSessions(): StoredSession[] {
-    if (!this.sessions) {
-      this.sessions = (this.store.load() as unknown as RawSession[]).map(normalize)
-    }
-    return this.sessions
-  }
-
-  private saveSessions(sessions: StoredSession[]): void {
-    this.sessions = sessions
-    this.store.save(sessions)
-  }
-
-  /** Forces any debounced write to disk — call before the app quits. */
-  flush(): void {
-    this.store.flush?.()
-  }
+  flush(): void { this.store.flush() }
 
   private nextUpdatedAt(): number {
     const now = Date.now()
@@ -96,203 +43,155 @@ export class SessionStore {
     return this.lastUpdatedAt
   }
 
+  private toSummary(e: { id: string; agentId: string; title: string; messageCount: number; createdAt: number; updatedAt: number }): SessionSummary {
+    return { id: e.id, agentId: e.agentId, title: e.title, messageCount: e.messageCount, createdAt: e.createdAt, updatedAt: e.updatedAt }
+  }
+
   list(agentId: string): SessionSummary[] {
-    return this.loadSessions()
-      .filter(s => s.agentId === agentId)
+    return this.store.list()
+      .filter(e => e.agentId === agentId)
       .sort((a, b) => b.updatedAt - a.updatedAt)
-      .map(s => ({
-        id: s.id,
-        agentId: s.agentId,
-        title: s.title,
-        messageCount: s.items.length,
-        createdAt: s.createdAt,
-        updatedAt: s.updatedAt
-      }))
+      .map(e => this.toSummary(e))
   }
 
+  // Summary-only StoredSessions (empty items/todos) for getStats, which reads
+  // id/title/agentId/usage only.
   listAll(): StoredSession[] {
-    return this.loadSessions()
+    return this.store.list().map(e => ({
+      id: e.id, agentId: e.agentId, projectPath: e.projectPath, title: e.title,
+      items: [], todos: [], usage: e.usage, createdAt: e.createdAt, updatedAt: e.updatedAt
+    }))
   }
 
-  get(id: string): StoredSession | null {
-    return this.loadSessions().find(s => s.id === id) ?? null
-  }
+  get(id: string): StoredSession | null { return this.store.get(id) }
 
   latest(agentId: string): StoredSession | null {
-    const all = this.loadSessions()
-      .filter(s => s.agentId === agentId)
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-    return all[0] ?? null
+    const entry = this.store.list()
+      .filter(e => e.agentId === agentId)
+      .sort((a, b) => b.updatedAt - a.updatedAt)[0]
+    return entry ? this.store.get(entry.id) : null
   }
 
   create(agentId: string, projectPath: string): StoredSession {
     const session: StoredSession = {
-      id: randomUUID(),
-      agentId,
-      projectPath,
-      title: DEFAULT_SESSION_TITLE,
-      items: [],
-      todos: [],
-      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 },
-      createdAt: Date.now(),
-      updatedAt: this.nextUpdatedAt()
+      id: randomUUID(), agentId, projectPath, title: DEFAULT_SESSION_TITLE,
+      items: [], todos: [], usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 },
+      createdAt: Date.now(), updatedAt: this.nextUpdatedAt()
     }
-    this.saveSessions([...this.loadSessions(), session])
+    this.store.create(session)
     return session
   }
 
-  transcript(id: string): ChatTranscriptItem[] {
-    return this.get(id)?.items ?? []
-  }
+  transcript(id: string): ChatTranscriptItem[] { return this.store.get(id)?.items ?? [] }
 
-  // Windowed read for paged feed rendering: `beforeId` matches a ChatMessage or
-  // ToolCallData id, and the returned window runs up to AND INCLUDING that item,
-  // with `hasMore` true when older items exist before the window.
-  transcriptWindow(
-    id: string,
-    opts?: TranscriptWindowOpts
-  ): TranscriptWindow {
-    const items = this.get(id)?.items ?? []
+  transcriptWindow(id: string, opts?: TranscriptWindowOpts): TranscriptWindow {
+    const items = this.store.get(id)?.items ?? []
     const limit = Math.max(1, opts?.limit ?? 50)
-    if (!opts?.beforeId) {
-      return { items: items.slice(-limit), hasMore: items.length > limit }
-    }
-    const index = items.findIndex(it =>
-      (it.kind === 'message' ? it.message.id : it.tool.id) === opts.beforeId
-    )
-    if (index < 0) {
-      return { items: items.slice(-limit), hasMore: items.length > limit }
-    }
+    if (!opts?.beforeId) return { items: items.slice(-limit), hasMore: items.length > limit }
+    const index = items.findIndex(it => (it.kind === 'message' ? it.message.id : it.tool.id) === opts.beforeId)
+    if (index < 0) return { items: items.slice(-limit), hasMore: items.length > limit }
     const start = Math.max(0, index - limit + 1)
     return { items: items.slice(start, index + 1), hasMore: start > 0 }
   }
 
-  todos(id: string): TodoItem[] {
-    return this.get(id)?.todos ?? []
-  }
+  todos(id: string): TodoItem[] { return this.store.get(id)?.todos ?? [] }
 
   setTodos(id: string, todos: TodoItem[]): void {
-    const all = this.loadSessions()
-    const idx = all.findIndex(s => s.id === id)
-    if (idx < 0) return
-    all[idx].todos = todos
-    all[idx].updatedAt = this.nextUpdatedAt()
-    this.saveSessions(all)
+    const s = this.store.get(id); if (!s) return
+    s.todos = todos
+    s.updatedAt = this.nextUpdatedAt()
+    this.store.append(id, [{ type: 'todos', ts: s.updatedAt, todos }])
+    this.store.reindex(s)
   }
 
   replaceItems(id: string, items: ChatTranscriptItem[]): void {
-    const all = this.loadSessions()
-    const idx = all.findIndex(s => s.id === id)
-    if (idx < 0) return
-    all[idx].items = items
-    all[idx].updatedAt = this.nextUpdatedAt()
-    this.saveSessions(all)
+    const s = this.store.get(id); if (!s) return
+    s.items = items
+    s.updatedAt = this.nextUpdatedAt()
+    this.store.rewrite(s)
   }
 
-  // Removes a single user message (e.g. a steered message the user deleted
-  // after it was injected into the running turn).
   removeMessage(id: string, messageId: string): void {
-    const all = this.loadSessions()
-    const idx = all.findIndex(s => s.id === id)
-    if (idx < 0) return
-    const after = all[idx].items.filter(
-      it => !(it.kind === 'message' && it.message.id === messageId)
-    )
-    if (after.length === all[idx].items.length) return
-    all[idx].items = after
-    all[idx].updatedAt = this.nextUpdatedAt()
-    this.saveSessions(all)
+    const s = this.store.get(id); if (!s) return
+    const after = s.items.filter(it => !(it.kind === 'message' && it.message.id === messageId))
+    if (after.length === s.items.length) return
+    s.items = after
+    s.updatedAt = this.nextUpdatedAt()
+    this.store.rewrite(s)
   }
 
-  // Cuts the transcript from the last user message onwards (used by undo) and
-  // returns the removed items.
   truncateFromLastUser(id: string): ChatTranscriptItem[] {
-    const all = this.loadSessions()
-    const idx = all.findIndex(s => s.id === id)
-    if (idx < 0) return []
-    const items = all[idx].items
+    const s = this.store.get(id); if (!s) return []
     let cut = -1
-    for (let i = items.length - 1; i >= 0; i--) {
-      const item = items[i]
-      if (item.kind === 'message' && item.message.role === 'user') {
-        cut = i
-        break
-      }
+    for (let i = s.items.length - 1; i >= 0; i--) {
+      const item = s.items[i]
+      if (item.kind === 'message' && item.message.role === 'user') { cut = i; break }
     }
     if (cut < 0) return []
-    const removed = items.splice(cut)
-    all[idx].updatedAt = this.nextUpdatedAt()
-    this.saveSessions(all)
+    const removed = s.items.splice(cut)
+    s.updatedAt = this.nextUpdatedAt()
+    this.store.rewrite(s)
     return removed
   }
 
   appendMessage(id: string, message: ChatMessage): void {
-    const all = this.loadSessions()
-    const idx = all.findIndex(s => s.id === id)
-    if (idx < 0) return
-    const session = all[idx]
-    session.items.push({ kind: 'message', message })
-    if (session.title === DEFAULT_SESSION_TITLE && message.role === 'user') {
+    const s = this.store.get(id); if (!s) return
+    s.items.push({ kind: 'message', message })
+    const records: import('./session-records').SessionRecord[] =
+      [{ type: 'message', uuid: randomUUID(), parentUuid: null, ts: message.createdAt, message }]
+    if (s.title === DEFAULT_SESSION_TITLE && message.role === 'user') {
       const derived = titleFrom(message.displayText ?? message.text)
       if (derived !== DEFAULT_SESSION_TITLE) {
-        session.title = derived
+        s.title = derived
+        records.push({ type: 'title', ts: this.nextUpdatedAt(), title: derived })
       }
     }
-    session.updatedAt = this.nextUpdatedAt()
-    this.saveSessions(all)
+    s.updatedAt = this.nextUpdatedAt()
+    this.store.append(id, records)
+    this.store.reindex(s)
   }
 
   appendTool(id: string, tool: ToolCallData): void {
-    const all = this.loadSessions()
-    const idx = all.findIndex(s => s.id === id)
-    if (idx < 0) return
-    const session = all[idx]
-    session.items.push({ kind: 'tool', tool })
-    session.updatedAt = this.nextUpdatedAt()
-    this.saveSessions(all)
+    const s = this.store.get(id); if (!s) return
+    s.items.push({ kind: 'tool', tool })
+    s.updatedAt = this.nextUpdatedAt()
+    this.store.append(id, [{ type: 'tool', uuid: randomUUID(), parentUuid: null, ts: s.updatedAt, tool }])
+    this.store.reindex(s)
   }
 
   setTitle(id: string, title: string): void {
-    const all = this.loadSessions()
-    const idx = all.findIndex(s => s.id === id)
-    if (idx < 0) return
-    all[idx].title = title
-    this.saveSessions(all)
+    const s = this.store.get(id); if (!s) return
+    s.title = title
+    s.updatedAt = this.nextUpdatedAt()
+    this.store.append(id, [{ type: 'title', ts: s.updatedAt, title }])
+    this.store.reindex(s)
   }
 
   touch(id: string): void {
-    const all = this.loadSessions()
-    const idx = all.findIndex(s => s.id === id)
-    if (idx < 0) return
-    all[idx].updatedAt = this.nextUpdatedAt()
-    this.saveSessions(all)
+    const s = this.store.get(id); if (!s) return
+    s.updatedAt = this.nextUpdatedAt()
+    this.store.reindex(s)
   }
 
   getUsage(id: string): UsageSummary {
-    return this.get(id)?.usage ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 }
+    return this.store.get(id)?.usage ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 }
   }
 
   addUsage(id: string, usage: UsageSummary): void {
-    const all = this.loadSessions()
-    const idx = all.findIndex(s => s.id === id)
-    if (idx < 0) return
-    const s = all[idx].usage
-    all[idx].usage = {
-      input: s.input + usage.input,
-      output: s.output + usage.output,
-      cacheRead: s.cacheRead + usage.cacheRead,
-      cacheWrite: s.cacheWrite + usage.cacheWrite,
-      cost: s.cost + usage.cost
+    const s = this.store.get(id); if (!s) return
+    s.usage = {
+      input: s.usage.input + usage.input, output: s.usage.output + usage.output,
+      cacheRead: s.usage.cacheRead + usage.cacheRead, cacheWrite: s.usage.cacheWrite + usage.cacheWrite,
+      cost: s.usage.cost + usage.cost
     }
-    all[idx].updatedAt = this.nextUpdatedAt()
-    this.saveSessions(all)
+    s.updatedAt = this.nextUpdatedAt()
+    this.store.append(id, [{ type: 'usage', ts: s.updatedAt, usage: s.usage }])
+    this.store.reindex(s)
   }
 
-  delete(id: string): void {
-    this.saveSessions(this.loadSessions().filter(s => s.id !== id))
-  }
+  delete(id: string): void { this.store.remove(id) }
 
   deleteForAgent(agentId: string): void {
-    this.saveSessions(this.loadSessions().filter(s => s.agentId !== agentId))
+    for (const e of this.store.list()) if (e.agentId === agentId) this.store.remove(e.id)
   }
 }

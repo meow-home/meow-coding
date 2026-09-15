@@ -16,7 +16,7 @@ import { AlertService } from './alert-service'
 import { NotificationService } from './notification-service'
 import { Updater } from './updater'
 import { SessionStore, titleFrom, DEFAULT_SESSION_TITLE } from './agent/session'
-import type { StoredSession } from './agent/session'
+import { SessionFileStore } from './agent/session-file-store'
 import { SnapshotStore } from './agent/snapshot'
 import type { SnapshotTurn } from './agent/snapshot'
 import { TruncationStore } from './agent/truncation'
@@ -143,7 +143,7 @@ export class MainApp {
   meowAgent = new MeowAgentManager({
     configPath: path.join(app.getPath('userData'), 'meow.json'),
     vault: this.vault,
-    store: new SessionStore(createJsonStore<StoredSession>(path.join(app.getPath('userData'), 'sessions.json'), { debounceMs: 250 })),
+    store: new SessionStore(new SessionFileStore(app.getPath('userData'), { debounceMs: 250 })),
     tools: createDefaultTools({
       getUserSkillsDir: () => path.join(app.getPath('userData'), 'skills'),
       getBuiltinSkillsDir: () => this.builtinSkillsDir,
