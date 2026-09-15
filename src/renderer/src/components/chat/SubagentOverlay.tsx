@@ -9,7 +9,7 @@ export interface SubagentOverlayItem {
   taskId: string
   subagentType?: string
   background?: boolean
-  state: 'running' | 'completed' | 'error'
+  state: 'running' | 'completed' | 'cancelled' | 'error'
   tools: string[]
   text?: string
   result?: string

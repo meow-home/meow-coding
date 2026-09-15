@@ -15,7 +15,7 @@ import ModelPicker from './ModelPicker'
 import VariantPicker from './VariantPicker'
 import ModePicker from './ModePicker'
 import ContextFooter from './ContextFooter'
-import BaseModal from '../common/BaseModal'
+import SubagentOverlay, { SUBAGENT_DEFAULT_WIDTH } from './SubagentOverlay'
 
 type FeedItem =
   | { kind: 'message'; id: string; role: ChatMessage['role']; text: string; reasoning?: string; images?: ImageAttachment[] }
@@ -200,6 +200,18 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const queueRef = useRef<QueuedMessage[]>([])
   const [editTarget, setEditTarget] = useState<QueuedMessage | null>(null)
   const [liveTaskId, setLiveTaskId] = useState<string | null>(null)
+  const [subagentFull, setSubagentFull] = useState(false)
+  const [subagentWidth, setSubagentWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('meow.subagent.width')
+    if (!saved) return SUBAGENT_DEFAULT_WIDTH
+    const n = parseInt(saved, 10)
+    return Number.isNaN(n) ? SUBAGENT_DEFAULT_WIDTH : n
+  })
+
+  const handleSubagentWidthChange = useCallback((w: number) => {
+    setSubagentWidth(w)
+    localStorage.setItem('meow.subagent.width', String(w))
+  }, [])
   const promptRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<ChatInputHandle>(null)
   const scroll = useChatScroll()
@@ -847,33 +859,14 @@ if (e.type === 'usage') {
   const doneCount = todos.filter(t => t.status === 'completed' || t.status === 'cancelled').length
 
   return (
-    <div className="chat-panel" onKeyDown={onPanelKeyDown}>
-      {lightboxUrl && (
-        <div className="chat-lightbox" onClick={() => setLightboxUrl(null)}>
-          <img src={lightboxUrl} alt="preview" />
-        </div>
-      )}
-      {liveTaskId && (() => {
-        const live = items.find(i => i.kind === 'subagent' && i.taskId === liveTaskId) as FeedItem & { kind: 'subagent' } | undefined
-        if (!live) return null
-        return (
-          <BaseModal
-            title={`sub-agent${live.subagentType ? ` (${live.subagentType})` : ''}${live.background ? ' · background' : ''}`}
-            onClose={() => setLiveTaskId(null)}
-            className="subagent-live"
-            closeOnBackdropClick={false}
-          >
-            <div className="subagent-live-state">
-              <span className={`subagent-state state-${live.state}`}>{live.state}</span>
-              {live.tools.length > 0 && live.tools.map(t => <code key={t}>{t}</code>)}
-            </div>
-            {live.reasoning && <details className="chat-reasoning"><summary>Thinking</summary><div className="chat-reasoning-text">{live.reasoning}</div></details>}
-            <div className="subagent-live-text">{live.text || (live.state === 'running' ? '…' : '')}</div>
-            {live.result && <div className="subagent-live-result">{live.result}</div>}
-          </BaseModal>
-        )
-      })()}
-      <div className="chat-history-actions">
+    <div className="chat-panel" onKeyDown={onPanelKeyDown} style={{ display: 'flex', flexDirection: 'row', flex: 1, minHeight: 0, position: 'relative' }}>
+      <div className="chat-panel-main" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, position: 'relative' }}>
+        {lightboxUrl && (
+          <div className="chat-lightbox" onClick={() => setLightboxUrl(null)}>
+            <img src={lightboxUrl} alt="preview" />
+          </div>
+        )}
+        <div className="chat-history-actions">
         <button className="btn small" title="Undo last turn" onClick={handleUndo} disabled={running}>Undo</button>
         <button className="btn small" title="Redo undone turn" onClick={handleRedo} disabled={running}>Redo</button>
       </div>
@@ -1194,6 +1187,21 @@ if (e.type === 'usage') {
           </div>
         </div>
       </div>
+      </div>
+      {liveTaskId && (() => {
+        const live = items.find(i => i.kind === 'subagent' && i.taskId === liveTaskId) as FeedItem & { kind: 'subagent' } | undefined
+        if (!live) return null
+        return (
+          <SubagentOverlay
+            item={live}
+            full={subagentFull}
+            width={subagentWidth}
+            onWidthChange={handleSubagentWidthChange}
+            onToggleFull={() => setSubagentFull(v => !v)}
+            onClose={() => setLiveTaskId(null)}
+          />
+        )
+      })()}
     </div>
   )
 }
