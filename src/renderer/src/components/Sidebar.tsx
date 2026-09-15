@@ -38,6 +38,7 @@ interface Props {
   onRenameSession: (path: string, id: string, name: string) => void
   onDeleteSession: (path: string, id: string) => void
   onStopSession: (id: string) => void
+  onReorder?: (newPaths: string[]) => void
 }
 
 // Must match the .project-menu-dropdown / .sidebar-footer-dropdown CSS min-width;
@@ -48,7 +49,7 @@ export default function Sidebar({
   collapsed = false,
   workspaces, needsInput, activePath, runtimes, activeSessionByPath, onOpen, onRemove, onRefresh,
   onOpenSettings, onOpenProviders, onOpenGit, onCheckUpdate, updateChecking,
-  onNewSession, onSelectSession, onRenameSession, onDeleteSession, onStopSession
+  onNewSession, onSelectSession, onRenameSession, onDeleteSession, onStopSession, onReorder
 }: Props) {
   const [openProjectMenu, setOpenProjectMenu] = useState<string | null>(null)
   const [confirmRemovePath, setConfirmRemovePath] = useState<string | null>(null)
@@ -91,6 +92,62 @@ export default function Sidebar({
     } catch (err) {
       setError(String(err))
     }
+  }
+
+  const [draggedPath, setDraggedPath] = useState<string | null>(null)
+  const [dropTarget, setDropTarget] = useState<{ path: string; position: 'above' | 'below' } | null>(null)
+
+  const handleDragStart = (e: React.DragEvent, path: string) => {
+    setDraggedPath(path)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', path)
+  }
+
+  const handleDragOver = (e: React.DragEvent, path: string) => {
+    e.preventDefault()
+    if (!draggedPath || draggedPath === path) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const midY = rect.top + rect.height / 2
+    const position = e.clientY < midY ? 'above' : 'below'
+    setDropTarget(prev => {
+      if (prev?.path === path && prev?.position === position) return prev
+      return { path, position }
+    })
+  }
+
+  const handleDragLeave = (e: React.DragEvent, path: string) => {
+    if (dropTarget?.path === path) {
+      setDropTarget(null)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent, path: string) => {
+    e.preventDefault()
+    if (!draggedPath || draggedPath === path) {
+      setDraggedPath(null)
+      setDropTarget(null)
+      return
+    }
+
+    const currentPaths = workspaces.map(w => w.projectPath)
+    const fromIndex = currentPaths.indexOf(draggedPath)
+    if (fromIndex === -1) return
+
+    const filtered = currentPaths.filter(p => p !== draggedPath)
+    const targetIndex = filtered.indexOf(path)
+    if (targetIndex === -1) return
+
+    const insertIndex = dropTarget?.position === 'below' ? targetIndex + 1 : targetIndex
+    filtered.splice(insertIndex, 0, draggedPath)
+
+    setDraggedPath(null)
+    setDropTarget(null)
+    onReorder?.(filtered)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedPath(null)
+    setDropTarget(null)
   }
 
   // The real run state of a session, independent of the status dot: a session
@@ -140,7 +197,20 @@ export default function Sidebar({
           {workspaces.map(ws => {
             const inputCount = needsInput[ws.projectPath]?.length ?? 0
             return (
-            <li key={ws.projectPath} className={ws.projectPath === activePath ? 'active' : ''}>
+            <li
+              key={ws.projectPath}
+              draggable
+              onDragStart={(e) => handleDragStart(e, ws.projectPath)}
+              onDragOver={(e) => handleDragOver(e, ws.projectPath)}
+              onDragLeave={(e) => handleDragLeave(e, ws.projectPath)}
+              onDrop={(e) => handleDrop(e, ws.projectPath)}
+              onDragEnd={handleDragEnd}
+              className={[
+                ws.projectPath === activePath ? 'active' : '',
+                draggedPath === ws.projectPath ? 'dragging' : '',
+                dropTarget?.path === ws.projectPath ? `drop-target-${dropTarget.position}` : ''
+              ].filter(Boolean).join(' ')}
+            >
               <button
                 className="project-avatar"
                 title={inputCount > 0 ? `${ws.name} — needs your reply/approval` : ws.name}
@@ -159,7 +229,20 @@ export default function Sidebar({
         {workspaces.map(ws => {
           const inputCount = needsInput[ws.projectPath]?.length ?? 0
           return (
-          <li key={ws.projectPath} className={ws.projectPath === activePath ? 'active' : ''}>
+          <li
+            key={ws.projectPath}
+            draggable
+            onDragStart={(e) => handleDragStart(e, ws.projectPath)}
+            onDragOver={(e) => handleDragOver(e, ws.projectPath)}
+            onDragLeave={(e) => handleDragLeave(e, ws.projectPath)}
+            onDrop={(e) => handleDrop(e, ws.projectPath)}
+            onDragEnd={handleDragEnd}
+            className={[
+              ws.projectPath === activePath ? 'active' : '',
+              draggedPath === ws.projectPath ? 'dragging' : '',
+              dropTarget?.path === ws.projectPath ? `drop-target-${dropTarget.position}` : ''
+            ].filter(Boolean).join(' ')}
+          >
             <div
               className="project-row"
               title={ws.projectPath}

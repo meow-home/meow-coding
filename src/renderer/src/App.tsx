@@ -276,6 +276,19 @@ export default function App() {
     }
   }, [openWorkspace])
 
+  const handleReorderWorkspaces = useCallback(async (newPaths: string[]) => {
+    setWorkspaces(prev => {
+      const map = new Map(prev.map(w => [w.projectPath, w]))
+      return newPaths.map(p => map.get(p)).filter((w): w is WorkspaceSummary => Boolean(w))
+    })
+    try {
+      const updated = await window.api.reorderWorkspaces(newPaths)
+      setWorkspaces(updated)
+    } catch {
+      void refreshWorkspaces()
+    }
+  }, [refreshWorkspaces])
+
   useEffect(() => {
     localStorage.setItem('meow.sidebar.collapsed', sidebarCollapsed ? '1' : '0')
   }, [sidebarCollapsed])
@@ -630,6 +643,7 @@ export default function App() {
             onOpenGit={path => { void window.api.gitOpenViewer(path); setSidebarHovered(false) }}
             onCheckUpdate={handleCheckUpdate}
             updateChecking={updateChecking}
+            onReorder={handleReorderWorkspaces}
           />
         </div>
       )}
@@ -655,6 +669,7 @@ export default function App() {
             onOpenGit={path => void window.api.gitOpenViewer(path)}
             onCheckUpdate={handleCheckUpdate}
             updateChecking={updateChecking}
+            onReorder={handleReorderWorkspaces}
           />
         )}
         <main className={filesOpenFor ? 'main files-open' : 'main'}>
