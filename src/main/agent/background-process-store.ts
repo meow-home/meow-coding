@@ -126,10 +126,12 @@ export class BackgroundProcessStore extends EventEmitter {
       entry.buffer = kept
     }
     if (dropped > 0) {
-      entry.readOffset = Math.max(0, entry.readOffset - dropped)
       if (!entry.truncatedMarked) {
         entry.buffer = '[…truncated…]\n' + entry.buffer
         entry.truncatedMarked = true
+        entry.readOffset = 0
+      } else {
+        entry.readOffset = Math.max(0, entry.readOffset - dropped)
       }
     }
   }
