@@ -14,6 +14,7 @@ import { SessionRunner } from './agent/loop'
 import { BackgroundProcessStore, type BgExitInfo, type BgDataEvent, type BgExitEvent } from './agent/background-process-store'
 import { handleBackgroundExit } from './agent/background-exit'
 import { MonitorStore, handleMonitorResolve, type MonitorResolveInfo } from './agent/monitor-store'
+import { PollMonitorStore } from './agent/poll-monitor-store'
 import { resolveCompactionSettings, usableContextTokens } from './agent/compact'
 import { LimitsService, parseContextLimitFromError } from './agent/limits'
 import { LearnedLimitsStore, normalizeLearnedKey } from './agent/learned-limits'
@@ -123,6 +124,10 @@ export class MeowAgentManager {
   })
   private monitors = new MonitorStore({
     procs: this.backgroundProcs,
+    getSessionId: (agentId) => this.activeSessionId(agentId),
+    onResolve: (info) => this.onMonitorResolve(info)
+  })
+  private pollMonitors = new PollMonitorStore({
     getSessionId: (agentId) => this.activeSessionId(agentId),
     onResolve: (info) => this.onMonitorResolve(info)
   })
@@ -346,7 +351,7 @@ export class MeowAgentManager {
   }
 
   monitorsList(agentId: string): { id: string; targetId: string; until: string }[] {
-    return this.monitors.list(agentId)
+    return [...this.monitors.list(agentId), ...this.pollMonitors.list(agentId)]
   }
 
   killBackgroundProc(id: string): void {
@@ -591,6 +596,7 @@ export class MeowAgentManager {
     for (const entry of this.backgroundTasks.get(agentId)?.values() ?? []) entry.cancel()
     this.running.delete(agentId)
     this.monitors.cancelAllForAgent(agentId)
+    this.pollMonitors.cancelAllForAgent(agentId)
     this.backgroundProcs.killAllForAgent(agentId)
     this.resolvePendingFor(agentId, null)
   }
@@ -1017,6 +1023,7 @@ export class MeowAgentManager {
     if (this.idleCompactTimer) { clearInterval(this.idleCompactTimer); this.idleCompactTimer = null }
     this.stopAll()
     this.monitors.cancelAll()
+    this.pollMonitors.cancelAll()
     this.backgroundProcs.killAll()
     this.procSubscriptions.clear()
     this.deps.store.flush()
@@ -1341,6 +1348,7 @@ export class MeowAgentManager {
       appendTool: (tool) => this.deps.store.appendTool(this.activeSessionId(agent.id), tool),
       backgroundProcs: this.backgroundProcs,
       monitors: this.monitors,
+      pollMonitors: this.pollMonitors,
       takeSteers: () => {
         const q = this.queues.get(agent.id)
         if (!q || q.length === 0) return []

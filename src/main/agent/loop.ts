@@ -23,6 +23,7 @@ import type { SnapshotStore } from './snapshot'
 import type { HooksRunner } from './hooks'
 import type { BackgroundProcessStore } from './background-process-store'
 import type { MonitorStore } from './monitor-store'
+import type { PollMonitorStore } from './poll-monitor-store'
 
 export interface LoopDeps {
   agentId: string
@@ -79,6 +80,7 @@ export interface LoopDeps {
   backgroundProcs?: BackgroundProcessStore
   /** Async watches over background shells for the monitor tool. */
   monitors?: MonitorStore
+  pollMonitors?: PollMonitorStore
   getItems: () => TranscriptItem[]
   appendMessage: (msg: ChatMessage) => void
   appendTool: (tool: ToolCallData) => void
@@ -588,7 +590,8 @@ export class SessionRunner {
           },
           onArtifact: (entry) => this.deps.onArtifact?.(entry),
           backgroundProcs: this.deps.backgroundProcs,
-          monitors: this.deps.monitors
+          monitors: this.deps.monitors,
+          pollMonitors: this.deps.pollMonitors
         }
         try {
           const r = await def.run(call.input, toolCtx)
