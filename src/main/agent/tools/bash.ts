@@ -9,6 +9,7 @@ import type { ToolDefinition, ToolRunResult } from './types'
 interface BashInput {
   command: string
   timeoutMs?: number
+  run_in_background?: boolean
 }
 
 const MAX_OUTPUT = 1024 * 1024
@@ -31,15 +32,30 @@ export const bashTool: ToolDefinition = {
   name: 'bash',
   description:
     'Run a shell command in the project directory and return stdout+stderr. On Windows this runs in ' +
-    'Git Bash, so use unix commands (ls, pwd, cat, sed, awk, find, grep, git, npm).',
+    'Git Bash, so use unix commands (ls, pwd, cat, sed, awk, find, grep, git, npm). ' +
+    'Pass run_in_background: true to start a long-lived command (dev server, watcher, long build) ' +
+    'without waiting, then read its output with bash_output and stop it with kill_shell.',
   schema: z.object({
     command: z.string().describe('The shell command to run.'),
-    timeoutMs: z.number().int().optional().describe('Optional timeout in milliseconds.')
+    timeoutMs: z.number().int().optional().describe('Optional timeout in milliseconds.'),
+    run_in_background: z.boolean().optional()
+      .describe('Run in the background and return immediately; read output with bash_output, stop with kill_shell.')
   }),
   async run(input, ctx): Promise<ToolRunResult> {
-    const { command, timeoutMs = 120_000 } = input as unknown as BashInput
+    const { command, timeoutMs = 120_000, run_in_background } = input as unknown as BashInput
     if (!command || typeof command !== 'string') {
       return { error: 'bash: missing "command" (string)' }
+    }
+    if (run_in_background) {
+      if (!ctx.backgroundProcs || !ctx.agentId) {
+        return { error: 'bash: background execution is not available in this context' }
+      }
+      const res = ctx.backgroundProcs.start(ctx.agentId, command, ctx.cwd)
+      if ('error' in res) return { error: res.error }
+      return {
+        output: `Background bash started. id=${res.id}. Read new output with bash_output({ id: "${res.id}" }); stop it with kill_shell({ id: "${res.id}" }).`,
+        background: true
+      }
     }
     const fallbackCwd = existsSync(ctx.cwd) ? ctx.cwd : homedir()
     const usedFallback = fallbackCwd !== ctx.cwd
@@ -114,6 +130,42 @@ export const bashTool: ToolDefinition = {
         done({ error: `bash: exit code ${code}\n${note}${output}` })
       })
     })
+  }
+}
+
+export const bashOutputTool: ToolDefinition = {
+  name: 'bash_output',
+  description:
+    'Read new stdout/stderr produced by a background shell (started with bash run_in_background) since your last read. ' +
+    'Optionally pass a regex filter to keep only matching lines.',
+  schema: z.object({
+    id: z.string().describe('The background shell id returned by bash run_in_background.'),
+    filter: z.string().optional().describe('Optional regex; only matching lines are returned.')
+  }),
+  async run(input, ctx): Promise<ToolRunResult> {
+    const { id, filter } = input as unknown as { id: string; filter?: string }
+    if (!ctx.backgroundProcs) return { error: 'bash_output: background processes are not available here' }
+    const r = ctx.backgroundProcs.readNew(id, filter)
+    if ('error' in r) return { error: r.error }
+    const attrs = r.status === 'exited'
+      ? `status="exited" exit_code="${r.exitCode ?? 'null'}"`
+      : 'status="running"'
+    return { output: `<bash id="${id}" ${attrs}>\n${r.text || '(no new output)'}\n</bash>` }
+  }
+}
+
+export const killShellTool: ToolDefinition = {
+  name: 'kill_shell',
+  description: 'Stop a background shell (started with bash run_in_background), killing its whole process tree.',
+  schema: z.object({
+    id: z.string().describe('The background shell id to stop.')
+  }),
+  async run(input, ctx): Promise<ToolRunResult> {
+    const { id } = input as unknown as { id: string }
+    if (!ctx.backgroundProcs) return { error: 'kill_shell: background processes are not available here' }
+    const r = ctx.backgroundProcs.kill(id)
+    if ('error' in r) return { error: r.error }
+    return { output: r.killed ? `Killed background shell ${id}.` : `Background shell ${id} was already stopped.` }
   }
 }
 

@@ -1,5 +1,6 @@
 import type { z } from 'zod'
 import type { SnapshotStore } from '../snapshot'
+import type { BackgroundProcessStore } from '../background-process-store'
 import type { ArtifactEntry, QuestionPrompt, TodoItem } from '../../../shared/types'
 
 export type ToolSchema = z.ZodType | Record<string, unknown>
@@ -30,6 +31,8 @@ export interface ToolContext {
   onFileRead?(filePath: string): string
   // Records a file created/modified by this agent (id/ts/agentName resolved by main).
   onArtifact?(entry: Omit<ArtifactEntry, 'id' | 'ts'>): void
+  // Long-lived background shell processes (bash run_in_background / bash_output / kill_shell).
+  backgroundProcs?: BackgroundProcessStore
 }
 
 export interface SubagentToolEvent {

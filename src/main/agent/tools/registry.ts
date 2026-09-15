@@ -1,5 +1,5 @@
 import type { ToolDefinition } from './types'
-import { bashTool } from './bash'
+import { bashTool, bashOutputTool, killShellTool } from './bash'
 import { readTool } from './read'
 import { writeTool } from './write'
 import { editTool } from './edit'
@@ -26,6 +26,8 @@ export interface DefaultToolsOptions {
 export function createDefaultTools(opts: DefaultToolsOptions = {}): Map<string, ToolDefinition> {
   const tools = [
     bashTool,
+    bashOutputTool,
+    killShellTool,
     readTool,
     writeTool,
     editTool,
