@@ -12,6 +12,7 @@ import EmptyState from './components/EmptyState'
 import StatusBar from './components/StatusBar'
 import TitleBar from './components/TitleBar'
 import FilesOverlay, { FILES_DEFAULT_WIDTH, FILES_MAX_WIDTH, FILES_MIN_WIDTH } from './components/files/FilesOverlay'
+import ProcessesOverlay, { PROCESSES_DEFAULT_WIDTH, PROCESSES_MAX_WIDTH, PROCESSES_MIN_WIDTH } from './components/processes/ProcessesOverlay'
 import SettingsDialog, { type TabId } from './components/settings/SettingsDialog'
 import BrowserDialog from './components/BrowserDialog'
 import InstallGuideDialog from './components/InstallGuideDialog'
@@ -32,7 +33,7 @@ export const MAX_KEEP_ALIVE = 5
 // `.workspace-hidden`; the app toggles which one is visible by swapping the
 // `workspace-active` wrapper, so hidden ChatPanels keep streaming events.
 function WorkspaceView({
-  runtime, backgrounds, activeSessionByPath, onActiveChange, onRemovePane, onSendDraftMessage, onOpenFiles
+  runtime, backgrounds, activeSessionByPath, onActiveChange, onRemovePane, onSendDraftMessage, onOpenFiles, onOpenProcesses
 }: {
   runtime: WorkspaceRuntime
   backgrounds: Record<string, boolean>
@@ -41,6 +42,7 @@ function WorkspaceView({
   onRemovePane: (path: string, id: string) => void
   onSendDraftMessage: (path: string, text: string, images?: ImageAttachment[]) => void
   onOpenFiles: (id: string) => void
+  onOpenProcesses: (id: string) => void
 }) {
   const draftPane: PaneModel = useMemo(() => ({
     agent: {
@@ -91,6 +93,7 @@ function WorkspaceView({
         onRemove={id => onRemovePane(runtime.workspace.projectPath, id)}
         onSendDraftMessage={textAndImages => onSendDraftMessage(runtime.workspace.projectPath, textAndImages.text, textAndImages.images)}
         onOpenFiles={() => onOpenFiles(runtime.workspace.projectPath)}
+        onOpenProcesses={onOpenProcesses}
       />
       <BackgroundPanel
         panes={panes.filter(p => p.agent.id !== DRAFT_SESSION_ID)}
@@ -172,6 +175,13 @@ export default function App() {
     const w = Number(localStorage.getItem('meow.files.width'))
     return Number.isFinite(w) && w >= FILES_MIN_WIDTH && w <= FILES_MAX_WIDTH ? w : FILES_DEFAULT_WIDTH
   })
+  const [processesOpenFor, setProcessesOpenFor] = useState<string | null>(null)
+  const [processesFull, setProcessesFull] = useState(false)
+  const [processesWidth, setProcessesWidth] = useState(() => {
+    const w = Number(localStorage.getItem('meow.processes.width'))
+    return Number.isFinite(w) && w >= PROCESSES_MIN_WIDTH && w <= PROCESSES_MAX_WIDTH ? w : PROCESSES_DEFAULT_WIDTH
+  })
+  useEffect(() => { localStorage.setItem('meow.processes.width', String(processesWidth)) }, [processesWidth])
   // Project path -> agent ids currently waiting on a permission/question
   // prompt (needs user reply/approval). Drives the sidebar badges.
   const [needsInput, setNeedsInput] = useState<Record<string, string[]>>({})
@@ -661,6 +671,7 @@ export default function App() {
                   onRemovePane={handleRemovePane}
                   onSendDraftMessage={onSendDraftMessage}
                   onOpenFiles={projectPath => { setFilesFull(false); setFilesOpenFor(projectPath) }}
+                  onOpenProcesses={agentId => { setProcessesFull(false); setProcessesOpenFor(agentId) }}
                 />
               </div>
             )}
@@ -679,6 +690,7 @@ export default function App() {
                     onRemovePane={handleRemovePane}
                     onSendDraftMessage={onSendDraftMessage}
                     onOpenFiles={projectPath => { setFilesFull(false); setFilesOpenFor(projectPath) }}
+                    onOpenProcesses={agentId => { setProcessesFull(false); setProcessesOpenFor(agentId) }}
                   />
                 </div>
               ))}
@@ -691,6 +703,16 @@ export default function App() {
               onWidthChange={setFilesWidth}
               onToggleFull={() => setFilesFull(v => !v)}
               onClose={() => setFilesOpenFor(null)}
+            />
+          )}
+          {processesOpenFor && (
+            <ProcessesOverlay
+              agentId={processesOpenFor}
+              full={processesFull}
+              width={processesWidth}
+              onWidthChange={setProcessesWidth}
+              onToggleFull={() => setProcessesFull(v => !v)}
+              onClose={() => setProcessesOpenFor(null)}
             />
           )}
         </main>

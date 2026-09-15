@@ -11,12 +11,13 @@ interface Props {
   onRemove: (id: string) => void
   onSendDraftMessage?: (textAndImages: { text: string; images?: ImageAttachment[] }) => void
   onOpenFiles?: (id: string) => void
+  onOpenProcesses?: (id: string) => void
 }
 
 // All sessions stay mounted (hidden when inactive) so a hidden session keeps
 // streaming/running — switching never stops another. The hiding is CSS only
 // (the `hidden` attribute on the slot), never an unmount or a key change.
-export default function SessionPanes({ panes, activeId, onActiveChange, backgrounds, onRemove, onSendDraftMessage, onOpenFiles }: Props) {
+export default function SessionPanes({ panes, activeId, onActiveChange, backgrounds, onRemove, onSendDraftMessage, onOpenFiles, onOpenProcesses }: Props) {
   useEffect(() => {
     if (panes.length === 0) return
     if (activeId && panes.some(p => p.agent.id === activeId)) return
@@ -37,6 +38,7 @@ export default function SessionPanes({ panes, activeId, onActiveChange, backgrou
             onRemove={() => onRemove(pane.agent.id)}
             onSendDraftMessage={onSendDraftMessage}
             onOpenFiles={onOpenFiles ? () => onOpenFiles(pane.agent.id) : undefined}
+            onOpenProcesses={onOpenProcesses ? () => onOpenProcesses(pane.agent.id) : undefined}
           />
         </div>
       ))}

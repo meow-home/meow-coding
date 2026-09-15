@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import {
+  Terminal,
   Code,
   FileText,
   FolderSymlink,
@@ -26,6 +27,7 @@ interface Props {
   onInject: (text: string) => void
   onOpenLog: () => void
   onOpenFiles?: () => void
+  onOpenProcesses?: () => void
   onRemove: () => void
 }
 
@@ -45,6 +47,7 @@ export default function PaneHeader({
   onInject,
   onOpenLog,
   onOpenFiles,
+  onOpenProcesses,
   onRemove
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -127,6 +130,12 @@ export default function PaneHeader({
               <button className="menu-item" onClick={() => { close(); onOpenFiles() }}>
                 <FolderTree size={16} aria-hidden="true" />
                 Files
+              </button>
+            )}
+            {onOpenProcesses && (
+              <button className="menu-item" onClick={() => { close(); onOpenProcesses() }}>
+                <Terminal size={16} aria-hidden="true" />
+                Processes
               </button>
             )}
             {cwd && (

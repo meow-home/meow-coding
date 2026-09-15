@@ -13,9 +13,10 @@ interface Props {
   onRemove: () => void
   onSendDraftMessage?: (textAndImages: { text: string; images?: ImageAttachment[] }) => void
   onOpenFiles?: () => void
+  onOpenProcesses?: () => void
 }
 
-export default function Pane({ pane, background, active, onFocus, onRemove, onSendDraftMessage, onOpenFiles }: Props) {
+export default function Pane({ pane, background, active, onFocus, onRemove, onSendDraftMessage, onOpenFiles, onOpenProcesses }: Props) {
   const id = pane.agent.id
   const native = pane.agent.kind === 'native'
   // Stable callbacks so App-level re-renders (git poll, agent state) don't
@@ -48,6 +49,7 @@ export default function Pane({ pane, background, active, onFocus, onRemove, onSe
         onInject={handleInject}
         onOpenLog={handleOpenLog}
         onOpenFiles={onOpenFiles}
+        onOpenProcesses={onOpenProcesses}
         onRemove={onRemove}
       />
       {background ? (
