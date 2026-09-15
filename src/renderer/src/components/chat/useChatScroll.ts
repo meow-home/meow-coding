@@ -248,11 +248,11 @@ export function useChatScroll(): ChatScrollController {
   const leaveFollowMode = useCallback(() => { enterManual() }, [enterManual])
 
   const onWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
-    // Scrolling up (deltaY < 0) immediately cancels follow mode.
-    if (event.deltaY < 0) {
+    // Scrolling up or scrolling down when not at true bottom yields control to user.
+    if (event.deltaY < 0 || (event.deltaY > 0 && !isAtTrueBottom())) {
       enterManual()
     }
-  }, [enterManual])
+  }, [enterManual, isAtTrueBottom])
 
   const onTouchMove = useCallback(() => { enterManual() }, [enterManual])
 
@@ -308,10 +308,10 @@ export function useChatScroll(): ChatScrollController {
     if (isAtTrueBottom()) {
       modeRef.current = nextChatScrollMode(modeRef.current, 'user-bottom')
       setShowJumpToEnd(false)
-    } else if (modeRef.current !== 'manual' && !isAtBottom()) {
+    } else if (modeRef.current !== 'manual') {
       enterManual()
     }
-  }, [enterManual, isAtBottom, isAtTrueBottom])
+  }, [enterManual, isAtTrueBottom])
 
   useEffect(() => {
     const content = contentRef.current

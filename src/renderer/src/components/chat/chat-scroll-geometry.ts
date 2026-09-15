@@ -6,8 +6,8 @@ export const CHAT_FOLLOW_BOTTOM_INSET = 14
 // re-engage on — a slight upward nudge from a long, still-streaming turn keeps
 // the scroller inside it, so re-engaging there makes every new delta snap the
 // viewport back down (up/down jitter). Re-engage must therefore require getting
-// to the actual bottom (within a couple of px).
-export const CHAT_TRUE_BOTTOM_EPSILON = 2
+// to the actual bottom (within 5px to account for Windows DPI subpixel rounding).
+export const CHAT_TRUE_BOTTOM_EPSILON = 5
 // Frames the turn anchor keeps re-asserting itself after the row first lands on
 // the inset. Rows above it can still resolve their content-visibility height a
 // few frames later and push it down; a released anchor is never repaired, since

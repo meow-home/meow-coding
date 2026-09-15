@@ -39,10 +39,10 @@ describe('chat scroll geometry', () => {
     // "true bottom": re-engaging there re-arms following on a streaming turn and
     // snaps the viewport back down.
     expect(isAtTrueBottom({ scrollHeight: 1000, scrollTop: 620, clientHeight: 300 })).toBe(false)
-    expect(isAtTrueBottom({ scrollHeight: 1000, scrollTop: 697, clientHeight: 300 })).toBe(false)
-    expect(isAtTrueBottom({ scrollHeight: 1000, scrollTop: 698, clientHeight: 300 })).toBe(true)
+    expect(isAtTrueBottom({ scrollHeight: 1000, scrollTop: 694, clientHeight: 300 })).toBe(false)
+    expect(isAtTrueBottom({ scrollHeight: 1000, scrollTop: 695, clientHeight: 300 })).toBe(true)
     expect(isAtTrueBottom({ scrollHeight: 1000, scrollTop: 700, clientHeight: 300 })).toBe(true)
-    expect(CHAT_TRUE_BOTTOM_EPSILON).toBe(2)
+    expect(CHAT_TRUE_BOTTOM_EPSILON).toBe(5)
   })
 
   it('shrinks turn tail space as rendered output grows', () => {
