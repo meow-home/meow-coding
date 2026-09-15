@@ -31,7 +31,10 @@ async function assertProcessGoneByMarker(marker: string, attempts = 15, delayMs 
       stillRunning = out.includes(marker)
     } else {
       try {
-        execFileSync('pgrep', ['-f', marker], { stdio: 'pipe' })
+        // Pattern brackets (e.g. "sleep 30.43" -> "[s]leep 30.43") prevent pgrep
+        // from matching its own command line in /proc.
+        const pattern = marker.replace(/^(.)/, '[$1]')
+        execFileSync('pgrep', ['-f', pattern], { stdio: 'pipe' })
         stillRunning = true
       } catch (e) {
         if ((e as NodeJS.ErrnoException & { status?: number }).status === 1) {

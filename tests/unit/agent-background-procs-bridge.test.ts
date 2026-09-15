@@ -31,5 +31,6 @@ describe('background proc subscription bridge', () => {
     await waitFor(() => b.data.some(d => d.chunk.includes('SUB_OK')) && b.exits.some(e => e.id === watched.id))
     expect(b.data.every(d => d.id === watched.id)).toBe(true)
     expect(b.exits.some(e => e.id === ignored.id)).toBe(false)
+    store.killAllForAgent('a1')
   }, 20000)
 })
