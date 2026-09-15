@@ -19,6 +19,13 @@
 - Tools reach the store only through `ToolContext.backgroundProcs`, never through the manager directly.
 - Tests live under `tests/unit/*.test.ts` (Vitest, `include: ['tests/**/*.test.ts']`). Mock `ToolContext` as a plain object literal, following `tests/unit/agent-tools-bash.test.ts`.
 
+## How to apply this plan (no inference required)
+
+- Every **"Create"** step gives the file's full contents — write it verbatim.
+- Every **"Modify"** step is a set of exact **FIND → REPLACE** edits. The `FIND` block exists verbatim in the current source; locate it and swap in the `REPLACE` block. Do not hand-merge.
+- Any line numbers in prose are **hints as of 2026-09-15 only** — always match by the verbatim `FIND` text, never by line number. If a `FIND` block does not match, re-read the file, re-locate the same anchor, and apply the equivalent change.
+- Run the exact command at each "Run:" step and confirm the stated Expected result before moving on. Commit at the end of each task with the message given.
+
 ---
 
 ### Task 1: `BackgroundProcessStore`
@@ -397,23 +404,49 @@ Expected: FAIL — `bashOutputTool`/`killShellTool` are not exported; `run_in_ba
 
 - [ ] **Step 3a: Add `backgroundProcs` to `ToolContext`**
 
-In `src/main/agent/tools/types.ts`, add the import and field:
+Two exact edits in `src/main/agent/tools/types.ts`.
 
+**Edit 1 — add the import.** FIND:
 ```ts
+import type { z } from 'zod'
+import type { SnapshotStore } from '../snapshot'
+import type { ArtifactEntry, QuestionPrompt, TodoItem } from '../../../shared/types'
+```
+REPLACE:
+```ts
+import type { z } from 'zod'
+import type { SnapshotStore } from '../snapshot'
 import type { BackgroundProcessStore } from '../background-process-store'
+import type { ArtifactEntry, QuestionPrompt, TodoItem } from '../../../shared/types'
 ```
 
-Inside `interface ToolContext`, add:
-
+**Edit 2 — add the field** (becomes the last property of `ToolContext`). FIND:
 ```ts
+  // Records a file created/modified by this agent (id/ts/agentName resolved by main).
+  onArtifact?(entry: Omit<ArtifactEntry, 'id' | 'ts'>): void
+}
+```
+REPLACE:
+```ts
+  // Records a file created/modified by this agent (id/ts/agentName resolved by main).
+  onArtifact?(entry: Omit<ArtifactEntry, 'id' | 'ts'>): void
   // Long-lived background shell processes (bash run_in_background / bash_output / kill_shell).
   backgroundProcs?: BackgroundProcessStore
+}
 ```
 
 - [ ] **Step 3b: Extend the `bash` tool and add the two tools**
 
-In `src/main/agent/tools/bash.ts`, extend `BashInput`:
+Four exact edits in `src/main/agent/tools/bash.ts`. (`ToolDefinition` and `ToolRunResult` are already imported there, so no new imports are needed.)
 
+**Edit 1 — extend `BashInput`.** FIND:
+```ts
+interface BashInput {
+  command: string
+  timeoutMs?: number
+}
+```
+REPLACE:
 ```ts
 interface BashInput {
   command: string
@@ -422,14 +455,40 @@ interface BashInput {
 }
 ```
 
-Update the `bash` tool's `description` to mention background mode, add the schema field, and handle the flag at the top of `run` (before the foreground `spawn`):
-
+**Edit 2 — description + schema.** FIND:
 ```ts
-  // in schema:
-  run_in_background: z.boolean().optional()
-    .describe('Run the command in the background and return immediately; read output with bash_output, stop with kill_shell.'),
+  description:
+    'Run a shell command in the project directory and return stdout+stderr. On Windows this runs in ' +
+    'Git Bash, so use unix commands (ls, pwd, cat, sed, awk, find, grep, git, npm).',
+  schema: z.object({
+    command: z.string().describe('The shell command to run.'),
+    timeoutMs: z.number().int().optional().describe('Optional timeout in milliseconds.')
+  }),
+```
+REPLACE:
+```ts
+  description:
+    'Run a shell command in the project directory and return stdout+stderr. On Windows this runs in ' +
+    'Git Bash, so use unix commands (ls, pwd, cat, sed, awk, find, grep, git, npm). ' +
+    'Pass run_in_background: true to start a long-lived command (dev server, watcher, long build) ' +
+    'without waiting, then read its output with bash_output and stop it with kill_shell.',
+  schema: z.object({
+    command: z.string().describe('The shell command to run.'),
+    timeoutMs: z.number().int().optional().describe('Optional timeout in milliseconds.'),
+    run_in_background: z.boolean().optional()
+      .describe('Run in the background and return immediately; read output with bash_output, stop with kill_shell.')
+  }),
 ```
 
+**Edit 3 — destructure the flag and add the background branch.** FIND:
+```ts
+  async run(input, ctx): Promise<ToolRunResult> {
+    const { command, timeoutMs = 120_000 } = input as unknown as BashInput
+    if (!command || typeof command !== 'string') {
+      return { error: 'bash: missing "command" (string)' }
+    }
+```
+REPLACE:
 ```ts
   async run(input, ctx): Promise<ToolRunResult> {
     const { command, timeoutMs = 120_000, run_in_background } = input as unknown as BashInput
@@ -447,10 +506,13 @@ Update the `bash` tool's `description` to mention background mode, add the schem
         background: true
       }
     }
-    // ...existing foreground implementation unchanged...
 ```
 
-Append the two new tools at the end of `bash.ts` (after `bashTool`):
+**Edit 4 — add the two new tools** just above the existing `export interface ResolvedShellCommand {`. FIND:
+```ts
+export interface ResolvedShellCommand {
+```
+REPLACE (the two tool objects, then the original interface line):
 
 ```ts
 export const bashOutputTool: ToolDefinition = {
@@ -488,23 +550,36 @@ export const killShellTool: ToolDefinition = {
     return { output: r.killed ? `Killed background shell ${id}.` : `Background shell ${id} was already stopped.` }
   }
 }
+
+export interface ResolvedShellCommand {
 ```
 
 - [ ] **Step 3c: Register the tools**
 
-In `src/main/agent/tools/registry.ts`, change the import and the tools array:
+Two exact edits in `src/main/agent/tools/registry.ts`.
 
+**Edit 1 — import.** FIND:
+```ts
+import { bashTool } from './bash'
+```
+REPLACE:
 ```ts
 import { bashTool, bashOutputTool, killShellTool } from './bash'
 ```
 
+**Edit 2 — the tools array.** FIND:
+```ts
+  const tools = [
+    bashTool,
+    readTool,
+```
+REPLACE:
 ```ts
   const tools = [
     bashTool,
     bashOutputTool,
     killShellTool,
     readTool,
-    // ...rest unchanged...
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
@@ -622,45 +697,78 @@ Expected: PASS (3).
 
 - [ ] **Step 3c: Wire `backgroundProcs` through the loop**
 
-In `src/main/agent/loop.ts`, add to the `LoopDeps` interface (near `snapshots`/`onArtifact`), with the import at the top:
+Three exact edits in `src/main/agent/loop.ts`.
 
+**Edit 1 — import** (the last of the `./…` type imports at the top). FIND:
 ```ts
+import type { HooksRunner } from './hooks'
+```
+REPLACE:
+```ts
+import type { HooksRunner } from './hooks'
 import type { BackgroundProcessStore } from './background-process-store'
 ```
 
+**Edit 2 — `LoopDeps` field** (insert between `onArtifact?` and `getItems`). FIND:
 ```ts
+  onArtifact?: (entry: Omit<ArtifactEntry, 'id' | 'ts'>) => void
+  getItems: () => TranscriptItem[]
+```
+REPLACE:
+```ts
+  onArtifact?: (entry: Omit<ArtifactEntry, 'id' | 'ts'>) => void
   /** Long-lived background shell processes for bash run_in_background. */
   backgroundProcs?: BackgroundProcessStore
+  getItems: () => TranscriptItem[]
 ```
 
-In the `toolCtx` object (currently ends with `onArtifact: (entry) => this.deps.onArtifact?.(entry)`), add:
-
+**Edit 3 — pass it into `toolCtx`** (the current last property has no trailing comma; add one). FIND:
 ```ts
-          backgroundProcs: this.deps.backgroundProcs,
+          onArtifact: (entry) => this.deps.onArtifact?.(entry)
+        }
+```
+REPLACE:
+```ts
+          onArtifact: (entry) => this.deps.onArtifact?.(entry),
+          backgroundProcs: this.deps.backgroundProcs
+        }
 ```
 
 - [ ] **Step 3d: Own the store and handle exits in the manager**
 
-In `src/main/meow-agent-manager.ts`:
+Five exact edits in `src/main/meow-agent-manager.ts`. (`randomUUID` is already imported at the top of this file — line 1 — so the handler needs no new UUID import.)
 
-Add imports:
-
+**Edit 1 — add imports** (right after the `SessionRunner` import). FIND:
 ```ts
+import { SessionRunner } from './agent/loop'
+```
+REPLACE:
+```ts
+import { SessionRunner } from './agent/loop'
 import { BackgroundProcessStore, type BgExitInfo } from './agent/background-process-store'
 import { handleBackgroundExit } from './agent/background-exit'
 ```
 
-Add a field near the other private maps (e.g. after `private backgrounds = new Map<string, boolean>()`):
-
+**Edit 2 — add the store field** (between `backgrounds` and `queues`). FIND:
 ```ts
+  private backgrounds = new Map<string, boolean>()
+  private queues = new Map<string, QueuedMessage[]>()
+```
+REPLACE:
+```ts
+  private backgrounds = new Map<string, boolean>()
   private backgroundProcs = new BackgroundProcessStore({
     getSessionId: (agentId) => this.activeSessionId(agentId),
     onExit: (info) => this.onBackgroundBashExit(info)
   })
+  private queues = new Map<string, QueuedMessage[]>()
 ```
 
-Add the exit handler method (place it near `enqueueMessage`/`drainQueue`):
-
+**Edit 3 — add the exit handler method** just above `enqueueMessage`. FIND:
+```ts
+  private enqueueMessage(agentId: string, text: string, images?: ImageAttachment[], displayText?: string): void {
+```
+REPLACE:
 ```ts
   private onBackgroundBashExit(info: BgExitInfo): void {
     handleBackgroundExit(info, {
@@ -688,27 +796,47 @@ Add the exit handler method (place it near `enqueueMessage`/`drainQueue`):
       }
     })
   }
+
+  private enqueueMessage(agentId: string, text: string, images?: ImageAttachment[], displayText?: string): void {
 ```
 
-Pass the store into the main `SessionRunner` (the `new SessionRunner({ ... })` around line 1183, alongside `snapshots`/`onEvent`):
-
+**Edit 4 — pass the store into the main `SessionRunner`** (after the `appendTool` dep). FIND:
 ```ts
+      appendTool: (tool) => this.deps.store.appendTool(this.activeSessionId(agent.id), tool),
+```
+REPLACE:
+```ts
+      appendTool: (tool) => this.deps.store.appendTool(this.activeSessionId(agent.id), tool),
       backgroundProcs: this.backgroundProcs,
 ```
 
-Clean up on agent stop — inside the `stop(agentId: string)` method, before/after killing the runner, add:
-
+**Edit 5a — clean up on agent stop** (inside `stop(agentId)`). FIND:
 ```ts
+    this.running.delete(agentId)
+    this.resolvePendingFor(agentId, null)
+  }
+```
+REPLACE:
+```ts
+    this.running.delete(agentId)
     this.backgroundProcs.killAllForAgent(agentId)
+    this.resolvePendingFor(agentId, null)
+  }
 ```
 
-Clean up on dispose — in the shutdown method that already loops `this.stop(id)` for all controllers/backgroundTasks (around line 505), add after the loop:
-
+**Edit 5b — clean up on dispose** (inside `dispose()`). FIND:
 ```ts
+    this.stopAll()
+    this.deps.store.flush()
+```
+REPLACE:
+```ts
+    this.stopAll()
     this.backgroundProcs.killAll()
+    this.deps.store.flush()
 ```
 
-> `randomUUID` is already imported in this file (used by `onBackgroundResult`); if a linter reports it unused/missing, reuse the existing import.
+> Note: `stop(agentId)` is also called by `removeAgent`, so deleting a session/agent kills its background shells through Edit 5a — no separate `removeAgent` edit is needed.
 
 - [ ] **Step 4: Verify the whole suite and types**
 
