@@ -74,12 +74,15 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
   const flush = () => {
     if (pendingAssistant) {
       const content: AssistantPart[] = []
-      if (pendingAssistant.text) content.push({ type: 'text', text: pendingAssistant.text })
       // DeepSeek and other reasoning models require echoing back reasoning_content
-      // in subsequent requests. Preserve it in the assistant message content.
+      // in subsequent requests — and it must precede the text/tool-call parts, in
+      // the order the model produced it (think first, then answer/act). A dropped
+      // reasoning block makes the provider reject the replayed turn with
+      // "reasoning_content in the thinking mode must be passed back to the API".
       if (pendingAssistant.reasoning) {
         content.push({ type: 'reasoning', text: pendingAssistant.reasoning, provider: 'deepseek' })
       }
+      if (pendingAssistant.text) content.push({ type: 'text', text: pendingAssistant.text })
       for (const call of pendingAssistant.calls) {
         content.push({
           type: 'tool-call',
@@ -122,7 +125,7 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
           })
         }
       } else {
-        pendingAssistant = { text: item.message.text, calls: [] }
+        pendingAssistant = { text: item.message.text, calls: [], reasoning: item.message.reasoning }
       }
     } else {
       // A tool item must follow the assistant message that made the call. An

@@ -78,6 +78,24 @@ describe('toLlmMessages', () => {
     expect(toolResult.role).toBe('tool')
   })
 
+  it('echoes the assistant reasoning back before its text and tool calls', () => {
+    const assistantMsg: ChatMessage = { ...msg('assistant', 'reading...'), reasoning: 'I should list the files first.' }
+    const items = [
+      { kind: 'message' as const, message: msg('user', 'list files') },
+      { kind: 'message' as const, message: assistantMsg },
+      { kind: 'tool' as const, tool: toolCall('glob', { pattern: '**/*.ts' }) }
+    ]
+    const llm = toLlmMessages(items)
+    const assistant = llm[1] as { role: 'assistant'; content: unknown[] }
+    // Reasoning must precede text/tool-call so thinking-mode providers accept
+    // the replayed turn (DeepSeek rejects a turn whose reasoning_content is dropped).
+    expect(assistant.content).toEqual([
+      { type: 'reasoning', text: 'I should list the files first.', provider: 'deepseek' },
+      { type: 'text', text: 'reading...' },
+      { type: 'tool-call', toolCallId: 'c1', toolName: 'glob', input: { pattern: '**/*.ts' } }
+    ])
+  })
+
   it('replays string tool inputs as parsed objects (no double-encoding)', () => {
     const items = [
       { kind: 'message' as const, message: msg('user', 'read a file') },
