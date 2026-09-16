@@ -152,11 +152,6 @@ describe('task subagent roles', () => {
       runSessionStart: async () => ({}),
       runSubagentStop: async () => ({ block: false }),
       runPreCompact: async () => {},
-      runSessionEnd: async () => {},
-      runUserPromptSubmit: async () => ({}),
-      runSessionStart: async () => ({}),
-      runSubagentStop: async () => ({ block: false }),
-      runPreCompact: async () => {},
       runSessionEnd: async () => {}
     })
     const tool = createTaskTool({
