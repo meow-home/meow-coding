@@ -10,7 +10,7 @@ React renderer (no direct Node/Electron access).
 - `src/App.tsx` — state hub: workspaces, the mounted `WorkspaceRuntime` per kept-alive
   project; defines `PaneModel` (agent + state + git) for each pane; owns the active session per
   project path (`activeSessionByPath`, persisted to localStorage `meow.activeSessionByPath`) so
-  switching workspaces restores the previously active session. It also owns the right-side panels container state (Files overlay, Processes overlay, and open Subagent panels), rendering them in a dynamic multi-panel grid layout (prioritizing rows first, then columns). On startup, if no workspace path is
+  switching workspaces restores the previously active session. It also owns the right-side panels container state (Files overlay, Processes overlay, and open Subagent panels), rendering them in a dynamic multi-panel grid layout (prioritizing rows first, then columns). An **expanded** (`full`) panel is rendered OUTSIDE that container, as a direct child of `.main` (and excluded from the grid's row/column count): `.full` is `position: absolute` with sub-pixel insets, and `.right-panels-container` is `position: relative` (its resizer anchors to it), so nesting an expanded panel in the container confines it to the docked column instead of covering the pane area — `tests/e2e/right-panels-full.spec.ts` guards the containment. On startup, if no workspace path is
   active and workspaces exist, automatically opens the first workspace with a draft session (`DRAFT_SESSION_ID`).
   Also tracks `needsInput`
   (project path → agent ids waiting on a permission/question prompt, for the sidebar

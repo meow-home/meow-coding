@@ -95,8 +95,11 @@ that must be called in the effect cleanup. (The Processes overlay subscribes to
 Mirrors the Files overlay but keyed by **agent id** (from the pane's `⋮` menu), not project
 path: `processesOpenFor` (agentId — closed by default, closed on project switch),
 `processesFull` (docked by default) and `processesWidth` (docked width, persisted in
-`localStorage`). Render `<ProcessesOverlay>` as a sibling of the panes next to the Files
-overlay.
+`localStorage`). Both this overlay and the Files one render in one of two places, chosen by their
+`full` flag: the docked instance shares the right-side grid container next to the panes, while the
+expanded one is a direct child of `.main` so its absolute insets resolve against the pane area and it
+covers the chat pane. Nesting the expanded panel inside the grid container would confine it to the
+docked column (the container is `position: relative` for its resizer).
 
 Update-dialog policy: `update-available` and `downloaded` open the dialog; `error` and
 `not-supported` close it; `up-to-date` only opens a dialog when the check was **manual**

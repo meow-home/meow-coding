@@ -3465,14 +3465,9 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   width: 100% !important; height: 100% !important; min-width: 0; min-height: 0; margin: 0 !important;
 }
 
-.right-panels-grid > .files-overlay.full,
-.right-panels-grid > .processes-overlay.full,
-.right-panels-grid > .subagent-overlay.full {
-  position: absolute; z-index: 40;
-  top: 0.333333rem; left: 0.333333rem; right: 0.666667rem; bottom: 0.333333rem;
-  width: auto !important; height: auto !important; margin: 0 !important;
-  box-shadow: var(--shadow-panel), 0 0 0 0.333333rem var(--bg-chat);
-}
+/* A `.full` panel is never a grid child — App renders it as a direct child of `.main`
+   so its `position: absolute` resolves against the pane area and it can cover the chat
+   pane. The insets therefore live on the per-panel `.full` rules below. */
 
 /* Subagent overlay — docked on the right side of the main container */
 .subagent-overlay {
@@ -3484,7 +3479,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .subagent-overlay.docked { margin: 0; }
 .subagent-overlay.full {
   position: absolute; z-index: 40;
-  top: 0.333333rem; left: 0.333333rem; right: 0.666667rem; bottom: 0.333333rem;
+  top: 0.333333rem; left: 0.333333rem; right: 0.333333rem; bottom: 0.333333rem;
   box-shadow: var(--shadow-panel), 0 0 0 0.333333rem var(--bg-chat);
 }
 .subagent-side {
@@ -3729,7 +3724,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
    reads as a shadow rather than a flat backdrop. */
 .files-overlay.full {
   position: absolute; z-index: 40;
-  top: 0.333333rem; left: 0.333333rem; right: 0.666667rem; bottom: 0.333333rem;
+  top: 0.333333rem; left: 0.333333rem; right: 0.333333rem; bottom: 0.333333rem;
   box-shadow: var(--shadow-panel), 0 0 0 0.333333rem var(--bg-chat);
 }
 .files-head { padding: 0 0.5rem; gap: 0.5rem; border-bottom: 0.083333rem solid var(--hairline); }

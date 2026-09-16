@@ -206,6 +206,40 @@ export default function App() {
     })
   }, [])
 
+  // Expanded panels are `position: absolute` and sized against `.main`, so they must
+  // NOT sit inside `.right-panels-container`: that container is positioned (its resizer
+  // anchors to it), and a positioned ancestor confines them to the docked column
+  // instead of covering the chat pane.
+  const filesPanel = filesOpenFor ? (
+    <FilesOverlay
+      projectPath={filesOpenFor}
+      full={filesFull}
+      width={filesWidth}
+      onWidthChange={setFilesWidth}
+      onToggleFull={() => setFilesFull(v => !v)}
+      onClose={() => setFilesOpenFor(null)}
+    />
+  ) : null
+  const processesPanel = processesOpenFor ? (
+    <ProcessesOverlay
+      agentId={processesOpenFor}
+      full={processesFull}
+      width={processesWidth}
+      onWidthChange={setProcessesWidth}
+      onToggleFull={() => setProcessesFull(v => !v)}
+      onClose={() => setProcessesOpenFor(null)}
+    />
+  ) : null
+  const renderSubagentPanel = (item: SubagentOverlayItem) => (
+    <SubagentOverlay
+      key={item.taskId}
+      item={item}
+      full={subagentFullTaskId === item.taskId}
+      onToggleFull={() => setSubagentFullTaskId(v => (v === item.taskId ? null : item.taskId))}
+      onClose={() => handleCloseSubagent(item.taskId)}
+    />
+  )
+
   const handleCloseSubagent = useCallback((taskId: string) => {
     setOpenSubagents(prev => prev.filter(i => i.taskId !== taskId))
     setSubagentFullTaskId(prev => (prev === taskId ? null : prev))
@@ -741,8 +775,10 @@ export default function App() {
           />
         )}
         <main className={((filesOpenFor ? 1 : 0) + (processesOpenFor ? 1 : 0) + openSubagents.length) > 0 ? 'main files-open' : 'main'}>
-          {/* The Files, Processes, and Subagent overlays are siblings of the panes,
-              docked on the right inside a unified grid container or expanded full-screen. */}
+          {/* Each panel renders in one of two places: expanded (`full`) panels are
+              direct children of `.main` so they overlay the whole pane area, the
+              docked ones share the right-hand grid below. Defined once here and
+              placed by the `full` flag. */}
           <div className="main-panes">
             {activePath && runtimes[activePath] && (
               <div className="workspace-active">
@@ -780,11 +816,17 @@ export default function App() {
                 </div>
               ))}
           </div>
+          {filesPanel && filesFull && filesPanel}
+          {processesPanel && processesFull && processesPanel}
+          {openSubagents.filter(subItem => subItem.taskId === subagentFullTaskId).map(renderSubagentPanel)}
           {(() => {
-            const totalCount = (filesOpenFor ? 1 : 0) + (processesOpenFor ? 1 : 0) + openSubagents.length
-            if (totalCount === 0) return null
-            const rows = Math.ceil(Math.sqrt(totalCount))
-            const cols = Math.ceil(totalCount / (rows || 1))
+            const dockedCount =
+              (filesOpenFor && !filesFull ? 1 : 0) +
+              (processesOpenFor && !processesFull ? 1 : 0) +
+              openSubagents.filter(subItem => subItem.taskId !== subagentFullTaskId).length
+            if (dockedCount === 0) return null
+            const rows = Math.ceil(Math.sqrt(dockedCount))
+            const cols = Math.ceil(dockedCount / (rows || 1))
             const containerWidth = Math.max(rightPanelsWidth, cols * 360)
             return (
               <div className="right-panels-container" style={{ width: containerWidth }}>
@@ -796,35 +838,9 @@ export default function App() {
                     gridTemplateRows: `repeat(${rows}, 1fr)`
                   }}
                 >
-                  {filesOpenFor && (
-                    <FilesOverlay
-                      projectPath={filesOpenFor}
-                      full={filesFull}
-                      width={filesWidth}
-                      onWidthChange={setFilesWidth}
-                      onToggleFull={() => setFilesFull(v => !v)}
-                      onClose={() => setFilesOpenFor(null)}
-                    />
-                  )}
-                  {processesOpenFor && (
-                    <ProcessesOverlay
-                      agentId={processesOpenFor}
-                      full={processesFull}
-                      width={processesWidth}
-                      onWidthChange={setProcessesWidth}
-                      onToggleFull={() => setProcessesFull(v => !v)}
-                      onClose={() => setProcessesOpenFor(null)}
-                    />
-                  )}
-                  {openSubagents.map(subItem => (
-                    <SubagentOverlay
-                      key={subItem.taskId}
-                      item={subItem}
-                      full={subagentFullTaskId === subItem.taskId}
-                      onToggleFull={() => setSubagentFullTaskId(v => (v === subItem.taskId ? null : subItem.taskId))}
-                      onClose={() => handleCloseSubagent(subItem.taskId)}
-                    />
-                  ))}
+                  {filesPanel && !filesFull && filesPanel}
+                  {processesPanel && !processesFull && processesPanel}
+                  {openSubagents.filter(subItem => subItem.taskId !== subagentFullTaskId).map(renderSubagentPanel)}
                 </div>
               </div>
             )

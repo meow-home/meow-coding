@@ -28,4 +28,20 @@ describe('Subagent Overlay CSS', () => {
     const body = ruleBody('.subagent-overlay.full')
     expect(body).toContain('position: absolute')
   })
+
+  it('insets .subagent-overlay.full by the same gap on every edge', () => {
+    // A `.full` panel is a direct child of `.main`, so its absolute insets resolve
+    // against the whole pane area. An asymmetric inset (e.g. a wider `right`) would
+    // pull it away from the pane edge it must cover, and it is only correct relative
+    // to `.main` — inside the positioned `.right-panels-container` these same numbers
+    // would confine the panel to the docked column instead. The e2e
+    // `right-panels-full.spec.ts` guards that containment; this guards the insets.
+    const body = ruleBody('.subagent-overlay.full')
+    const insets = ['top', 'right', 'bottom', 'left'].map(side => {
+      const match = new RegExp(`${side}:\\s*([\\d.]+rem)`).exec(body)
+      expect(match, `.subagent-overlay.full has no ${side} inset`).not.toBeNull()
+      return match![1]
+    })
+    expect(new Set(insets).size).toBe(1)
+  })
 })
