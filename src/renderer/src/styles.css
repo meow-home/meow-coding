@@ -1,3 +1,5 @@
+@import 'katex/dist/katex.min.css';
+
 :root {
   font-size: 12px;
 
