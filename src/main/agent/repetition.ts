@@ -68,12 +68,14 @@ export function loopDetector(opts?: {
  * short history of `toolName + input` fingerprints across steps and flags the
  * loop once the same fingerprint repeats too many times.
  */
+import { createHash } from 'node:crypto'
+
 const DEFAULT_TOOL_HISTORY = 8
 const DEFAULT_TOOL_MIN_REPEATS = 3
 
 export interface ToolLoopDetector {
-  /** Record the tool calls made in one step; returns true if the step loops. */
-  next(calls: Array<{ tool: string; input: unknown }>): boolean
+  /** Record completed tool observations; returns true if the step makes no progress. */
+  next(calls: Array<{ tool: string; input: unknown; output?: string; error?: string; mutationDigest?: string }>): boolean
 }
 
 export function toolLoopDetector(opts?: {
@@ -83,14 +85,20 @@ export function toolLoopDetector(opts?: {
   const history = opts?.history ?? DEFAULT_TOOL_HISTORY
   const minRepeats = opts?.minRepeats ?? DEFAULT_TOOL_MIN_REPEATS
   const recent: string[] = []
-  const fingerprint = (call: { tool: string; input: unknown }): string => {
+  const stableJson = (value: unknown): string => {
+    if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? String(value)
+    if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`
+    return `{${Object.keys(value as Record<string, unknown>).sort().map(k => `${JSON.stringify(k)}:${stableJson((value as Record<string, unknown>)[k])}`).join(',')}}`
+  }
+  const digest = (value: string): string => createHash('sha256').update(value).digest('hex').slice(0, 16)
+  const fingerprint = (call: { tool: string; input: unknown; output?: string; error?: string; mutationDigest?: string }): string => {
     let inputJson: string
     try {
-      inputJson = JSON.stringify(call.input ?? {})
+      inputJson = stableJson(call.input ?? {})
     } catch {
       inputJson = String(call.input)
     }
-    return `${call.tool}:${inputJson}`
+    return digest(`${call.tool}:${inputJson}:output=${call.output ?? ''}:error=${call.error ?? ''}:mutation=${call.mutationDigest ?? ''}`)
   }
   return {
     next(calls): boolean {

@@ -33,19 +33,17 @@ function startOverlapServer(chunks: string[]): Promise<{ port: number; close: ()
   })
 }
 
-describe('agent stream overlap handling', () => {
+describe('agent incremental stream handling', () => {
   const servers: Array<{ close: () => void }> = []
   afterEach(() => {
     for (const s of servers) s.close()
     servers.length = 0
   })
 
-  it('dedupes overlapping stream deltas so the rendered text stays clean', async () => {
-    const intended = 'Tất nhiên!! Bạn muốn tôi giúp phần nào??'
-    const overlappingChunks = [
-      'Tất', 'ất nhi', 'nhiên!!', 'ên!! ', '!! Bạn', 'n muốn', 'ốn tôi', 'ôi giúp', 'úp phần', 'ần nào', 'o??'
-    ]
-    const srv = await startOverlapServer(overlappingChunks)
+  it('keeps the exact text emitted by an incremental provider', async () => {
+    const chunks = ['Tất', ' nhiên', '!! Bạn', ' muốn', ' tôi giúp', ' phần nào??']
+    const intended = chunks.join('')
+    const srv = await startOverlapServer(chunks)
     servers.push(srv)
 
     const items: TranscriptItem[] = []

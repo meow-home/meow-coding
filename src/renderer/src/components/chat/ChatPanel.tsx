@@ -622,10 +622,13 @@ if (e.type === 'usage') {
           text: 'The model declined to answer.'
         }])
       } else if (e.reason === 'stuck') {
+        const detail = e.stuckCategory === 'tool'
+          ? ` The repeated tool was ${e.stuckTool ?? 'unknown'}.`
+          : e.stuckCategory === 'stream' ? ' The provider stream repeated the same content.' : ''
         setItems(prev => [...prev, {
           kind: 'error',
           id: 'stuck-' + Date.now(),
-          text: 'The model got stuck repeating itself and could not produce a final answer. Try rewording your request or sending a new message.'
+          text: 'The model could not make progress and the turn was stopped.' + detail + ' Try rewording your request or sending a new message.'
         }])
       }
       return

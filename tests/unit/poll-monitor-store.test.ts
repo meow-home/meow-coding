@@ -57,7 +57,7 @@ describe('PollMonitorStore', () => {
     expect('error' in store.start('a1', 'exit 1', dir, { untilRegex: '(' })).toBe(true)
     store.start('a1', 'sleep 5', dir, { intervalMs: 2000 })
     store.start('a1', 'sleep 5', dir, { intervalMs: 2000 })
-    expect('error' in store.start('a1', 'sleep 5', dir, { intervalMs: 2000 })).toBe(true)
+    expect(store.start('a1', 'sleep 5', dir, { intervalMs: 2000 })).toMatchObject({ reused: true })
     store.cancelAllForAgent('a1')
   })
 })

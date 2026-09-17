@@ -133,6 +133,7 @@ Notable details:
   run; past the cap it reports `done{reason:'length'}` so the UI can tell the user the answer was cut
   off. A `refusal`/`content_filter` finish reports `done{reason:'refusal'}` — never `complete`.
 - Usage is emitted **per step**, not only at the end, so cost is recorded even if the user hits Stop.
+- Stream text and reasoning deltas are incremental and concatenated verbatim. Repetition recovery is bounded and tool-loop detection uses completed call results, so a successful test/edit/test sequence is not treated as the same no-progress call. A stuck completion may include category metadata (`stream` or `tool`) while retaining `reason: 'stuck'` compatibility.
 
 ### Constants
 

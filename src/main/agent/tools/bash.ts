@@ -206,11 +206,12 @@ export function buildShellCommand(command: string, cwd: string): ResolvedShellCo
   if (process.platform === 'win32') {
     const bash = gitBashPath()
     if (bash) {
-      // bash -lc with cwd passed as $1; the working directory is already set
-      // by spawn, but follow opencode and cd explicitly so profile scripts
-      // cannot move us.
+      // Use a non-login shell so user profile output cannot contaminate a
+      // successful command's machine-readable result. The working directory
+      // is already set by spawn, but cd explicitly in case a shell wrapper
+      // changes it.
       const script = `cd -- "$1" 2>/dev/null || true\n${command}`
-      return { command: bash, args: ['-lc', script, 'opencode', cwd], verbatim: false }
+      return { command: bash, args: ['-c', script, 'opencode', cwd], verbatim: false }
     }
     // Pass the whole command as one quoted argv element with windowsVerbatimArguments so cmd
     // /s /c strips the outer quotes and embedded quotes (e.g. cd "D:\...") survive intact.

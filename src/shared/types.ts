@@ -203,7 +203,7 @@ export type ChatEvent =
       options?: QuestionOption[]; multiple?: boolean; custom?: boolean
       taskId?: string; subagentType?: string }
   | { type: 'turn-started'; agentId: string }
-  | { type: 'done'; agentId: string; reason: string; tokens?: TokenUsage; cost?: number }
+  | { type: 'done'; agentId: string; reason: string; tokens?: TokenUsage; cost?: number; stuckCategory?: 'stream' | 'tool' | 'monitor'; stuckTool?: string; recoveryCount?: number }
   | { type: 'error'; agentId: string; message: string }
   | { type: 'compaction-start'; agentId: string }
   | { type: 'compacted'; agentId: string; summary: string }

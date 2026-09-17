@@ -395,26 +395,6 @@ export class SessionRunner {
         })
       }
 
-      // A model can loop by re-calling the same tool with the same input over
-      // and over, with genuinely varied text in between, so the phrase-level
-      // loop detector never fires. Track call fingerprints across steps too.
-      if (calls.length > 0 && this.toolLoop.next(calls.map(c => ({ tool: c.tool, input: c.input })))) {
-        looping = true
-        stepController.abort()
-        this.loopBreaksThisRun++
-        // Give the model a clean slate after the nudge, like the text detector
-        // above; the repeated fingerprints stay in the window otherwise and
-        // would re-trip on the next step regardless of what it does.
-        this.toolLoop = toolLoopDetector()
-        this.loop = loopDetector()
-        if (this.loopBreaksThisRun > MAX_LOOP_BREAKS) {
-          this.deps.onEvent({ type: 'done', agentId, reason: 'stuck' })
-          return
-        }
-        this.deps.appendMessage({ id: randomUUID(), role: 'user', text: LOOP_RECOVERY_PROMPT, createdAt: Date.now() })
-        continue
-      }
-
       // PreToolUse hooks gate each call before the permission decision, and run
       // concurrently across calls the way the calls themselves do.
       const decided = await Promise.all(calls.map(async call => {
@@ -447,6 +427,27 @@ export class SessionRunner {
       const askCalls = runnable.filter(d => d.decision === 'ask')
       await Promise.all(autoCalls.map(d => this.executeCall(d.call, d.decision, signal, d.preContext)))
       for (const d of askCalls) await this.executeCall(d.call, d.decision, signal, d.preContext)
+
+      // Only completed calls participate in tool-loop detection. A streamed
+      // tool-start is not evidence of progress or repetition until its result
+      // has been appended to the transcript.
+      if (calls.length > 0 && this.toolLoop.next(calls.map(c => ({
+        tool: c.tool,
+        input: c.input,
+        output: c.output,
+        error: c.error
+      })))) {
+        looping = true
+        this.loopBreaksThisRun++
+        this.toolLoop = toolLoopDetector()
+        this.loop = loopDetector()
+        if (this.loopBreaksThisRun > MAX_LOOP_BREAKS) {
+          this.deps.onEvent({ type: 'done', agentId, reason: 'stuck' })
+          return
+        }
+        this.deps.appendMessage({ id: randomUUID(), role: 'user', text: LOOP_RECOVERY_PROMPT, createdAt: Date.now() })
+        continue
+      }
 
       if (!hasToolCall) {
         // The provider cut the answer at the output cap without calling a tool.

@@ -377,6 +377,10 @@ export class MeowAgentManager {
   }
 
   private onMonitorResolve(info: MonitorResolveInfo): void {
+    // A foreground monitor.wait consumes the resolution as its tool result;
+    // do not also enqueue a synthetic wakeup for the same condition.
+    const consumedByWait = this.monitors.wasWaitConsumed(info.id) || this.pollMonitors.wasWaitConsumed(info.id)
+    if (consumedByWait) return
     handleMonitorResolve(info, {
       appendMessage: (sessionId, text) => this.deps.store.appendMessage(sessionId, {
         id: randomUUID(),

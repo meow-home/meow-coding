@@ -25,10 +25,11 @@ export const monitorTool: ToolDefinition = {
     until_exit: z.union([z.boolean(), z.number()]).optional()
       .describe('id: resolve when the shell exits (number = expected code). command: resolve when a poll exits with this code (default 0).'),
     interval_s: z.number().optional().describe('command mode only: seconds between polls (default 5, min 1).'),
-    timeout_s: z.number().optional().describe('Resolve as "timeout" after this many seconds if nothing else matched.')
+    timeout_s: z.number().optional().describe('Resolve as "timeout" after this many seconds if nothing else matched.'),
+    wait: z.boolean().optional().describe('Wait up to 60 seconds for the condition instead of continuing immediately.')
   }),
   async run(input, ctx): Promise<ToolRunResult> {
-    const { id, command, until_regex, until_exit, interval_s, timeout_s } = input as unknown as MonitorInput
+    const { id, command, until_regex, until_exit, interval_s, timeout_s, wait } = input as unknown as MonitorInput & { wait?: boolean }
     if (!ctx.agentId) return { error: 'monitor: not available in this context' }
     if ((id && command) || (!id && !command)) return { error: 'monitor: provide exactly one of id or command' }
     const timeoutMs = timeout_s !== undefined ? Math.round(timeout_s * 1000) : undefined
@@ -47,7 +48,11 @@ export const monitorTool: ToolDefinition = {
         (until_exit === undefined || until_exit !== false) ? 'the command succeeds' : null,
         timeout_s ? `${timeout_s}s pass` : null
       ].filter(Boolean).join(' or ')
-      return { output: `Polling \`${command}\`; you'll be woken when ${conds}. (monitor ${res.id})`, background: true }
+      if (wait && 'id' in res && res.pending) {
+        const waited = await ctx.pollMonitors.wait(res.id, ctx.signal)
+        return { output: waited.status === 'resolved' ? `Monitor ${res.id} resolved: ${waited.info?.reason} (${waited.info?.detail}).` : `Monitor ${res.id} is still pending after the wait window.` }
+      }
+      return { output: `${'reused' in res && res.reused ? 'Already polling' : 'Polling'} \`${command}\`; you'll be woken when ${conds}. (monitor ${res.id})`, background: true }
     }
 
     if (!ctx.monitors) return { error: 'monitor: not available in this context' }
@@ -62,6 +67,10 @@ export const monitorTool: ToolDefinition = {
       until_exit !== undefined ? 'it exits' : null,
       timeout_s ? `${timeout_s}s pass` : null
     ].filter(Boolean).join(' or ')
-    return { output: `Monitoring shell ${id}; you'll be woken when ${conds}. (monitor ${res.id})`, background: true }
+    if (wait && 'id' in res && res.pending) {
+      const waited = await ctx.monitors.wait(res.id, ctx.signal)
+      return { output: waited.status === 'resolved' ? `Monitor ${res.id} resolved: ${waited.info?.reason} (${waited.info?.detail}).` : `Monitor ${res.id} is still pending after the wait window.` }
+    }
+    return { output: `${'reused' in res && res.reused ? 'Already monitoring' : 'Monitoring'} shell ${id}; you'll be woken when ${conds}. (monitor ${res.id})`, background: true }
   }
 }

@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import kill from 'tree-kill'
 import { buildShellCommand } from './tools/bash'
-import type { MonitorResolveInfo } from './monitor-store'
+import type { MonitorResolveInfo, MonitorWaitResult } from './monitor-store'
 
 export interface PollMonitorStartOpts {
   untilRegex?: string
@@ -33,6 +33,7 @@ interface Entry {
   polling: boolean
   timer?: ReturnType<typeof setInterval>
   timeoutTimer?: ReturnType<typeof setTimeout>
+  key: string
 }
 
 const DEFAULT_MAX_PER_AGENT = 10
@@ -44,6 +45,12 @@ const POLL_KILL_MS = 30_000
 
 export class PollMonitorStore {
   private entries = new Map<string, Entry>()
+  private waiters = new Map<string, Set<(result: MonitorWaitResult) => void>>()
+  private consumed = new Set<string>()
+
+  private key(agentId: string, command: string, cwd: string, opts: PollMonitorStartOpts, intervalMs: number): string {
+    return `${agentId}\0${command}\0${cwd}\0${opts.untilRegex ?? ''}\0${opts.untilExit === undefined ? 'unset' : String(opts.untilExit)}\0${intervalMs}`
+  }
 
   constructor(private opts: PollMonitorStoreOpts) {}
 
@@ -63,7 +70,24 @@ export class PollMonitorStore {
     return out
   }
 
-  start(agentId: string, command: string, cwd: string, opts: PollMonitorStartOpts): { id: string } | { error: string } {
+  wasWaitConsumed(id: string): boolean { return this.consumed.delete(id) }
+
+  wait(id: string, signal?: AbortSignal, maxWaitMs = 60_000): Promise<MonitorWaitResult> {
+    if (!this.entries.has(id)) return Promise.resolve({ status: 'pending', id })
+    return new Promise(resolve => {
+      const settle = (result: MonitorWaitResult) => { clearTimeout(timer); signal?.removeEventListener('abort', onAbort); resolve(result) }
+      const onAbort = () => settle({ status: 'aborted', id })
+      const timer = setTimeout(() => settle({ status: 'pending', id }), Math.min(maxWaitMs, 60_000))
+      timer.unref?.()
+      const set = this.waiters.get(id) ?? new Set()
+      set.add(settle)
+      this.waiters.set(id, set)
+      if (signal?.aborted) onAbort()
+      else signal?.addEventListener('abort', onAbort, { once: true })
+    })
+  }
+
+  start(agentId: string, command: string, cwd: string, opts: PollMonitorStartOpts): { id: string; reused: boolean; pending: boolean } | { error: string } {
     if (!command || typeof command !== 'string') return { error: 'monitor: missing command' }
     let untilRegex: RegExp | undefined
     if (opts.untilRegex !== undefined) {
@@ -81,6 +105,11 @@ export class PollMonitorStore {
       return { error: `monitor: too many monitors (max ${this.maxPerAgent})` }
     }
     const intervalMs = Math.max(MIN_INTERVAL_MS, opts.intervalMs ?? DEFAULT_INTERVAL_MS)
+    const resolvedCwd = existsSync(cwd) ? cwd : homedir()
+    const key = this.key(agentId, command, resolvedCwd, opts, intervalMs)
+    for (const existing of this.entries.values()) {
+      if (existing.status === 'watching' && existing.key === key) return { id: existing.id, reused: true, pending: true }
+    }
     const id = randomUUID().slice(0, 8)
     const until = [
       opts.untilRegex ? `/${opts.untilRegex}/` : null,
@@ -89,7 +118,7 @@ export class PollMonitorStore {
     ].filter(Boolean).join(' or ')
     const entry: Entry = {
       id, agentId, sessionId: this.opts.getSessionId(agentId), command, cwd,
-      untilRegex, checkExit, untilCode, until, status: 'watching', polling: false
+      untilRegex, checkExit, untilCode, until, status: 'watching', polling: false, key
     }
     entry.timer = setInterval(() => this.poll(entry), intervalMs)
     entry.timer.unref?.()
@@ -100,7 +129,7 @@ export class PollMonitorStore {
     }
     this.entries.set(id, entry)
     this.poll(entry) // immediate first poll
-    return { id }
+    return { id, reused: false, pending: true }
   }
 
   private poll(entry: Entry): void {
@@ -138,10 +167,17 @@ export class PollMonitorStore {
   private resolve(entry: Entry, reason: 'matched' | 'succeeded' | 'timeout', detail: string): void {
     if (entry.status !== 'watching') return
     this.teardown(entry)
-    this.opts.onResolve({
+    const info: MonitorResolveInfo = {
       id: entry.id, agentId: entry.agentId, sessionId: entry.sessionId,
       targetId: entry.command, reason, detail, kind: 'poll'
-    })
+    }
+    const waiters = this.waiters.get(entry.id)
+    if (waiters?.size) {
+      this.consumed.add(entry.id)
+      for (const settle of waiters) settle({ status: 'resolved', id: entry.id, info })
+      this.waiters.delete(entry.id)
+    }
+    this.opts.onResolve(info)
   }
 
   private teardown(entry: Entry): void {

@@ -14,6 +14,7 @@ export interface MonitorResolveInfo {
   // 'poll'  = polling a command (targetId is the command string).
   kind: 'shell' | 'poll'
 }
+export interface MonitorWaitResult { status: 'resolved' | 'pending' | 'aborted'; info?: MonitorResolveInfo; id: string }
 
 export interface MonitorStartOpts {
   untilRegex?: string
@@ -40,6 +41,7 @@ interface Entry {
   onData: (e: BgDataEvent) => void
   onExit: (e: BgExitEvent) => void
   timer?: ReturnType<typeof setTimeout>
+  key: string
 }
 
 const DEFAULT_MAX_PER_AGENT = 10
@@ -47,6 +49,12 @@ const DETAIL_CAP = 500
 
 export class MonitorStore {
   private entries = new Map<string, Entry>()
+  private waiters = new Map<string, Set<(result: MonitorWaitResult) => void>>()
+  private consumed = new Set<string>()
+
+  private key(agentId: string, targetId: string, opts: MonitorStartOpts): string {
+    return `${agentId}\0${targetId}\0${opts.untilRegex ?? ''}\0${opts.untilExit === undefined ? 'unset' : String(opts.untilExit)}`
+  }
 
   constructor(private opts: MonitorStoreOpts) {}
 
@@ -66,13 +74,38 @@ export class MonitorStore {
     return out
   }
 
-  start(agentId: string, targetId: string, opts: MonitorStartOpts): { id: string } | { error: string } {
+  wasWaitConsumed(id: string): boolean { return this.consumed.delete(id) }
+
+  wait(id: string, signal?: AbortSignal, maxWaitMs = 60_000): Promise<MonitorWaitResult> {
+    if (!this.entries.has(id)) return Promise.resolve({ status: 'pending', id })
+    return new Promise(resolve => {
+      const settle = (result: MonitorWaitResult) => {
+        clearTimeout(timer)
+        signal?.removeEventListener('abort', onAbort)
+        resolve(result)
+      }
+      const onAbort = () => settle({ status: 'aborted', id })
+      const timer = setTimeout(() => settle({ status: 'pending', id }), Math.min(maxWaitMs, 60_000))
+      timer.unref?.()
+      const set = this.waiters.get(id) ?? new Set()
+      set.add(settle)
+      this.waiters.set(id, set)
+      if (signal?.aborted) onAbort()
+      else signal?.addEventListener('abort', onAbort, { once: true })
+    })
+  }
+
+  start(agentId: string, targetId: string, opts: MonitorStartOpts): { id: string; reused: boolean; pending: boolean } | { error: string } {
     if (opts.untilRegex === undefined && opts.untilExit === undefined) {
       return { error: 'monitor: provide at least one of until_regex or until_exit' }
     }
     let untilRegex: RegExp | undefined
     if (opts.untilRegex !== undefined) {
       try { untilRegex = new RegExp(opts.untilRegex) } catch { return { error: 'monitor: invalid until_regex' } }
+    }
+    const key = this.key(agentId, targetId, opts)
+    for (const existing of this.entries.values()) {
+      if (existing.status === 'watching' && existing.key === key) return { id: existing.id, reused: true, pending: true }
     }
     const target = this.opts.procs.inspect(targetId)
     if (!target) return { error: `monitor: unknown background shell id "${targetId}"` }
@@ -85,7 +118,7 @@ export class MonitorStore {
     // Target already gone: resolve immediately as exited.
     if (target.status === 'exited') {
       this.opts.onResolve({ id, agentId, sessionId, targetId, reason: 'exited', detail: `exit code ${target.exitCode}`, kind: 'shell' })
-      return { id }
+      return { id, reused: false, pending: false }
     }
 
     const until = [
@@ -95,7 +128,7 @@ export class MonitorStore {
     ].filter(Boolean).join(' or ')
     const entry: Entry = {
       id, agentId, sessionId, targetId, untilRegex, untilExit: opts.untilExit, until,
-      status: 'watching', onData: () => {}, onExit: () => {}
+      status: 'watching', onData: () => {}, onExit: () => {}, key
     }
     entry.onData = (e: BgDataEvent) => {
       if (e.id !== targetId || entry.status !== 'watching' || !entry.untilRegex) return
@@ -124,16 +157,23 @@ export class MonitorStore {
         if (untilRegex.test(line)) { this.resolve(entry, 'matched', line.trim().slice(0, DETAIL_CAP)); break }
       }
     }
-    return { id }
+    return { id, reused: false, pending: true }
   }
 
   private resolve(entry: Entry, reason: MonitorReason, detail: string): void {
     if (entry.status !== 'watching') return
     this.teardown(entry)
-    this.opts.onResolve({
+    const info: MonitorResolveInfo = {
       id: entry.id, agentId: entry.agentId, sessionId: entry.sessionId,
       targetId: entry.targetId, reason, detail, kind: 'shell'
-    })
+    }
+    const waiters = this.waiters.get(entry.id)
+    if (waiters?.size) {
+      this.consumed.add(entry.id)
+      for (const settle of waiters) settle({ status: 'resolved', id: entry.id, info })
+      this.waiters.delete(entry.id)
+    }
+    this.opts.onResolve(info)
   }
 
   private teardown(entry: Entry): void {

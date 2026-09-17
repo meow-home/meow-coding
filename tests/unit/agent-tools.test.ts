@@ -44,6 +44,15 @@ describe('write', () => {
   })
 })
 
+describe('edit', () => {
+  it('matches LF input against a CRLF file and preserves literal replacement text', async () => {
+    writeFileSync(path.join(dir, 'f.txt'), 'first\r\nsecond\r\n')
+    const r = await editTool.run({ file_path: 'f.txt', old_string: 'first\nsecond', new_string: '$1\n$&' }, ctx)
+    expect(r.error).toBeUndefined()
+    expect((await import('node:fs')).readFileSync(path.join(dir, 'f.txt'), 'utf-8')).toBe('$1\r\n$&\r\n')
+  })
+})
+
 describe('read', () => {
   it('reads a file', async () => {
     writeFileSync(path.join(dir, 'f.txt'), 'one\ntwo\nthree\n')

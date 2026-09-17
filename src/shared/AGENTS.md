@@ -10,7 +10,7 @@ Shared contract between main / preload / renderer.
   (`AgentStateEvent`, `GitStatusEvent`).
 - `image.ts` — image extension list (`IMAGE_EXTENSIONS`) and MIME mapping helper (`imageMimeType`).
 - `browser-types.ts` — types specific to the browser bridge (pairing, snapshot).
-- `text.ts` — pure text helpers (append stream delta, ...).
+- `text.ts` — pure text helpers (lossless incremental stream delta append, ...).
 - `usage.ts` — pure helpers for computing context/token usage.
 
 ## Conventions

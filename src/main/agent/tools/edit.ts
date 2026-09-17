@@ -4,6 +4,7 @@ import type { ToolDefinition, ToolRunResult } from './types'
 import { resolveCwd } from './bash'
 import { snapshotFile } from './snapshot-util'
 import { recordArtifact } from './artifact'
+import { findUniqueText, formatTextMatchError } from './text-match'
 
 export const editTool: ToolDefinition = {
   name: 'edit',
@@ -23,13 +24,14 @@ export const editTool: ToolDefinition = {
     const full = resolveCwd(ctx.cwd, file_path)
     if (!existsSync(full)) return { error: `edit: file not found: ${file_path}` }
     const content = readFileSync(full, 'utf-8')
-    const matches = content.split(old_string).length - 1
-    if (matches === 0) return { error: 'edit: old_string not found in file' }
-    if (matches > 1) return { error: `edit: old_string matched ${matches} times; make it unique` }
+    const match = findUniqueText(content, old_string)
+    if ('error' in match) return { error: formatTextMatchError(match.error, match.count) }
     snapshotFile(ctx, full)
-    writeFileSync(full, content.replace(old_string, new_string))
+    const replacement = match.newline === 'crlf' ? new_string.replace(/(?<!\r)\n/g, '\r\n') : new_string
+    const updated = content.slice(0, match.start) + replacement + content.slice(match.end)
+    writeFileSync(full, updated)
     recordArtifact(ctx, full, 'edit')
-    const diag = ctx.diagnostics ? await ctx.diagnostics(full, content.replace(old_string, new_string)) : ''
+    const diag = ctx.diagnostics ? await ctx.diagnostics(full, updated) : ''
     return { output: `edited ${file_path}${diag ? `\n${diag}` : ''}` }
   }
 }

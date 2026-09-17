@@ -67,6 +67,19 @@ describe('MonitorStore', () => {
     procs.killAllForAgent('a1')
   }, 20000)
 
+  it('allows a foreground waiter to consume a matched resolution once', async () => {
+    const { procs, monitors, resolved } = makeStores()
+    const bg = procs.start('a1', 'sleep 0.2; echo WAIT_READY', dir) as { id: string }
+    const started = monitors.start('a1', bg.id, { untilRegex: 'WAIT_READY' })
+    if (!('id' in started)) throw new Error('monitor did not start')
+    const waited = await monitors.wait(started.id, undefined, 2000)
+    expect(waited.status).toBe('resolved')
+    expect(waited.info?.reason).toBe('matched')
+    expect(resolved).toHaveLength(1)
+    expect(monitors.wasWaitConsumed(started.id)).toBe(true)
+    procs.killAllForAgent('a1')
+  }, 20000)
+
   it('errors on unknown target, missing condition, and bad regex', () => {
     const { procs, monitors } = makeStores()
     expect('error' in monitors.start('a1', 'nope', { untilExit: true })).toBe(true)
@@ -83,7 +96,7 @@ describe('MonitorStore', () => {
     const m2 = new MonitorStore({ procs, getSessionId: () => 's', onResolve: () => {}, ...opts })
     m2.start('a1', bg.id, { untilExit: true })
     m2.start('a1', bg.id, { untilExit: true })
-    expect('error' in m2.start('a1', bg.id, { untilExit: true })).toBe(true)
+    expect(m2.start('a1', bg.id, { untilExit: true })).toMatchObject({ reused: true })
     procs.killAllForAgent('a1')
   })
 
