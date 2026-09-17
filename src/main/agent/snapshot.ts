@@ -62,10 +62,10 @@ export class SnapshotStore {
     if (!buf.has(filePath)) buf.set(filePath, content)
   }
 
-  commitTurn(agentId: string): void {
+  commitTurn(agentId: string): string[] {
     const buf = this.buffer.get(agentId)
     this.buffer.delete(agentId)
-    if (!buf || buf.size === 0) return
+    if (!buf || buf.size === 0) return []
     const before: Record<string, string> = {}
     const after: Record<string, string> = {}
     for (const [filePath, content] of buf) {
@@ -82,6 +82,7 @@ export class SnapshotStore {
     mine.push({ agentId, ts: Date.now(), before, after })
     mine.sort((a, b) => a.ts - b.ts)
     this.saveTurns([...others, ...mine.slice(-MAX_SNAPSHOTS)])
+    return Object.keys(after)
   }
 
   // Pops the latest turn and restores its pre-change (before) contents.

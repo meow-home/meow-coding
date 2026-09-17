@@ -24,7 +24,10 @@ handlers and the app lifecycle.
   (agent started/stopped waiting on input) and exposes `listPendingPrompts()` for the sidebar "needs input"
   badges; notification clicks call `onActivateAgent(agentId)` so the renderer can jump to the agent's
   project + session. Registers the `delegate_session` tool per runner (bound to a narrow `deps.delegation`
-  adapter), tracks a fixed `AgentRunContext` per in-flight turn (`activeRunMap`) for origin correlation,
+  adapter), tracks a fixed `AgentRunContext` + correlated output per in-flight turn (`activeRuns`;
+  `runSessionId(agentId)` routes transcript/usage/todos/artifacts to the fixed run session even if the UI
+  switches session mid-run), and exposes the delegation runtime
+  (`resolveDelegationAgent`/`isBusy`/`runDelegatedTurn`/`appendDelegationResult`/`wakeDelegationSource`),
   and feeds same-project `SessionPeer`s into the turn reminder.
 - `pty-manager.ts` — node-pty wrapper, emits `data`/`exit` events. `buildSpawnCommand` wraps non-`.exe`
   commands through `cmd.exe` on Windows (ConPTY cannot spawn `.cmd` shims directly). Uses `tree-kill`

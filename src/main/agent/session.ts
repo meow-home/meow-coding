@@ -125,6 +125,26 @@ export class SessionStore {
     return all[0] ?? null
   }
 
+  /** Returns the session with the given id, creating it if absent. Used so a
+   *  delegated turn can target a concrete session that may not exist yet. */
+  ensure(id: string, agentId: string, projectPath: string): StoredSession {
+    const existing = this.get(id)
+    if (existing) return existing
+    const session: StoredSession = {
+      id,
+      agentId,
+      projectPath,
+      title: DEFAULT_SESSION_TITLE,
+      items: [],
+      todos: [],
+      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 },
+      createdAt: Date.now(),
+      updatedAt: this.nextUpdatedAt()
+    }
+    this.saveSessions([...this.loadSessions(), session])
+    return session
+  }
+
   create(agentId: string, projectPath: string): StoredSession {
     const session: StoredSession = {
       id: randomUUID(),

@@ -121,9 +121,15 @@ orphan tool item and providers reject the whole conversation with
 3. If no API key is resolved, emit an error and stop.
 4. Ensure a runner exists, create an `AbortController`, mark running, increment the turn counter,
    emit `turn-started`, clear the redo stack, `snapshots.beginTurn`.
-5. `await runner.run(signal)`.
-6. `finally`: `snapshots.commitTurn`, clear running/controller, resolve any pending prompt with
-   `null`.
+5. `await runner.run(signal)`; `snapshots.commitTurn` returns the touched-file paths, and the turn's
+   last assistant message is captured as `finalText` (both stored on the run's `ActiveRun` for
+   delegation correlation).
+6. `finally`: clear running/controller, resolve any pending prompt with `null`, and remove the run's
+   active record.
+
+Runner transcript/usage/todos/artifact callbacks route to the run's *fixed* session via
+`runSessionId(agentId)` (the `AgentRunContext.sessionId`) rather than the UI-selected session, so a
+delegated turn keeps writing to its target session even if the user switches sessions mid-run.
 
 ## 3.4 The turn loop (`SessionRunner.run`)
 

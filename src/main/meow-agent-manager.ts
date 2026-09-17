@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
-import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, NotificationsSettings, PendingPromptInfo, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts, UsageSummary } from '../shared/types'
+import type { ChatDelegationMeta, ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, NotificationsSettings, PendingPromptInfo, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts, UsageSummary } from '../shared/types'
 import { DRAFT_SESSION_ID, type AgentConfig, type AgentMode, type ArtifactEntry, type CatalogProviderSummary, type Command, type ModelRef, type SubagentType } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, resolveApiKey, settingsToConfig, writeMeowConfig,
@@ -53,6 +53,8 @@ import type { ResolvedSubagentModel } from './agent/tools/task'
 import type { AgentRunContext } from './agent/run-context'
 import type { SessionPeer } from './agent/env'
 import type { SessionDelegation } from '../shared/types'
+import type { DelegationAgent } from './session-delegation-service'
+import type { DelegatedTurnInput, DelegationResultInput, AgentTurnResult } from './agent/run-context'
 import type { AccountEndpointResolver } from './agent/config'
 import type { ToolDefinition } from './agent/tools/types'
 import type { NotificationService } from './notification-service'
@@ -103,6 +105,23 @@ export interface MeowAgentManagerDeps {
   }
 }
 
+interface ActiveRun {
+  context: AgentRunContext
+  finalText?: string
+  error?: string
+  touchedFiles: Set<string>
+}
+
+interface RunTurnOptions {
+  images?: ImageAttachment[]
+  displayText?: string
+  sessionId?: string
+  origin?: 'user' | 'delegation'
+  messageId?: string
+  delegation?: ChatDelegationMeta
+  messageAlreadyPersisted?: boolean
+}
+
 export class MeowAgentManager {
   private runners = new Map<string, SessionRunner>()
   private agents = new Map<string, AgentConfig>()
@@ -119,10 +138,11 @@ export class MeowAgentManager {
   }>()
   private running = new Set<string>()
   private activeSessions = new Map<string, string>()
-  // Fixed identity of the run currently executing for each agent, installed by
-  // runTurnInner and removed when the turn settles (see Task 4 for full
-  // correlation of results). Lets the delegate_session tool correlate origin.
-  private activeRunMap = new Map<string, AgentRunContext>()
+  // Fixed identity and correlated output of the run currently executing for
+  // each agent, installed by runTurn and removed when the turn settles. Lets
+  // the delegate_session tool correlate origin and lets runDelegatedTurn /
+  // wakeDelegationSource correlate final text and touched files.
+  private activeRuns = new Map<string, ActiveRun>()
   private tools: Map<string, ToolDefinition>
   private modes = new Map<string, AgentMode>()
   private mcp!: McpManager
@@ -238,6 +258,113 @@ export class MeowAgentManager {
     return this.backgrounds.get(agentId) ?? false
   }
 
+  isBusy(agentId: string): boolean {
+    return this.running.has(agentId)
+  }
+
+  resolveDelegationAgent(agentId: string): DelegationAgent | undefined {
+    const agent = this.agents.get(agentId)
+    if (!agent) return undefined
+    // The delegatable session is the latest concrete session for the agent.
+    // If a run is active, prefer its fixed run session so a delegated turn
+    // targeting "this agent" correlates to the same conversation.
+    const sessionId = this.runSessionId(agentId)
+    return { agentId, name: agent.name, projectPath: agent.cwd, sessionId }
+  }
+
+  async runDelegatedTurn(input: DelegatedTurnInput): Promise<AgentTurnResult | undefined> {
+    const target = this.agents.get(input.targetAgentId)
+    if (!target) return undefined
+    // The result wake is keyed by the same delegation id so a redelivery /
+    // double dispatch is idempotent. The incoming message is deterministic so
+    // recovery never duplicates the prompt.
+    const delegationId = input.delegationId
+    this.deps.store.ensure(input.targetSessionId, target.id, target.cwd)
+    await this.deps.store.appendMessageIfMissing(input.targetSessionId, {
+      id: `delegation-incoming:${delegationId}`,
+      role: 'user',
+      text: input.task,
+      delegation: {
+        id: delegationId,
+        direction: 'incoming',
+        peerAgentId: input.sourceAgentId,
+        peerName: input.sourceName
+      },
+      createdAt: Date.now()
+    })
+    const run = await this.runTurn(input.targetAgentId, input.task, {
+      sessionId: input.targetSessionId,
+      origin: 'delegation',
+      messageId: `delegation-incoming:${delegationId}`,
+      messageAlreadyPersisted: true,
+      delegation: {
+        id: delegationId,
+        direction: 'incoming',
+        peerAgentId: input.sourceAgentId,
+        peerName: input.sourceName
+      }
+    })
+    if (!run) return { runId: '', reason: 'failed', touchedFiles: [], error: 'target resolved to no run' }
+    return run
+  }
+
+  async appendDelegationResult(input: DelegationResultInput): Promise<void> {
+    // Deterministic idempotent delivery: the result message appears exactly
+    // once on the source transcript even if the service retries.
+    const header = `### \u{1F9DF} Delegation result — ${input.targetName}`
+    const body = input.status === 'failed'
+      ? `\n\n**Status:** failed\n\n${input.error ?? 'No error reported.'}`
+      : input.result
+    const text = `${header}\n\n${body ?? ''}`
+    const source = this.agents.get(input.sourceAgentId)
+    this.deps.store.ensure(input.sourceSessionId, input.sourceAgentId, source?.cwd ?? this.deps.projectPath ?? '')
+    await this.deps.store.appendMessageIfMissing(input.sourceSessionId, {
+      id: `delegation-result:${input.delegationId}`,
+      role: 'user',
+      text,
+      delegation: {
+        id: input.delegationId,
+        direction: 'result',
+        peerAgentId: input.targetAgentId,
+        peerName: input.targetName
+      },
+      createdAt: Date.now()
+    })
+  }
+
+  async wakeDelegationSource(input: DelegationResultInput): Promise<void> {
+    const source = this.agents.get(input.sourceAgentId)
+    if (!source) return
+    if (this.running.has(input.sourceAgentId)) {
+      // Source is busy: park the wake as a deferred internal entry so it is
+      // never steered into the active turn, and never dropped by the user cap.
+      this.enqueueMessage(
+        input.sourceAgentId,
+        `delegation-wake:${input.delegationId}`,
+        undefined,
+        undefined,
+        {
+          id: input.delegationId,
+          direction: 'result',
+          peerAgentId: input.targetAgentId,
+          peerName: input.targetName
+        },
+        true,
+        input.delegationId
+      )
+      return
+    }
+    await this.runTurn(input.sourceAgentId, input.result ?? input.error ?? '', {
+      origin: 'delegation',
+      delegation: {
+        id: input.delegationId,
+        direction: 'result',
+        peerAgentId: input.targetAgentId,
+        peerName: input.targetName
+      }
+    })
+  }
+
   async suggestFiles(agentId: string, prefix: string): Promise<FileSuggestion[]> {
     // A draft session has no backend agent until its first prompt, so it has no
     // cwd of its own; suggestions come from the active project, which is where
@@ -315,7 +442,11 @@ export class MeowAgentManager {
   }
 
   private activeRunCtx(agentId: string): AgentRunContext | undefined {
-    return this.activeRunMap.get(agentId)
+    return this.activeRuns.get(agentId)?.context
+  }
+
+  private runSessionId(agentId: string): string {
+    return this.activeRuns.get(agentId)?.context.sessionId ?? this.activeSessionId(agentId)
   }
 
   listSessions(agentId: string): SessionSummary[] {
@@ -451,13 +582,18 @@ export class MeowAgentManager {
     })
   }
 
-  private enqueueMessage(agentId: string, text: string, images?: ImageAttachment[], displayText?: string): void {
+  private enqueueMessage(agentId: string, text: string, images?: ImageAttachment[], displayText?: string, delegation?: ChatDelegationMeta, deferUntilIdle?: boolean, idOverride?: string): void {
     const q = this.queues.get(agentId) ?? []
-    if (q.length >= this.MAX_QUEUE) {
+    // Deferred delegation-result wakes are internal and must never be rejected
+    // by the user-message queue cap; they are keyed by the deterministic
+    // delegation id so a re-wake is idempotent.
+    if (!deferUntilIdle && q.length >= this.MAX_QUEUE) {
       this.emit({ type: 'error', agentId, message: '[meow] Queue is full (max 5 messages). Wait for the current turn to finish or remove a queued message.' })
       return
     }
-    q.push({ id: randomUUID(), text, images, displayText })
+    const id = idOverride ?? randomUUID()
+    if (q.some(m => m.id === id)) return
+    q.push({ id, text, images, displayText, deferUntilIdle, delegation })
     this.queues.set(agentId, q)
     this.emitQueue(agentId)
   }
@@ -469,25 +605,56 @@ export class MeowAgentManager {
       this.enqueueMessage(agentId, text, images, displayText)
       return
     }
-    await this.runTurn(agentId, text, images, displayText)
+    await this.runTurn(agentId, text, { images, displayText })
     await this.drainQueue(agentId)
   }
 
   private async drainQueue(agentId: string): Promise<void> {
     if (this.running.has(agentId)) return
+    const next = this.takeNextQueuedTurn(agentId)
+    if (!next) return
+    await this.runTurn(agentId, next.text, {
+      images: next.images,
+      displayText: next.displayText,
+      messageId: next.id,
+      delegation: next.delegation
+    })
+    await this.drainQueue(agentId)
+  }
+
+  /** Returns non-deferred queued steers for the running turn (open-loop
+   *  steering); deferred (delegation wake) entries keep waiting. */
+  private takeSteers(agentId: string): QueuedMessage[] {
     const q = this.queues.get(agentId)
-    if (!q || q.length === 0) return
+    if (!q || q.length === 0) return []
+    const steers: QueuedMessage[] = []
+    const rest: QueuedMessage[] = []
+    for (const m of q) {
+      if (!m.deferUntilIdle) steers.push(m)
+      else rest.push(m)
+    }
+    if (rest.length > 0) this.queues.set(agentId, rest)
+    else this.queues.delete(agentId)
+    this.emitQueue(agentId)
+    return steers
+  }
+
+  /** Pops the oldest direct user input before the oldest deferred result wake,
+   *  so explicit user work always precedes delegated results on the queue. */
+  private takeNextQueuedTurn(agentId: string): QueuedMessage | undefined {
+    const q = this.queues.get(agentId)
+    if (!q || q.length === 0) return undefined
     const next = q.shift()!
     if (q.length === 0) this.queues.delete(agentId)
     else this.queues.set(agentId, q)
     this.emitQueue(agentId)
-    await this.runTurn(agentId, next.text, next.images, next.displayText)
-    await this.drainQueue(agentId)
+    return next
   }
 
-  private async runTurn(agentId: string, text: string, images?: ImageAttachment[], displayText?: string): Promise<void> {
+  private async runTurn(agentId: string, content: string, options?: RunTurnOptions): Promise<AgentTurnResult | undefined> {
+    options ??= {}
     const agent = this.agents.get(agentId)
-    if (!agent) return
+    if (!agent) return undefined
     // A turn aborted mid-tool is still winding down after `running` was
     // cleared: killing the process tree takes time, and the tool's result is
     // appended to the transcript only when the kill settles. If this turn's
@@ -501,23 +668,41 @@ export class MeowAgentManager {
       // A concurrent send() grabbed the slot while we waited — queue instead
       // so the caller's drainQueue picks it up once the current turn ends.
       if (this.running.has(agentId)) {
-        this.enqueueMessage(agentId, text, images, displayText)
-        return
+        this.enqueueMessage(agentId, content, options.images, options.displayText, options.delegation)
+        return undefined
       }
     }
-    const turn = this.runTurnInner(agentId, text, images, displayText)
+    const runId = randomUUID()
+    const sessionId = options.sessionId ?? this.activeSessionId(agentId)
+    const run: ActiveRun = {
+      context: { runId, agentId, sessionId, origin: options.origin ?? 'user' },
+      touchedFiles: new Set()
+    }
+    const turn = this.runTurnInner(agent, run, content, options, runId)
     this.turnPromises.set(agentId, turn)
     try {
       await turn
     } finally {
       if (this.turnPromises.get(agentId) === turn) this.turnPromises.delete(agentId)
     }
+    if (run.error) {
+      this.emit({ type: 'error', agentId, message: run.error })
+      return { runId, reason: 'failed', touchedFiles: [...run.touchedFiles], error: run.error }
+    }
+    if (!run.finalText) {
+      return { runId, reason: 'cancelled', touchedFiles: [...run.touchedFiles], error: run.error }
+    }
+    return { runId, reason: 'completed', finalText: run.finalText, touchedFiles: [...run.touchedFiles] }
   }
 
-  private async runTurnInner(agentId: string, text: string, images?: ImageAttachment[], displayText?: string): Promise<void> {
-    const agent = this.agents.get(agentId)
-    if (!agent) return
-
+  private async runTurnInner(
+    agent: AgentConfig,
+    run: ActiveRun,
+    content: string,
+    options: RunTurnOptions,
+    runId: string
+  ): Promise<void> {
+    const agentId = agent.id
     let runner = this.runners.get(agentId)
     if (!runner) {
       await this.register(agent)
@@ -528,6 +713,14 @@ export class MeowAgentManager {
     // the same call that starts the turn, so claim it here, before any await
     // from the lifecycle hooks below.
     this.running.add(agentId)
+    let sessionId = options.sessionId ?? this.activeSessionId(agentId)
+    // A delegated turn targets a fixed session; ensure it exists so writes
+    // (transcript, usage, todos, artifacts) land on the correct session even
+    // if the user switched the UI elsewhere.
+    if (options.sessionId) {
+      this.deps.store.ensure(sessionId, agentId, agent.cwd)
+    }
+    this.activeRuns.set(agentId, run)
 
     // UserPromptSubmit/SessionStart run at the moment a genuine prompt's turn
     // begins. Lifecycle hooks are async, so they must run after the runner is
@@ -536,7 +729,6 @@ export class MeowAgentManager {
     let injected = ''
     const hooks = this.agentHooks.get(agentId)?.()
     if (hooks) {
-      const sessionId = this.activeSessionId(agentId)
       if (!this.startedSessions.has(sessionId)) {
         this.startedSessions.add(sessionId)
         const source = (this.deps.store.get(sessionId)?.items?.length ?? 0) > 0 ? 'resume' : 'startup'
@@ -544,9 +736,10 @@ export class MeowAgentManager {
         if (start.additionalContext) injected += `${start.additionalContext}
 `
       }
-      const ups = await hooks.runUserPromptSubmit(text)
+      const ups = await hooks.runUserPromptSubmit(content)
       if (ups.block) {
         this.running.delete(agentId)
+        this.activeRuns.delete(agentId)
         this.emit({ type: 'error', agentId, message: `[hook] prompt blocked${ups.reason ? `: ${ups.reason}` : ''}` })
         return
       }
@@ -556,51 +749,50 @@ export class MeowAgentManager {
     const finalText = injected ? `<system-reminder>
 ${injected.trim()}
 </system-reminder>
-${text}` : text
-    const finalDisplay = injected ? (displayText ?? text) : displayText
-    const message: ChatMessage = {
-      id: randomUUID(),
-      role: 'user',
-      text: referenceHints(agent.cwd, finalText),
-      displayText: finalDisplay ?? finalText,
-      images,
-      createdAt: Date.now()
+${content}` : content
+    const finalDisplay = injected ? (options.displayText ?? content) : options.displayText
+    if (!options.messageAlreadyPersisted) {
+      const message: ChatMessage = {
+        id: options.messageId ?? randomUUID(),
+        role: 'user',
+        text: referenceHints(agent.cwd, finalText),
+        displayText: finalDisplay ?? finalText,
+        images: options.images,
+        delegation: options.delegation,
+        createdAt: Date.now()
+      }
+      this.deps.store.appendMessageIfMissing(sessionId, message)
+      this.emit({ type: 'user-message', agentId, message })
+      this.deps.onUserMessage?.(agentId, message)
     }
-    this.deps.store.appendMessage(this.activeSessionId(agentId), message)
-    this.emit({ type: 'user-message', agentId, message })
-    this.deps.onUserMessage?.(agentId, message)
     const config = this.resolved.get(agentId)
     if (!config?.apiKey) {
       this.running.delete(agentId)
-      this.emit({
-        type: 'error',
-        agentId,
-        message:
-          '[meow] No provider/API key configured. Open Settings, add a provider (id + API key + models) and try again.'
-      })
+      this.activeRuns.delete(agentId)
+      run.error = '[meow] No provider/API key configured. Open Settings, add a provider (id + API key + models) and try again.'
       return
     }
 
     const controller = new AbortController()
     this.controllers.set(agentId, controller)
-    this.nextTurn(agentId)
-    // Fixed run identity so tools (delegate_session) can correlate the source
-    // run. Task 4 correlates final text/touched files under this same id.
-    const ctx: AgentRunContext = {
-      runId: randomUUID(),
-      agentId,
-      sessionId: this.activeSessionId(agentId),
-      origin: 'user'
-    }
-    this.activeRunMap.set(agentId, ctx)
+    this.nextTurnFor(sessionId)
     this.emit({ type: 'turn-started', agentId })
     this.redoStacks.delete(agentId)
     this.deps.snapshots.beginTurn(agentId)
     try {
       await runner.run(controller.signal)
+      // Capture touched files from the snapshot buffer committed this turn.
+      const touched = this.deps.snapshots.commitTurn(agentId)
+      for (const f of touched) run.touchedFiles.add(f)
+      const session = this.deps.store.get(sessionId)
+      const msgs = (session?.items ?? [])
+        .filter((i): i is { kind: 'message'; message: ChatMessage } => i.kind === 'message')
+        .map(i => i.message)
+      const lastAssistant = [...msgs].reverse().find(m => m.role === 'assistant')
+      if (lastAssistant) run.finalText = lastAssistant.text
     } finally {
-      this.deps.snapshots.commitTurn(agentId)
-      this.activeRunMap.delete(agentId)
+      this.deps.snapshots.abortTurn(agentId)
+      this.activeRuns.delete(agentId)
       this.running.delete(agentId)
       this.controllers.delete(agentId)
       this.resolvePendingFor(agentId, null)
@@ -1237,7 +1429,7 @@ ${text}` : text
     // `used` names the subagent's own model so its tokens are priced correctly.
     const reportUsage = (tokens: MessageTokens, isMainContext: boolean, used?: { provider: string; model: string }): void => {
       const price = this.priceFor(used?.provider ?? resolved.provider, used?.model ?? resolved.model)
-      const sessionId = this.activeSessionId(agent.id)
+      const sessionId = this.runSessionId(agent.id)
       const usage: UsageSummary = {
         input: tokens.input,
         output: tokens.output,
@@ -1428,25 +1620,19 @@ ${text}` : text
       compaction: cfg.compaction,
       toolOutput: cfg.toolOutput,
       truncation: this.deps.truncation,
-      replaceItems: (items) => this.deps.store.replaceItems(this.activeSessionId(agent.id), items),
+      replaceItems: (items) => this.deps.store.replaceItems(this.runSessionId(agent.id), items),
       snapshots: this.deps.snapshots,
       onEvent: (e) => this.emit(e),
       onArtifact: (entry) => this.deps.onArtifact?.(entry),
-      getItems: () => this.deps.store.get(this.activeSessionId(agent.id))?.items ?? [],
-      appendMessage: (msg) => this.deps.store.appendMessage(this.activeSessionId(agent.id), msg),
-      appendTool: (tool) => this.deps.store.appendTool(this.activeSessionId(agent.id), tool),
+      getItems: () => this.deps.store.get(this.runSessionId(agent.id))?.items ?? [],
+      appendMessage: (msg) => this.deps.store.appendMessage(this.runSessionId(agent.id), msg),
+      appendTool: (tool) => this.deps.store.appendTool(this.runSessionId(agent.id), tool),
       backgroundProcs: this.backgroundProcs,
       monitors: this.monitors,
       pollMonitors: this.pollMonitors,
-      takeSteers: () => {
-        const q = this.queues.get(agent.id)
-        if (!q || q.length === 0) return []
-        this.queues.delete(agent.id)
-        this.emitQueue(agent.id)
-        return q
-      },
+      takeSteers: () => this.takeSteers(agent.id),
       setTodos: (todos) => {
-        this.deps.store.setTodos(this.activeSessionId(agent.id), todos)
+        this.deps.store.setTodos(this.runSessionId(agent.id), todos)
         this.emit({ type: 'todo-updated', agentId: agent.id, todos })
       },
       variantOptions,
@@ -1511,11 +1697,14 @@ ${text}` : text
     }
   }
 
-  private nextTurn(agentId: string): number {
-    const sessionId = this.activeSessionId(agentId)
+  private nextTurnFor(sessionId: string): number {
     const next = (this.turnCounters.get(sessionId) ?? 0) + 1
     this.turnCounters.set(sessionId, next)
     return next
+  }
+
+  private nextTurn(agentId: string): number {
+    return this.nextTurnFor(this.activeSessionId(agentId))
   }
 
   private emit(e: ChatEvent): void {
