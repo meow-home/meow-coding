@@ -32,6 +32,12 @@ handlers and the app lifecycle.
   (`userData/delegations.json`): revision-checked/idempotent transitions, post-terminal `deliveredAt`/`wakeAt`
   metadata, `recoverInterrupted()` for restart recovery, and `purgeTerminalBefore()` retention. Project paths
   are normalized (Windows lower-cased + forward slashes). See `docs/reference/06-data-and-storage.md#64b`.
+- `session-delegation-service.ts` — `SessionDelegationService`: orchestrates delegation lifecycle by
+  pumping a per-target scheduler (`start`/`notifyAgentAvailable`/`flush`/`suspend`). Validates creation
+  (user-origin run, distinct same-project target, ≤32 KiB task, ≤5 nonterminal per target), runs queued
+  FIFO via a `DelegationRuntime`, persists terminal results, marks `deliveredAt`/`wakeAt`, truncates
+  UTF-8 results to 64 KiB, recovers on restart (interrupt in-flight, resume queued, redeliver once), and
+  handles agent/project removal.
 - `fresh-start.ts` — one-time **destructive** v0.37 model switch: `resetToSingleSession` replaces every
   project's agents with a single fresh native session and deletes `userData/sessions.json`. Runs once,
   guarded by the flag file `userData/.sessions-model-reset` (written only after the reset succeeds). The

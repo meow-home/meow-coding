@@ -28,6 +28,30 @@ see [06 §6.4b](06-data-and-storage.md#64b-session-delegation-delegationsjson).
 the session transcript through callbacks (`getItems`, `appendMessage`, `appendTool`,
 `replaceItems`) supplied by the manager, so the store stays the single source of truth.
 
+## Delegation lifecycle
+
+`SessionDelegationService` (`src/main/session-delegation-service.ts`) drives session-to-session
+delegation by pumping one scheduler loop per target agent through a `DelegationRuntime`. It is the
+only writer of `SessionDelegationStore` records.
+
+- **Creation** (`create`) is validated up front and persists a durable `queued` record before any
+  scheduling: only a user-origin run may delegate; self-delegation, a missing target, cross-project
+  targets, a blank/`>32 KiB` task, and `>5` nonterminal records for the same target are all rejected.
+- **Scheduling** — `start()`/`notifyAgentAvailable(agentId)` kick a target loop that selects queued
+  work FIFO by `createdAt`. A busy target (per the runtime) parks the loop on a waiter that
+  `notifyAgentAvailable` resolves; the loop never polls. `flush()` awaits until all pumps idle and
+  `suspend()` stops new scheduling.
+- **Prompt state** — while a delegated turn is `running`, a prompt may open (`notifyPromptState(true)`)
+  moving the record to `waiting_for_input`; answering (`notifyPromptState(false)`) returns it to
+  `running`. The terminal transition always starts from the latest nonterminal revision so a prompt
+  that straddles the run's end is not lost.
+- **Delivery** — on terminal status the service appends the target's result idempotently, marks
+  `deliveredAt`, then wakes the source (claiming `wakeAt` once via `claimSourceWake`). The result is
+  truncated to 64 KiB (UTF-8‑safe) with `resultTruncated`.
+- **Recovery** — `start()` interrupts in-flight `running`/`waiting_for_input` records (delivering the
+  interruption once, never rerunning the target task), redelivers terminal results missing
+  `deliveredAt`, repumps queued records, and runs retention cleanup.
+
 ## 3.2 Registration (`MeowAgentManager.register`)
 
 Called on `init`, `addAgent`, and after any change that invalidates the runner (mode, variant,
