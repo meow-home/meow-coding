@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { marked } from 'marked'
+import markedKatex from 'marked-katex-extension'
 import DOMPurify from 'dompurify'
 import { normalizeMarkdownTables } from './markdownTable'
 import { isPathLike } from './markdownPaths'
@@ -10,11 +11,40 @@ interface Props {
 }
 
 marked.setOptions({ gfm: true, breaks: true })
+marked.use(markedKatex({ throwOnError: false, nonStandard: true }))
+
+const DOMPURIFY_CONFIG = {
+  ADD_TAGS: [
+    'math',
+    'annotation',
+    'semantics',
+    'mtext',
+    'mn',
+    'mo',
+    'mi',
+    'mspace',
+    'mover',
+    'munder',
+    'munderover',
+    'msup',
+    'msub',
+    'msubsup',
+    'mfrac',
+    'mroot',
+    'msqrt',
+    'mtable',
+    'mtr',
+    'mtd',
+    'mlabeledtr',
+    'mrow'
+  ],
+  ADD_ATTR: ['aria-hidden', 'tabindex', 'style', 'encoding', 'mathvariant']
+}
 
 export default function MarkdownText({ text, onOpenFile }: Props) {
   const html = useMemo(() => {
     const raw = marked.parse(normalizeMarkdownTables(text), { async: false }) as string
-    const sanitized = DOMPurify.sanitize(raw)
+    const sanitized = DOMPurify.sanitize(raw, DOMPURIFY_CONFIG)
     // Post-process instead of a custom marked renderer: keeps the default
     // renderer for link text/escaping and avoids global marked.use mutations.
     const doc = new DOMParser().parseFromString(sanitized, 'text/html')

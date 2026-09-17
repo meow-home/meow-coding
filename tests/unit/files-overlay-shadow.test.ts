@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest'
 function stylesheetRules(): { selectors: string[]; body: string }[] {
   const css = readFileSync(resolve(__dirname, '../../src/renderer/src/styles.css'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/@[^;]+;/g, '')
   return [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selectors, body]) => ({
     selectors: selectors.split(',').map(s => s.trim()),
     body
