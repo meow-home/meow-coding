@@ -3,6 +3,7 @@ import type { SnapshotStore } from '../snapshot'
 import type { BackgroundProcessStore } from '../background-process-store'
 import type { MonitorStore } from '../monitor-store'
 import type { PollMonitorStore } from '../poll-monitor-store'
+import type { AgentRunContext } from '../run-context'
 import type { ArtifactEntry, QuestionPrompt, TodoItem } from '../../../shared/types'
 
 export type ToolSchema = z.ZodType | Record<string, unknown>
@@ -16,6 +17,10 @@ export interface ToolDefinition {
 
 export interface ToolContext {
   cwd: string
+  // The fixed identity of the run that invoked the tool (a delegated turn has
+  // its own `AgentRunContext`), snapshot per invocation. Lets the
+  // `delegate_session` tool correlate the source run.
+  runContext?: AgentRunContext
   ask(question: QuestionPrompt): Promise<string | null>
   setTodos?(todos: TodoItem[]): void
   emitSubagent?(taskId: string, e: SubagentToolEvent): void
@@ -57,4 +62,6 @@ export interface ToolRunResult {
   output?: string
   error?: string
   background?: boolean
+  /** Ad-hoc data attached to the persisted ToolCallData (e.g. delegationId). */
+  metadata?: Record<string, unknown>
 }
