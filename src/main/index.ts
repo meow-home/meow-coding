@@ -27,6 +27,10 @@ import type { SavedPermission } from './agent/saved-permissions'
 import { createDefaultTools } from './agent/tools/registry'
 import { isTextPath, openFileViewer, openWithSystemApp, readFileContent, readImageDataUrl } from './file-viewer'
 import { MeowAgentManager } from './meow-agent-manager'
+import { SessionDelegationService } from './session-delegation-service'
+import { SessionDelegationStore } from './session-delegation-store'
+import { computePeerTargets } from './peer-roster'
+import type { SessionPeer } from './agent/env'
 import { CommandStore } from './agent/commands'
 import { FileWatcher } from './file-watcher'
 import { ArtifactStore } from './artifact-store'
@@ -50,7 +54,7 @@ import { RemoteSettingsStore } from './remote/remote-settings'
 import { RemotePairing } from './remote/remote-pairing'
 import { Channels } from '../shared/ipc'
 import { formatLogArg, safeJson } from '../shared/log-helpers'
-import type { AgentState, Command, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, ProjectSearchHit, PromptResponse, TranscriptWindowOpts, Workspace, WorkspaceRuntime } from '../shared/types'
+import type { AgentState, Command, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, ProjectSearchHit, PromptResponse, SessionDelegation, TranscriptWindowOpts, Workspace, WorkspaceRuntime } from '../shared/types'
 
 let win: BrowserWindow | null = null
 let isQuitting = false
@@ -165,6 +169,15 @@ export class MainApp {
     connections: this.connections,
     lsp: new LspManager(),
     notify: new NotificationService(() => !win || !win.isFocused()),
+    delegation: {
+      create: (options) => {
+        // Wired lazily: the manager is constructed (and tools registered from
+        // any runner) before the delegation service is started.
+        if (!this.delegationService) throw new Error('session delegation is not enabled.')
+        return this.delegationService.create(options)
+      },
+      peers: (agentId) => this.delegatePeers(agentId)
+    },
     // Notification click: focus the window and tell the renderer to switch to
     // the workspace + tab of the agent that needs input.
     onActivateAgent: (agentId) => {
@@ -226,6 +239,24 @@ export class MainApp {
       })
     }
   })
+  delegations = new SessionDelegationStore(
+    createJsonStore<SessionDelegation>(path.join(app.getPath('userData'), 'delegations.json'))
+  )
+  delegationService = new SessionDelegationService({
+    store: this.delegations,
+    runtime: {
+      resolveAgent: (agentId) => this.meowAgent.resolveDelegationAgent(agentId),
+      isBusy: (agentId) => this.meowAgent.isBusy(agentId),
+      runDelegatedTurn: async (input) => (await this.meowAgent.runDelegatedTurn(input)) ?? {
+        runId: '',
+        reason: 'failed',
+        touchedFiles: [],
+        error: 'target resolved to no run'
+      },
+      appendResult: (input) => this.meowAgent.appendDelegationResult(input),
+      wakeSource: (input) => this.meowAgent.wakeDelegationSource(input)
+    }
+  })
   remoteStore = new RemoteSettingsStore(
     createJsonStore(path.join(app.getPath('userData'), 'remote.json'))
   )
@@ -285,6 +316,9 @@ export class MainApp {
         this.setState(event.agentId, { status: 'running', lastOutputAt: Date.now(), alert: 'normal' })
       } else if (event.type === 'done' || event.type === 'error') {
         this.setState(event.agentId, { status: 'idle', alert: 'normal' })
+        // The manager clears its `running` set before this callback fires, so
+        // the delegation scheduler can now treat the target as available.
+        this.delegationService.notifyAgentAvailable(event.agentId)
       }
       if (event.type === 'error') {
         mainApp.systemLogger.log('ERROR', 'agent', `agent ${event.agentId}: ${event.message}`)
@@ -349,6 +383,25 @@ export class MainApp {
   findWorkspaceByAgent(agentId: string): Workspace | undefined {
     return this.workspaces.list().map(s => this.workspaces.get(s.projectPath))
       .find(w => w && w.agents.some(a => a.id === agentId))
+  }
+
+  /** Same-project delegatable peers for the delegate_session turn reminder. */
+  private delegatePeers(agentId: string): SessionPeer[] {
+    const requesting = this.findWorkspaceByAgent(agentId)
+    const workspaces: Workspace[] = this.workspaces.list()
+      .map(s => this.workspaces.get(s.projectPath))
+      .filter((w): w is Workspace => Boolean(w))
+    return computePeerTargets(workspaces, {
+      requestingAgentId: agentId,
+      requestingProjectPath: requesting?.projectPath,
+      modeOf: (id) => this.meowAgent.getMode(id),
+      stateOf: (id) => {
+        if (this.meowAgent.isBusy(id)) {
+          return this.meowAgent.getPendingPrompt(id) ? 'waiting_for_input' : 'running'
+        }
+        return 'idle'
+      }
+    })
   }
 
   runtimeFor(workspace: Workspace): WorkspaceRuntime {
@@ -710,6 +763,7 @@ export function registerIpcHandlers(): void {
         mainApp.alerts.clear(agent.id)
         mainApp.logs.remove(agent.id)
       }
+      await mainApp.delegationService.handleProjectRemoved(projectPath)
     }
     if (mainApp.isActiveProject(projectPath)) {
       mainApp.resetActiveProject()
@@ -825,6 +879,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(Channels.AgentRemove, async (_e, projectPath: string, agentId: string) => {
     mainApp.meowAgent.removeAgent(agentId)
+    await mainApp.delegationService.handleAgentRemoved(agentId)
     await mainApp.pty.stop(agentId)
     mainApp.workspaces.removeAgent(projectPath, agentId)
     mainApp.clearState(agentId)
@@ -981,6 +1036,8 @@ app.whenReady().then(async () => {
   await mainApp.connections.init().catch(err => {
     console.error('[meow] connections init failed:', err)
   })
+  await mainApp.delegations.load()
+  mainApp.delegationService.start()
   const extSource = app.isPackaged
     ? path.join(process.resourcesPath, 'browser-extension')
     : path.join(app.getAppPath(), 'out', 'browser-extension')
@@ -1037,7 +1094,10 @@ app.on('before-quit', (event) => {
   cleaningUp = true
   isQuitting = true
   mainApp.stopGitPoll()
-  void mainApp.meowAgent.dispose().then(() => {
+  mainApp.delegationService.suspend()
+  void mainApp.delegationService.flush().then(() => {
+    return mainApp.meowAgent.dispose()
+  }).then(() => {
     return mainApp.connections.dispose()
   }).then(() => {
     return mainApp.browserBridge.close()

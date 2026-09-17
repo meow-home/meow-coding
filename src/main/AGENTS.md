@@ -7,6 +7,10 @@ handlers and the app lifecycle.
 
 - `index.ts` — `MainApp` coordinates everything: setState, forwards `agent:state`/`git:status` events
   to the renderer; `registerIpcHandlers`; window lifecycle; `before-quit` → `pty.stopAll()`.
+  Composes the delegation runtime: owns the `SessionDelegationStore` (`userData/delegations.json`) +
+  `SessionDelegationService`, passes the narrow `delegation` adapter (create/peers) into `MeowAgentManager`,
+  starts the service on ready, suspends+flushes on quit, drives `notifyAgentAvailable` on each turn
+  done/error, and handles agent/project removal.
   The main window logs `render-process-gone` (reason/exitCode), `unresponsive` and `responsive` to the
   system log — a dead renderer paints the near-black window background and freezes interaction, so these
   events are the only way to capture that failure (a crashed renderer cannot log for itself).
@@ -26,9 +30,10 @@ handlers and the app lifecycle.
   project + session. Registers the `delegate_session` tool per runner (bound to a narrow `deps.delegation`
   adapter), tracks a fixed `AgentRunContext` + correlated output per in-flight turn (`activeRuns`;
   `runSessionId(agentId)` routes transcript/usage/todos/artifacts to the fixed run session even if the UI
-  switches session mid-run), and exposes the delegation runtime
+  switches session mid-run), exposes the delegation runtime
   (`resolveDelegationAgent`/`isBusy`/`runDelegatedTurn`/`appendDelegationResult`/`wakeDelegationSource`),
-  and feeds same-project `SessionPeer`s into the turn reminder.
+  and feeds same-project `SessionPeer`s into the turn reminder. Exposes `getMode(agentId)` so the main
+  process can resolve live peer modes for the reminder / peer roster.
 - `pty-manager.ts` — node-pty wrapper, emits `data`/`exit` events. `buildSpawnCommand` wraps non-`.exe`
   commands through `cmd.exe` on Windows (ConPTY cannot spawn `.cmd` shims directly). Uses `tree-kill`
   to kill the entire process tree on stop.

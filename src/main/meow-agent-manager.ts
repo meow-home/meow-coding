@@ -933,6 +933,10 @@ ${content}` : content
     }
   }
 
+  getMode(agentId: string): AgentMode {
+    return this.modes.get(agentId) ?? this.agents.get(agentId)?.mode ?? 'build'
+  }
+
   setMode(agentId: string, mode: AgentMode): void {
     this.modes.set(agentId, mode)
     const agent = this.agents.get(agentId)
