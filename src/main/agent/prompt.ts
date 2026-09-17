@@ -47,6 +47,13 @@ export function buildTurnReminder(env: EnvSnapshot, memory: MemoryIndex): string
     lines.push(...memory.lines)
     if (memory.truncated) lines.push('(index truncated)')
   }
+  if (env.peers && env.peers.length > 0) {
+    lines.push('', 'Delegatable session peers (same project):')
+    for (const p of env.peers) {
+      lines.push(`- ${p.name} (${p.agentId}): mode=${p.mode}, state=${p.state}`)
+    }
+    lines.push('', 'To route a focused task to another persistent session, call the `delegate_session` tool (not the ephemeral `task` subagent). Do not edit the delegated scope before its result returns.')
+  }
   lines.push('</system-reminder>')
   return lines.join('\n')
 }

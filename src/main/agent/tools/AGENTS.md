@@ -22,6 +22,7 @@ The tool registry for the native Meow agent. Each file exports a `ToolDefinition
 | `question.ts` | Ask the user a question (blocks on `prompt-request`). Normalizes malformed `options` (e.g. a string instead of an array) to a valid array or drops it so the renderer never receives a non-array to `.map` over. |
 | `todowrite.ts` | Persist a todo list for the session (`todo-updated` events). |
 | `task.ts` | Spawn a subagent (`createTaskTool`). Runs under a permission context derived from the parent (narrow-only), bubbles `ask` decisions to the parent UI, denies them when running in background, snapshots its edits under the parent's agent id, and reports `state="incomplete"` when it runs out of steps. Fires `SubagentStop` hooks when a subagent finishes; a block resumes it (bounded by `MAX_SUBAGENT_STOP_BLOCKS = 3`). |
+| `delegate-session.ts` | `createDelegateSessionTool` — `delegate_session`. Routes a focused task to another existing persistent session in the same project (vs the isolated ephemeral `task` subagent). Requires a user-origin run context; calls the injected `createDelegation` adapter, returns `metadata: { delegationId }` so cards never parse prose. |
 | `revert.ts` | Revert files via snapshot store. |
 | `skill.ts` | Load a skill into context. |
 | `websearch.ts` / `webfetch.ts` | Web search / page fetch (need API keys). |
@@ -38,3 +39,4 @@ The tool registry for the native Meow agent. Each file exports a `ToolDefinition
 - Add new tools to `registry.ts` and to `DEFAULT_MEOW_CONFIG.permission` in `../config.ts`.
 - Subagents never receive `todowrite`: their runner has no `setTodos` sink.
 - A subagent may only be given tools that already exist in the map passed to `createTaskTool`; `task` is not in that map, so subagents cannot nest.
+- `delegate_session` is registered per-runner by `MeowAgentManager`, not in `registry.ts`, so subagents and unrelated runners never receive it.

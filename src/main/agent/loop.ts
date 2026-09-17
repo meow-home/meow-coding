@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { ArtifactEntry, ChatEvent, ChatMessage, MessageTokens, PendingPromptInfo, PromptResponse, QuestionPrompt, QueuedMessage, TodoItem, ToolCallData } from '../../shared/types'
 import { appendStreamDelta } from '../../shared/text'
 import type { LlmClient, LlmStreamPart } from './llm'
+import type { AgentRunContext } from './run-context'
 import { formatLlmError } from './llm'
 import { toLlmMessages } from './message'
 import type { ToLlmOptions, TranscriptItem } from './message'
@@ -45,6 +46,10 @@ export interface LoopDeps {
    * inject nothing.
    */
   turnContext?: () => Promise<string>
+/** Fixed identity of the run that started this turn. Resolved once per run and
+ *  snapshot per tool invocation so the `delegate_session` tool can correlate
+ *  the source run (a delegated turn carries its own `AgentRunContext`). */
+  runContext?: () => AgentRunContext | undefined
   /** Absolute path of the per-project memory dir; undefined = memory disabled. */
   memoryDir?: string
   cwd: string
@@ -178,6 +183,8 @@ export class SessionRunner {
   // per-step detector to catch it.
   private loop: LoopDetector = loopDetector()
   private toolLoop: ToolLoopDetector = toolLoopDetector()
+  // Fixed run identity for this turn; snapshot per tool invocation.
+  private runContext: AgentRunContext | undefined
 
   constructor(private deps: LoopDeps) {
     this.maxSteps = deps.maxSteps ?? DEFAULT_MAX_STEPS
@@ -202,6 +209,7 @@ export class SessionRunner {
     )
     const runUsage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 }
     this.turnContext = signal?.aborted ? '' : await this.snapshotTurnContext()
+    this.runContext = this.deps.runContext?.()
     while (true) {
       if (signal?.aborted) {
         this.deps.onEvent({ type: 'done', agentId, reason: 'stopped' })
@@ -541,6 +549,7 @@ export class SessionRunner {
       } else {
         const toolCtx: ToolContext = {
           cwd: this.deps.cwd,
+          runContext: this.runContext,
           signal,
           agentId: this.deps.agentId,
           taskId: this.deps.taskId,
@@ -598,6 +607,7 @@ export class SessionRunner {
           const r = await def.run(call.input, toolCtx)
           call.output = r.output
           call.error = r.error
+          if (r.metadata) call.metadata = r.metadata
           if (!r.error) {
             // The tool has already run, so PostToolUse can only reshape what the
             // model reads: replace the output, or add context beside it.

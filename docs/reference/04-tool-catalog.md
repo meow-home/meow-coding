@@ -61,6 +61,7 @@ in Settings → Permissions.
 | `grep` | allow | Regex search file contents |
 | `todowrite` | allow | Maintain the session todo list |
 | `task` | allow | Dispatch a subagent |
+| `delegate_session` | allow | Route a focused task to another persistent session in the same project (plan: ask) |
 | `revert` | allow | Restore all files changed this session |
 | `skill` | allow | Load a skill into context |
 | `question` | allow | Ask the user an interactive question |
@@ -193,6 +194,16 @@ mark complete on intent). **Subagents never receive this tool** — their runner
 
 See [03 — Subagents](03-agent-runtime.md#311-subagents-the-task-tool). Multiple `task` calls in one
 message run in parallel (they are auto-approved, and the loop runs auto-approved calls concurrently).
+
+### `delegate_session`
+
+`{ target_session_id: string, task: string }` — routes a focused task to another existing persistent
+session in the same project (the **ephemeral** `task` subagent is the isolated alternative). The target
+keeps its own model, mode, permission rules, hooks, MCP servers, tools, and memory; it runs independently
+and returns its result durably to the source. Only a user-origin run may delegate (a delegated run can
+never call `delegate_session`, keeping delegation one level deep). Returns
+`Delegation <id> queued for session <target>`, with the id also carried in `metadata.delegationId` so the
+renderer never parses prose.
 
 ### `revert`
 

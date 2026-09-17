@@ -23,7 +23,9 @@ handlers and the app lifecycle.
   them via `getPendingPrompt` instead of leaving the agent waiting forever. Emits `onPromptStateChange`
   (agent started/stopped waiting on input) and exposes `listPendingPrompts()` for the sidebar "needs input"
   badges; notification clicks call `onActivateAgent(agentId)` so the renderer can jump to the agent's
-  project + session.
+  project + session. Registers the `delegate_session` tool per runner (bound to a narrow `deps.delegation`
+  adapter), tracks a fixed `AgentRunContext` per in-flight turn (`activeRunMap`) for origin correlation,
+  and feeds same-project `SessionPeer`s into the turn reminder.
 - `pty-manager.ts` — node-pty wrapper, emits `data`/`exit` events. `buildSpawnCommand` wraps non-`.exe`
   commands through `cmd.exe` on Windows (ConPTY cannot spawn `.cmd` shims directly). Uses `tree-kill`
   to kill the entire process tree on stop.
@@ -38,6 +40,9 @@ handlers and the app lifecycle.
   FIFO via a `DelegationRuntime`, persists terminal results, marks `deliveredAt`/`wakeAt`, truncates
   UTF-8 results to 64 KiB, recovers on restart (interrupt in-flight, resume queued, redeliver once), and
   handles agent/project removal.
+- `peer-roster.ts` — `computePeerTargets(workspaces, lookup)` computes delegatable same-project peer
+  `SessionPeer`s (excluding the requester) with live mode/run-state supplied by the caller. Used for the
+  per-turn `delegate_session` reminder and the delegate tool's target discovery.
 - `fresh-start.ts` — one-time **destructive** v0.37 model switch: `resetToSingleSession` replaces every
   project's agents with a single fresh native session and deletes `userData/sessions.json`. Runs once,
   guarded by the flag file `userData/.sessions-model-reset` (written only after the reset succeeds). The

@@ -23,6 +23,10 @@ Delegated runs execute against a **fixed internal session** (`AgentRunContext.se
 dynamically selected one, so a user switching the UI-selected session mid-run never moves transcript,
 usage, todo, replacement, or artifact writes. Delegation state itself lives in `SessionDelegationStore`
 see [06 §6.4b](06-data-and-storage.md#64b-session-delegation-delegationsjson).
+The `delegate_session` tool is registered per runner by the manager, guards that only a user-origin run
+may delegate (one level deep), and calls the composed service's `create` validated path. Each turn's
+reminder carries a bounded list of same-project peer `SessionPeer`s (id/name/mode/state) so the model can
+target a live peer and knows to leave the delegated scope untouched until its result returns.
 
 `SessionRunner` is stateless between turns except for a few per-run counters; it reads and writes
 the session transcript through callbacks (`getItems`, `appendMessage`, `appendTool`,
@@ -51,6 +55,10 @@ only writer of `SessionDelegationStore` records.
 - **Recovery** — `start()` interrupts in-flight `running`/`waiting_for_input` records (delivering the
   interruption once, never rerunning the target task), redelivers terminal results missing
   `deliveredAt`, repumps queued records, and runs retention cleanup.
+- **Tool + peers** — `MeowAgentManager.register` constructs the `delegate_session` tool bound to a
+  narrow `deps.delegation` adapter (composed in `index.ts`), tracks a fixed `AgentRunContext` per
+  in-flight turn, and supplies same-project `SessionPeer`s to the reminder so the model targets live,
+  same-project sessions only.
 
 ## 3.2 Registration (`MeowAgentManager.register`)
 

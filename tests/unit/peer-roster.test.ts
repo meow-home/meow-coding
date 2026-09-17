@@ -2,29 +2,30 @@ import { describe, expect, it } from 'vitest'
 import { computePeerTargets } from '../../src/main/peer-roster'
 import type { Workspace } from '../../src/shared/types'
 
-function ws(over: Partial<Workspace>) {
-  return { id: 'w', name: 'W', path: '/p', agents: [], sessions: [], ...over } as Workspace
+function ws(agents: Workspace['agents'] = []): Workspace {
+  return { projectPath: '/p', name: 'W', agents }
 }
 
 describe('computePeerTargets', () => {
+  const alpha = { id: 'alpha', name: 'Alpha', templateId: 'meow', cwd: '/p', kind: 'native' as const }
+  const beta = { id: 'beta', name: 'Beta', templateId: 'meow', cwd: '/p', kind: 'native' as const }
+  const gamma = { id: 'gamma', name: 'Gamma', templateId: 'meow', cwd: '/q', kind: 'native' as const }
+
+  const lookup = {
+    requestingAgentId: 'alpha',
+    requestingProjectPath: '/p',
+    modeOf: (id: string) => (id === 'beta' ? 'plan' as const : 'build' as const),
+    stateOf: (id: string) => (id === 'beta' ? 'running' as const : 'idle' as const)
+  }
+
   it('lists same-project agents excluding the requester', () => {
-    const w = ws({
-      agents: [
-        { id: 'alpha', name: 'Alpha', cwd: '/p', sessionId: 'a1', kind: 'code', mode: 'normal', templateId: 'meow' },
-        { id: 'beta', name: 'Beta', cwd: '/p', sessionId: 'b1', kind: 'code', mode: 'normal', templateId: 'meow' },
-        { id: 'gamma', name: 'Gamma', cwd: '/q', sessionId: 'g1', kind: 'code', mode: 'normal', templateId: 'meow' }
-      ],
-      sessions: [
-        { id: 'a1', title: 'T', createdAt: 1, updatedAt: 2 },
-        { id: 'b1', title: 'T', createdAt: 1, updatedAt: 2 }
-      ]
-    } as unknown as Partial<Workspace> & { agents: Workspace['agents']; sessions: Workspace['sessions'] })
-    const result = computePeerTargets([w], 'alpha', '/p')
+    const result = computePeerTargets([ws([alpha, beta, gamma])], lookup)
     expect(result.map(r => r.agentId)).toEqual(['beta'])
+    expect(result[0]).toEqual({ agentId: 'beta', name: 'Beta', mode: 'plan', state: 'running' })
   })
 
   it('returns empty when no requesting identity', () => {
-    expect(computePeerTargets([], undefined, '/p')).toEqual([])
-    expect(computePeerTargets([], 'alpha', undefined)).toEqual([])
+    expect(computePeerTargets([], { requestingProjectPath: '/p' })).toEqual([])
+    expect(computePeerTargets([], { requestingAgentId: 'alpha' })).toEqual([])
   })
 })

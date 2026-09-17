@@ -1,11 +1,20 @@
 import { GitStatusService } from '../git-status-service'
 
+export interface SessionPeer {
+  agentId: string
+  name: string
+  mode: 'build' | 'plan'
+  state: 'idle' | 'running' | 'waiting_for_input'
+}
+
 export interface EnvSnapshot {
   platform: NodeJS.Platform
   shell: string
   cwd: string
   date: string
   git: { branch: string | null; dirtyCount: number } | null
+  /** Same-project delegatable sessions excluding the current agent (bounded). */
+  peers?: SessionPeer[]
 }
 
 export function detectShell(): string {

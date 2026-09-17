@@ -48,7 +48,11 @@ import { ModelsCatalog } from './models-catalog'
 import type { VariantBody, VariantDescriptor } from './model-variants'
 import { revertTool } from './agent/tools/revert'
 import { createTaskTool } from './agent/tools/task'
+import { createDelegateSessionTool } from './agent/tools/delegate-session'
 import type { ResolvedSubagentModel } from './agent/tools/task'
+import type { AgentRunContext } from './agent/run-context'
+import type { SessionPeer } from './agent/env'
+import type { SessionDelegation } from '../shared/types'
 import type { AccountEndpointResolver } from './agent/config'
 import type { ToolDefinition } from './agent/tools/types'
 import type { NotificationService } from './notification-service'
@@ -91,6 +95,12 @@ export interface MeowAgentManagerDeps {
   onUserMessage?: (agentId: string, message: ChatMessage) => void
   onArtifact?: (entry: Omit<ArtifactEntry, 'id' | 'ts'>) => void
   notifications?: NotificationsSettings
+  /** Runtime adapter for durable session-to-session delegation (composed in main). */
+  delegation?: {
+    create(options: { sourceRun: AgentRunContext; targetAgentId: string; task: string }): SessionDelegation
+    /** Same-project delegatable peers for the turn reminder. */
+    peers(agentId: string): SessionPeer[]
+  }
 }
 
 export class MeowAgentManager {
@@ -109,6 +119,10 @@ export class MeowAgentManager {
   }>()
   private running = new Set<string>()
   private activeSessions = new Map<string, string>()
+  // Fixed identity of the run currently executing for each agent, installed by
+  // runTurnInner and removed when the turn settles (see Task 4 for full
+  // correlation of results). Lets the delegate_session tool correlate origin.
+  private activeRunMap = new Map<string, AgentRunContext>()
   private tools: Map<string, ToolDefinition>
   private modes = new Map<string, AgentMode>()
   private mcp!: McpManager
@@ -298,6 +312,10 @@ export class MeowAgentManager {
     const id = latest?.id ?? this.deps.store.create(agentId, this.agents.get(agentId)?.cwd ?? '').id
     this.activeSessions.set(agentId, id)
     return id
+  }
+
+  private activeRunCtx(agentId: string): AgentRunContext | undefined {
+    return this.activeRunMap.get(agentId)
   }
 
   listSessions(agentId: string): SessionSummary[] {
@@ -566,6 +584,15 @@ ${text}` : text
     const controller = new AbortController()
     this.controllers.set(agentId, controller)
     this.nextTurn(agentId)
+    // Fixed run identity so tools (delegate_session) can correlate the source
+    // run. Task 4 correlates final text/touched files under this same id.
+    const ctx: AgentRunContext = {
+      runId: randomUUID(),
+      agentId,
+      sessionId: this.activeSessionId(agentId),
+      origin: 'user'
+    }
+    this.activeRunMap.set(agentId, ctx)
     this.emit({ type: 'turn-started', agentId })
     this.redoStacks.delete(agentId)
     this.deps.snapshots.beginTurn(agentId)
@@ -573,6 +600,7 @@ ${text}` : text
       await runner.run(controller.signal)
     } finally {
       this.deps.snapshots.commitTurn(agentId)
+      this.activeRunMap.delete(agentId)
       this.running.delete(agentId)
       this.controllers.delete(agentId)
       this.resolvePendingFor(agentId, null)
@@ -1311,8 +1339,18 @@ ${text}` : text
         })
       }
     })
+    const delegateTool = createDelegateSessionTool({
+      createDelegation: (input) => {
+        if (!this.deps.delegation) {
+          throw new Error('delegate_session: session delegation is not enabled.')
+        }
+        return Promise.resolve(this.deps.delegation.create(input))
+      },
+      runContext: () => this.activeRunCtx(agent.id)
+    })
     const runnerTools = new Map<string, ToolDefinition>([...this.tools])
     runnerTools.set('task', taskTool)
+    runnerTools.set('delegate_session', delegateTool)
     runnerTools.set('revert', revertTool)
     if (cfg.lsp.enabled && this.deps.lsp) runnerTools.set('lsp', createLspTool(this.deps.lsp))
     const mode = agent.mode ?? 'build'
@@ -1362,8 +1400,11 @@ ${text}` : text
             ? loadMemoryIndex(agent.cwd)
             : Promise.resolve({ path: memoryDir(agent.cwd), lines: [] as string[], truncated: false })
         ])
+        const peers = this.deps.delegation?.peers(agent.id)
+        if (peers && peers.length > 0) env.peers = peers
         return buildTurnReminder(env, memory)
       },
+      runContext: () => this.activeRunCtx(agent.id),
       memoryDir: agentMemoryDir,
       llm: llmClient,
       tools: runnerTools,

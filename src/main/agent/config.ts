@@ -153,6 +153,7 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
     'apply-patch': 'allow',
     todowrite: 'allow',
     task: 'allow',
+    'delegate_session': 'allow',
     revert: 'allow',
     skill: 'allow',
     bash: 'ask',
