@@ -242,6 +242,26 @@ export class SessionStore {
     this.saveSessions(all)
   }
 
+  /** True when a message with the given id already exists in the session. */
+  hasMessage(id: string, messageId: string): boolean {
+    const session = this.get(id)
+    if (!session) return false
+    return session.items.some(
+      it => it.kind === 'message' && it.message.id === messageId
+    )
+  }
+
+  /**
+   * Appends a message only when that id is absent, returning whether it was
+   * written. Used for deterministic delegation/recovery payloads so a redelivery
+   * never duplicates a transcript item.
+   */
+  appendMessageIfMissing(id: string, message: ChatMessage): Promise<boolean> {
+    if (this.hasMessage(id, message.id)) return Promise.resolve(false)
+    this.appendMessage(id, message)
+    return Promise.resolve(true)
+  }
+
   appendTool(id: string, tool: ToolCallData): void {
     const all = this.loadSessions()
     const idx = all.findIndex(s => s.id === id)

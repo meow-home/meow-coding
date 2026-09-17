@@ -23,6 +23,7 @@ in `src/main/index.ts`).
 | Path | Written by | Format | Notes |
 |---|---|---|---|
 | `meow.json` | `agent/config.ts` `writeMeowConfig` | object | The whole agent configuration; see [6.3](#63-meowjson-reference) |
+| `delegations.json` | `session-delegation-store.ts` | `SessionDelegation[]` | Durable record of session-to-session delegation runs; see [6.4](#64-session-format) below |
 | `workspaces.json` | `workspace-store.ts` | `Workspace[]` | Project path, name, agents (id, name, templateId, cwd, kind, mode, variant, model, accountId, background) |
 | `sessions.json` | `agent/session.ts` | `StoredSession[]` | **Hot file** — debounced 250ms. See [6.4](#64-session-format) |
 | `.sessions-model-reset` | `fresh-start.ts` (boot block in `index.ts`) | timestamp text | Flag for the one-time **destructive** v0.37 model switch (every project reset to one native session, `sessions.json` deleted). Written only after the reset succeeds, so an absent flag means the migration is retried on the next launch |
@@ -199,6 +200,50 @@ interface StoredSession {
 - `removeMessage(id, messageId)` removes a single message (a steered message the user deleted after
   it was injected).
 - Deleting an agent (`removeAgent`) purges its sessions.
+- `hasMessage(sessionId, messageId)` / `appendMessageIfMissing(sessionId, message)` support
+  deterministic, idempotent transcript writes: appending an already-present message id returns
+  `false` without writing (used to avoid duplicating delegation/recovery payloads).
+
+### 6.4b Session delegation (`delegations.json`)
+
+`SessionDelegationStore` (`src/main/session-delegation-store.ts`) persists session-to-session
+delegation runs as `SessionDelegation[]`. Each record identifies the source peer, the target peer,
+their fixed session ids, the task, the lifecycle status and the durable result:
+
+```ts
+interface SessionDelegation {
+  id: string
+  projectPath: string
+  sourceAgentId: string
+  sourceSessionId: string
+  targetAgentId: string
+  targetSessionId: string
+  task: string
+  status: 'queued' | 'running' | 'waiting_for_input'
+        | 'completed' | 'failed' | 'cancelled' | 'interrupted'
+  revision: number          // bumped on every transition/metadata change
+  targetBusyAtCreation: boolean
+  createdAt: number
+  updatedAt: number
+  startedAt?: number
+  finishedAt?: number
+  result?: string           // terminal result text (may be truncated)
+  resultTruncated?: boolean // true when result was truncated at 64 KiB
+  error?: string
+  touchedFiles?: string[]
+  deliveredAt?: number      // terminal; set once the result message is appended
+  wakeAt?: number           // terminal; set once the source wake is claimed
+}
+```
+
+- `projectPath` is normalized (Windows: lower-cased, forward slashes) for cross-process identity.
+- Every state change is **revision-checked and idempotent**: `transition` accepts only
+  `expectedRevision` and only a transition present in the explicit table; `markDelivered` /
+  `markWoken` are the sole post-terminal metadata mutations and are also revision-checked. Callers
+  receive clones so state cannot be mutated outside a transition.
+- `recoverInterrupted()` lists `running`/`waiting_for_input` records (restart recovery).
+- `purgeTerminalBefore(cutoff)` drops terminal records whose `finishedAt` predates the cutoff
+  (30 days; earlier when both participating sessions have been deleted).
 
 ## 6.5 Project-level configuration (`.meow/`)
 

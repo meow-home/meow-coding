@@ -148,6 +148,51 @@ export interface ImageAttachment {
   height?: number
 }
 
+export type DelegationStatus =
+  | 'queued'
+  | 'running'
+  | 'waiting_for_input'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'interrupted'
+
+export interface ChatDelegationMeta {
+  id: string
+  direction: 'incoming' | 'result'
+  peerAgentId: string
+  peerName: string
+}
+
+export interface SessionDelegation {
+  id: string
+  projectPath: string
+  sourceAgentId: string
+  sourceSessionId: string
+  targetAgentId: string
+  targetSessionId: string
+  task: string
+  status: DelegationStatus
+  revision: number
+  targetBusyAtCreation: boolean
+  createdAt: number
+  updatedAt: number
+  startedAt?: number
+  finishedAt?: number
+  result?: string
+  resultTruncated?: boolean
+  error?: string
+  touchedFiles?: string[]
+  deliveredAt?: number
+  wakeAt?: number
+}
+
+export type SessionDelegationSummary = SessionDelegation
+
+export interface DelegationChangedEvent {
+  delegation: SessionDelegationSummary
+}
+
 export interface ChatMessage {
   id: string
   role: ChatRole
@@ -158,6 +203,7 @@ export interface ChatMessage {
   reasoning?: string
   tokens?: MessageTokens
   images?: ImageAttachment[]
+  delegation?: ChatDelegationMeta
   createdAt: number
 }
 
@@ -168,6 +214,7 @@ export interface ToolCallData {
   output?: string
   error?: string
   permission: 'pending' | 'allowed' | 'denied'
+  metadata?: Record<string, unknown>
 }
 
 export type ChatTranscriptItem =
@@ -227,6 +274,8 @@ export interface QueuedMessage {
   text: string
   displayText?: string
   images?: ImageAttachment[]
+  deferUntilIdle?: boolean
+  delegation?: ChatDelegationMeta
 }
 
 export interface TokenUsage {

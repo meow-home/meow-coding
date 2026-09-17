@@ -19,6 +19,11 @@ MeowAgentManager                      one per app; owns every native agent
  └─ redoStacks:  agentId → [{ items, turn }]
 ```
 
+Delegated runs execute against a **fixed internal session** (`AgentRunContext.sessionId`), not the
+dynamically selected one, so a user switching the UI-selected session mid-run never moves transcript,
+usage, todo, replacement, or artifact writes. Delegation state itself lives in `SessionDelegationStore`
+see [06 §6.4b](06-data-and-storage.md#64b-session-delegation-delegationsjson).
+
 `SessionRunner` is stateless between turns except for a few per-run counters; it reads and writes
 the session transcript through callbacks (`getItems`, `appendMessage`, `appendTool`,
 `replaceItems`) supplied by the manager, so the store stays the single source of truth.
