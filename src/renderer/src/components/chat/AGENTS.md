@@ -13,7 +13,7 @@ pushed from main over IPC (`window.api.onChatEvent`).
 | `ChatInput.tsx` | Composer: one row (`chat-input-row`) holding the auto-growing field (`rows=1`, `field-sizing: content`, capped at 8 lines, then scrolling) and a single 24 × 24 square button at the card's trailing edge — Send at rest (disabled when empty or while image is loading; allows submitting image-only messages), Stop while a turn runs, Send (`Save edit`) while a queued message is edited; Enter sends, Shift+Enter inserts a newline. Paste/drop image chips (≤4, ≤5MB), `@` file-mention dropdown + chips, edit-queued flow. Memoized. |
 | `parseCommandInput.ts` | `parseCommandInput(raw)` → `{ isCommand, prefix }` for the `/`-command menu. |
 | `ToolCallCard.tsx` | Renders a tool call in a compact micro-bar layout (badge, summary, status hairline, expandable diff/output body). Memoized. |
-| `MarkdownText.tsx` | Markdown rendering via `marked` + `DOMPurify.sanitize`. |
+| `MarkdownText.tsx` | Markdown rendering via `marked` + `marked-katex-extension` (LaTeX/KaTeX math rendering) + `DOMPurify.sanitize` (MathML whitelist). |
 | `DiffView.tsx` | Inline diff view for edit tool calls. |
 | `ContextFooter.tsx` | Context readout — a 24 × 24 icon-button ring (20px, 2.5px stroke, `--radius-xs`, `--bg-hover` on hover). Hover-only: no click handler. Hovering shows a popover with session tokens in/out + cost. |
 | `ModelPicker.tsx` | Model selector for the agent. |
