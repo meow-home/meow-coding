@@ -16,7 +16,7 @@ import { AlertService } from './alert-service'
 import { NotificationService } from './notification-service'
 import { Updater } from './updater'
 import { SessionStore, titleFrom, DEFAULT_SESSION_TITLE } from './agent/session'
-import type { StoredSession } from './agent/session'
+import { SessionFileStore } from './agent/session-file-store'
 import { SnapshotStore } from './agent/snapshot'
 import type { SnapshotTurn } from './agent/snapshot'
 import { TruncationStore } from './agent/truncation'
@@ -144,10 +144,11 @@ export class MainApp {
         : path.join(app.getAppPath(), 'out', 'cliproxy', `${process.platform}-${process.arch}`, binaryName())
     })
   })
+  sessionFiles = new SessionFileStore(app.getPath('userData'), { debounceMs: 250 })
   meowAgent = new MeowAgentManager({
     configPath: path.join(app.getPath('userData'), 'meow.json'),
     vault: this.vault,
-    store: new SessionStore(createJsonStore<StoredSession>(path.join(app.getPath('userData'), 'sessions.json'), { debounceMs: 250 })),
+    store: new SessionStore(this.sessionFiles),
     tools: createDefaultTools({
       getUserSkillsDir: () => path.join(app.getPath('userData'), 'skills'),
       getBuiltinSkillsDir: () => this.builtinSkillsDir,
@@ -1061,6 +1062,10 @@ app.whenReady().then(async () => {
     // degrades to "skipped this launch" and retries on the next one.
     mainApp.systemLogger.log('ERROR', 'main', `sessions model reset failed: ${err instanceof Error ? err.message : String(err)}`)
   }
+  // One-time legacy sessions.json -> per-session jsonl move. Runs *after* the
+  // v0.37 reset above so a reset that deletes sessions.json is not undone by a
+  // migration that would have backed the file up first.
+  mainApp.sessionFiles.migrateLegacy()
   registerIpcHandlers()
   createWindow()
   tray = TrayManager.create({

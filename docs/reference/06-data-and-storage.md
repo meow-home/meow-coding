@@ -25,7 +25,10 @@ in `src/main/index.ts`).
 | `meow.json` | `agent/config.ts` `writeMeowConfig` | object | The whole agent configuration; see [6.3](#63-meowjson-reference) |
 | `delegations.json` | `session-delegation-store.ts` | `SessionDelegation[]` | Durable record of session-to-session delegation runs; see [6.4](#64-session-format) below |
 | `workspaces.json` | `workspace-store.ts` | `Workspace[]` | Project path, name, agents (id, name, templateId, cwd, kind, mode, variant, model, accountId, background) |
-| `sessions.json` | `agent/session.ts` | `StoredSession[]` | **Hot file** — debounced 250ms. See [6.4](#64-session-format) |
+| `projects/<encoded>/<sessionId>.jsonl` | `agent/session-file-store.ts` | JSONL records | **Current session storage** — one append-only file per session, one JSON object per line. See [6.4](#64-session-format) |
+| `sessions-index.json` | `agent/session-file-store.ts` | `SessionIndexEntry[]` | Lightweight session summaries (id, agentId, projectPath, title, messageCount, timestamps, usage) so listing does not parse every transcript. Debounced; rebuilt by scanning `projects/` when missing or corrupt (parked as `.corrupt`). See [6.4](#64-session-format) |
+| `sessions.json.migrated-bak` | `agent/session-migrate.ts` | `StoredSession[]` | The legacy single-file store, kept as a backup after the one-time migration. Never deleted |
+| `.sessions-migrated-v1` | `agent/session-migrate.ts` | timestamp text | Flag for the one-time `sessions.json` -> per-session jsonl migration (flag-guarded, idempotent) |
 | `.sessions-model-reset` | `fresh-start.ts` (boot block in `index.ts`) | timestamp text | Flag for the one-time **destructive** v0.37 model switch (every project reset to one native session, `sessions.json` deleted). Written only after the reset succeeds, so an absent flag means the migration is retried on the next launch |
 | `snapshots.json` | `agent/snapshot.ts` | `SnapshotTurn[]` | `{ agentId, ts, before: {path: content}, after: {path: content} }`, max 50 turns |
 | `permissions.json` | `agent/saved-permissions.ts` | `SavedPermission[]` | "Always allow" decisions per (project, tool) |
@@ -174,6 +177,55 @@ else:
 
 ## 6.4 Session format
 
+### 6.4a On-disk layout (per-session JSONL)
+
+Sessions are **not** one array in one file. Each session is its own append-only JSONL file under an
+encoded project directory, and a side index carries the list metadata:
+
+```
+userData/
+  projects/<encoded-projectPath>/<sessionId>.jsonl   # transcript, one per session
+  sessions-index.json                                # lightweight summaries only
+  sessions.json.migrated-bak                         # the legacy file, kept as backup
+  .sessions-migrated-v1                              # one-time migration flag
+```
+
+- **Path encoding** (`project-encode.ts` `encodeProjectPath`): every `:`, backslash or `/` becomes `-`
+  (Claude CLI scheme), so `E:\Git\GitHub\meow-coding` maps to `E--Git-GitHub-meow-coding`. The encoding
+  is **not reversible** — the real `projectPath` lives in the file's `meta` record and is the source of
+  truth. Distinct project paths can in theory collide onto one directory; harmless, because sessions
+  are keyed by `sessionId` and carry their own `projectPath`.
+- **One JSON object per line**, discriminated by `type`:
+
+  | type | shape | semantics |
+  |---|---|---|
+  | `meta` | `{ type:'meta', v:1, sessionId, agentId, projectPath, title, createdAt }` | Always the first line. Carries `agentId` (the pane link) and `projectPath` (source of truth) |
+  | `message` | `{ type:'message', uuid, parentUuid, ts, message }` | A transcript message |
+  | `tool` | `{ type:'tool', uuid, parentUuid, ts, tool }` | A transcript tool call |
+  | `title` | `{ type:'title', ts, title }` | Latest-wins |
+  | `todos` | `{ type:'todos', ts, todos }` | Latest-wins (replaces the whole list) |
+  | `usage` | `{ type:'usage', ts, usage }` | Latest-wins **running total** snapshot, not a delta |
+
+  Each new `message`/`tool` record links to the previous one via `parentUuid` (a linear chain;
+  branching is reserved for future use). The in-memory `StoredSession` shape below is unchanged, so
+  the manager, IPC and renderer are unaffected; `session-records.ts` is the pure conversion layer
+  (`sessionToRecords` / `serializeSessionJsonl` / `parseSessionJsonl`).
+- **`SessionFileStore`** (`agent/session-file-store.ts`) owns the filesystem side: `create`/`rewrite`
+  do a full atomic write then reindex, `append` appends one line per record, `remove` deletes the file
+  and drops it from cache + index, `get(id)` parses lazily on demand (cache-backed), `list()` serves
+  from `sessions-index.json`. Index writes are debounced; `flush()` forces them.
+- **One-time migration** (`session-migrate.ts` `migrateSessions`): converts the legacy `sessions.json`
+  array into `projects/<encoded>/<id>.jsonl` files + `sessions-index.json`, renames the old file to
+  `sessions.json.migrated-bak` (never deletes it) and writes `.sessions-migrated-v1`. It is
+  flag-guarded and idempotent. It is **not** run from the store constructor — `index.ts` calls
+  `sessionFiles.migrateLegacy()` from the app-ready chain *after* the v0.37 reset below, which deletes
+  `sessions.json` on the launch that performs it. Migrating earlier would back that file up before the
+  delete and resurrect it.
+- **The v0.37 reset still runs first.** `resetToSingleSession` (`fresh-start.ts`, guarded by
+  `.sessions-model-reset`) trims each project to one native session and `rmSync`s `sessions.json`.
+  After the JSONL cutover that `rmSync` is a harmless no-op on an already-migrated profile (the file is
+  `sessions.json.migrated-bak` then).
+
 ```ts
 interface StoredSession {
   id: string                 // uuid
@@ -200,6 +252,8 @@ interface StoredSession {
 - `removeMessage(id, messageId)` removes a single message (a steered message the user deleted after
   it was injected).
 - Deleting an agent (`removeAgent`) purges its sessions.
+- `ensure(id, agentId, projectPath)` returns the session with the given id, creating it if
+  absent — so a delegated turn can target a concrete session that does not exist yet.
 - `hasMessage(sessionId, messageId)` / `appendMessageIfMissing(sessionId, message)` support
   deterministic, idempotent transcript writes: appending an already-present message id returns
   `false` without writing (used to avoid duplicating delegation/recovery payloads).

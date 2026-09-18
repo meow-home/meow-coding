@@ -5,8 +5,7 @@ import path from 'node:path'
 import { MeowAgentManager } from '../../src/main/meow-agent-manager'
 import type { MeowAgentManagerDeps } from '../../src/main/meow-agent-manager'
 import { SessionStore } from '../../src/main/agent/session'
-import type { StoredSession } from '../../src/main/agent/session'
-import type { JsonStore } from '../../src/main/json-store'
+import { SessionFileStore } from '../../src/main/agent/session-file-store'
 import { createDefaultTools } from '../../src/main/agent/tools/registry'
 import { SnapshotStore } from '../../src/main/agent/snapshot'
 import type { SnapshotEntry } from '../../src/main/agent/snapshot'
@@ -54,12 +53,7 @@ async function makeManager(opts: StubLlmOptions & {
     maxContextTokens: 128000,
     maxOutputTokens: 32000
   }))
-  const sessions: StoredSession[] = []
-  const json: JsonStore<StoredSession> = {
-    load: () => sessions,
-    save: (next) => sessions.splice(0, sessions.length, ...next)
-  }
-  const store = new SessionStore(json)
+  const store = new SessionStore(new SessionFileStore(cfgDir))
   const snapshotEntries: SnapshotEntry[] = []
   const snapshots = new SnapshotStore({
     load: () => snapshotEntries,

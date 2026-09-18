@@ -80,7 +80,8 @@ and the tsconfigs.
 |---|---|---|
 | `json-store.ts` | — | `createJsonStore<T>()`: in-memory cache is authoritative, atomic temp+rename write with retry on Windows lock errors then in-place fallback, optional `debounceMs` batching with `flush()`, corrupt files parked as `*.corrupt`. |
 | `workspace-store.ts` | `workspaces.json` | Workspaces + their agents. |
-| `agent/session.ts` | `sessions.json` (debounce 250ms) | Sessions with transcript, todos, usage. Normalized once then cached. |
+| `agent/session.ts` | `projects/<encoded>/<id>.jsonl` + `sessions-index.json` (debounce 250ms) | `SessionStore` over `SessionFileStore`: one append-only JSONL file per session, plus an index of summaries. Normalized once then cached. |
+| `agent/session-file-store.ts` + `session-records.ts` + `session-migrate.ts` | `projects/`, `sessions-index.json` | Per-session JSONL storage: the filesystem reads/writes, the pure record serializer/parser, and the one-time migration off the legacy `sessions.json`. |
 | `agent/snapshot.ts` | `snapshots.json` | Per-turn before/after file contents for undo/redo, capped at 50 turns. |
 | `agent/saved-permissions.ts` | `permissions.json` | "Always allow" decisions per (project, tool). |
 | `agent/learned-limits.ts` | `learned-limits.json` (debounce 500ms) | Provider-verified context/output caps keyed `baseUrl\|model`; only ever tighten. |

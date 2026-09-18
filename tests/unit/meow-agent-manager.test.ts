@@ -5,8 +5,7 @@ import path from 'node:path'
 import { MeowAgentManager } from '../../src/main/meow-agent-manager'
 import type { MeowAgentManagerDeps } from '../../src/main/meow-agent-manager'
 import { SessionStore } from '../../src/main/agent/session'
-import type { StoredSession } from '../../src/main/agent/session'
-import type { JsonStore } from '../../src/main/json-store'
+import { SessionFileStore } from '../../src/main/agent/session-file-store'
 import { ModelsCatalog } from '../../src/main/models-catalog'
 import { createDefaultTools } from '../../src/main/agent/tools/registry'
 import { SnapshotStore } from '../../src/main/agent/snapshot'
@@ -85,12 +84,7 @@ async function makeManager(opts: StubLlmOptions & {
       maxOutputTokens: 32000
     }))
   }
-  const sessions: StoredSession[] = []
-  const json: JsonStore<StoredSession> = {
-    load: () => sessions,
-    save: (next) => sessions.splice(0, sessions.length, ...next)
-  }
-  const store = new SessionStore(json)
+  const store = new SessionStore(new SessionFileStore(path.join(cfgDir, 'sessions')))
   const snapshotEntries: SnapshotEntry[] = []
   const snapshots = new SnapshotStore({
     load: () => snapshotEntries,
@@ -308,14 +302,13 @@ describe('MeowAgentManager', () => {
     const { manager, events } = await makeManager()
     manager.newSession('a1')
     // rebuild manager without key
-    const sessions: StoredSession[] = []
-    const store = new SessionStore({ load: () => sessions, save: (n) => sessions.splice(0, sessions.length, ...n) })
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-err-'))
+    const store = new SessionStore(new SessionFileStore(path.join(tmpDir, 'sessions')))
     const snapEntries: SnapshotEntry[] = []
     const snapshots = new SnapshotStore({ load: () => snapEntries, save: (n) => snapEntries.splice(0, snapEntries.length, ...n) })
     const permEntries: SavedPermission[] = []
     const savedPermissions = new SavedPermissions({ load: () => permEntries, save: (n) => permEntries.splice(0, permEntries.length, ...n) })
     const evts: ChatEvent[] = []
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-err-'))
     const m2 = new MeowAgentManager({
       configPath: '/nonexistent/meow.json',
       store,

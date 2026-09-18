@@ -5,6 +5,7 @@ import path from 'node:path'
 import { createJsonStore } from '../../src/main/json-store'
 import { SessionDelegationStore } from '../../src/main/session-delegation-store'
 import { SessionStore } from '../../src/main/agent/session'
+import { SessionFileStore } from '../../src/main/agent/session-file-store'
 
 const DAY = 86_400_000
 
@@ -135,7 +136,7 @@ describe('SessionStore idempotency helpers', () => {
   afterEach(() => rmSync(dir, { recursive: true, force: true }))
 
   it('hasMessage reports whether a message id exists', () => {
-    const store = new SessionStore(createJsonStore(file))
+    const store = new SessionStore(new SessionFileStore(dir))
     const s = store.create('alpha', '/proj')
     expect(store.hasMessage(s.id, 'm1')).toBe(false)
     store.appendMessage(s.id, { id: 'm1', role: 'user', text: 'hi', createdAt: 1 })
@@ -144,7 +145,7 @@ describe('SessionStore idempotency helpers', () => {
   })
 
   it('appendMessageIfMissing writes once and returns false on duplicates', async () => {
-    const store = new SessionStore(createJsonStore(file))
+    const store = new SessionStore(new SessionFileStore(dir))
     const s = store.create('alpha', '/proj')
     const msg = { id: 'dup', role: 'assistant', text: 'result', createdAt: 1 }
     expect(await store.appendMessageIfMissing(s.id, msg)).toBe(true)

@@ -2,12 +2,12 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { createJsonStore } from '../../src/main/json-store'
 import { SessionStore } from '../../src/main/agent/session'
+import { SessionFileStore } from '../../src/main/agent/session-file-store'
 import type { ChatMessage } from '../../src/shared/types'
 
-function makeStore(file: string) {
-  return new SessionStore(createJsonStore(file))
+function makeStore(dir: string) {
+  return new SessionStore(new SessionFileStore(dir))
 }
 
 function userMessage(text: string, id?: string): ChatMessage {
@@ -16,17 +16,15 @@ function userMessage(text: string, id?: string): ChatMessage {
 
 describe('SessionStore.removeMessage', () => {
   let dir: string
-  let file: string
 
   beforeEach(() => {
     dir = mkdtempSync(path.join(tmpdir(), 'meow-sess-rm-'))
-    file = path.join(dir, 'sessions.json')
   })
 
   afterEach(() => rmSync(dir, { recursive: true, force: true }))
 
   it('drops the matching user message and keeps the rest', () => {
-    const store = makeStore(file)
+    const store = makeStore(dir)
     const a = store.create('agent1', '/p')
     const keep = userMessage('keep me')
     const victim = userMessage('remove me')
@@ -43,7 +41,7 @@ describe('SessionStore.removeMessage', () => {
   })
 
   it('is a no-op for an unknown message id', () => {
-    const store = makeStore(file)
+    const store = makeStore(dir)
     const a = store.create('agent1', '/p')
     const keep = userMessage('keep me')
     store.appendMessage(a.id, keep)
@@ -54,7 +52,7 @@ describe('SessionStore.removeMessage', () => {
   })
 
   it('is a no-op for an unknown session', () => {
-    const store = makeStore(file)
+    const store = makeStore(dir)
     expect(() => store.removeMessage('missing', 'x')).not.toThrow()
   })
 })

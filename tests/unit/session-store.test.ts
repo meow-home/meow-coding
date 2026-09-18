@@ -1,13 +1,13 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { createJsonStore } from '../../src/main/json-store'
 import { SessionStore, DEFAULT_SESSION_TITLE, titleFrom } from '../../src/main/agent/session'
+import { SessionFileStore } from '../../src/main/agent/session-file-store'
 import type { ChatMessage, ToolCallData } from '../../src/shared/types'
 
-function makeStore(file: string) {
-  return new SessionStore(createJsonStore(file))
+function makeStore(dir: string) {
+  return new SessionStore(new SessionFileStore(dir))
 }
 
 function userMessage(text: string): ChatMessage {
@@ -16,17 +16,15 @@ function userMessage(text: string): ChatMessage {
 
 describe('SessionStore', () => {
   let dir: string
-  let file: string
 
   beforeEach(() => {
     dir = mkdtempSync(path.join(tmpdir(), 'meow-sess-'))
-    file = path.join(dir, 'sessions.json')
   })
 
   afterEach(() => rmSync(dir, { recursive: true, force: true }))
 
   it('creates a session with a unique id and a default title', () => {
-    const store = makeStore(file)
+    const store = makeStore(dir)
     const a = store.create('agent1', '/proj')
     const b = store.create('agent1', '/proj')
     expect(a.id).toBeTruthy()
@@ -37,7 +35,7 @@ describe('SessionStore', () => {
   })
 
   it('lists sessions for an agent sorted by updatedAt desc', () => {
-    const store = makeStore(file)
+    const store = makeStore(dir)
     const a = store.create('agent1', '/p')
     const b = store.create('agent1', '/p')
     const c = store.create('agent2', '/p')
@@ -51,7 +49,7 @@ describe('SessionStore', () => {
   })
 
   it('auto-titles from the first user message and keeps later titles', () => {
-    const store = makeStore(file)
+    const store = makeStore(dir)
     const s = store.create('agent1', '/p')
     store.appendMessage(s.id, userMessage('  Fix the\n  login bug now  '))
     expect(store.get(s.id)?.title).toBe('Fix the')
@@ -61,7 +59,7 @@ describe('SessionStore', () => {
   })
 
   it('truncates long titles to 60 chars', () => {
-    const store = makeStore(file)
+    const store = makeStore(dir)
     const s = store.create('agent1', '/p')
     const long = 'x'.repeat(120)
     store.appendMessage(s.id, userMessage(long))
@@ -70,7 +68,7 @@ describe('SessionStore', () => {
   })
 
   it('tracks message count and updates updatedAt on append', () => {
-    const store = makeStore(file)
+    const store = makeStore(dir)
     const s = store.create('agent1', '/p')
     store.appendMessage(s.id, userMessage('hi'))
     store.appendMessage(s.id, { ...userMessage('yo'), role: 'assistant' })
@@ -78,7 +76,7 @@ describe('SessionStore', () => {
   })
 
   it('returns latest session for an agent', () => {
-    const store = makeStore(file)
+    const store = makeStore(dir)
     const a = store.create('agent1', '/p')
     const b = store.create('agent1', '/p')
     store.touch(a.id)
@@ -91,7 +89,7 @@ describe('SessionStore', () => {
     const realNow = Date.now
     Date.now = () => 1000
     try {
-      const store = makeStore(file)
+      const store = makeStore(dir)
       const a = store.create('agent1', '/p')
       const b = store.create('agent1', '/p')
       store.touch(a.id)
@@ -104,7 +102,7 @@ describe('SessionStore', () => {
   })
 
   it('deletes a session and keeps others', () => {
-    const store = makeStore(file)
+    const store = makeStore(dir)
     const a = store.create('agent1', '/p')
     const b = store.create('agent1', '/p')
     store.delete(a.id)
@@ -113,7 +111,7 @@ describe('SessionStore', () => {
   })
 
   it('deletes all sessions for an agent and keeps others', () => {
-    const store = makeStore(file)
+    const store = makeStore(dir)
     const a = store.create('agent1', '/p')
     const b = store.create('agent1', '/p')
     const c = store.create('agent2', '/p')
@@ -125,7 +123,7 @@ describe('SessionStore', () => {
   })
 
   it('gets and sets todos per session', () => {
-    const store = makeStore(file)
+    const store = makeStore(dir)
     const a = store.create('agent1', '/p')
     expect(store.todos(a.id)).toEqual([])
     store.setTodos(a.id, [
@@ -140,7 +138,7 @@ describe('SessionStore', () => {
   })
 
   it('replaces the transcript items for a session', () => {
-    const store = makeStore(file)
+    const store = makeStore(dir)
     const a = store.create('agent1', '/p')
     store.appendMessage(a.id, userMessage('hi'))
     expect(store.transcript(a.id)).toHaveLength(1)
@@ -152,87 +150,48 @@ describe('SessionStore', () => {
     expect(store.transcript(a.id)[0].kind).toBe('message')
   })
 
-  it('migrates legacy entries (id = agentId, no title/createdAt)', () => {
-    writeFileSync(file, JSON.stringify([
-      { id: 'legacy1', projectPath: '/p', items: [
-        { kind: 'message', message: { id: 'm', role: 'user', text: 'Hello world', createdAt: 1 } }
-      ], updatedAt: 100 }
-    ]))
-    const store = makeStore(file)
-    const s = store.get('legacy1')
-    expect(s).not.toBeNull()
-    expect(s?.agentId).toBe('legacy1')
-    expect(s?.title).toBe('Hello world')
-    expect(s?.createdAt).toBe(100)
-    expect(store.list('legacy1')[0].messageCount).toBe(1)
-  })
 })
 
-describe('SessionStore caching', () => {
-  function countingStore() {
-    let data: unknown[] = []
-    const store = {
-      loads: 0,
-      saves: 0,
-      load() { store.loads++; return data },
-      save(items: unknown[]) { store.saves++; data = items }
-    }
-    return store
-  }
+describe('SessionStore persistence shape', () => {
+  let dir: string
+  beforeEach(() => { dir = mkdtempSync(path.join(tmpdir(), 'meow-sess-persist-')) })
+  afterEach(() => rmSync(dir, { recursive: true, force: true }))
 
-  it('normalizes the backing data once instead of on every read', () => {
-    const backing = countingStore()
-    const store = new SessionStore(backing as never)
-    const session = store.create('agent1', '/proj')
-    const loadsAfterCreate = backing.loads
-
-    for (let i = 0; i < 20; i++) store.appendMessage(session.id, userMessage(`m${i}`))
-    store.transcript(session.id)
-    store.transcript(session.id)
-
-    expect(backing.loads).toBe(loadsAfterCreate)
-    expect(store.transcript(session.id)).toHaveLength(20)
-  })
-
-  it('still persists every mutation through the backing store', () => {
-    const backing = countingStore()
-    const store = new SessionStore(backing as never)
-    const session = store.create('agent1', '/proj')
-    const savesAfterCreate = backing.saves
-    store.appendMessage(session.id, userMessage('hello'))
-    expect(backing.saves).toBe(savesAfterCreate + 1)
+  it('appends one line per message rather than rewriting the transcript', () => {
+    const store = makeStore(dir)
+    const s = store.create('agent1', '/proj')
+    for (let i = 0; i < 20; i++) store.appendMessage(s.id, userMessage(`m${i}`))
+    const file = require('node:fs').readFileSync(
+      path.join(dir, 'projects', '-proj', `${s.id}.jsonl`), 'utf-8')
+    const lines = file.trimEnd().split('\n').map((l: string) => JSON.parse(l))
+    expect(lines[0].type).toBe('meta')
+    expect(lines.filter((r: { type: string }) => r.type === 'message')).toHaveLength(20)
+    expect(store.transcript(s.id)).toHaveLength(20)
   })
 })
 
 describe('SessionStore flush', () => {
   let dir: string
-  let file: string
 
   beforeEach(() => {
     dir = mkdtempSync(path.join(tmpdir(), 'meow-sess-flush-'))
-    file = path.join(dir, 'sessions.json')
   })
 
   afterEach(() => rmSync(dir, { recursive: true, force: true }))
 
-  it('persists debounced writes to disk on demand', () => {
-    const store = new SessionStore(createJsonStore(file, { debounceMs: 60_000 }))
-    const session = store.create('agent1', '/proj')
-    store.appendMessage(session.id, userMessage('hi'))
-
+  it('persists debounced index writes to disk on demand', () => {
+    const store = new SessionStore(new SessionFileStore(dir, { debounceMs: 60_000 }))
+    const s = store.create('agent1', '/proj')
+    store.appendMessage(s.id, userMessage('hi'))
     store.flush()
-
-    expect(new SessionStore(createJsonStore(file)).transcript(session.id)).toHaveLength(1)
+    expect(new SessionStore(new SessionFileStore(dir)).transcript(s.id)).toHaveLength(1)
   })
 })
 
 describe('transcriptWindow', () => {
   let dir: string
-  let file: string
-
   beforeEach(() => {
     dir = mkdtempSync(path.join(tmpdir(), 'meow-sess-window-'))
-    file = path.join(dir, 'sessions.json')
   })
 
   afterEach(() => rmSync(dir, { recursive: true, force: true }))
@@ -243,7 +202,7 @@ describe('transcriptWindow', () => {
     ({ id, tool: 'bash', input: {}, permission: 'approved' })
 
   it('returns the last `limit` items in order with hasMore when older exist', () => {
-    const store = makeStore(file)
+    const store = makeStore(dir)
     const s = store.create('agent1', '/p')
     for (let i = 0; i < 12; i++) store.appendMessage(s.id, msg(`m${i}`))
     const w = store.transcriptWindow(s.id, { limit: 5 })
@@ -252,7 +211,7 @@ describe('transcriptWindow', () => {
   })
 
   it('defaults to a 50-item tail window', () => {
-    const store = makeStore(file)
+    const store = makeStore(dir)
     const s = store.create('agent1', '/p')
     for (let i = 0; i < 51; i++) store.appendMessage(s.id, msg(`m${i}`))
     const w = store.transcriptWindow(s.id)
@@ -262,7 +221,7 @@ describe('transcriptWindow', () => {
   })
 
   it('window ends at beforeId inclusive and flags hasMore only when older items exist', () => {
-    const store = makeStore(file)
+    const store = makeStore(dir)
     const s = store.create('agent1', '/p')
     for (let i = 0; i < 10; i++) store.appendMessage(s.id, msg(`m${i}`))
     const mid = store.transcriptWindow(s.id, { beforeId: 'm7', limit: 4 })
@@ -277,7 +236,7 @@ describe('transcriptWindow', () => {
   })
 
   it('matches beforeId against tool items too', () => {
-    const store = makeStore(file)
+    const store = makeStore(dir)
     const s = store.create('agent1', '/p')
     store.appendMessage(s.id, msg('m0'))
     store.appendTool(s.id, tool('t1'))
@@ -289,7 +248,7 @@ describe('transcriptWindow', () => {
   })
 
   it('unknown beforeId falls back to the tail window', () => {
-    const store = makeStore(file)
+    const store = makeStore(dir)
     const s = store.create('agent1', '/p')
     for (let i = 0; i < 6; i++) store.appendMessage(s.id, msg(`m${i}`))
     const w = store.transcriptWindow(s.id, { beforeId: 'nope', limit: 3 })
@@ -298,7 +257,7 @@ describe('transcriptWindow', () => {
   })
 
   it('shorter transcript returns everything with hasMore=false; empty returns empty', () => {
-    const store = makeStore(file)
+    const store = makeStore(dir)
     const s = store.create('agent1', '/p')
     expect(store.transcriptWindow(s.id, { limit: 50 })).toEqual({ items: [], hasMore: false })
     store.appendMessage(s.id, msg('m0'))
@@ -319,7 +278,7 @@ describe('titleFrom', () => {
   })
 
   it('does not set title to base64 when appending user message with image only', () => {
-    const store = makeStore(path.join(tmpdir(), `session-test-${Math.random().toString(36).slice(2)}.json`))
+    const store = makeStore(path.join(tmpdir(), `session-test-${Math.random().toString(36).slice(2)}`))
     const s = store.create('agent1', '/proj')
     expect(s.title).toBe(DEFAULT_SESSION_TITLE)
 

@@ -1,26 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
-import path from 'node:path'
-
-// On Windows, `renameSync` over an existing file throws EPERM/EACCES/EBUSY
-// while the destination is transiently locked (antivirus scan, Search
-// Indexer, OneDrive). Retry with backoff to ride it out before falling back.
-const RENAME_RETRY_DELAYS_MS = [10, 20, 40, 80]
-const sleepBuf = new Int32Array(new SharedArrayBuffer(4))
-
-/** renameSync, retried on the transient "locked" error codes. */
-function renameOverwrite(tmp: string, filePath: string): void {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      renameSync(tmp, filePath)
-      return
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code
-      const transient = code === 'EPERM' || code === 'EACCES' || code === 'EBUSY'
-      if (!transient || attempt >= RENAME_RETRY_DELAYS_MS.length) throw err
-      Atomics.wait(sleepBuf, 0, 0, RENAME_RETRY_DELAYS_MS[attempt])
-    }
-  }
-}
+import { existsSync, readFileSync, renameSync } from 'node:fs'
+import { writeFileAtomic } from './atomic-write'
 
 export interface JsonStore<T> {
   load(): T[]
@@ -50,20 +29,7 @@ export function createJsonStore<T>(filePath: string, opts: JsonStoreOptions = {}
   // Serialize before touching disk, then swap the file in with a rename so a
   // crash mid-write cannot leave a half-written file that reads as corrupt.
   const write = (items: T[]): void => {
-    const json = JSON.stringify(items, null, 2)
-    mkdirSync(path.dirname(filePath), { recursive: true })
-    const tmp = `${filePath}.tmp`
-    writeFileSync(tmp, json)
-    try {
-      renameOverwrite(tmp, filePath)
-    } catch {
-      // The destination stayed locked through every retry (e.g. antivirus held
-      // it open). Fall back to an in-place overwrite rather than crashing or
-      // dropping the write; a crash mid-write is recovered by load() parking
-      // the file as `.corrupt`. Clean up the orphaned temp file.
-      try { rmSync(tmp, { force: true }) } catch { /* best effort */ }
-      writeFileSync(filePath, json)
-    }
+    writeFileAtomic(filePath, JSON.stringify(items, null, 2))
   }
 
   const flush = (): void => {
