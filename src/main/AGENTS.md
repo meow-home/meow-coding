@@ -34,7 +34,8 @@ handlers and the app lifecycle.
   (`resolveDelegationAgent`/`isBusy`/`runDelegatedTurn`/`appendDelegationResult`/`wakeDelegationSource`;
   a delegated run persists its incoming message deterministically and re-emits it as a `user-message`
   event (only when the store actually wrote it, so recovery cannot duplicate the bubble); `onUserMessage`
-  is not called, so delegation never auto-renames the target session),
+  is not called, so delegation does not drive the sidebar auto-name hook (the store's first-message
+  session-title derivation still applies)),
   and feeds same-project `SessionPeer`s into the turn reminder. Exposes `getMode(agentId)` so the main
   process can resolve live peer modes for the reminder / peer roster.
 - `pty-manager.ts` — node-pty wrapper, emits `data`/`exit` events. `buildSpawnCommand` wraps non-`.exe`

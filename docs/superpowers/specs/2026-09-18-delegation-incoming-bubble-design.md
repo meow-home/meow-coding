@@ -65,8 +65,8 @@ Non-goals (deferred, still owned by the parent spec §12 / plan Task 6):
 6. The renderer upserts the row by message id (existing `user-message` reconciliation), and
    `FeedItem`/`toFeedItem` carry `delegation` so a transcript reload renders the same bubble.
 
-`onUserMessage` is deliberately **not** called: a delegated task must not auto-rename the target
-session (the current behaviour, preserved).
+`onUserMessage` is deliberately **not** called: a delegated task does not trigger the sidebar
+auto-name hook (the store's first-message session-title derivation remains unaffected).
 
 ## 5. Renderer
 

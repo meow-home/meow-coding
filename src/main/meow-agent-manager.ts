@@ -294,8 +294,8 @@ export class MeowAgentManager {
     }
     // The target pane must show the delegated task while the turn runs, but a
     // recovery redelivery must not duplicate it: emit only on a real write.
-    // onUserMessage is deliberately not called, so a delegated task never
-    // auto-renames the target session.
+    // onUserMessage is deliberately not called, so a delegated task does not
+    // drive the sidebar auto-name hook (the store's session-title derivation still applies).
     const wrote = await this.deps.store.appendMessageIfMissing(input.targetSessionId, incoming)
     if (wrote) this.emit({ type: 'user-message', agentId: input.targetAgentId, message: incoming })
     const run = await this.runTurn(input.targetAgentId, input.task, {
