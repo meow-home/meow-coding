@@ -52,6 +52,18 @@ describe('PollMonitorStore', () => {
     expect(resolved[0].reason).toBe('timeout')
   }, 20000)
 
+  it('does not let an expired foreground waiter consume a later poll resolution', async () => {
+    const { store, resolved } = makeStore()
+    const started = store.start('a1', 'sleep 0.2; exit 0', dir, { intervalMs: 1000 })
+    if (!('id' in started)) throw new Error('poll monitor did not start')
+
+    const waited = await store.wait(started.id, undefined, 10)
+    expect(waited.status).toBe('pending')
+    await waitFor(() => resolved.length === 1)
+
+    expect(store.wasWaitConsumed(started.id)).toBe(false)
+  }, 20000)
+
   it('errors on invalid regex and enforces the per-agent limit', () => {
     const { store } = makeStore(2)
     expect('error' in store.start('a1', 'exit 1', dir, { untilRegex: '(' })).toBe(true)

@@ -48,7 +48,7 @@ export const monitorTool: ToolDefinition = {
         (until_exit === undefined || until_exit !== false) ? 'the command succeeds' : null,
         timeout_s ? `${timeout_s}s pass` : null
       ].filter(Boolean).join(' or ')
-      if (wait && 'id' in res && res.pending) {
+      if (wait && 'id' in res) {
         const waited = await ctx.pollMonitors.wait(res.id, ctx.signal)
         return { output: waited.status === 'resolved' ? `Monitor ${res.id} resolved: ${waited.info?.reason} (${waited.info?.detail}).` : `Monitor ${res.id} is still pending after the wait window.` }
       }
@@ -67,7 +67,7 @@ export const monitorTool: ToolDefinition = {
       until_exit !== undefined ? 'it exits' : null,
       timeout_s ? `${timeout_s}s pass` : null
     ].filter(Boolean).join(' or ')
-    if (wait && 'id' in res && res.pending) {
+    if (wait && 'id' in res) {
       const waited = await ctx.monitors.wait(res.id, ctx.signal)
       return { output: waited.status === 'resolved' ? `Monitor ${res.id} resolved: ${waited.info?.reason} (${waited.info?.detail}).` : `Monitor ${res.id} is still pending after the wait window.` }
     }

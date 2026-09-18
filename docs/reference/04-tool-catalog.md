@@ -156,7 +156,7 @@ Stops a background shell process, killing its entire process tree via `tree-kill
 
 ### `monitor`
 
-`{ id: string, until_regex?: string, until_exit?: boolean | number, timeout_s?: number }`
+`{ id?: string, command?: string, until_regex?: string, until_exit?: boolean | number, interval_s?: number, timeout_s?: number, wait?: boolean }`
 
 Watches a background shell (started with `bash run_in_background`) and returns immediately with
 `background: true`. The agent is woken when a condition is met: a new output line matches
@@ -164,7 +164,12 @@ Watches a background shell (started with `bash run_in_background`) and returns i
 first. At least one of `until_regex`/`until_exit` is required. On resolve, an assistant message is
 appended to the session, a notification is sent, and the idle agent is woken. Monitors observe the
 store via `data`/`exit` events — never `bash_output` — so they do not consume the agent's read
- offset. Max 10 monitors per agent. Active equivalent registrations are reused. Pass `wait: true` when the next action depends on the condition; the tool waits up to 60 seconds and returns a pending result without issuing another LLM request. The default `wait: false` registers the watch and lets the turn continue.
+offset. Max 10 monitors per agent. Active equivalent registrations are reused. Pass `wait: true`
+when the next action depends on the condition; the tool waits up to 60 seconds without issuing
+another LLM request. Already-buffered/immediate matches are returned through that tool result and
+do not also add a notification row. If the foreground window ends first, the waiter detaches and a
+later resolution still notifies/wakes through the background path. The default `wait: false`
+registers the watch and lets the turn continue.
 
 ### `git`
 

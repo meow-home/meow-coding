@@ -15,6 +15,14 @@ function ctx(): { ctx: ToolContext; procs: BackgroundProcessStore } {
   return { ctx: { cwd: dir, ask: async () => null, agentId: 'a1', monitors }, procs }
 }
 
+async function waitFor(fn: () => boolean, ms = 8000): Promise<void> {
+  const start = Date.now()
+  while (!fn()) {
+    if (Date.now() - start > ms) throw new Error('timeout waiting for condition')
+    await new Promise(resolve => setTimeout(resolve, 20))
+  }
+}
+
 describe('monitor tool', () => {
   it('returns immediately with background flag and a monitor id', async () => {
     const { ctx: c, procs } = ctx()
@@ -22,6 +30,27 @@ describe('monitor tool', () => {
     const r = await monitorTool.run({ id: bg.id, until_exit: true }, c)
     expect(r.background).toBe(true)
     expect(r.output).toMatch(/monitor [0-9a-f]{8}/)
+    procs.killAllForAgent('a1')
+  }, 20000)
+
+  it('returns an already-buffered match through the awaited tool result', async () => {
+    const procs = new BackgroundProcessStore({ getSessionId: () => 'sess-1', onExit: () => {} })
+    const resolved: import('../../src/main/agent/monitor-store').MonitorResolveInfo[] = []
+    const monitors = new MonitorStore({
+      procs,
+      getSessionId: () => 'sess-1',
+      onResolve: info => resolved.push(info)
+    })
+    const c = { cwd: dir, ask: async () => null, agentId: 'a1', monitors } as ToolContext
+    const bg = procs.start('a1', 'echo BUFFERED_READY; sleep 2', dir) as { id: string }
+    await waitFor(() => procs.inspect(bg.id)?.buffer.includes('BUFFERED_READY') === true)
+
+    const result = await monitorTool.run({ id: bg.id, until_regex: 'BUFFERED_READY', wait: true }, c)
+
+    expect(result.output).toMatch(/resolved: matched \(BUFFERED_READY\)/)
+    expect(result.output).not.toContain('still pending')
+    expect(resolved).toHaveLength(1)
+    expect(monitors.wasWaitConsumed(resolved[0].id)).toBe(true)
     procs.killAllForAgent('a1')
   }, 20000)
 

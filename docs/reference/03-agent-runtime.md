@@ -215,10 +215,16 @@ Notable details:
 | `onArtifact(entry)` | Records a created/edited file for the Artifacts panel |
 | `backgroundProcs` | Store for long-lived background shell processes (`bash run_in_background` / `bash_output` / `kill_shell`) |
 | `monitors` | Store for async watches over background shells (`monitor` tool); absent for subagents |
-| `monitors` | Store for async watches over background shells (`monitor` tool); absent for subagents |
+| `pollMonitors` | Store for interval command watches (`monitor` command mode); absent for subagents |
 
 4. `await def.run(input, ctx)` → `{ output?, error? }`; thrown errors become `call.error` formatted by `formatToolError` (Error.message / string / JSON, never `[object Object]`).
 5. Append the tool item to the transcript and emit `tool-result`.
+
+For `monitor(..., wait: true)`, registration and foreground delivery are race-safe even when the
+condition already exists in the shell buffer. A resolution consumed by the active waiter becomes
+that call's tool result and does not also inject a feed notification. When the 60-second foreground
+window expires or is aborted, its waiter detaches; a later resolution follows the normal background
+notification/wakeup path instead of being silently consumed.
 
 ### Instruction attachment on read
 

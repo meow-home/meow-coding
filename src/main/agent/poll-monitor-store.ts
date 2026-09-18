@@ -47,6 +47,7 @@ export class PollMonitorStore {
   private entries = new Map<string, Entry>()
   private waiters = new Map<string, Set<(result: MonitorWaitResult) => void>>()
   private consumed = new Set<string>()
+  private resolved = new Map<string, MonitorResolveInfo>()
 
   private key(agentId: string, command: string, cwd: string, opts: PollMonitorStartOpts, intervalMs: number): string {
     return `${agentId}\0${command}\0${cwd}\0${opts.untilRegex ?? ''}\0${opts.untilExit === undefined ? 'unset' : String(opts.untilExit)}\0${intervalMs}`
@@ -73,9 +74,24 @@ export class PollMonitorStore {
   wasWaitConsumed(id: string): boolean { return this.consumed.delete(id) }
 
   wait(id: string, signal?: AbortSignal, maxWaitMs = 60_000): Promise<MonitorWaitResult> {
+    const resolved = this.resolved.get(id)
+    if (resolved) {
+      this.consumed.add(id)
+      return Promise.resolve({ status: 'resolved', id, info: resolved })
+    }
     if (!this.entries.has(id)) return Promise.resolve({ status: 'pending', id })
     return new Promise(resolve => {
-      const settle = (result: MonitorWaitResult) => { clearTimeout(timer); signal?.removeEventListener('abort', onAbort); resolve(result) }
+      let settled = false
+      const settle = (result: MonitorWaitResult) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        signal?.removeEventListener('abort', onAbort)
+        const set = this.waiters.get(id)
+        set?.delete(settle)
+        if (set?.size === 0) this.waiters.delete(id)
+        resolve(result)
+      }
       const onAbort = () => settle({ status: 'aborted', id })
       const timer = setTimeout(() => settle({ status: 'pending', id }), Math.min(maxWaitMs, 60_000))
       timer.unref?.()
@@ -171,13 +187,23 @@ export class PollMonitorStore {
       id: entry.id, agentId: entry.agentId, sessionId: entry.sessionId,
       targetId: entry.command, reason, detail, kind: 'poll'
     }
-    const waiters = this.waiters.get(entry.id)
+    this.publish(info)
+  }
+
+  private publish(info: MonitorResolveInfo): void {
+    this.resolved.set(info.id, info)
+    const waiters = this.waiters.get(info.id)
     if (waiters?.size) {
-      this.consumed.add(entry.id)
-      for (const settle of waiters) settle({ status: 'resolved', id: entry.id, info })
-      this.waiters.delete(entry.id)
+      this.consumed.add(info.id)
+      for (const settle of [...waiters]) settle({ status: 'resolved', id: info.id, info })
+      this.opts.onResolve(info)
+      this.resolved.delete(info.id)
+      return
     }
-    this.opts.onResolve(info)
+    queueMicrotask(() => {
+      this.opts.onResolve(info)
+      this.resolved.delete(info.id)
+    })
   }
 
   private teardown(entry: Entry): void {

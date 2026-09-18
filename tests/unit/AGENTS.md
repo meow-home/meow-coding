@@ -1,8 +1,8 @@
 # AGENTS.md — tests/unit
 
-Vitest unit + integration tests (node environment). One test file per module, covering the main
-process logic, shared contract, and renderer modules (pure helpers, and components rendered with
-`react-dom/server` — there is no jsdom). Run with `npm test` (or `npx vitest run
+Vitest unit + integration tests (node environment by default). One test file per module, covering the main
+process logic, shared contract, and renderer modules (pure helpers, server-rendered components, or
+targeted per-file jsdom tests for live browser behavior). Run with `npm test` (or `npx vitest run
 tests/unit/<file>` for one file).
 
 ## Conventions

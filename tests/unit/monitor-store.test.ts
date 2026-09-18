@@ -80,6 +80,20 @@ describe('MonitorStore', () => {
     procs.killAllForAgent('a1')
   }, 20000)
 
+  it('does not let an expired foreground waiter consume a later background resolution', async () => {
+    const { procs, monitors, resolved } = makeStores()
+    const bg = procs.start('a1', 'sleep 0.2; echo LATE_READY; sleep 1', dir) as { id: string }
+    const started = monitors.start('a1', bg.id, { untilRegex: 'LATE_READY' })
+    if (!('id' in started)) throw new Error('monitor did not start')
+
+    const waited = await monitors.wait(started.id, undefined, 10)
+    expect(waited.status).toBe('pending')
+    await waitFor(() => resolved.length === 1)
+
+    expect(monitors.wasWaitConsumed(started.id)).toBe(false)
+    procs.killAllForAgent('a1')
+  }, 20000)
+
   it('errors on unknown target, missing condition, and bad regex', () => {
     const { procs, monitors } = makeStores()
     expect('error' in monitors.start('a1', 'nope', { untilExit: true })).toBe(true)

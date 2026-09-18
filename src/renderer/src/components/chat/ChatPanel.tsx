@@ -37,6 +37,10 @@ function toFeedItem(it: ChatTranscriptItem): FeedItem {
     : { kind: 'tool', id: it.tool.id, call: { ...it.tool } }
 }
 
+function feedItemKey(item: FeedItem): string {
+  return item.kind === 'subagent' ? `subagent:${item.taskId}` : `${item.kind}:${item.id}`
+}
+
 interface PendingPrompt {
   promptId: string
   promptType: 'permission' | 'question'
@@ -267,7 +271,11 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const loadTranscript = useCallback(() => {
     if (agentId === DRAFT_SESSION_ID) return
     void window.api.listChatTranscript(agentId).then(({ items: tail, hasMore }) => {
-      setItems(tail.map(toFeedItem))
+      setItems(prev => {
+        const loaded = tail.map(toFeedItem)
+        const loadedKeys = new Set(loaded.map(feedItemKey))
+        return [...loaded, ...prev.filter(item => !loadedKeys.has(feedItemKey(item)))]
+      })
       setHasMore(hasMore)
       // Mức chiếm dụng context = token của assistant message cuối cùng có output,
       // giống cách opencode chọn (subagent-footer.tsx:35). Scans the loaded tail.
@@ -677,10 +685,15 @@ if (e.type === 'usage') {
     setItems(prev => {
       const next = [...prev]
       if (e.type === 'tool-start') {
-        next.push({ kind: 'tool', id: e.call.id, call: { ...e.call } })
+        const idx = next.findIndex(i => i.kind === 'tool' && i.id === e.call.id)
+        const row = { kind: 'tool' as const, id: e.call.id, call: { ...e.call } }
+        if (idx >= 0) next[idx] = row
+        else next.push(row)
       } else if (e.type === 'tool-result') {
         const idx = next.findIndex(i => i.kind === 'tool' && i.id === e.call.id)
-        if (idx >= 0) next[idx] = { kind: 'tool', id: e.call.id, call: { ...e.call } }
+        const row = { kind: 'tool' as const, id: e.call.id, call: { ...e.call } }
+        if (idx >= 0) next[idx] = row
+        else next.push(row)
       }
       return next
     })
