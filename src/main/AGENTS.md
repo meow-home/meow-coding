@@ -31,7 +31,10 @@ handlers and the app lifecycle.
   adapter), tracks a fixed `AgentRunContext` + correlated output per in-flight turn (`activeRuns`;
   `runSessionId(agentId)` routes transcript/usage/todos/artifacts to the fixed run session even if the UI
   switches session mid-run), exposes the delegation runtime
-  (`resolveDelegationAgent`/`isBusy`/`runDelegatedTurn`/`appendDelegationResult`/`wakeDelegationSource`),
+  (`resolveDelegationAgent`/`isBusy`/`runDelegatedTurn`/`appendDelegationResult`/`wakeDelegationSource`;
+  a delegated run persists its incoming message deterministically and re-emits it as a `user-message`
+  event (only when the store actually wrote it, so recovery cannot duplicate the bubble); `onUserMessage`
+  is not called, so delegation never auto-renames the target session),
   and feeds same-project `SessionPeer`s into the turn reminder. Exposes `getMode(agentId)` so the main
   process can resolve live peer modes for the reminder / peer roster.
 - `pty-manager.ts` — node-pty wrapper, emits `data`/`exit` events. `buildSpawnCommand` wraps non-`.exe`

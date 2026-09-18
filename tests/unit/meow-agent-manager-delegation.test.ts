@@ -245,4 +245,56 @@ describe('MeowAgentManager delegation runtime', () => {
     // Nothing leaked to the session the UI switched to mid-run.
     expect(store.get(switchTarget.id)!.items.filter(i => i.kind === 'message')).toHaveLength(0)
   })
+
+  it('emits the delegated incoming message to the renderer exactly once', async () => {
+    const { manager, events } = await makeManager()
+    const input: DelegatedTurnInput = {
+      delegationId: 'd-emit',
+      sourceAgentId: 'src-agent',
+      sourceName: 'Staff Agent',
+      targetAgentId: 'a1',
+      targetSessionId: 'del-session-emit',
+      task: 'do the thing'
+    }
+    await manager.runDelegatedTurn(input)
+
+    const emitted = events.filter(e => e.type === 'user-message')
+    expect(emitted).toHaveLength(1)
+    const first = emitted[0]
+    expect(first.type).toBe('user-message')
+    if (first.type !== 'user-message') throw new Error('unreachable')
+    expect(first.agentId).toBe('a1')
+    expect(first.message.id).toBe('delegation-incoming:d-emit')
+    expect(first.message.role).toBe('user')
+    expect(first.message.text).toBe('do the thing')
+    expect(first.message.delegation).toEqual({
+      id: 'd-emit',
+      direction: 'incoming',
+      peerAgentId: 'src-agent',
+      peerName: 'Staff Agent'
+    })
+  })
+
+  it('does not re-emit a delegated incoming message on redelivery', async () => {
+    const { manager, store, events } = await makeManager()
+    const input: DelegatedTurnInput = {
+      delegationId: 'd-redeliver',
+      sourceAgentId: 'src-agent',
+      sourceName: 'Staff Agent',
+      targetAgentId: 'a1',
+      targetSessionId: 'del-session-redeliver',
+      task: 'do the thing again'
+    }
+    await manager.runDelegatedTurn(input)
+    await manager.runDelegatedTurn(input)
+
+    const emitted = events.filter(
+      e => e.type === 'user-message' && e.message.id === 'delegation-incoming:d-redeliver'
+    )
+    expect(emitted).toHaveLength(1)
+    const messages = store.get('del-session-redeliver')!.items
+      .filter((i): i is { kind: 'message'; message: { id: string } } => i.kind === 'message')
+      .map(i => i.message)
+    expect(messages.filter(m => m.id === 'delegation-incoming:d-redeliver')).toHaveLength(1)
+  })
 })

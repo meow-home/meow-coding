@@ -280,7 +280,7 @@ export class MeowAgentManager {
     // recovery never duplicates the prompt.
     const delegationId = input.delegationId
     this.deps.store.ensure(input.targetSessionId, target.id, target.cwd)
-    await this.deps.store.appendMessageIfMissing(input.targetSessionId, {
+    const incoming: ChatMessage = {
       id: `delegation-incoming:${delegationId}`,
       role: 'user',
       text: input.task,
@@ -291,7 +291,13 @@ export class MeowAgentManager {
         peerName: input.sourceName
       },
       createdAt: Date.now()
-    })
+    }
+    // The target pane must show the delegated task while the turn runs, but a
+    // recovery redelivery must not duplicate it: emit only on a real write.
+    // onUserMessage is deliberately not called, so a delegated task never
+    // auto-renames the target session.
+    const wrote = await this.deps.store.appendMessageIfMissing(input.targetSessionId, incoming)
+    if (wrote) this.emit({ type: 'user-message', agentId: input.targetAgentId, message: incoming })
     const run = await this.runTurn(input.targetAgentId, input.task, {
       sessionId: input.targetSessionId,
       origin: 'delegation',
