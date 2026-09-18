@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Check, CheckCircle2, ChevronDown, Circle, Clock, Copy, XCircle } from 'lucide-react'
-import type { AgentMode, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ImageAttachment, QuestionOption, QueuedMessage, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
+import type { AgentMode, ChatDelegationMeta, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ImageAttachment, QuestionOption, QueuedMessage, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
 import { DRAFT_SESSION_ID } from '@shared/types'
 import { appendStreamDelta } from '@shared/text'
 import { contextTokens } from '@shared/usage'
@@ -18,7 +18,7 @@ import ContextFooter from './ContextFooter'
 import SubagentOverlay, { SUBAGENT_DEFAULT_WIDTH, type SubagentOverlayItem } from './SubagentOverlay'
 
 type FeedItem =
-  | { kind: 'message'; id: string; role: ChatMessage['role']; text: string; reasoning?: string; images?: ImageAttachment[] }
+  | { kind: 'message'; id: string; role: ChatMessage['role']; text: string; reasoning?: string; images?: ImageAttachment[]; delegation?: ChatDelegationMeta }
   | { kind: 'tool'; id: string; call: ToolCallData }
   | { kind: 'error'; id: string; text: string }
   | { kind: 'compaction'; id: string; running?: boolean; failed?: boolean }
@@ -32,7 +32,7 @@ function toFeedItem(it: ChatTranscriptItem): FeedItem {
     ? {
         kind: 'message', id: it.message.id, role: it.message.role,
         text: it.message.displayText ?? it.message.text,
-        reasoning: it.message.reasoning, images: it.message.images
+        reasoning: it.message.reasoning, images: it.message.images, delegation: it.message.delegation
       }
     : { kind: 'tool', id: it.tool.id, call: { ...it.tool } }
 }
@@ -80,13 +80,14 @@ function MentionText({ text, commands }: { text: string; commands: Command[] }) 
 // Owns the per-message subtree so streamed deltas only re-render the message
 // that changed, not the whole feed. Props are primitives or stable state
 // references (commands), so React.memo works.
-const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, commands, messageId, onOpenImage, onOpenFile }: {
+const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, commands, messageId, delegation, onOpenImage, onOpenFile }: {
   role: ChatMessage['role']
   text: string
   reasoning?: string
   images?: ImageAttachment[]
   commands: Command[]
   messageId: string
+  delegation?: ChatDelegationMeta
   onOpenImage?: (dataUrl: string) => void
   onOpenFile?: (path: string) => void
 }) {
@@ -100,7 +101,7 @@ const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, c
   }, [text])
 
   return (
-    <div className={`chat-msg ${role}`} data-chat-message-id={messageId}>
+    <div className={`chat-msg ${role}${delegation?.direction === 'incoming' ? ' delegation' : ''}`} data-chat-message-id={messageId}>
       {role === 'assistant' ? (
         <>
           {reasoning ? (
@@ -125,6 +126,12 @@ const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, c
         </>
       ) : (
         <>
+          {delegation?.direction === 'incoming' && (
+            <div className="chat-delegation-label">
+              <span className="chat-delegation-badge">delegation</span>
+              <span>From session: {delegation.peerName}</span>
+            </div>
+          )}
           {images && images.length > 0 && (
             <div className="chat-msg-images">
               {images.map(img => (
@@ -548,7 +555,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
             break
           }
         }
-        const row = { kind: 'message' as const, id: e.message.id, role: 'user' as const, text: e.message.displayText ?? e.message.text, images: e.message.images }
+        const row = { kind: 'message' as const, id: e.message.id, role: 'user' as const, text: e.message.displayText ?? e.message.text, images: e.message.images, delegation: e.message.delegation }
         if (idx >= 0) {
           const next = [...prev]
           next[idx] = row
@@ -961,6 +968,7 @@ if (e.type === 'usage') {
                 text={text}
                 reasoning={item.reasoning}
                 images={item.images}
+                delegation={item.delegation}
                 commands={commands}
                 onOpenImage={setLightboxUrl}
                 onOpenFile={openFile}

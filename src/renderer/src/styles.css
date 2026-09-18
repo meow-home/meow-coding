@@ -1049,6 +1049,25 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   color: #ffffff;
   box-shadow: none;
 }
+/* A delegated task rendered in the target session: a normal user bubble with a
+   source label, so it is distinguishable from input the human typed. */
+.chat-delegation-label {
+  display: flex; align-items: center; gap: 0.416667rem;
+  max-width: 92%;
+  font-family: var(--font-ui); font-size: var(--fs-xs);
+  color: var(--text-dim); user-select: none;
+}
+.chat-delegation-badge {
+  font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: var(--fw-semibold);
+  text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 0.1rem 0.4rem; border-radius: var(--radius-sm);
+  background: var(--accent-dim); color: var(--accent-strong);
+}
+.chat-msg.user.delegation .chat-text {
+  background: var(--accent-dim);
+  border: 0.083333rem solid var(--accent-border);
+  color: var(--chat-text);
+}
 .chat-msg.assistant .chat-text {
   background: transparent;
   border: none;
