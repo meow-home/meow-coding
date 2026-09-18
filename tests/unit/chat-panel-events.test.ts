@@ -192,6 +192,8 @@ describe('ChatPanel live event reconciliation', () => {
 
     expect(container.querySelectorAll('.chat-delegation-label')).toHaveLength(0)
     expect(container.querySelectorAll('.chat-msg.delegation')).toHaveLength(0)
+    expect(container.querySelectorAll('.chat-msg.user')).toHaveLength(2)
     expect(container.textContent).toContain('typed by hand')
+    expect(container.textContent).toContain('Delegation result — Staff Agent')
   })
 })
