@@ -203,7 +203,7 @@ userData/
   | `message` | `{ type:'message', uuid, parentUuid, ts, message }` | A transcript message |
   | `tool` | `{ type:'tool', uuid, parentUuid, ts, tool }` | A transcript tool call |
   | `title` | `{ type:'title', ts, title }` | Latest-wins |
-  | `todos` | `{ type:'todos', ts, todos }` | Latest-wins (replaces the whole list) |
+  | `todos` | `{ type:'todos', ts, todos }` | Latest-wins (replaces the whole list). `parseSessionJsonl` coerces a corrupt (non-array) `todos` to `[]` so a damaged file never propagates a bad value to the renderer |
   | `usage` | `{ type:'usage', ts, usage }` | Latest-wins **running total** snapshot, not a delta |
 
   Each new `message`/`tool` record links to the previous one via `parentUuid` (a linear chain;

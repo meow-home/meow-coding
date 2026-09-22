@@ -880,7 +880,8 @@ if (e.type === 'usage') {
     }
   }
 
-  const doneCount = todos.filter(t => t.status === 'completed' || t.status === 'cancelled').length
+  const todoList = Array.isArray(todos) ? todos : []
+  const doneCount = todoList.filter(t => t.status === 'completed' || t.status === 'cancelled').length
 
   return (
     <div className="chat-panel" onKeyDown={onPanelKeyDown} style={{ display: 'flex', flexDirection: 'row', flex: 1, minHeight: 0, position: 'relative' }}>
@@ -894,12 +895,12 @@ if (e.type === 'usage') {
         <button className="btn small" title="Undo last turn" onClick={handleUndo} disabled={running}>Undo</button>
         <button className="btn small" title="Redo undone turn" onClick={handleRedo} disabled={running}>Redo</button>
       </div>
-      {todos.length > 0 && (
+      {todoList.length > 0 && (
         <div className="chat-todos">
-          <div className="chat-todos-progress" style={{ width: `${(doneCount / todos.length) * 100}%` }} />
+          <div className="chat-todos-progress" style={{ width: `${(doneCount / todoList.length) * 100}%` }} />
           <div className="chat-todos-head">
             <span className="chat-todos-title">TODO LIST</span>
-            <span className="chat-todos-count">{doneCount}/{todos.length}</span>
+            <span className="chat-todos-count">{doneCount}/{todoList.length}</span>
             <button
               className={`chat-todos-toggle ${todosCollapsed ? 'collapsed' : ''}`}
               title={todosCollapsed ? 'Expand' : 'Collapse'}
@@ -911,7 +912,7 @@ if (e.type === 'usage') {
           </div>
           {!todosCollapsed && (
           <ul className="chat-todos-list">
-            {todos.map((t, i) => (
+            {todoList.map((t, i) => (
               <li key={i} className={`chat-todo status-${t.status}`}>
                 <span className="chat-todo-mark">{renderTodoStatusIcon(t.status)}</span>
                 <span className="chat-todo-content">{t.content}</span>

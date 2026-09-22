@@ -20,7 +20,7 @@ The tool registry for the native Meow agent. Each file exports a `ToolDefinition
 | `grep.ts` | Text search with regex. |
 | `git.ts` | Git operations (status/diff/commit...). |
 | `question.ts` | Ask the user a question (blocks on `prompt-request`). Normalizes malformed `options` (e.g. a string instead of an array) to a valid array or drops it so the renderer never receives a non-array to `.map` over. |
-| `todowrite.ts` | Persist a todo list for the session (`todo-updated` events). |
+| `todowrite.ts` | Persist a todo list for the session (`todo-updated` events). Sanitizes a malformed `todos` input (e.g. the model emitting a JSON-encoded string instead of an array) to an empty array so a bad value never persists and crashes the renderer's Todo List on load. |
 | `task.ts` | Spawn a subagent (`createTaskTool`). Runs under a permission context derived from the parent (narrow-only), bubbles `ask` decisions to the parent UI, denies them when running in background, snapshots its edits under the parent's agent id, and reports `state="incomplete"` when it runs out of steps. Fires `SubagentStop` hooks when a subagent finishes; a block resumes it (bounded by `MAX_SUBAGENT_STOP_BLOCKS = 3`). |
 | `delegate-session.ts` | `createDelegateSessionTool` — `delegate_session`. Routes a focused task to another existing persistent session in the same project (vs the isolated ephemeral `task` subagent). Requires a user-origin run context; calls the injected `createDelegation` adapter, returns `metadata: { delegationId }` so cards never parse prose. |
 | `revert.ts` | Revert files via snapshot store. |

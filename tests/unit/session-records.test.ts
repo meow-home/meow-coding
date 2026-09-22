@@ -49,6 +49,24 @@ describe('session-records round trip', () => {
     expect(back!.items).toHaveLength(3)
   })
 
+  it('coerces a corrupt todos record (string) to an empty array', () => {
+    // Latest record wins; a string value (the model emitting a JSON-encoded
+    // array) used to crash the renderer's todos.filter on load.
+    const s = sample()
+    let text = serializeSessionJsonl(s)
+    text += JSON.stringify({ type: 'todos', ts: 999, todos: '[]' }) + '\n'
+    const back = parseSessionJsonl(text)!
+    expect(back.todos).toEqual([])
+  })
+
+  it('coerces a corrupt todos record (object) to an empty array', () => {
+    const s = sample()
+    let text = serializeSessionJsonl(s)
+    text += JSON.stringify({ type: 'todos', ts: 999, todos: { content: 'x' } }) + '\n'
+    const back = parseSessionJsonl(text)!
+    expect(back.todos).toEqual([])
+  })
+
   it('returns null when there is no meta record', () => {
     expect(parseSessionJsonl('{"type":"title","ts":1,"title":"x"}\n')).toBeNull()
   })

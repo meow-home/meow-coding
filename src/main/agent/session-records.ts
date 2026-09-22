@@ -58,7 +58,10 @@ export function parseSessionJsonl(text: string): StoredSession | null {
       case 'message': items.push({ kind: 'message', message: rec.message }); if (rec.ts > lastTs) lastTs = rec.ts; break
       case 'tool': items.push({ kind: 'tool', tool: rec.tool }); if (rec.ts > lastTs) lastTs = rec.ts; break
       case 'title': title = rec.title; if (rec.ts > lastTs) lastTs = rec.ts; break
-      case 'todos': todos = rec.todos; if (rec.ts > lastTs) lastTs = rec.ts; break
+      case 'todos': todos = Array.isArray(rec.todos) ? rec.todos : []; if (rec.ts > lastTs) lastTs = rec.ts; break
+      // A corrupt `todos` record (string/object instead of array) from a
+      // pre-validation write heals to [] here so a damaged file never
+      // propagates a non-array into the renderer's `todos.filter`.
       case 'usage': usage = rec.usage; if (rec.ts > lastTs) lastTs = rec.ts; break
     }
   }

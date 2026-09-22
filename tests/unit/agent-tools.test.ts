@@ -184,6 +184,16 @@ describe('todowrite', () => {
     expect(saved[0]).toMatchObject({ content: 'a', status: 'in_progress' })
     expect(saved[1]).toMatchObject({ content: 'b', status: 'pending', priority: 'high' })
   })
+
+  it('drops a malformed todos value (JSON-encoded string) instead of persisting it', async () => {
+    const saved: unknown[] = []
+    const todoCtx: ToolContext = { cwd: '', ask: async () => null, setTodos: (t) => saved.push(t) }
+    const r = await todowriteTool.run({
+      todos: "[{\"content\": \"a\", \"status\": \"completed\"}]"
+    } as unknown as Record<string, unknown>, todoCtx)
+    expect(saved[0]).toEqual([])
+    expect(r.output).toBe('[]')
+  })
 })
 
 describe('question', () => {

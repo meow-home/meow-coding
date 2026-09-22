@@ -191,7 +191,8 @@ the agent to use this instead of writing questions as plain text.
 
 Writes to the session's todo list and emits `todo-updated`. Its description is a full usage policy
 ported from opencode (use for 3+ step work, exactly one `in_progress`, update in real time, never
-mark complete on intent). **Subagents never receive this tool** — their runner has no `setTodos` sink.
+mark complete on intent). A malformed `todos` value (a string instead of an array) is sanitized to
+`[]` before persisting. **Subagents never receive this tool** — their runner has no `setTodos` sink.
 
 ### `task`
 

@@ -46,7 +46,12 @@ export const todowriteTool: ToolDefinition = {
     })).describe('The updated todo list')
   }),
   async run(input, ctx): Promise<ToolRunResult> {
-    const { todos } = input as unknown as { todos: TodoItem[] }
+    // The model can emit `todos` as a JSON-encoded string instead of an array
+    // (e.g. a stringified array). Guard before persisting so a malformed value
+    // never lands in the session record and later crashes the renderer on load.
+    let todos: TodoItem[] = Array.isArray(input.todos)
+      ? (input.todos as unknown as TodoItem[])
+      : []
     ctx.setTodos?.(todos)
     return { output: JSON.stringify(todos, null, 2) }
   }
