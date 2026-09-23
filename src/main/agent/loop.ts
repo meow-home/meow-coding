@@ -18,7 +18,7 @@ import { estimateUsage } from './token'
 import { DEFAULT_MAX_CONTEXT_TOKENS } from './config'
 import { classifyContextOverflowError } from './limits'
 import { loopDetector, toolLoopDetector } from './repetition'
-import type { LoopDetector, ToolLoopDetector } from './repetition'
+import type { LoopDetector, ToolLoopDetector, ToolLoopVerdict } from './repetition'
 import type { TruncationStore } from './truncation'
 import type { SnapshotStore } from './snapshot'
 import type { HooksRunner } from './hooks'
@@ -439,12 +439,12 @@ export class SessionRunner {
       // Only completed calls participate in tool-loop detection. A streamed
       // tool-start is not evidence of progress or repetition until its result
       // has been appended to the transcript.
-      if (calls.length > 0 && this.toolLoop.next(calls.map(c => ({
+      if (calls.length > 0 && calls.map(c => this.toolLoop.observe({
         tool: c.tool,
         input: c.input,
         output: c.output,
         error: c.error
-      })))) {
+      })).some(v => v.kind !== 'ok')) {
         looping = true
         this.loopBreaksThisRun++
         this.toolLoop = toolLoopDetector()

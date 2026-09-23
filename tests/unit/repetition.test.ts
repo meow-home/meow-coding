@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loopDetector, repeatDetector, toolLoopDetector } from '../../src/main/agent/repetition'
+import { isIdlePoll, loopDetector, repeatDetector, toolLoopDetector } from '../../src/main/agent/repetition'
 
 // A faithful mirror of the degenerate "thinking loop" from the bug report: the
 // model keeps re-emitting "let me look at the question tool's run and the
@@ -73,36 +73,66 @@ describe('loopDetector', () => {
 })
 
 describe('toolLoopDetector', () => {
-  it('flags the same tool+input repeated three times', () => {
+  const read = (file: string, output = 'content') => ({ tool: 'read', input: { file_path: file }, output })
+
+  it('reports the same call with the same result three times as a repeat', () => {
     const d = toolLoopDetector()
-    expect(d.next([{ tool: 'read', input: { file_path: 'a.ts' } }])).toBe(false)
-    expect(d.next([{ tool: 'read', input: { file_path: 'a.ts' } }])).toBe(false)
-    expect(d.next([{ tool: 'read', input: { file_path: 'a.ts' } }])).toBe(true)
+    expect(d.observe(read('a.ts'))).toEqual({ kind: 'ok' })
+    expect(d.observe(read('a.ts'))).toEqual({ kind: 'ok' })
+    expect(d.observe(read('a.ts'))).toEqual({ kind: 'repeat', tool: 'read', count: 3 })
   })
 
   it('does not flag the same tool with different input', () => {
     const d = toolLoopDetector()
-    expect(d.next([{ tool: 'read', input: { file_path: 'a.ts' } }])).toBe(false)
-    expect(d.next([{ tool: 'read', input: { file_path: 'b.ts' } }])).toBe(false)
-    expect(d.next([{ tool: 'read', input: { file_path: 'c.ts' } }])).toBe(false)
-    expect(d.next([{ tool: 'read', input: { file_path: 'd.ts' } }])).toBe(false)
+    for (const f of ['a.ts', 'b.ts', 'c.ts', 'd.ts']) expect(d.observe(read(f)).kind).toBe('ok')
+  })
+
+  it('does not flag the same call when its result changes (progress)', () => {
+    const d = toolLoopDetector()
+    for (const out of ['1 failing', '2 failing', '0 failing']) {
+      expect(d.observe({ tool: 'bash', input: { command: 'npm test' }, output: out }).kind).toBe('ok')
+    }
   })
 
   it('does not flag different tools', () => {
     const d = toolLoopDetector()
-    expect(d.next([{ tool: 'read', input: { file_path: 'a.ts' } }])).toBe(false)
-    expect(d.next([{ tool: 'grep', input: { pattern: 'x' } }])).toBe(false)
-    expect(d.next([{ tool: 'bash', input: { command: 'ls' } }])).toBe(false)
+    expect(d.observe(read('a.ts')).kind).toBe('ok')
+    expect(d.observe({ tool: 'grep', input: { pattern: 'x' }, output: 'hit' }).kind).toBe('ok')
+    expect(d.observe({ tool: 'bash', input: { command: 'ls' }, output: 'a' }).kind).toBe('ok')
   })
 
   it('forgets old fingerprints once they slide out of the window', () => {
     const d = toolLoopDetector({ history: 2, minRepeats: 3 })
-    expect(d.next([{ tool: 'read', input: { file_path: 'a.ts' } }])).toBe(false)
-    expect(d.next([{ tool: 'read', input: { file_path: 'a.ts' } }])).toBe(false)
-    // Two distinct calls push the repeated one out of the 2-slot window.
-    expect(d.next([{ tool: 'read', input: { file_path: 'b.ts' } }])).toBe(false)
-    expect(d.next([{ tool: 'read', input: { file_path: 'c.ts' } }])).toBe(false)
-    expect(d.next([{ tool: 'read', input: { file_path: 'a.ts' } }])).toBe(false)
+    expect(d.observe(read('a.ts')).kind).toBe('ok')
+    expect(d.observe(read('a.ts')).kind).toBe('ok')
+    expect(d.observe(read('b.ts')).kind).toBe('ok')
+    expect(d.observe(read('c.ts')).kind).toBe('ok')
+    expect(d.observe(read('a.ts')).kind).toBe('ok')
+  })
+
+  it('reports idle bash_output polling as a poll', () => {
+    const d = toolLoopDetector()
+    const poll = { tool: 'bash_output', input: { id: '7285d08b' }, output: '<bash id="7285d08b" status="running">\n(no new output)\n</bash>' }
+    expect(d.observe(poll).kind).toBe('ok')
+    expect(d.observe(poll).kind).toBe('ok')
+    expect(d.observe(poll)).toEqual({ kind: 'poll', tool: 'bash_output', count: 3 })
+  })
+
+  it('starts counting again after reset', () => {
+    const d = toolLoopDetector()
+    d.observe(read('a.ts'))
+    d.observe(read('a.ts'))
+    d.reset()
+    expect(d.observe(read('a.ts')).kind).toBe('ok')
+  })
+})
+
+describe('isIdlePoll', () => {
+  it('matches only a running shell with no new output', () => {
+    expect(isIdlePoll({ tool: 'bash_output', input: {}, output: '<bash id="x" status="running">\n(no new output)\n</bash>' })).toBe(true)
+    expect(isIdlePoll({ tool: 'bash_output', input: {}, output: '<bash id="x" status="exited" exit_code="0">\n(no new output)\n</bash>' })).toBe(false)
+    expect(isIdlePoll({ tool: 'bash_output', input: {}, output: '<bash id="x" status="running">\nbuilding…\n</bash>' })).toBe(false)
+    expect(isIdlePoll({ tool: 'bash', input: {}, output: '(no new output) status="running"' })).toBe(false)
   })
 })
 

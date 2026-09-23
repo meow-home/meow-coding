@@ -171,9 +171,26 @@ import { createHash } from 'node:crypto'
 const DEFAULT_TOOL_HISTORY = 8
 const DEFAULT_TOOL_MIN_REPEATS = 3
 
+export interface ToolObservation {
+  tool: string
+  input: unknown
+  output?: string
+  error?: string
+  mutationDigest?: string
+}
+
+export type ToolLoopVerdict = { kind: 'ok' } | { kind: 'poll' | 'repeat'; tool: string; count: number }
+
 export interface ToolLoopDetector {
-  /** Record completed tool observations; returns true if the step makes no progress. */
-  next(calls: Array<{ tool: string; input: unknown; output?: string; error?: string; mutationDigest?: string }>): boolean
+  /** Record one completed call; reports when it repeats with the same result. */
+  observe(call: ToolObservation): ToolLoopVerdict
+  reset(): void
+}
+
+/** A background shell checked while still running with nothing new to show. */
+export function isIdlePoll(call: ToolObservation): boolean {
+  return call.tool === 'bash_output' && !call.error && typeof call.output === 'string' &&
+    call.output.includes('status="running"') && call.output.includes('(no new output)')
 }
 
 export function toolLoopDetector(opts?: {
@@ -189,7 +206,7 @@ export function toolLoopDetector(opts?: {
     return `{${Object.keys(value as Record<string, unknown>).sort().map(k => `${JSON.stringify(k)}:${stableJson((value as Record<string, unknown>)[k])}`).join(',')}}`
   }
   const digest = (value: string): string => createHash('sha256').update(value).digest('hex').slice(0, 16)
-  const fingerprint = (call: { tool: string; input: unknown; output?: string; error?: string; mutationDigest?: string }): string => {
+  const fingerprint = (call: ToolObservation): string => {
     let inputJson: string
     try {
       inputJson = stableJson(call.input ?? {})
@@ -199,17 +216,16 @@ export function toolLoopDetector(opts?: {
     return digest(`${call.tool}:${inputJson}:output=${call.output ?? ''}:error=${call.error ?? ''}:mutation=${call.mutationDigest ?? ''}`)
   }
   return {
-    next(calls): boolean {
-      for (const call of calls) {
-        recent.push(fingerprint(call))
-        if (recent.length > history) recent.shift()
-      }
-      const counts = new Map<string, number>()
-      for (const key of recent) counts.set(key, (counts.get(key) ?? 0) + 1)
-      for (const n of counts.values()) {
-        if (n >= minRepeats) return true
-      }
-      return false
+    observe(call): ToolLoopVerdict {
+      const key = fingerprint(call)
+      recent.push(key)
+      if (recent.length > history) recent.shift()
+      const count = recent.filter(k => k === key).length
+      if (count < minRepeats) return { kind: 'ok' }
+      return { kind: isIdlePoll(call) ? 'poll' : 'repeat', tool: call.tool, count }
+    },
+    reset(): void {
+      recent.length = 0
     }
   }
 }
