@@ -141,27 +141,30 @@ loop:
   steers = takeSteers()
   if steers.length > 0  → append each as a user message, emit user-message,
                           reset steps = 0, continue        ← steering
-  steps++
+  steps++ (not on a repetition retry)
   isLastStep = steps >= maxSteps
   await compactIfOverThreshold(signal)
   llmMessages = toLlmMessages(items, opts)  (+ MAX_STEPS_PROMPT when isLastStep)
-  stream = llm.stream({ model, system, messages, tools: isLastStep ? [] : visibleToolDefs(),
-                        signal, maxOutputTokens: maxOutputTokensWire, variantOptions })
-  for each part:
-    text      → append to buffer, emit text-delta
-    reasoning → append to buffer, emit reasoning-delta
-    tool-call → record ToolCallData(permission:'pending'), emit tool-start
-    finish    → capture tokens + finishReason, accumulate run usage, emit onUsage per step
-    error     → tryRecoverFromReject(); if recovered: steps--, retry the step
-                otherwise persist partial text, emit error, return
-  if aborted → persist partial, emit done{reason:'stopped'}; return
-  append the assistant message (text + reasoning + tokens) if anything was produced
-  decide permissions for every call
-  run auto-approved calls in PARALLEL (Promise.all)
-  run 'ask' calls SERIALLY afterwards (so two prompts never appear at once)
+  emit step-start{step}
+  guard = createResponseGuard()
+  stream = llm.stream({ ..., antiRepetition only on a repetition retry })
+  for each part (every text/reasoning/tool-call part goes through the guard first):
+    text / reasoning → append to buffer, emit delta
+    tool-call        → accepted: record ToolCallData (SDK-invalid → denied with an error), emit tool-start
+    guard verdict ≠ ok → abort the step's stream
+    finish / error   → as before (error: compact-on-reject retry)
+  repetition with no calls:
+    first time  → emit step-discarded, retry the step with antiRepetition (transcript untouched)
+    on the retry, or past MAX_LOOP_BREAKS → persist the clean prefix, done{stuck, stuckCategory:'stream'}
+  tool-flood / interleaved / repetition after calls → cut: keep text before the first call and the accepted calls
+  append the assistant message
+  decide hooks + permission for every call (up front, concurrently)
+  run calls in model-order batches (concurrencySafe + allow together, ≤ 10 in flight; others alone)
+  append each result in model order; a tool-loop verdict or the cut adds a [meow] note to that result
+  past MAX_LOOP_BREAKS recoveries → done{stuck, stuckCategory:'tool'|'stream'}
   if no tool call:
     if length/max_tokens and resumes < MAX_LENGTH_RESUMES → append continuation nudge (user msg), continue
-    emit done{reason: classifyFinish(finishReason)}; return   ('complete' | 'length' | 'refusal')
+    emit done{reason: classifyFinish(finishReason)}; return
   if isLastStep   → emit done{reason:'max-steps'}; return
 ```
 
@@ -176,7 +179,16 @@ Notable details:
   run; past the cap it reports `done{reason:'length'}` so the UI can tell the user the answer was cut
   off. A `refusal`/`content_filter` finish reports `done{reason:'refusal'}` — never `complete`.
 - Usage is emitted **per step**, not only at the end, so cost is recorded even if the user hits Stop.
-- Stream text and reasoning deltas are incremental and concatenated verbatim. Repetition recovery is bounded and tool-loop detection uses completed call results, so a successful test/edit/test sequence is not treated as the same no-progress call. A stuck completion may include category metadata (`stream` or `tool`) while retaining `reason: 'stuck'` compatibility.
+- Stream text and reasoning deltas are incremental and concatenated verbatim. The per-step
+  response guard (`response-guard.ts`) cuts a response at 32 tool calls (`tool-flood`), at a
+  call → text → call pattern (`interleaved`, a model inventing results it never received), or at a
+  character-level tandem repeat (`repetition`, `repeatDetector`). A repetition with no calls is
+  discarded and retried once with `antiRepetition`; every other cut keeps the accepted calls and
+  notes the cut on the last result. The tool-loop detector compares completed call + result
+  fingerprints, so test/edit/test progress is not flagged; idle `bash_output` polling gets a
+  "wait" note, other repeats a "change course" note. The loop never adds a synthetic user message
+  for recovery; all recovery text is a `<system-reminder>[meow]` note on a tool result. Recoveries
+  share `MAX_LOOP_BREAKS` (2) per run, then the turn ends `stuck`.
 
 ### Constants
 
@@ -189,6 +201,9 @@ Notable details:
 | `MAX_LENGTH_RESUMES` | 3 | `loop.ts` |
 | `DEFAULT_KEEP_FULL_TURNS` | 2 | `loop.ts` |
 | `MAX_QUEUE` | 5 | `meow-agent-manager.ts` |
+| `MAX_TOOL_CALLS_PER_RESPONSE` | 32 | `response-guard.ts` |
+| `MAX_TOOL_CONCURRENCY` | 10 | `tool-scheduler.ts` |
+| `MAX_LOOP_BREAKS` | 2 | `loop.ts` |
 
 ## 3.5 Tool execution (`SessionRunner.executeCall`)
 
@@ -218,7 +233,7 @@ Notable details:
 | `pollMonitors` | Store for interval command watches (`monitor` command mode); absent for subagents |
 
 4. `await def.run(input, ctx)` → `{ output?, error? }`; thrown errors become `call.error` formatted by `formatToolError` (Error.message / string / JSON, never `[object Object]`).
-5. Append the tool item to the transcript and emit `tool-result`.
+5. After the call's batch settles, `finishCall` runs the tool-loop check, attaches any note, appends the tool item in model order, and emits `tool-result`.
 
 For `monitor(..., wait: true)`, registration and foreground delivery are race-safe even when the
 condition already exists in the shell buffer. A resolution consumed by the active waiter becomes

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isIdlePoll, loopDetector, repeatDetector, toolLoopDetector } from '../../src/main/agent/repetition'
+import { isIdlePoll, repeatDetector, toolLoopDetector } from '../../src/main/agent/repetition'
 
 // A faithful mirror of the degenerate "thinking loop" from the bug report: the
 // model keeps re-emitting "let me look at the question tool's run and the
@@ -11,14 +11,6 @@ const LOOP_SENTENCES = [
   `OK, I need to actually ${LOOP_BASE}. `,
   `I'm going to ${LOOP_BASE}. `
 ]
-
-function feedChunks(detector: ReturnType<typeof loopDetector>, chunksLikeStream: (string | string[])[]) {
-  for (const c of chunksLikeStream) {
-    const text = typeof c === 'string' ? c : c.join(' ')
-    if (detector.next(text)) return true
-  }
-  return false
-}
 
 function seedRng(seed: number): () => number {
   let s = seed >>> 0
@@ -39,38 +31,6 @@ function variedReasoningChunks(chunks: number, seed = 1): string[] {
   }
   return out
 }
-
-describe('loopDetector', () => {
-  it('flags the exact thinking-loop pattern from the bug report', () => {
-    // Two sentences per "unit", like the observed output, streamed chunk-wise.
-    const units = Array.from({ length: 6 }, () => [LOOP_SENTENCES[0], LOOP_SENTENCES[1]])
-    const d = loopDetector()
-    expect(feedChunks(d, units)).toBe(true)
-  })
-
-  it('flags as soon as a verbatim 12-word phrase has repeated four times', () => {
-    const d = loopDetector()
-    // One sentence repeats the phrase once; 4 sentences → 4 occurrences.
-    for (let i = 0; i < 3; i++) {
-      expect(d.next(LOOP_SENTENCES[0])).toBe(false)
-    }
-    expect(d.next(LOOP_SENTENCES[0])).toBe(true)
-  })
-
-  it('does not flag a long but genuinely varied reasoning stream', () => {
-    const d = loopDetector()
-    for (const chunk of variedReasoningChunks(60)) {
-      if (d.next(chunk)) {
-        expect.fail('varied stream was flagged as a loop')
-      }
-    }
-  })
-
-  it('does not flag a short normal answer', () => {
-    const d = loopDetector()
-    expect(d.next('The function returns the resolved output, or an error if the tool failed.')).toBe(false)
-  })
-})
 
 describe('toolLoopDetector', () => {
   const read = (file: string, output = 'content') => ({ tool: 'read', input: { file_path: file }, output })

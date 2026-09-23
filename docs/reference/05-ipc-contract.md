@@ -208,6 +208,8 @@ The full agent-behavior stream. Every variant carries `agentId`.
 | `user-message` | `message: ChatMessage` | A user message was appended (direct send or steered) |
 | `text-delta` | `delta: string` | Streamed assistant text |
 | `reasoning-delta` | `delta: string` | Streamed reasoning text |
+| `step-start` | `step: number` | A model request is about to start (display-only; the UI opens a new bubble for the step) |
+| `step-discarded` | `reason: 'repetition'` | The step's streamed output was dropped by the repetition guard and the step is retried (display-only) |
 | `tool-start` | `call: ToolCallData` | A tool call was requested (`permission: 'pending'`) |
 | `tool-result` | `call: ToolCallData` | The tool finished; `output` / `error` / final `permission` are set |
 | `prompt-request` | `promptId`, `kind: 'permission' \| 'question'`, `call?`, `question?`, `options?`, `multiple?`, `custom?`, `taskId?`, `subagentType?` | The agent is blocked awaiting the user; answer with `respondPrompt` |
@@ -221,7 +223,7 @@ The full agent-behavior stream. Every variant carries `agentId`.
 | `retry` | `attempt`, `maxAttempts`, `delayMs` | An LLM request will be retried (transient UI line only) |
 | `subagent-event` | `taskId`, `parentTaskId?`, `sub: 'start' \| 'delta' \| 'tool' \| 'done'`, `subagentType?`, `text?`, `tool?`, `reasoning?`, `background?`, `result?`, `state?` | Subagent progress |
 | `session-created` | — | A new session was created (e.g. by `/new`) |
-| `done` | `reason: string`, `tokens?`, `cost?` | Turn finished. `reason` ∈ `complete` \| `stopped` \| `max-steps` \| `length` |
+| `done` | `reason: string`, `tokens?`, `cost?` | Turn finished. `reason` ∈ `complete` \| `stopped` \| `max-steps` \| `length` \| `refusal` \| `stuck`; `stuck` carries `stuckCategory` (`stream` \| `tool`), `stuckTool?`, `recoveryCount?` |
 | `error` | `message: string` | Turn aborted with an error |
 
 **Transient events** (`compaction-start`, `compaction-failed`, `retry`) exist only in renderer feed

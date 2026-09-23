@@ -17,8 +17,13 @@ import type { CompactionSettings, ResolvedCompaction } from './compact'
 import { estimateUsage } from './token'
 import { DEFAULT_MAX_CONTEXT_TOKENS } from './config'
 import { classifyContextOverflowError } from './limits'
-import { loopDetector, toolLoopDetector } from './repetition'
-import type { LoopDetector, ToolLoopDetector, ToolLoopVerdict } from './repetition'
+import { toolLoopDetector } from './repetition'
+import type { ToolLoopDetector, ToolLoopVerdict } from './repetition'
+import { createResponseGuard, MAX_TOOL_CALLS_PER_RESPONSE } from './response-guard'
+import type { GuardVerdict } from './response-guard'
+import { runWithConcurrency, scheduleBatches } from './tool-scheduler'
+import { attachNote, cutNote, toolLoopNote } from './harness-note'
+import type { CutReason } from './harness-note'
 import type { TruncationStore } from './truncation'
 import type { SnapshotStore } from './snapshot'
 import type { HooksRunner } from './hooks'
@@ -113,18 +118,21 @@ export const MAX_STOP_BLOCKS = 8
 const CONTINUE_TRUNCATED_PROMPT =
   '<system-reminder>\nYour previous answer was cut off at the output token limit. ' +
   'Continue from where you stopped, without repeating what you already wrote.\n</system-reminder>'
-// A degenerate model caught re-emitting the same phrases gets one of these
-// instead of a "continue" nudge: continuing is exactly what keeps the loop going.
+// Recoveries of every kind (repetition retry, response cut, tool-loop note) per
+// run; past this many the turn ends as 'stuck'.
 const MAX_LOOP_BREAKS = 2
-const LOOP_RECOVERY_PROMPT =
-  '<system-reminder>\nYou keep repeating the same analysis without making progress or producing a final answer. ' +
-  'Stop re-examining your approach and take the single next concrete action now: call the tool you need, or ' +
-  'give your final answer directly. Do not restate what you already wrote.\n</system-reminder>'
 
 function classifyFinish(reason: string | undefined): 'complete' | 'length' | 'refusal' {
   if (reason === 'length' || reason === 'max_tokens') return 'length'
   if (reason === 'refusal' || reason === 'content_filter' || reason === 'content-filter') return 'refusal'
   return 'complete'
+}
+
+interface DecidedCall {
+  call: ToolCallData
+  blocked: boolean
+  decision: PermissionDecision
+  preContext?: string
 }
 
 // Tool run() calls can throw; normalize to a string the model can read instead
@@ -161,8 +169,7 @@ export class SessionRunner {
   // Truncation resumes in one run (not reset between tool steps); caps the cost
   // keeps hitting the output limit.
   private lengthResumesThisRun = 0
-  // Times the thinking-loop guard has nudged the model out of a repetition loop
-  // in this run; past MAX_LOOP_BREAKS the turn ends as 'stuck'.
+  // Recoveries in this run; past MAX_LOOP_BREAKS the turn ends as 'stuck'.
   private loopBreaksThisRun = 0
   // Provider-reported usage of the last LLM call; overflow detection trusts it
   // over the transcript char estimate because it includes the system prompt and
@@ -177,11 +184,7 @@ export class SessionRunner {
   private hooks: HooksRunner | undefined
   // Consecutive Stop-hook blocks in this run; capped by MAX_STOP_BLOCKS.
   private stopBlocksThisRun = 0
-  // Text/reasoning + tool-call repetition guards, per-run (not per-step): a
-  // loop that spans several steps — same sentence, tool call, same sentence
-  // again — never accumulates enough repetition inside any single step for a
-  // per-step detector to catch it.
-  private loop: LoopDetector = loopDetector()
+  // Per run: a tool loop spans steps. The stream guard is per step (see run()).
   private toolLoop: ToolLoopDetector = toolLoopDetector()
   // Fixed run identity for this turn; snapshot per tool invocation.
   private runContext: AgentRunContext | undefined
@@ -194,12 +197,14 @@ export class SessionRunner {
     const { agentId } = this.deps
     const system = typeof this.deps.system === 'function' ? this.deps.system() : this.deps.system
     let steps = 0
+    // A step discarded for repetition is re-run once with anti-repetition
+    // sampling; the retry does not consume a step.
+    let retryStep = false
     this.compactedThisRun = 0
     this.rejectRetriesThisRun = 0
     this.lengthResumesThisRun = 0
     this.loopBreaksThisRun = 0
     this.stopBlocksThisRun = 0
-    this.loop = loopDetector()
     this.toolLoop = toolLoopDetector()
     this.hooks = this.deps.hooks?.()
     this.compaction = resolveCompactionSettings(
@@ -234,19 +239,21 @@ export class SessionRunner {
         steps = 0
         continue
       }
-      steps++
+      const antiRepetition = retryStep
+      retryStep = false
+      if (!antiRepetition) steps++
       const isLastStep = steps >= this.maxSteps
 
       await this.compactIfOverThreshold(signal)
 
       const llmMessages = this.buildMessages(isLastStep)
-      let hasToolCall = false
       let textBuffer = ''
       let reasoningBuffer = ''
       let tokens: MessageTokens | undefined
       let finishReason: string | undefined
       const calls: ToolCallData[] = []
-      let looping = false
+      const guard = createResponseGuard()
+      let verdict: GuardVerdict = { kind: 'ok' }
       const persistPartial = () => {
         if (!textBuffer && !reasoningBuffer) return
         this.deps.appendMessage({
@@ -260,15 +267,16 @@ export class SessionRunner {
       }
       let recover = false
       // Each step gets its own controller chained to the run's. Aborting it
-      // when the loop guard cuts a stream short actually cancels the
-      // provider's HTTP/SSE request — a `break` out of the `for await` only
-      // stops consuming parts; it does not guarantee the underlying stream
-      // (and its token bill) stops.
+      // when the guard cuts a stream short actually cancels the provider's
+      // HTTP/SSE request — a `break` out of the `for await` only stops
+      // consuming parts; it does not guarantee the underlying stream (and its
+      // token bill) stops.
       const stepController = new AbortController()
       const stepSignal = stepController.signal
       const onRunAbort = (): void => stepController.abort()
       if (signal?.aborted) stepController.abort()
       else signal?.addEventListener('abort', onRunAbort, { once: true })
+      this.deps.onEvent({ type: 'step-start', agentId, step: steps })
       try {
         const stream = this.deps.llm.stream({
           model: this.deps.model,
@@ -277,7 +285,8 @@ export class SessionRunner {
           tools: isLastStep ? [] : this.visibleToolDefs(),
           signal: stepSignal,
           maxOutputTokens: this.deps.maxOutputTokensWire,
-          variantOptions: this.deps.variantOptions
+          variantOptions: this.deps.variantOptions,
+          ...(antiRepetition ? { antiRepetition: true } : {})
         })
         for await (const part of stream) {
           if (stepSignal.aborted) {
@@ -286,30 +295,32 @@ export class SessionRunner {
             return
           }
           if (part.kind === 'text') {
-            const next = appendStreamDelta(textBuffer, part.text ?? '')
-            const delta = next.slice(textBuffer.length)
-            textBuffer = next
+            const delta = part.text ?? ''
+            textBuffer = appendStreamDelta(textBuffer, delta)
             this.deps.onEvent({ type: 'text-delta', agentId, delta })
-            if (this.loop.next(part.text ?? '')) {
-              looping = true
-              break
-            }
+            verdict = guard.text(delta)
+            if (verdict.kind !== 'ok') break
           } else if (part.kind === 'reasoning') {
-            const next = appendStreamDelta(reasoningBuffer, part.text ?? '')
-            const delta = next.slice(reasoningBuffer.length)
-            reasoningBuffer = next
+            const delta = part.text ?? ''
+            reasoningBuffer = appendStreamDelta(reasoningBuffer, delta)
             this.deps.onEvent({ type: 'reasoning-delta', agentId, delta })
-            if (this.loop.next(part.text ?? '')) {
-              looping = true
-              break
-            }
+            verdict = guard.reasoning(delta)
+            if (verdict.kind !== 'ok') break
           } else if (part.kind === 'tool-call') {
-            hasToolCall = true
+            // A call the guard rejects is never announced, so no tool-start is
+            // left without a result.
+            verdict = guard.toolCall()
+            if (verdict.kind !== 'ok') break
             const call: ToolCallData = {
               id: part.toolCallId ?? randomUUID(),
               tool: part.toolName ?? 'unknown',
               input: part.toolInput ?? {},
               permission: 'pending'
+            }
+            if (part.invalid) {
+              call.permission = 'denied'
+              call.error = `invalid tool call: ${part.invalidReason ?? 'unknown tool or malformed arguments'}. ` +
+                'Check the tool name and arguments against the schema.'
             }
             calls.push(call)
             this.deps.onEvent({ type: 'tool-start', agentId, call })
@@ -327,7 +338,9 @@ export class SessionRunner {
             }
           } else if (part.kind === 'error') {
             if (await this.tryRecoverFromReject(llmMessages, part.error, signal)) {
-              steps--
+              // A retried step was never counted; keep retrying it instead.
+              if (antiRepetition) retryStep = true
+              else steps--
               recover = true
               break
             }
@@ -339,7 +352,8 @@ export class SessionRunner {
       } catch (err) {
         const message = formatLlmError(err)
         if (await this.tryRecoverFromReject(llmMessages, message, signal)) {
-          steps--
+          if (antiRepetition) retryStep = true
+          else steps--
           stepController.abort()
           signal?.removeEventListener('abort', onRunAbort)
           continue
@@ -354,8 +368,6 @@ export class SessionRunner {
       } finally {
         signal?.removeEventListener('abort', onRunAbort)
       }
-      // Recover thành công ở error-part → retry step (đã steps--). Nếu signal
-      // aborted giữa chừng, vòng while kiểm tra lại ở đầu và emit 'stopped'.
       if (recover) {
         stepController.abort()
         continue
@@ -367,29 +379,34 @@ export class SessionRunner {
         return
       }
 
-      if (looping) {
-        // The model re-emitted the same phrasing until the detector cut the
-        // stream off. Nudge it out of the loop (not "continue" — continuing is
-        // what feeds the loop) and retry the step. Past the cap, end the turn
-        // as 'stuck' instead of burning more budgets and reporting a bogus
-        // output-limit cut.
+      if (verdict.kind !== 'ok') stepController.abort()
+
+      if (verdict.kind === 'repetition' && calls.length === 0) {
         this.loopBreaksThisRun++
-        // Cut the provider's stream for real — `break` above only stopped
-        // consuming parts, the HTTP/SSE request (and its token bill) may still
-        // be running.
-        stepController.abort()
-        // Reset the text detector: it now lives across steps, so without this
-        // the looped phrase still in its tail would re-trip on the model's
-        // next (clean) answer and report 'stuck' even though it complied.
-        this.loop = loopDetector()
-        if (this.loopBreaksThisRun > MAX_LOOP_BREAKS) {
-          this.deps.onEvent({ type: 'done', agentId, reason: 'stuck' })
+        if (antiRepetition || this.loopBreaksThisRun > MAX_LOOP_BREAKS) {
+          const text = verdict.channel === 'text' ? textBuffer.slice(0, verdict.keepChars) : textBuffer
+          const reasoning = verdict.channel === 'reasoning' ? reasoningBuffer.slice(0, verdict.keepChars) : reasoningBuffer
+          if (text || reasoning) {
+            this.deps.appendMessage({ id: randomUUID(), role: 'assistant', text, reasoning: reasoning || undefined, tokens, createdAt: Date.now() })
+          }
+          this.deps.onEvent({
+            type: 'done', agentId, reason: 'stuck', stuckCategory: 'stream',
+            recoveryCount: this.loopBreaksThisRun, tokens, cost: this.deps.computeCost?.(runUsage)
+          })
           return
         }
-        // The looped text is garbage: keep it out of the transcript so it
-        // cannot feed the next request (the UI already showed it streaming).
-        this.deps.appendMessage({ id: randomUUID(), role: 'user', text: LOOP_RECOVERY_PROMPT, createdAt: Date.now() })
+        // The looped output never reaches the transcript; the UI drops its bubble.
+        this.deps.onEvent({ type: 'step-discarded', agentId, reason: 'repetition' })
+        retryStep = true
         continue
+      }
+
+      // Any other verdict cuts the response but keeps the calls already
+      // announced: each must get a result.
+      const cut: CutReason | undefined = verdict.kind === 'ok' ? undefined : verdict.kind
+      if (cut) {
+        this.loopBreaksThisRun++
+        textBuffer = textBuffer.slice(0, guard.textBeforeFirstCall())
       }
 
       if (textBuffer || calls.length > 0 || reasoningBuffer) {
@@ -403,61 +420,33 @@ export class SessionRunner {
         })
       }
 
-      // PreToolUse hooks gate each call before the permission decision, and run
-      // concurrently across calls the way the calls themselves do.
-      const decided = await Promise.all(calls.map(async call => {
-        const pre = this.hooks ? await this.hooks.runPreToolUse(call.tool, call.input) : undefined
-        if (pre?.decision === 'deny') {
-          return { call, blocked: true, reason: pre.reason, decision: 'deny' as PermissionDecision }
+      // PreToolUse hooks and permission decisions run up front for every call,
+      // concurrently, the way they did before scheduling existed.
+      const decided = await Promise.all(calls.map(call => this.decideCall(call)))
+      const lastCall = calls[calls.length - 1]
+      const parallel = (d: DecidedCall): boolean =>
+        !d.blocked && d.decision === 'allow' && this.deps.tools.get(d.call.tool)?.concurrencySafe === true
+      let tripped: Exclude<ToolLoopVerdict, { kind: 'ok' }> | undefined
+      for (const batch of scheduleBatches(decided, parallel)) {
+        await runWithConcurrency(batch.map(d => () => this.runCall(d, signal)))
+        for (const d of batch) {
+          const verdictForCall = this.finishCall(d.call, cut && d.call === lastCall ? cut : undefined)
+          if (verdictForCall) tripped = verdictForCall
         }
-        // Replaces the whole input, so a hook can rewrite a path or drop a flag.
-        if (pre?.updatedInput) call.input = pre.updatedInput
-        let decision = this.deps.decidePermission(call.tool, call.input)
-        // A hook may tighten to 'ask' or waive a prompt, but it can never
-        // override a config deny — hooks tighten, they do not loosen.
-        if (pre?.decision === 'ask' && decision === 'allow') decision = 'ask'
-        else if (pre?.decision === 'allow' && decision === 'ask') decision = 'allow'
-        return { call, blocked: false, decision, preContext: pre?.additionalContext }
-      }))
-
-      for (const d of decided.filter(x => x.blocked)) {
-        d.call.permission = 'denied'
-        d.call.error = d.reason ?? `tool "${d.call.tool}" was blocked by a PreToolUse hook`
-        this.deps.appendTool(d.call)
-        this.deps.onEvent({ type: 'tool-result', agentId, call: d.call })
       }
 
-      // Parallel tool execution like : run auto-approved calls
-      // concurrently; permission-asking calls run serially afterwards to avoid
-      // two prompts at once.
-      const runnable = decided.filter(d => !d.blocked)
-      const autoCalls = runnable.filter(d => d.decision !== 'ask')
-      const askCalls = runnable.filter(d => d.decision === 'ask')
-      await Promise.all(autoCalls.map(d => this.executeCall(d.call, d.decision, signal, d.preContext)))
-      for (const d of askCalls) await this.executeCall(d.call, d.decision, signal, d.preContext)
-
-      // Only completed calls participate in tool-loop detection. A streamed
-      // tool-start is not evidence of progress or repetition until its result
-      // has been appended to the transcript.
-      if (calls.length > 0 && calls.map(c => this.toolLoop.observe({
-        tool: c.tool,
-        input: c.input,
-        output: c.output,
-        error: c.error
-      })).some(v => v.kind !== 'ok')) {
-        looping = true
-        this.loopBreaksThisRun++
-        this.toolLoop = toolLoopDetector()
-        this.loop = loopDetector()
-        if (this.loopBreaksThisRun > MAX_LOOP_BREAKS) {
-          this.deps.onEvent({ type: 'done', agentId, reason: 'stuck' })
-          return
-        }
-        this.deps.appendMessage({ id: randomUUID(), role: 'user', text: LOOP_RECOVERY_PROMPT, createdAt: Date.now() })
-        continue
+      if (tripped) this.loopBreaksThisRun++
+      if ((cut || tripped) && this.loopBreaksThisRun > MAX_LOOP_BREAKS) {
+        this.deps.onEvent({
+          type: 'done', agentId, reason: 'stuck',
+          stuckCategory: tripped ? 'tool' : 'stream',
+          ...(tripped ? { stuckTool: tripped.tool } : {}),
+          recoveryCount: this.loopBreaksThisRun, tokens, cost: this.deps.computeCost?.(runUsage)
+        })
+        return
       }
 
-      if (!hasToolCall) {
+      if (calls.length === 0) {
         // The provider cut the answer at the output cap without calling a tool.
         // Resume the turn with a continuation nudge up to MAX_LENGTH_RESUMES
         // times; past the cap, report 'length' so the UI can tell the user the
@@ -517,12 +506,45 @@ export class SessionRunner {
     }
   }
 
-  private async executeCall(
-    call: ToolCallData,
-    decision: PermissionDecision,
-    signal?: AbortSignal,
-    preContext?: string
-  ): Promise<void> {
+  private async decideCall(call: ToolCallData): Promise<DecidedCall> {
+    // Refused while streaming (SDK-invalid call): never runs.
+    if (call.permission === 'denied') return { call, blocked: true, decision: 'deny' }
+    const pre = this.hooks ? await this.hooks.runPreToolUse(call.tool, call.input) : undefined
+    if (pre?.decision === 'deny') {
+      call.permission = 'denied'
+      call.error = pre.reason ?? `tool "${call.tool}" was blocked by a PreToolUse hook`
+      return { call, blocked: true, decision: 'deny' }
+    }
+    // Replaces the whole input, so a hook can rewrite a path or drop a flag.
+    if (pre?.updatedInput) call.input = pre.updatedInput
+    let decision = this.deps.decidePermission(call.tool, call.input)
+    // A hook may tighten to 'ask' or waive a prompt, but it can never
+    // override a config deny — hooks tighten, they do not loosen.
+    if (pre?.decision === 'ask' && decision === 'allow') decision = 'ask'
+    else if (pre?.decision === 'allow' && decision === 'ask') decision = 'allow'
+    return { call, blocked: false, decision, preContext: pre?.additionalContext }
+  }
+
+  // Appends one completed call. The tool-loop check sees the tool's own result
+  // (before any note), and its note rides on that result.
+  private finishCall(call: ToolCallData, cut?: CutReason): Exclude<ToolLoopVerdict, { kind: 'ok' }> | undefined {
+    const verdict = this.toolLoop.observe({ tool: call.tool, input: call.input, output: call.output, error: call.error })
+    const tripped = verdict.kind === 'ok' ? undefined : verdict
+    if (tripped) {
+      attachNote(call, toolLoopNote(tripped))
+      this.toolLoop.reset()
+    }
+    if (cut) attachNote(call, cutNote(cut, MAX_TOOL_CALLS_PER_RESPONSE))
+    this.deps.appendTool(call)
+    this.deps.onEvent({ type: 'tool-result', agentId: this.deps.agentId, call })
+    return tripped
+  }
+
+  // Runs one decided call and fills in its result. Appending is left to
+  // finishCall so results reach the transcript in model order.
+  private async runCall(d: DecidedCall, signal?: AbortSignal): Promise<void> {
+    if (d.blocked) return
+    const { call, decision, preContext } = d
     const { agentId } = this.deps
     let allowed: boolean
     if (decision === 'allow') {
@@ -624,8 +646,6 @@ export class SessionRunner {
         }
       }
     }
-    this.deps.appendTool(call)
-    this.deps.onEvent({ type: 'tool-result', agentId, call })
   }
 
   // A tool can change the very state the model reasons about: a `git` call (or

@@ -109,8 +109,8 @@ describe('SessionRunner', () => {
     h.llm.queue = [textParts('hel', 'lo')]
     h.runner.run()
     await new Promise(r => setTimeout(r, 20))
-    expect(h.events.map(e => e.type)).toEqual(['text-delta', 'text-delta', 'done'])
-    expect(h.events[2]).toEqual({ type: 'done', agentId: 'a1', reason: 'complete' })
+    expect(h.events.map(e => e.type)).toEqual(['step-start', 'text-delta', 'text-delta', 'done'])
+    expect(h.events[3]).toEqual({ type: 'done', agentId: 'a1', reason: 'complete' })
     expect(h.appended.messages).toBe(1)
     expect(h.items[0].kind === 'message' && h.items[0].message.role).toBe('assistant')
   })
@@ -235,7 +235,7 @@ describe('SessionRunner', () => {
     h.llm.queue = [[{ kind: 'error', error: 'rate limited' }]]
     h.runner.run()
     await new Promise(r => setTimeout(r, 20))
-    expect(h.events).toEqual([{ type: 'error', agentId: 'a1', message: 'rate limited' }])
+    expect(h.events).toEqual([{ type: 'step-start', agentId: 'a1', step: 1 }, { type: 'error', agentId: 'a1', message: 'rate limited' }])
   })
 
   it('does not append an empty assistant message for a no-op turn', async () => {
@@ -1899,29 +1899,6 @@ describe('loop Stop hooks', () => {
   })
 })
 
-// Degenerate "thinking loop": a reasoning model that keeps re-emitting the same
-// phrases without ever calling a tool burns the whole output budget, and the
-// length-resume path then re-triggers the same loop up to three more times.
-// The runner must detect the repetition mid-stream, cut it short, nudge the
-// model, and give up with a distinct reason instead of reporting 'length'.
-const LOOP_BASE = 'look at the `question` tool\'s `run` and the `ctx.ask` flow again'
-const LOOP_SENTENCES = [
-  `Let me ${LOOP_BASE}. `,
-  `Actually, let me ${LOOP_BASE}. `,
-  `OK, I need to actually ${LOOP_BASE}. `,
-  `I'm going to ${LOOP_BASE}. `
-]
-
-// A stream of repeated reasoning (the first four sentences already contain the
-// repeated 12-word phrase), ending with a provider length-cutoff like the model
-// would hit if the loop were left to run.
-function thinkingLoopStream(): LlmStreamPart[] {
-  return [
-    ...Array.from({ length: 12 }, (_, i) => ({ kind: 'reasoning' as const, text: LOOP_SENTENCES[i % LOOP_SENTENCES.length] })),
-    { kind: 'finish' as const, finishReason: 'length' }
-  ]
-}
-
 function seedRng(seed: number): () => number {
   let s = seed >>> 0
   return () => {
@@ -1943,41 +1920,70 @@ function variedReasoningStream(chunks: number): LlmStreamPart[] {
   return out
 }
 
-describe('SessionRunner thinking-loop guard', () => {
-  it('cuts a looping reasoning stream short, steers the model, and recovers when it complies', async () => {
+// "counselorcounselor…" — the character-level loop seen in a real session.
+function repeatingStream(kind: 'text' | 'reasoning', prefix = ''): LlmStreamPart[] {
+  return [
+    ...(prefix ? [{ kind, text: prefix }] : []),
+    ...Array.from({ length: 200 }, () => ({ kind, text: 'counselor' })),
+    { kind: 'finish' as const, finishReason: 'length' }
+  ]
+}
+
+const toolItems = (items: TranscriptItem[]) =>
+  items.filter((i): i is Extract<TranscriptItem, { kind: 'tool' }> => i.kind === 'tool').map(i => i.tool)
+const userTexts = (items: TranscriptItem[]) =>
+  items.filter((i): i is { kind: 'message'; message: ChatMessage } => i.kind === 'message' && i.message.role === 'user').map(i => i.message.text)
+const doneEvent = (events: ChatEvent[]) => events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+
+describe('SessionRunner stream repetition guard', () => {
+  it('discards a repeating stream and retries the step once with anti-repetition sampling', async () => {
     const h = makeHarness()
-    h.llm.queue = [thinkingLoopStream(), textParts('final answer')]
+    h.llm.queue = [repeatingStream('reasoning'), textParts('final answer')]
     h.runner.run()
     await new Promise(r => setTimeout(r, 40))
 
-    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
-    expect(done.reason).toBe('complete')
-    // One stream for the loop (cut short), one for the recovered answer — the
-    // length-resume path would have burned up to four streams instead.
+    expect(doneEvent(h.events).reason).toBe('complete')
     expect(h.llm.calls.length).toBe(2)
-    // The loop was not persisted as an assistant message: garbage stays out of
-    // context so it cannot feed the next request.
-    expect(h.items.filter(i => i.kind === 'message' && i.message.role === 'assistant' && /question tool/.test(i.message.reasoning ?? ''))).toHaveLength(0)
-    // The next request carries the recovery nudge.
-    expect(JSON.stringify(h.llm.calls[1]?.messages ?? [])).toContain('single next concrete action')
-    // The nudge is persisted as a user message.
-    const userTexts = h.items
-      .filter((i): i is { kind: 'message'; message: ChatMessage } => i.kind === 'message' && i.message.role === 'user')
-      .map(i => i.message.text)
-    expect(userTexts.some(t => t.includes('single next concrete action'))).toBe(true)
+    expect(h.llm.calls[0].antiRepetition).toBeUndefined()
+    expect(h.llm.calls[1].antiRepetition).toBe(true)
+    expect(h.events.some(e => e.type === 'step-discarded' && e.reason === 'repetition')).toBe(true)
+    // No synthetic user message and no looped text in the transcript.
+    expect(userTexts(h.items)).toEqual([])
+    expect(JSON.stringify(h.items)).not.toContain('counselorcounselor')
   })
 
-  it('ends the turn as stuck when the loop survives the recovery nudges', async () => {
+  it('ends as stuck/stream when the retry repeats too, keeping the clean prefix', async () => {
     const h = makeHarness()
-    h.llm.queue = [thinkingLoopStream(), thinkingLoopStream(), thinkingLoopStream(), thinkingLoopStream()]
+    h.llm.queue = [repeatingStream('text', 'Here is the plan. '), repeatingStream('text', 'Here is the plan. ')]
     h.runner.run()
     await new Promise(r => setTimeout(r, 40))
 
-    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+    const done = doneEvent(h.events)
     expect(done.reason).toBe('stuck')
-    // Two nudges are allowed; on the third detected loop we give up instead of
-    // consuming the queued fourth stream.
-    expect(h.llm.calls.length).toBeLessThan(4)
+    expect(done.stuckCategory).toBe('stream')
+    expect(h.llm.calls.length).toBe(2)
+    const assistant = h.items.find(i => i.kind === 'message' && i.message.role === 'assistant')
+    expect(assistant?.kind === 'message' && assistant.message.text.startsWith('Here is the plan. ')).toBe(true)
+    expect(assistant?.kind === 'message' && assistant.message.text.length).toBeLessThan(60)
+  })
+
+  it('aborts the underlying provider stream when it cuts a loop', async () => {
+    let sawAbort = false
+    const h = makeHarness({
+      llm: {
+        async *stream(opts: LlmStreamOptions) {
+          opts.signal?.addEventListener('abort', () => { sawAbort = true }, { once: true })
+          for (;;) {
+            if (opts.signal?.aborted) return
+            yield { kind: 'reasoning', text: 'counselor' }
+            await new Promise(r => setImmediate(r))
+          }
+        }
+      } as LlmClient
+    })
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 200))
+    expect(sawAbort).toBe(true)
   })
 
   it('leaves a long but non-repetitive reasoning stream untouched', async () => {
@@ -1985,88 +1991,151 @@ describe('SessionRunner thinking-loop guard', () => {
     h.llm.queue = [variedReasoningStream(80)]
     h.runner.run()
     await new Promise(r => setTimeout(r, 40))
-
-    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
-    expect(done.reason).toBe('complete')
+    expect(doneEvent(h.events).reason).toBe('complete')
     expect(h.llm.calls.length).toBe(1)
-    const userTexts = h.items
-      .filter((i): i is { kind: 'message'; message: ChatMessage } => i.kind === 'message' && i.message.role === 'user')
-      .map(i => i.message.text)
-    expect(userTexts.some(t => t.includes('single next concrete action'))).toBe(false)
   })
 
-  it('aborts the underlying provider stream when it breaks out of a loop', async () => {
-    // A `break` out of `for await` does not guarantee the provider's HTTP/SSE
-    // request is cancelled (AsyncGenerator.return() timing is not a hard
-    // guarantee). Without an explicit abort, the cut-off stream keeps billing
-    // tokens after the runner already moved on — the "still repeating even
-    // though it should have stopped" symptom.
-    let sawAbort = false
-    const h = makeHarness({
-      llm: {
-        async *stream(opts: LlmStreamOptions) {
-          opts.signal?.addEventListener('abort', () => { sawAbort = true }, { once: true })
-          // Keep emitting the looping phrases forever; the runner's detector
-          // must cut us off and abort this stream rather than just stop reading.
-          for (let i = 0; ; i++) {
-            if (opts.signal?.aborted) return
-            yield { kind: 'reasoning', text: LOOP_SENTENCES[i % LOOP_SENTENCES.length] }
-            await new Promise(r => setTimeout(r, 1))
-          }
-        }
-      } as LlmClient
-    })
+  it('does not flag near-identical code in an answer', async () => {
+    const code = ['alpha', 'beta', 'gamma', 'delta'].map(n =>
+      `  it('renders the ${n} panel when the store flag is set to true', () => {\n` +
+      `    const wrapper = mount(BaseSidePanel, { props: { panelId: '${n}', open: true } })\n` +
+      `    expect(wrapper.find('[data-test="side-panel"]').exists()).toBe(true)\n  })\n`
+    ).join('')
+    const h = makeHarness()
+    const chunks: string[] = []
+    for (let i = 0; i < code.length; i += 7) chunks.push(code.slice(i, i + 7))
+    h.llm.queue = [textParts(...chunks)]
     h.runner.run()
-    await new Promise(r => setTimeout(r, 60))
-
-    expect(sawAbort).toBe(true)
+    await new Promise(r => setTimeout(r, 40))
+    expect(doneEvent(h.events).reason).toBe('complete')
+    expect(h.llm.calls.length).toBe(1)
   })
 
-  it('catches a repetition loop spread across steps, not just within one', async () => {
-    // The detector used to reset on every step, so a model that repeats the
-    // same sentence -> calls a tool -> repeats it again (never dense enough to
-    // trip the within-step threshold) sailed through to maxSteps.
-    const h = makeHarness({
-      tools: new Map([['read', stubTool('read')]]),
-      maxSteps: 10
-    })
-    const loopStep = (): LlmStreamPart[] => [
-      { kind: 'reasoning', text: LOOP_SENTENCES[0] },
-      { kind: 'tool-call', toolCallId: 'tc-' + Math.random(), toolName: 'read', toolInput: { file_path: 'a.ts' } },
-      { kind: 'finish' }
+  it('emits step-start before every model request', async () => {
+    const h = makeHarness({ tools: new Map([['read', stubTool('read')]]) })
+    h.llm.queue = [
+      [{ kind: 'tool-call', toolCallId: 'tc1', toolName: 'read', toolInput: { file_path: 'a' } }, { kind: 'finish' }],
+      textParts('done')
     ]
-    h.llm.queue = Array.from({ length: 10 }, loopStep)
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 40))
+    const starts = h.events.filter(e => e.type === 'step-start')
+    expect(starts.length).toBe(h.llm.calls.length)
+    expect(starts.map(e => e.type === 'step-start' && e.step)).toEqual([1, 2])
+  })
+})
+
+describe('SessionRunner response cuts', () => {
+  it('cuts a tool-call flood at 32 calls and notes it on the last result', async () => {
+    const h = makeHarness({ tools: new Map([['read', stubTool('read')]]), maxSteps: 5 })
+    h.llm.queue = [
+      [
+        ...Array.from({ length: 40 }, (_, i): LlmStreamPart => ({ kind: 'tool-call', toolCallId: `tc${i}`, toolName: 'read', toolInput: { file_path: `f${i}.ts` } })),
+        { kind: 'finish' }
+      ],
+      textParts('ok')
+    ]
     h.runner.run()
     await new Promise(r => setTimeout(r, 60))
-
-    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
-    expect(['stuck', 'max-steps']).toContain(done.reason)
-    expect(h.llm.calls.length).toBeLessThan(10)
+    const tools = toolItems(h.items)
+    expect(tools).toHaveLength(32)
+    expect(tools[31].output).toContain('[meow]')
+    expect(tools[31].output).toContain('after 32 tool calls')
+    expect(tools[0].output).not.toContain('[meow]')
+    expect(h.events.filter(e => e.type === 'tool-start')).toHaveLength(32)
+    expect(userTexts(h.items)).toEqual([])
+    expect(doneEvent(h.events).reason).toBe('complete')
   })
 
-  it('flags repeated identical tool calls across steps as a loop', async () => {
-    const h = makeHarness({
-      tools: new Map([['read', stubTool('read')]]),
-      maxSteps: 10
-    })
-    const sameCallStep = (): LlmStreamPart[] => [
-      { kind: 'tool-call', toolCallId: 'tc-' + Math.random(), toolName: 'read', toolInput: { file_path: 'a.ts' } },
-      { kind: 'finish' }
+  it('cuts call → text → call and drops the hallucinated tail', async () => {
+    const h = makeHarness({ tools: new Map([['read', stubTool('read')]]) })
+    h.llm.queue = [
+      [
+        { kind: 'text', text: 'Checking. ' },
+        { kind: 'tool-call', toolCallId: 'tc1', toolName: 'read', toolInput: { file_path: 'a.ts' } },
+        { kind: 'text', text: 'The result shows the getter is missing, so now I will edit it. ' },
+        { kind: 'tool-call', toolCallId: 'tc2', toolName: 'read', toolInput: { file_path: 'b.ts' } },
+        { kind: 'finish' }
+      ],
+      textParts('done')
     ]
-    h.llm.queue = Array.from({ length: 10 }, sameCallStep)
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 40))
+    const tools = toolItems(h.items)
+    expect(tools.map(t => t.id)).toEqual(['tc1'])
+    expect(tools[0].output).toContain('kept writing after calling tools')
+    expect(h.events.some(e => e.type === 'tool-start' && e.call.id === 'tc2')).toBe(false)
+    const firstAssistant = h.items.find(i => i.kind === 'message' && i.message.role === 'assistant')
+    expect(firstAssistant?.kind === 'message' && firstAssistant.message.text).toBe('Checking. ')
+  })
+
+  it('treats repetition after a tool call as a cut: the call runs and gets a result', async () => {
+    const h = makeHarness({ tools: new Map([['read', stubTool('read')]]) })
+    h.llm.queue = [
+      [
+        { kind: 'tool-call', toolCallId: 'tc1', toolName: 'read', toolInput: { file_path: 'a.ts' } },
+        ...Array.from({ length: 200 }, (): LlmStreamPart => ({ kind: 'reasoning', text: 'counselor' })),
+        { kind: 'finish' }
+      ],
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 40))
+    const tools = toolItems(h.items)
+    expect(tools.map(t => t.id)).toEqual(['tc1'])
+    expect(tools[0].output).toContain('started repeating itself')
+    expect(h.events.some(e => e.type === 'step-discarded')).toBe(false)
+    expect(doneEvent(h.events).reason).toBe('complete')
+  })
+
+  it('never executes an invalid tool call and reports why', async () => {
+    const run = vi.fn(async () => ({ output: 'should not run' }))
+    const h = makeHarness({ tools: new Map([['read', stubTool('read', run)]]) })
+    h.llm.queue = [
+      [{ kind: 'tool-call', toolCallId: 'bad', toolName: 'read', toolInput: {}, invalid: true, invalidReason: 'Invalid input: file_path is required' }, { kind: 'finish' }],
+      textParts('ok')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 40))
+    expect(run).not.toHaveBeenCalled()
+    const [call] = toolItems(h.items)
+    expect(call.permission).toBe('denied')
+    expect(call.error).toContain('invalid tool call: Invalid input: file_path is required')
+  })
+})
+
+describe('SessionRunner tool loops', () => {
+  const sameRead = (i: number): LlmStreamPart[] => [
+    { kind: 'tool-call', toolCallId: `tc-${i}`, toolName: 'read', toolInput: { file_path: 'a.ts' } },
+    { kind: 'finish' }
+  ]
+
+  it('notes a repeated identical call in its result instead of adding a user message', async () => {
+    const h = makeHarness({ tools: new Map([['read', stubTool('read')]]), maxSteps: 10 })
+    h.llm.queue = [sameRead(1), sameRead(2), sameRead(3), textParts('ok')]
     h.runner.run()
     await new Promise(r => setTimeout(r, 60))
+    const tools = toolItems(h.items)
+    expect(tools[1].output).not.toContain('[meow]')
+    expect(tools[2].output).toContain('returned the same result 3 times')
+    expect(userTexts(h.items)).toEqual([])
+    expect(doneEvent(h.events).reason).toBe('complete')
+  })
 
-    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
-    expect(['stuck', 'max-steps']).toContain(done.reason)
-    expect(h.llm.calls.length).toBeLessThan(10)
+  it('ends as stuck/tool when the loop survives two notes', async () => {
+    const h = makeHarness({ tools: new Map([['read', stubTool('read')]]), maxSteps: 20 })
+    h.llm.queue = Array.from({ length: 20 }, (_, i) => sameRead(i))
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 100))
+    const done = doneEvent(h.events)
+    expect(done.reason).toBe('stuck')
+    expect(done.stuckCategory).toBe('tool')
+    expect(done.stuckTool).toBe('read')
+    expect(h.llm.calls.length).toBe(9)
   })
 
   it('does not flag varied tool calls as a loop', async () => {
-    const h = makeHarness({
-      tools: new Map([['read', stubTool('read')]]),
-      maxSteps: 10
-    })
+    const h = makeHarness({ tools: new Map([['read', stubTool('read')]]), maxSteps: 10 })
     h.llm.queue = [
       ...Array.from({ length: 4 }, (_, i): LlmStreamPart[] => [
         { kind: 'tool-call', toolCallId: `tc-${i}`, toolName: 'read', toolInput: { file_path: `file${i}.ts` } },
@@ -2076,8 +2145,46 @@ describe('SessionRunner thinking-loop guard', () => {
     ]
     h.runner.run()
     await new Promise(r => setTimeout(r, 60))
+    expect(doneEvent(h.events).reason).toBe('complete')
+  })
+})
 
-    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
-    expect(done.reason).toBe('complete')
+describe('SessionRunner tool scheduling', () => {
+  it('runs concurrency-safe calls in parallel and everything else alone, in model order', async () => {
+    const log: string[] = []
+    let active = 0
+    let peak = 0
+    const tracked = (name: string, safe: boolean): ToolDefinition => ({
+      ...stubTool(name, async (input) => {
+        const tag = `${name}:${(input as { file_path?: string }).file_path ?? ''}`
+        active++
+        peak = Math.max(peak, active)
+        log.push(`start ${tag}`)
+        await new Promise(r => setTimeout(r, 10))
+        log.push(`end ${tag}`)
+        active--
+        return { output: tag }
+      }),
+      ...(safe ? { concurrencySafe: true } : {})
+    })
+    const h = makeHarness({ tools: new Map([['read', tracked('read', true)], ['edit', tracked('edit', false)]]) })
+    h.llm.queue = [
+      [
+        { kind: 'tool-call', toolCallId: 'r1', toolName: 'read', toolInput: { file_path: 'a' } },
+        { kind: 'tool-call', toolCallId: 'r2', toolName: 'read', toolInput: { file_path: 'b' } },
+        { kind: 'tool-call', toolCallId: 'e1', toolName: 'edit', toolInput: { file_path: 'c' } },
+        { kind: 'tool-call', toolCallId: 'r3', toolName: 'read', toolInput: { file_path: 'd' } },
+        { kind: 'finish' }
+      ],
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 120))
+    expect(peak).toBe(2)
+    const at = (s: string) => log.indexOf(s)
+    expect(at('start edit:c')).toBeGreaterThan(at('end read:a'))
+    expect(at('start edit:c')).toBeGreaterThan(at('end read:b'))
+    expect(at('start read:d')).toBeGreaterThan(at('end edit:c'))
+    expect(toolItems(h.items).map(t => t.id)).toEqual(['r1', 'r2', 'e1', 'r3'])
   })
 })
