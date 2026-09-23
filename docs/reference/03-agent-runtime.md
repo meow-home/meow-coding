@@ -205,7 +205,7 @@ Notable details:
 | `MAX_TOOL_CONCURRENCY` | 10 | `tool-scheduler.ts` |
 | `MAX_LOOP_BREAKS` | 2 | `loop.ts` |
 
-## 3.5 Tool execution (`SessionRunner.executeCall`)
+## 3.5 Tool execution (`SessionRunner.runCall`)
 
 1. Resolve the decision: `allow` → run; `deny` → refuse with
    `tool "<name>" is not permitted in the current mode`; `ask` → emit `prompt-request`

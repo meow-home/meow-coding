@@ -21,7 +21,7 @@ export interface ToolRunResult {
 }
 ```
 
-`ToolContext` is documented in [03 — Tool execution](03-agent-runtime.md#35-tool-execution-sessionrunnerexecutecall).
+`ToolContext` is documented in [03 — Tool execution](03-agent-runtime.md#35-tool-execution-sessionrunnerruncall).
 
 ### Where tools come from
 

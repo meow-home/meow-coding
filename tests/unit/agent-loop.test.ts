@@ -1312,6 +1312,24 @@ describe('SessionRunner compact-on-reject', () => {
     expect(h.llm.calls[2]?.tools.length).toBeGreaterThan(0)
   })
 
+  it('keeps the anti-repetition retry across a context-overflow recovery', async () => {
+    const h = makeOverflowHarness({ tools: new Map([['read', stubTool('read')]]) })
+    h.seed()
+    h.llm.queue = [
+      repeatingStream('reasoning'),
+      [{ kind: 'error', error: OVERFLOW, retryable: false }],
+      textParts('summary'),
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 40))
+    expect(doneEvent(h.events).reason).toBe('complete')
+    expect(h.llm.calls).toHaveLength(4)
+    expect(h.llm.calls[1].antiRepetition).toBe(true)
+    expect(h.llm.calls[3].antiRepetition).toBe(true)
+    expect(h.events.filter(e => e.type === 'step-start').map(e => e.type === 'step-start' && e.step)).toEqual([1, 1, 1])
+  })
+
   it('force-compacts even when the context budget sits below the buffer floor (usable <= 0)', async () => {
     // Context nhỏ (100) với buffer 100 → usable = 100 - 100 - 0 = 0. Trước
     // compactionTarget, forceCompact no-op → retry giữ transcript quá trần →
@@ -2086,6 +2104,9 @@ describe('SessionRunner response cuts', () => {
     expect(tools[0].output).toContain('started repeating itself')
     expect(h.events.some(e => e.type === 'step-discarded')).toBe(false)
     expect(doneEvent(h.events).reason).toBe('complete')
+    // keepChars keeps the clean prefix plus at most one period and the
+    // misaligned fraction of the next; the loop itself is gone.
+    expect(JSON.stringify(h.items)).not.toContain('counselor'.repeat(3))
   })
 
   it('never executes an invalid tool call and reports why', async () => {
@@ -2132,6 +2153,21 @@ describe('SessionRunner tool loops', () => {
     expect(done.stuckCategory).toBe('tool')
     expect(done.stuckTool).toBe('read')
     expect(h.llm.calls.length).toBe(9)
+  })
+
+  it('counts every tool-loop trip in one response', async () => {
+    const h = makeHarness({ tools: new Map([['read', stubTool('read')]]), maxSteps: 10 })
+    h.llm.queue = [[
+      ...Array.from({ length: 9 }, (_, i): LlmStreamPart => ({ kind: 'tool-call', toolCallId: `tc-${i}`, toolName: 'read', toolInput: { file_path: 'a.ts' } })),
+      { kind: 'finish' }
+    ]]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 60))
+    const done = doneEvent(h.events)
+    expect(done.reason).toBe('stuck')
+    expect(done.stuckCategory).toBe('tool')
+    expect(done.recoveryCount).toBe(3)
+    expect(h.llm.calls.length).toBe(1)
   })
 
   it('does not flag varied tool calls as a loop', async () => {
@@ -2186,5 +2222,45 @@ describe('SessionRunner tool scheduling', () => {
     expect(at('start edit:c')).toBeGreaterThan(at('end read:b'))
     expect(at('start read:d')).toBeGreaterThan(at('end edit:c'))
     expect(toolItems(h.items).map(t => t.id)).toEqual(['r1', 'r2', 'e1', 'r3'])
+  })
+})
+
+describe('SessionRunner stop and steering around recovery', () => {
+  it('does not run queued calls after Stop and still gives each call a result', async () => {
+    const controller = new AbortController()
+    const editRun = vi.fn(async () => ({ output: 'edited' }))
+    const h = makeHarness({
+      tools: new Map([
+        ['bash', stubTool('bash', async () => { controller.abort(); return { output: 'ran' } })],
+        ['edit', stubTool('edit', editRun)]
+      ])
+    })
+    h.llm.queue = [[
+      { kind: 'tool-call', toolCallId: 'b1', toolName: 'bash', toolInput: { command: 'x' } },
+      { kind: 'tool-call', toolCallId: 'e1', toolName: 'edit', toolInput: { file_path: 'a' } },
+      { kind: 'finish' }
+    ]]
+    h.runner.run(controller.signal)
+    await new Promise(r => setTimeout(r, 40))
+    expect(editRun).not.toHaveBeenCalled()
+    const tools = toolItems(h.items)
+    expect(tools.find(t => t.id === 'e1')?.error).toBe('aborted by user')
+    const started = h.events.flatMap(e => (e.type === 'tool-start' ? [e.call.id] : []))
+    expect(started).toEqual(['b1', 'e1'])
+    expect(tools.map(t => t.id)).toEqual(started)
+    expect(doneEvent(h.events).reason).toBe('stopped')
+  })
+
+  it('drops a pending repetition retry when a steer is promoted', async () => {
+    let takes = 0
+    const h = makeHarness({
+      takeSteers: () => (++takes === 2 ? [{ id: 's1', text: 'new direction' }] : [])
+    })
+    h.llm.queue = [repeatingStream('reasoning'), textParts('ok')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 40))
+    expect(h.llm.calls).toHaveLength(2)
+    expect(h.llm.calls[1].antiRepetition).toBeUndefined()
+    expect(h.events.filter(e => e.type === 'step-start').map(e => e.type === 'step-start' && e.step)).toEqual([1, 1])
   })
 })

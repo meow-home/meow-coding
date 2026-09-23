@@ -237,6 +237,7 @@ export class SessionRunner {
         // Fresh step budget for the continued work, like opencode's
         // currentStep reset after promoting steers.
         steps = 0
+        retryStep = false
         continue
       }
       const antiRepetition = retryStep
@@ -406,7 +407,12 @@ export class SessionRunner {
       const cut: CutReason | undefined = verdict.kind === 'ok' ? undefined : verdict.kind
       if (cut) {
         this.loopBreaksThisRun++
-        textBuffer = textBuffer.slice(0, guard.textBeforeFirstCall())
+        let keepText = guard.textBeforeFirstCall()
+        if (verdict.kind === 'repetition') {
+          if (verdict.channel === 'reasoning') reasoningBuffer = reasoningBuffer.slice(0, verdict.keepChars)
+          else keepText = Math.min(keepText, verdict.keepChars)
+        }
+        textBuffer = textBuffer.slice(0, keepText)
       }
 
       if (textBuffer || calls.length > 0 || reasoningBuffer) {
@@ -431,11 +437,13 @@ export class SessionRunner {
         await runWithConcurrency(batch.map(d => () => this.runCall(d, signal)))
         for (const d of batch) {
           const verdictForCall = this.finishCall(d.call, cut && d.call === lastCall ? cut : undefined)
-          if (verdictForCall) tripped = verdictForCall
+          if (verdictForCall) {
+            tripped = verdictForCall
+            this.loopBreaksThisRun++
+          }
         }
       }
 
-      if (tripped) this.loopBreaksThisRun++
       if ((cut || tripped) && this.loopBreaksThisRun > MAX_LOOP_BREAKS) {
         this.deps.onEvent({
           type: 'done', agentId, reason: 'stuck',
@@ -545,6 +553,12 @@ export class SessionRunner {
   private async runCall(d: DecidedCall, signal?: AbortSignal): Promise<void> {
     if (d.blocked) return
     const { call, decision, preContext } = d
+    // A Stop during an earlier batch must not let queued calls run or prompt.
+    if (signal?.aborted) {
+      call.permission = 'denied'
+      call.error = 'aborted by user'
+      return
+    }
     const { agentId } = this.deps
     let allowed: boolean
     if (decision === 'allow') {
