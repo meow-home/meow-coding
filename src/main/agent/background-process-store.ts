@@ -159,6 +159,35 @@ export class BackgroundProcessStore extends EventEmitter {
     return { text, status: entry.status, exitCode: entry.exitCode }
   }
 
+  /**
+   * Resolves when the shell has unread output, exits, `ms` elapses, or `signal`
+   * aborts — whichever comes first. Lets bash_output block like Codex's
+   * yield_time instead of forcing the model into a tight polling loop.
+   */
+  waitForNew(id: string, ms: number, signal?: AbortSignal): Promise<void> {
+    const entry = this.entries.get(id)
+    if (!entry || entry.status === 'exited' || entry.buffer.length > entry.readOffset || ms <= 0 || signal?.aborted) {
+      return Promise.resolve()
+    }
+    return new Promise<void>(resolve => {
+      const finish = (): void => {
+        clearTimeout(timer)
+        this.off('data', onData)
+        this.off('exit', onExit)
+        signal?.removeEventListener('abort', finish)
+        resolve()
+      }
+      // 'data' fires before the chunk is buffered; the awaiting caller resumes
+      // on a later microtask, after appendOutput has finished.
+      const onData = (e: BgDataEvent): void => { if (e.id === id) finish() }
+      const onExit = (e: BgExitEvent): void => { if (e.id === id) finish() }
+      const timer = setTimeout(finish, ms)
+      this.on('data', onData)
+      this.on('exit', onExit)
+      signal?.addEventListener('abort', finish, { once: true })
+    })
+  }
+
   kill(id: string): { killed: boolean } | { error: string } {
     const entry = this.entries.get(id)
     if (!entry) return { error: `kill_shell: unknown id "${id}"` }

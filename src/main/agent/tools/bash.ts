@@ -134,20 +134,38 @@ export const bashTool: ToolDefinition = {
   }
 }
 
+const BASH_OUTPUT_DEFAULT_WAIT_S = 15
+const BASH_OUTPUT_MAX_WAIT_S = 300
+
 export const bashOutputTool: ToolDefinition = {
   name: 'bash_output',
   concurrencySafe: true,
   description:
     'Read new stdout/stderr produced by a background shell (started with bash run_in_background) since your last read. ' +
-    'Optionally pass a regex filter to keep only matching lines.',
+    `Waits up to wait_s seconds (default ${BASH_OUTPUT_DEFAULT_WAIT_S}, max ${BASH_OUTPUT_MAX_WAIT_S}) and returns as soon as ` +
+    'there is new output or the shell exits, so never call it in a tight loop: pass a larger wait_s to wait longer, or end ' +
+    'your turn — you are woken when the shell exits. Optionally pass a regex filter to keep only matching lines.',
   schema: z.object({
     id: z.string().describe('The background shell id returned by bash run_in_background.'),
-    filter: z.string().optional().describe('Optional regex; only matching lines are returned.')
+    filter: z.string().optional().describe('Optional regex; only matching lines are returned.'),
+    wait_s: z.number().optional()
+      .describe(`Seconds to wait for new output (default ${BASH_OUTPUT_DEFAULT_WAIT_S}, max ${BASH_OUTPUT_MAX_WAIT_S}); 0 returns immediately.`)
   }),
   async run(input, ctx): Promise<ToolRunResult> {
-    const { id, filter } = input as unknown as { id: string; filter?: string }
-    if (!ctx.backgroundProcs) return { error: 'bash_output: background processes are not available here' }
-    const r = ctx.backgroundProcs.readNew(id, filter)
+    const { id, filter, wait_s } = input as unknown as { id: string; filter?: string; wait_s?: number }
+    const store = ctx.backgroundProcs
+    if (!store) return { error: 'bash_output: background processes are not available here' }
+    const waitS = typeof wait_s === 'number' && Number.isFinite(wait_s)
+      ? Math.min(Math.max(wait_s, 0), BASH_OUTPUT_MAX_WAIT_S)
+      : BASH_OUTPUT_DEFAULT_WAIT_S
+    const deadline = Date.now() + waitS * 1000
+    let r = store.readNew(id, filter)
+    while (!('error' in r) && !r.text && r.status === 'running' && !ctx.signal?.aborted) {
+      const left = deadline - Date.now()
+      if (left <= 0) break
+      await store.waitForNew(id, left, ctx.signal)
+      r = store.readNew(id, filter)
+    }
     if ('error' in r) return { error: r.error }
     const attrs = r.status === 'exited'
       ? `status="exited" exit_code="${r.exitCode ?? 'null'}"`

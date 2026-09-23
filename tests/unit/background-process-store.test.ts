@@ -122,4 +122,55 @@ describe('BackgroundProcessStore', () => {
     expect(list[0].status).toBe('exited')
     store.killAllForAgent('a2')
   }, 20000)
+
+  it('waitForNew resolves as soon as new output arrives', async () => {
+    const { store } = makeStore()
+    const { id } = store.start('a1', 'sleep 1 && echo LATE_MARKER && sleep 20', dir) as { id: string }
+    store.readNew(id)
+    const before = store.listenerCount('data')
+    const started = Date.now()
+    await store.waitForNew(id, 15000)
+    expect(Date.now() - started).toBeLessThan(10000)
+    await waitFor(() => {
+      const r = store.readNew(id)
+      return 'text' in r && r.text.includes('LATE_MARKER')
+    })
+    expect(store.listenerCount('data')).toBe(before)
+    store.kill(id)
+  }, 30000)
+
+  it('waitForNew resolves on timeout and cleans up its listeners', async () => {
+    const { store } = makeStore()
+    const { id } = store.start('a1', 'sleep 20', dir) as { id: string }
+    const before = { data: store.listenerCount('data'), exit: store.listenerCount('exit') }
+    const started = Date.now()
+    await store.waitForNew(id, 300)
+    const elapsed = Date.now() - started
+    expect(elapsed).toBeGreaterThanOrEqual(250)
+    expect(elapsed).toBeLessThan(5000)
+    expect(store.listenerCount('data')).toBe(before.data)
+    expect(store.listenerCount('exit')).toBe(before.exit)
+    store.kill(id)
+  }, 20000)
+
+  it('waitForNew resolves immediately on abort', async () => {
+    const { store } = makeStore()
+    const { id } = store.start('a1', 'sleep 20', dir) as { id: string }
+    const controller = new AbortController()
+    setTimeout(() => controller.abort(), 100)
+    const started = Date.now()
+    await store.waitForNew(id, 15000, controller.signal)
+    expect(Date.now() - started).toBeLessThan(5000)
+    store.kill(id)
+  }, 20000)
+
+  it('waitForNew returns at once for an unknown id or an exited shell', async () => {
+    const { store, exits } = makeStore()
+    const started = Date.now()
+    await store.waitForNew('deadbeef', 5000)
+    const { id } = store.start('a1', 'exit 0', dir) as { id: string }
+    await waitFor(() => exits.length === 1)
+    await store.waitForNew(id, 5000)
+    expect(Date.now() - started).toBeLessThan(4000)
+  }, 20000)
 })

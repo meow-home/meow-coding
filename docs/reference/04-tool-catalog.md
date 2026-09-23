@@ -150,9 +150,9 @@ heavy `~/.bash_profile` can push tree formation past the window.
 
 ### `bash_output`
 
-`{ id: string, filter?: string }`
+`{ id: string, filter?: string, wait_s?: number }`
 
-Reads new stdout/stderr produced by a background shell (started with `bash run_in_background`) since the last read. `filter` is an optional regex pattern to filter lines. Returns `<bash id="..." status="...">...</bash>`. If the background process has exited, calling `bash_output` returns its final output and cleans up the process entry.
+Reads new stdout/stderr produced by a background shell (started with `bash run_in_background`) since the last read. `filter` is an optional regex pattern to filter lines. `wait_s` (default 15, clamped 0–300) blocks until there is new output (a matching line when `filter` is set), the shell exits, the time runs out, or the turn is stopped — so the model waits instead of busy-polling. Returns `<bash id="..." status="...">...</bash>`. If the background process has exited, calling `bash_output` returns its final output and cleans up the process entry.
 
 ### `kill_shell`
 
