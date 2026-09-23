@@ -132,13 +132,15 @@ when a flood or interleave verdict fires.
   from an earlier step.
 - Normalization for comparison: collapse whitespace runs to one space, lowercase. Offsets are
   mapped back to raw-string offsets for `keepChars`.
-- Every ≥ 64 new normalized characters, take the last 32 characters as an anchor and find its
-  previous occurrence with `lastIndexOf`. The distance is the candidate period `p`
-  (1 ≤ p ≤ 1024). Then count how many consecutive copies of the last `p` characters end the tail.
-  The work per check is linear in the tail, bounded to the last 8 KiB.
+- Every ≥ 64 new normalized characters, take the last 32 characters as an anchor and walk back
+  through up to 16 of its previous occurrences with `lastIndexOf`. Each distance is a candidate
+  period `p` (1 ≤ p ≤ 1024). Several candidates are needed because paraphrased openers that
+  share an ending make the nearest occurrence a sub-period. For each candidate, count how many
+  consecutive copies of the last `p` characters end the tail. The scan is bounded to the last
+  8 KiB.
 - Thresholds:
   - `p ≤ 16`: the repeated span is ≥ 256 characters;
-  - `16 < p ≤ 1024`: ≥ 3 consecutive copies.
+  - `16 < p ≤ 1024`: ≥ 3 consecutive copies **and** a span of ≥ 200 characters.
 - A unit with no letter or digit (Unicode `\p{L}` / `\p{N}`) is ignored, so separator lines,
   box drawing and indentation stay legal.
 - Near-identical code (four test cases differing in one word) is not a tandem repeat and does
@@ -154,7 +156,10 @@ really cancels the provider request.
   "Your response was cut: it contained N more tool calls" or "…it continued writing after calling
   tools. Tool results only arrive after your response ends — call tools, then wait for their
   results." No user message is added.
-- **`repetition`, first hit in this step**: discard the step output (nothing written to the
+- **`repetition` after at least one tool call was accepted in this step**: handled like a cut
+  (the calls already announced must get results). The note says the response was cut because
+  it started repeating.
+- **`repetition`, first hit in this step (no calls)**: discard the step output (nothing written to the
   transcript), emit `step-discarded`, and retry the same step with anti-repetition sampling
   (§9.3). The retry does not consume a step.
 - **`repetition` again on that retry**: persist the kept prefix as the assistant message (if
@@ -178,8 +183,7 @@ one. Batches run sequentially. `PreToolUse` hooks and permission decisions still
 all calls, as today.
 
 Results are appended to the transcript and emitted (`tool-result`) in model order after each batch.
-On abort, a call that settles is still appended as soon as it settles, so no orphan tool items
-appear.
+`run()` does not return before a batch settles, so an aborted turn never leaves orphan tool items.
 
 ### 6.2 Tool-loop detector
 
@@ -245,16 +249,19 @@ hard-coded `provider: 'deepseek'` field is removed.
 standard settings. It applies **only** on the OpenAI-compatible branch of `createLlm`; the
 Anthropic, Google and Codex paths send nothing.
 
-- **Built-in presets** keyed by model-family regex: qwen, glm, deepseek, kimi, minimax, gpt-oss,
-  gemma, mistral, nemotron. Values come from each publisher's current model card, verified and
+- **Built-in presets** keyed by model-family regex: qwen (coder and thinking), glm, deepseek,
+  kimi (thinking and instruct), minimax, gpt-oss, gemma, nemotron. Mistral is left out because its
+  recommended values are not confirmed. Values come from each publisher's current model card, verified and
   cited in code comments at implementation time; no invented numbers. An unmatched family sends
   nothing.
 - **Override**: optional `meow.json` key `sampling: Record<modelGlob, SamplingParams>`, matched
   with the same pattern semantics as permission rules against the bare model id. The first match
   wins over the preset, per field.
-- **Anti-repetition retry** (§5.2): the preset plus `frequencyPenalty: max(preset ?? 0, 0.5)` for
-  that one retry only. The sampling is passed via a new optional `LlmStreamOptions.sampling`
-  field.
+- **Anti-repetition retry** (§5.2): the runner sets `LlmStreamOptions.antiRepetition: true` for
+  that one retry only. `resolveSampling` then adds `frequencyPenalty: max(current ?? 0, 0.5)`, but
+  **only when the model matched a preset or an override**. An unmatched model (for example an
+  OpenAI/Codex reasoning model, which rejects `frequency_penalty`) is retried with no sampling
+  change.
 
 ## 10. UI events
 
@@ -333,6 +340,6 @@ In the same change:
 | `MAX_TOOL_CALLS_PER_RESPONSE` | 32 |
 | `MAX_TOOL_CONCURRENCY` | 10 |
 | `MAX_LOOP_BREAKS` | 2 (unchanged) |
-| Repeat detector | anchor 32, check every 64, period ≤ 1024, tail 8 KiB, short-period span 256, long-period copies 3 |
+| Repeat detector | anchor 32, up to 16 anchor candidates, check every 64, period ≤ 1024, tail 8 KiB, short-period span 256, long-period copies 3 and span 200 |
 | `bash_output` `wait_s` | default 15, max 300 |
 | Anti-repetition `frequencyPenalty` | 0.5 (retry only) |
