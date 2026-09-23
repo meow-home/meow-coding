@@ -81,6 +81,13 @@ Lessons learned from the Git viewer screen (don't repeat them):
 - **The title bar paints `var(--bg)`** — `.title-bar` paints `var(--bg)`. On Windows the OS paints the caption strip ~0.5px narrower than the reserved `11.5rem`, so a transparent bar exposed `body`'s radial gradient as a 1px line beside the min/max/close buttons. Don't reintroduce a transparent title bar (`window-chrome.test.ts` guards the surface). `.title-bar-brand` (when expanded) and `.sidebar` draw a `--hairline` right border; when collapsed (`.title-bar-brand.collapsed`), it has `background: var(--bg)` to match the chat pane background and `border-right: none`.
 - **Dropdowns share the `--menu-*` metric tokens** (`--menu-radius`, `--menu-pad`, `--menu-item-h`,
   `--menu-item-pad-x`, `--menu-icon`). New menu surfaces must consume them, not hardcode padding.
+- **Chat surfaces share one centered lane** (`--chat-lane-w` = 64rem on `:root`, side inset derived once on `.chat-panel` as
+  `--chat-inset`). Transcript, todo card, prompt popup, input card and composer footer sit on that column; the composer and
+  todo card keep the inset as padding/margin so their background still reaches the panel edge. The feed also spans the full
+  panel (its scrollbar must hug the panel edge) and reserves its scrollbar gutter on both sides
+  (`scrollbar-gutter: stable both-edges`) while taking `calc(var(--chat-inset) - var(--scrollbar-w))` as its padding — drop
+  that compensation and the transcript rows end a scrollbar width short of the input card. `--scrollbar-w` is the single
+  source for that width; the global `*::-webkit-scrollbar` rule consumes it. Guarded by `tests/e2e/chat-lane.spec.ts`.
 - **The Files panel's shadow is `--shadow-panel`**, not `--shadow-1/2/3`: it is bounded by the
   0.333333rem gap between the panel and every `.main` edge (blur / 2 + offset ≤ that gap). The larger
   dialog shadows spill past `.main` onto the title bar and status bar, which are not the panel's

@@ -238,6 +238,19 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   (200px before) and `white-space: nowrap` rows. With short values the floor decides the box — measured
   exactly 200px, which is why the floor is a real, testable change — and the explicit `max-content`
   keeps the width from depending on shrink-to-fit resolution for `position: absolute; right: 0`.
+- **The chat surfaces share one centered lane (`--chat-lane-w`, 64rem = 768px).** Transcript, todo
+  card, prompt popup, input card and composer footer all sit on the same centered column, ChatGPT/Claude
+  style. The width lives in the token; the side inset is derived once on `.chat-panel` as
+  `--chat-inset: max(1.166667rem, calc((100% - var(--chat-lane-w)) / 2))` — the `max()` makes the base
+  14px padding win on a pane narrower than the lane, so the lane shrinks with the pane. Composer and
+  todo card span the full width and take the inset as padding / margin (their background and border
+  still reach the panel edge). **The feed is the exception**: it also spans the full panel so its
+  scrollbar stays on the panel edge (never pulled inside the lane), and it reserves the scrollbar gutter
+  on both sides (`scrollbar-gutter: stable both-edges`, size from `--scrollbar-w`) while taking
+  `calc(var(--chat-inset) - var(--scrollbar-w))` as its own padding. Without that compensation the
+  transcript rows end a scrollbar width short of the input card, because the inset is measured from the
+  border box, which includes the gutter; `both-edges` (not one-sided `stable`) is what keeps the lane
+  centered rather than shifted left by the gutter. Pinned by `tests/e2e/chat-lane.spec.ts`.
 - **The jump-to-end button floats above the feed on its own token, `--bg-elevated`.** It has to be
   *brighter* than the feed in **both** themes, which no existing surface token provides: `--bg-raised`
   is the card grey, and `--bg-active` means "selected", so it goes *darker* toward the light theme
@@ -325,7 +338,8 @@ Renderer modules do have unit tests — pure helpers and components rendered wit
 - `npm run typecheck` (which includes `tsconfig.web.json`)
 - Playwright e2e (`npm run build && npm run e2e`), which launches the real app:
   `smoke.spec.ts`, `prompt.spec.ts`, `composer.spec.ts`, `context-footer.spec.ts`,
-  `chat-scrollbar.spec.ts`, `sidebar-sessions.spec.ts`, `selectors.spec.ts`, `menus.spec.ts`
+  `chat-scrollbar.spec.ts`, `chat-lane.spec.ts`, `sidebar-sessions.spec.ts`, `selectors.spec.ts`,
+  `menus.spec.ts`
 
 `playwright.config.ts` deletes `ELECTRON_RENDERER_URL` / `NODE_ENV_ELECTRON_VITE` at load time. The dev
 app exports them to every process it spawns, and a shell started from inside it inherits both; with a

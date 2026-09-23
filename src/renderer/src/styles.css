@@ -44,6 +44,13 @@
   --bg-bubble: #161618;
   --bg-bubble-user: #1a3a5c;
   --chat-text: #ffffff;
+  /* Chat lane — transcript, composer and todo list are centered at this width,
+     ChatGPT/Claude style. The scrolling element (.chat-feed) stays full width so
+     the scrollbar sits on the panel edge instead of being pulled inside the lane. */
+  --chat-lane-w: 64rem;
+  /* Single source for the scrollbar size: the ::-webkit-scrollbar sizing below,
+     and the gutter the chat feed must subtract from its lane inset. */
+  --scrollbar-w: 0.666667rem;
 
   /* text — white-dominant for pop on near-black */
   --text: #ffffff;
@@ -184,7 +191,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 :focus-visible { outline: 0.083333rem solid var(--accent); outline-offset: -0.083333rem; }
 
 /* Scrollbar — slim, rounded, accent on hover */
-*::-webkit-scrollbar { width: 0.666667rem; height: 0.666667rem; }
+*::-webkit-scrollbar { width: var(--scrollbar-w); height: var(--scrollbar-w); }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {
   background: rgba(160, 170, 188, 0.5); border-radius: 83.25rem;
@@ -928,7 +935,14 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 }
 
 /* Chat panel (native agent) */
-.chat-panel { flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--bg-chat); }
+.chat-panel {
+  flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--bg-chat);
+  /* One centered lane for the chat surfaces (--chat-lane-w). Declared here, once, so every surface
+     derives from ONE value; `max()` makes the base padding win on a pane narrower than the lane,
+     and `100%` (not a `calc(100% - …)` subtraction) keeps it definite at every width.
+     The feed deliberately does NOT use it directly — see .chat-feed below. */
+  --chat-inset: max(1.166667rem, calc((100% - var(--chat-lane-w)) / 2));
+}
 
 /* Toolbar tạm ẩn (undo/redo vẫn hoạt động qua handlers, chỉ ẩn UI). */
 .chat-history-actions { display: none; }
@@ -936,7 +950,9 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   position: relative;
   flex: 0 0 auto; display: flex; flex-direction: column;
   max-height: 13.333333rem; padding: 0.666667rem 0.833333rem;
-  margin: 0.666667rem 0.833333rem 0;
+  /* Spans the full panel and takes the lane inset as a margin, so the card's own border and
+     background still reach the panel edges while its content lands on the lane column. */
+  margin-block: 0.666667rem 0; margin-inline: var(--chat-inset);
   border: 0.083333rem solid var(--hairline);
   border-radius: var(--radius-lg);
   background: var(--bg-raised);
@@ -975,7 +991,18 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   position: relative; flex: 1; min-height: 0;
   display: flex; flex-direction: column;
 }
-.chat-feed { flex: 1; min-height: 0; overflow-y: auto; padding: 1.166667rem; overflow-anchor: none; }
+.chat-feed {
+  flex: 1; min-height: 0; overflow-y: auto; padding-block: 1.166667rem; overflow-anchor: none;
+  /* Also full panel width, so its scrollbar hugs the panel edge instead of being pulled inside the
+     lane — which is why the lane is padding on the full-width box and not a max-width. Both of the
+     following are load-bearing:
+       - the gutter is reserved on BOTH edges, so the lane stays centered whether or not the
+         transcript overflows (one-sided `stable` shifts it left by the gutter);
+       - the inset is measured from the border box, which includes the gutter, so it must be
+         reduced by the scrollbar width or the rows end a scrollbar short of the input card. */
+  padding-inline: calc(var(--chat-inset) - var(--scrollbar-w));
+  scrollbar-gutter: stable both-edges;
+}
 .chat-feed:focus { outline: none; }
 .chat-feed-content { min-height: 100%; }
 .chat-feed-content > * + * { margin-top: 0.833333rem; }
@@ -1368,7 +1395,9 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .chat-prompt-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 0.166667rem var(--focus-ring); }
 
 /* Composer */
-.chat-composer { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.833333rem 1rem 1rem; background: var(--bg-chat); }
+/* Full panel width, inset by the lane as padding: the composer surface still reaches the panel edges,
+   while its children (prompt popup, input card, footer) land on the lane column. */
+.chat-composer { max-width: 100%; display: flex; flex-direction: column; gap: 0.5rem; padding-block: 0.833333rem 1rem; padding-inline: var(--chat-inset); background: var(--bg-chat); }
 .chat-input {
   display: flex; flex-direction: column; gap: 0.5rem;
   border: 0.083333rem solid var(--hairline); background: var(--bg-chat);
