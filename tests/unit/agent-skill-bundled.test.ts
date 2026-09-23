@@ -16,13 +16,14 @@ describe('bundled skills', () => {
     const names = skills.map(s => s.name).sort()
     expect(names).toEqual([
       'brainstorming', 'brand-guidelines', 'canvas-design',
-      'dispatching-parallel-agents', 'executing-plans',
-      'finishing-a-development-branch', 'frontend-design',
-      'katalon-studio', 'receiving-code-review', 'requesting-code-review',
-      'subagent-driven-development', 'systematic-debugging',
-      'test-driven-development', 'theme-factory', 'using-git-worktrees',
-      'using-superpowers', 'verification-before-completion',
-      'web-artifacts-builder', 'writing-plans', 'writing-skills'
+      'diagnosing-superpowers', 'dispatching-parallel-agents',
+      'executing-plans', 'finishing-a-development-branch',
+      'frontend-design', 'katalon-studio', 'receiving-code-review',
+      'requesting-code-review', 'subagent-driven-development',
+      'systematic-debugging', 'test-driven-development', 'theme-factory',
+      'using-git-worktrees', 'using-superpowers',
+      'verification-before-completion', 'web-artifacts-builder',
+      'writing-plans', 'writing-skills'
     ])
     for (const s of skills) {
       expect(s.description.length).toBeGreaterThan(0)

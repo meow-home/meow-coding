@@ -40,6 +40,7 @@ export const NEW_COMMAND: Command = {
 // matching Superpowers skill so the agent follows that workflow explicitly.
 const SUPERPOWERS: Array<{ name: string; context: string }> = [
   { name: 'brainstorming', context: 'Read any relevant module-level `AGENTS.md` files before proposing or changing implementation.' },
+  { name: 'diagnosing-superpowers', context: 'Diagnose why a Superpowers skill is not working as expected.' },
   { name: 'dispatching-parallel-agents', context: 'Read any relevant module-level `AGENTS.md` files before dispatching work.' },
   { name: 'executing-plans', context: 'Read the relevant implementation plan and supporting `AGENTS.md` files first.' },
   { name: 'finishing-a-development-branch', context: 'Review the current branch state and relevant project instructions before deciding next steps.' },
