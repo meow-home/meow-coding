@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loopDetector, toolLoopDetector } from '../../src/main/agent/repetition'
+import { loopDetector, repeatDetector, toolLoopDetector } from '../../src/main/agent/repetition'
 
 // A faithful mirror of the degenerate "thinking loop" from the bug report: the
 // model keeps re-emitting "let me look at the question tool's run and the
@@ -103,5 +103,72 @@ describe('toolLoopDetector', () => {
     expect(d.next([{ tool: 'read', input: { file_path: 'b.ts' } }])).toBe(false)
     expect(d.next([{ tool: 'read', input: { file_path: 'c.ts' } }])).toBe(false)
     expect(d.next([{ tool: 'read', input: { file_path: 'a.ts' } }])).toBe(false)
+  })
+})
+
+function feedRepeat(chunks: string[]): { fed: string; kept: string } | null {
+  const d = repeatDetector()
+  let fed = ''
+  for (const c of chunks) {
+    fed += c
+    const hit = d.push(c)
+    if (hit) return { fed, kept: fed.slice(0, hit.keepChars) }
+  }
+  return null
+}
+
+function chunked(s: string, size = 7): string[] {
+  const out: string[] = []
+  for (let i = 0; i < s.length; i += size) out.push(s.slice(i, i + size))
+  return out
+}
+
+describe('repeatDetector', () => {
+  it('flags a character-level loop with no word boundaries and keeps the clean prefix', () => {
+    const prefix = 'Now let me add a test for the getter. '
+    const r = feedRepeat([prefix, ...Array<string>(200).fill('counselor')])
+    expect(r).not.toBeNull()
+    expect(r!.kept.startsWith(prefix)).toBe(true)
+    expect(r!.kept.length - prefix.length).toBeLessThan(40)
+  })
+
+  it('flags a repeated Vietnamese sentence', () => {
+    const sentence = 'Tôi sẽ kiểm tra lại tệp cấu hình trước khi chạy lệnh build. '
+    const r = feedRepeat(chunked(sentence.repeat(6)))
+    expect(r).not.toBeNull()
+    expect(r!.kept.startsWith(sentence)).toBe(true)
+  })
+
+  it('flags a cycle of paraphrased sentences that share an ending', () => {
+    const r = feedRepeat(Array.from({ length: 20 }, (_, i) => LOOP_SENTENCES[i % LOOP_SENTENCES.length]))
+    expect(r).not.toBeNull()
+  })
+
+  it('flags a paragraph repeated back to back', () => {
+    const para = 'The deploy script builds the backend, then uploads the static bundle to nginx and restarts pm2. '
+    expect(feedRepeat(chunked(para.repeat(5)))).not.toBeNull()
+  })
+
+  it('does not flag near-identical code', () => {
+    const code = ['alpha', 'beta', 'gamma', 'delta'].map(n =>
+      `  it('renders the ${n} panel when the store flag is set to true', () => {\n` +
+      `    const wrapper = mount(BaseSidePanel, { props: { panelId: '${n}', open: true } })\n` +
+      `    expect(wrapper.find('[data-test="side-panel"]').exists()).toBe(true)\n  })\n`
+    ).join('')
+    expect(feedRepeat(chunked(code))).toBeNull()
+  })
+
+  it('does not flag separator lines, table rules, or indentation', () => {
+    const text = '─'.repeat(400) + '\n' + '='.repeat(400) + '\n' + ' '.repeat(400) + '|---|---|\n'.repeat(40)
+    expect(feedRepeat(chunked(text))).toBeNull()
+  })
+
+  it('does not flag two identical lines of code', () => {
+    const text = '    expect(a).toBe(true)\n'.repeat(2) + 'and then the rest of a perfectly ordinary answer follows here.'
+    expect(feedRepeat(chunked(text))).toBeNull()
+  })
+
+  it('does not flag a long, genuinely varied reasoning stream', () => {
+    expect(feedRepeat(variedReasoningChunks(80, 7))).toBeNull()
   })
 })
