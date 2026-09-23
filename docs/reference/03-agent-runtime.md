@@ -386,8 +386,8 @@ a session parked over its limit would only compact when the user sent the next m
 order and returns `{ context: number, output: number | null }`:
 
 1. **Override** — `maxContextTokens` / `maxOutputTokens` from `meow.json`. `maxOutputTokens` is an
-   optional override; when absent it resolves to `output: null` (omit `max_tokens`), letting the
-   provider decide.
+   optional override; when absent the limits resolve to `output: null` if no source knows the cap,
+   and the wire value falls back to `DEFAULT_OUTPUT_WIRE_CAP` (32000).
 2. **Learned** — `learned-limits.json`, keyed `baseUrl|model`. Only ever tightens, never raises.
 3. **Live `/models`** — fetched in the background from an OpenAI-compatible endpoint, cached per
    `baseUrl|apiKey` with a TTL.
