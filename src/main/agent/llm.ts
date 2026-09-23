@@ -7,6 +7,8 @@ import type { MessageTokens } from '../../shared/types'
 import { normalizeToolInput, toToolDefinition } from './message'
 import { COMPACTION_MARKER } from './compact'
 import type { ToolDefinition } from './tools/types'
+import { resolveSampling } from './sampling'
+import type { SamplingOverrides } from './sampling'
 
 export interface LlmStreamPart {
   kind: 'text' | 'reasoning' | 'tool-call' | 'finish' | 'error'
@@ -14,6 +16,9 @@ export interface LlmStreamPart {
   toolName?: string
   toolCallId?: string
   toolInput?: Record<string, unknown>
+  /** Set on tool-call parts the SDK could not validate (unknown tool, bad arguments). */
+  invalid?: boolean
+  invalidReason?: string
   finishReason?: string
   error?: string
   tokens?: MessageTokens
@@ -34,6 +39,8 @@ export interface LlmStreamOptions {
   variantOptions?: Record<string, unknown>
   /** Upper bound on generated tokens; also what the caller reserved from the context budget. */
   maxOutputTokens?: number
+  /** Retry of a step discarded for repetition: add a frequency penalty where supported. */
+  antiRepetition?: boolean
 }
 
 export interface LlmClient {
@@ -176,7 +183,7 @@ export function createOpenAICompatibleLlm(opts: { apiKey: string; baseUrl?: stri
   return createLlm('openai', opts.apiKey, opts.baseUrl, undefined, opts.providerType)
 }
 
-export function createLlm(provider: string, apiKey: string, baseUrl?: string, retry?: RetryOptions, providerType?: string): LlmClient {
+export function createLlm(provider: string, apiKey: string, baseUrl?: string, retry?: RetryOptions, providerType?: string, sampling?: SamplingOverrides): LlmClient {
   const isDeepSeek = provider === 'deepseek' || providerType === 'deepseek' || isDeepSeekEndpoint(baseUrl)
   const isOpencode = provider === 'opencode' || provider === 'opencode-go' || isOpencodeEndpoint(baseUrl)
   const opencodeSession = isOpencode ? opencodeSessionId() : undefined
@@ -231,6 +238,11 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string, re
     } else {
       providerOptions = variant
     }
+    // Anthropic and Google keep their own tuned defaults; sampling is only for
+    // the OpenAI-compatible branch that serves open models.
+    const samplingParams = provider === 'anthropic' || provider === 'google'
+      ? {}
+      : resolveSampling(opts.model, sampling, { antiRepetition: opts.antiRepetition })
     const result = streamText({
       model: model(opts.model),
       system: opts.system,
@@ -238,6 +250,7 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string, re
       tools,
       abortSignal: opts.signal,
       ...(opts.maxOutputTokens !== undefined ? { maxOutputTokens: opts.maxOutputTokens } : {}),
+      ...samplingParams,
       ...(providerOptions ? { providerOptions } : {})
     })
     for await (const part of result.fullStream) {
@@ -248,14 +261,18 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string, re
         case 'reasoning-delta':
           yield { kind: 'reasoning', text: part.text }
           break
-        case 'tool-call':
+        case 'tool-call': {
+          const invalid = (part as { invalid?: boolean }).invalid === true
+          const error = (part as { error?: unknown }).error
           yield {
             kind: 'tool-call',
             toolName: part.toolName,
             toolCallId: part.toolCallId,
-            toolInput: normalizeToolInput(part.input)
+            toolInput: normalizeToolInput(part.input),
+            ...(invalid ? { invalid: true, invalidReason: error instanceof Error ? error.message : formatLlmError(error) } : {})
           }
           break
+        }
         case 'finish':
           yield {
             kind: 'finish',

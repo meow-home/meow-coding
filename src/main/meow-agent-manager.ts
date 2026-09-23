@@ -21,6 +21,7 @@ import { LearnedLimitsStore, normalizeLearnedKey } from './agent/learned-limits'
 import { createLlm } from './agent/llm'
 import type { LlmClient } from './agent/llm'
 import type { RetryOptions } from './agent/llm'
+import type { SamplingOverrides } from './agent/sampling'
 import { decidePermission } from './agent/permission'
 import type { ToolPermissionContext } from './agent/permission'
 import { collectSubagentRoles } from './agent/subagent-roles'
@@ -66,7 +67,7 @@ export interface MeowAgentManagerDeps {
   vault?: Vault
   store: SessionStore
   tools: Map<string, ToolDefinition>
-  createLlm?: (provider: string, apiKey: string, baseUrl?: string, retry?: RetryOptions, providerType?: string) => LlmClient
+  createLlm?: (provider: string, apiKey: string, baseUrl?: string, retry?: RetryOptions, providerType?: string, sampling?: SamplingOverrides) => LlmClient
   learnedLimits?: LearnedLimitsStore
   env?: NodeJS.ProcessEnv
   userSkillsDir?: string
@@ -1422,14 +1423,15 @@ ${content}` : content
         onRetry: ({ attempt, maxAttempts, delayMs, unbounded }) =>
           this.emit({ type: 'retry', agentId: agent.id, attempt, maxAttempts, delayMs, unbounded })
       },
-      resolved.providerType
+      resolved.providerType,
+      cfg.sampling
     )
     const resolveSubagent = (type: SubagentType): ResolvedSubagentModel | undefined => {
       const ref = cfg.subagentModels?.[type]
       if (!ref) return undefined
       const subResolved = this.resolveAgentConfig(cfg, agent.name, `${ref.provider}/${ref.model}`, ref.accountId)
       if (!subResolved.provider || !subResolved.model || !subResolved.apiKey) return undefined // fallback main
-      const subLlm = (this.deps.createLlm ?? createLlm)(subResolved.provider, subResolved.apiKey, subResolved.baseUrl, undefined, subResolved.providerType)
+      const subLlm = (this.deps.createLlm ?? createLlm)(subResolved.provider, subResolved.apiKey, subResolved.baseUrl, undefined, subResolved.providerType, cfg.sampling)
       return { provider: subResolved.provider, model: subResolved.model, llm: subLlm }
     }
     // Subagents spend real tokens, so their usage is billed to the session too,

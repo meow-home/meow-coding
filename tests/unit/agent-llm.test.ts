@@ -469,3 +469,71 @@ describe('cache breakpoints after compaction', () => {
     expect(out[2].providerOptions).toEqual(BREAK)
   })
 })
+
+describe('sampling and invalid tool calls', () => {
+  const finishOnly = () => ({ fullStream: fakeFullStream([{ type: 'finish', finishReason: 'stop' }]) })
+  const drain = async (llm: ReturnType<typeof createLlm>, opts: Partial<Parameters<ReturnType<typeof createLlm>['stream']>[0]> = {}) => {
+    const out: LlmStreamPart[] = []
+    for await (const p of llm.stream({ model: 'glm-5.1', system: 's', messages: [], tools: [], ...opts })) out.push(p)
+    return out
+  }
+
+  it('sends the family preset on the OpenAI-compatible branch', async () => {
+    streamTextMock.mockReturnValue(finishOnly())
+    await drain(createLlm('ollama-cloud', 'k', 'https://ollama.com/v1'))
+    const call = streamTextMock.mock.calls[0][0] as Record<string, unknown>
+    expect(call.temperature).toBe(1.0)
+    expect(call.topP).toBe(0.95)
+    expect(call).not.toHaveProperty('frequencyPenalty')
+  })
+
+  it('sends nothing for an unknown model', async () => {
+    streamTextMock.mockReturnValue(finishOnly())
+    await drain(createLlm('openai', 'k'), { model: 'llama3' })
+    const call = streamTextMock.mock.calls[0][0] as Record<string, unknown>
+    expect(call).not.toHaveProperty('temperature')
+    expect(call).not.toHaveProperty('topP')
+  })
+
+  it('applies meow.json overrides passed to createLlm', async () => {
+    streamTextMock.mockReturnValue(finishOnly())
+    await drain(createLlm('ollama-cloud', 'k', undefined, undefined, undefined, { 'glm-*': { temperature: 0.7 } }))
+    expect((streamTextMock.mock.calls[0][0] as Record<string, unknown>).temperature).toBe(0.7)
+  })
+
+  it('adds the anti-repetition penalty only when asked', async () => {
+    streamTextMock.mockReturnValue(finishOnly())
+    await drain(createLlm('ollama-cloud', 'k'), { antiRepetition: true })
+    expect((streamTextMock.mock.calls[0][0] as Record<string, unknown>).frequencyPenalty).toBe(0.5)
+  })
+
+  it('never sends sampling to anthropic, even on an anti-repetition retry', async () => {
+    streamTextMock.mockReturnValue(finishOnly())
+    await drain(createLlm('anthropic', 'k'), { model: 'claude-opus-4.6', antiRepetition: true })
+    const call = streamTextMock.mock.calls[0][0] as Record<string, unknown>
+    expect(call).not.toHaveProperty('temperature')
+    expect(call).not.toHaveProperty('frequencyPenalty')
+  })
+
+  it('marks an SDK-invalid tool call with its reason', async () => {
+    streamTextMock.mockReturnValue({
+      fullStream: fakeFullStream([
+        { type: 'tool-call', toolCallId: 't1', toolName: 'nope', input: {}, dynamic: true, invalid: true, error: new Error('Model tried to call unavailable tool nope') },
+        { type: 'finish', finishReason: 'tool-calls' }
+      ])
+    })
+    const out = await drain(createLlm('openai', 'k'), { model: 'llama3' })
+    expect(out[0]).toEqual({
+      kind: 'tool-call', toolName: 'nope', toolCallId: 't1', toolInput: {},
+      invalid: true, invalidReason: 'Model tried to call unavailable tool nope'
+    })
+  })
+
+  it('does not mark a valid tool call', async () => {
+    streamTextMock.mockReturnValue({
+      fullStream: fakeFullStream([{ type: 'tool-call', toolCallId: 't1', toolName: 'read', input: { file_path: 'a' } }])
+    })
+    const out = await drain(createLlm('openai', 'k'), { model: 'llama3' })
+    expect(out[0]).not.toHaveProperty('invalid')
+  })
+})

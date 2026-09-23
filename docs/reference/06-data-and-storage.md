@@ -127,6 +127,7 @@ writes it through `settingsToConfig`.
   // ── Tool output ──────────────────────────────────────────────────────────
   "toolOutput": { "maxBytes": 51200, "maxLines": 2000 },
   "mcpOutput":  { "maxTokens": 25000 },     // absent = DEFAULT_MCP_OUTPUT_TOKENS
+  "sampling": { "glm-*": { "temperature": 0.7 } }, // optional per-model override of the built-in presets (temperature/topP/frequencyPenalty/presencePenalty); OpenAI-compatible providers only
 
   // ── Integrations ─────────────────────────────────────────────────────────
   "lsp": { "enabled": true, "diagnosticsTimeoutMs": 3000 },

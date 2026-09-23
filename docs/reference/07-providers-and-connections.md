@@ -49,6 +49,18 @@ hostname ends with `opencode.ai`. The Zen/Go gateway routes requests by session 
 "Request is missing x-opencode-session" when the header is absent, so `createLlm` mints a per-client
 `ses_` session id and sends it as the `x-opencode-session` header on every request from that agent.
 
+**Sampling** (`agent/sampling.ts`) applies only to the OpenAI-compatible branch. `resolveSampling`
+matches the bare model id against built-in publisher presets (qwen, qwen-coder, glm, kimi,
+kimi-thinking, minimax, deepseek, gpt-oss, gemma, nemotron) and the optional `meow.json` `sampling`
+overrides (patterns as in permission rules; override fields win). An unmatched model gets no
+sampling parameters. When a step is retried after a repetition cut, the runner sets
+`antiRepetition` and a matched model also gets `frequencyPenalty` ≥ 0.5 for that retry only.
+Anthropic and Google always keep their provider defaults.
+
+**Invalid tool calls.** A `tool-call` part the SDK marks `invalid` (unknown tool or arguments
+failing the schema) is passed on with `invalid: true` and `invalidReason`. The loop records it
+with an error and never executes it.
+
 **Anthropic prompt caching** is explicit: `providerOptions.anthropic.cacheControl = ephemeral` caches
 the system prompt, and `withCacheBreakpoints` tags the end of the stable prefix plus the last message
 so the cache grows one turn at a time (0.1× input price instead of 1.0×). For a compacted transcript

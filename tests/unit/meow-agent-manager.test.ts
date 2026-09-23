@@ -1488,6 +1488,7 @@ describe('MeowAgentManager', () => {
         'local-account-scoped-key',
         'http://127.0.0.1:43123/v1',
         expect.objectContaining({ onReducedBudget: expect.any(Function) }),
+        undefined,
         undefined
       )
       expect(createLlm.mock.calls.some(c => c[0] === 'codex' && c[1] === 'local-account-scoped-key')).toBe(true)
@@ -1856,5 +1857,19 @@ describe('MeowAgentManager output cap', () => {
     const { manager, llmOutputCaps } = await makeManager({ configPath: cfgPath })
     await manager.send('a1', 'hello')
     expect(llmOutputCaps[0]).toBe(50000)
+  })
+})
+
+describe('MeowAgentManager sampling', () => {
+  it('hands meow.json sampling overrides to the LLM client', async () => {
+    const cfgDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-sampling-'))
+    const cfgPath = path.join(cfgDir, 'meow.json')
+    writeFileSync(cfgPath, JSON.stringify({
+      provider: { test: { apiKey: 'sk-test', models: ['test-model'] } },
+      model: 'test',
+      sampling: { 'test-*': { temperature: 0.3 } }
+    }))
+    const { createLlm } = await makeManager({ configPath: cfgPath })
+    expect((createLlm.mock.calls[0] as unknown[])[5]).toEqual({ 'test-*': { temperature: 0.3 } })
   })
 })

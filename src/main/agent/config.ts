@@ -4,6 +4,7 @@ import type { AgentSettings, CompactionSettings, MeowSettings, ModelRef, Notific
 import type { McpServerConfig } from './mcp/manager'
 import { normalizeHooks } from './hooks'
 import type { HooksConfig } from './hooks'
+import type { SamplingOverrides, SamplingParams } from './sampling'
 
 export type { PermissionRule }
 export type { McpServerConfig }
@@ -60,6 +61,8 @@ export interface MeowConfig {
   subagentModels?: Partial<Record<SubagentType, ModelRef>>
   lastUsedModel?: ModelRef
   hooks?: HooksConfig
+  /** Per-model sampling overrides, keyed by model-id pattern (see agent/sampling.ts). */
+  sampling?: SamplingOverrides
 }
 
 export interface ResolvedAgentConfig {
@@ -256,6 +259,22 @@ function normalizeMcpOutput(raw: { maxTokens?: number } | undefined): { maxToken
 }
 
 
+function normalizeSampling(raw: unknown): SamplingOverrides | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const out: SamplingOverrides = {}
+  for (const [pattern, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue
+    const source = value as Record<string, unknown>
+    const params: SamplingParams = {}
+    for (const key of ['temperature', 'topP', 'frequencyPenalty', 'presencePenalty'] as const) {
+      const n = source[key]
+      if (typeof n === 'number' && Number.isFinite(n)) params[key] = n
+    }
+    if (Object.keys(params).length > 0) out[pattern] = params
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
 function normalizeLsp(raw: Partial<LspConfig> | undefined): LspConfig {
   return {
     enabled: raw?.enabled ?? DEFAULT_LSP.enabled,
@@ -356,7 +375,8 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     notifications: normalizeNotifications(raw.notifications),
     subagentModels: normalizeSubagentModels(raw.subagentModels, providers),
     lastUsedModel: raw.lastUsedModel,
-    hooks: normalizeHooks(raw.hooks)
+    hooks: normalizeHooks(raw.hooks),
+    sampling: normalizeSampling(raw.sampling)
   }
 }
 
@@ -522,6 +542,8 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
     // Hooks are edited in meow.json / .meow/hooks.json, never in the settings
     // UI, so they must survive a settings save instead of being written away.
     hooks: normalizeHooks(base.hooks),
+    // Like hooks, sampling is edited in meow.json only and must survive a settings save.
+    sampling: normalizeSampling(base.sampling),
     ...(settings.subagentModels
       ? { subagentModels: normalizeSubagentModels(settings.subagentModels, providers) }
       : {}),
