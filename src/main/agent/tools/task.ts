@@ -12,6 +12,7 @@ import { collectSubagentRoles } from '../subagent-roles'
 import { decide, deriveSubagentContext } from '../permission'
 import type { SubagentRole, ToolPermissionContext } from '../permission'
 import type { HooksRunner } from '../hooks'
+import { DEFAULT_OUTPUT_WIRE_CAP } from '../config'
 
 export type { SubagentType } from '../../../shared/types'
 
@@ -60,6 +61,9 @@ export function createTaskTool(opts: {
   // past the model limit and the provider rejects the whole task.
   maxContextTokens?: number
   maxOutputTokens?: number
+  // Sent as max_tokens for the parent's model. A subagent on a different model
+  // gets the default cap instead; a lower real limit is learned on rejection.
+  maxOutputTokensWire?: number
   compaction?: CompactionSettings
   toolOutput?: { maxBytes: number; maxLines: number }
   truncation?: TruncationStore
@@ -160,6 +164,7 @@ export function createTaskTool(opts: {
       maxSteps: opts.maxSteps ?? 30,
       maxContextTokens: opts.maxContextTokens,
       maxOutputTokens: opts.maxOutputTokens,
+      maxOutputTokensWire: role.model || sub ? DEFAULT_OUTPUT_WIRE_CAP : opts.maxOutputTokensWire,
       compaction: opts.compaction,
       toolOutput: opts.toolOutput,
       truncation: opts.truncation,

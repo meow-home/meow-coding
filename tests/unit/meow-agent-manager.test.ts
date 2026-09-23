@@ -101,6 +101,7 @@ async function makeManager(opts: StubLlmOptions & {
   const llmMessages: Array<{ role: string; content: unknown }>[] = []
   const llmVariants: Array<Record<string, unknown> | undefined> = []
   const llmModels: string[] = []
+  const llmOutputCaps: Array<number | undefined> = []
   const hangState = { resolved: 0 }
   let onRetryCaptured: ((info: { attempt: number; maxAttempts: number; delayMs: number; unbounded?: boolean }) => void) | undefined
   let llmClient: LlmClient
@@ -113,6 +114,7 @@ async function makeManager(opts: StubLlmOptions & {
         llmMessages.push(request.messages as { role: string; content: unknown }[])
         llmVariants.push(request.variantOptions)
         llmModels.push(request.model)
+        llmOutputCaps.push(request.maxOutputTokens)
         if (opts.hangUntilAbort) {
           await new Promise<void>(resolve => {
             if (request.signal?.aborted) return resolve()
@@ -159,7 +161,7 @@ async function makeManager(opts: StubLlmOptions & {
   })
   manager.setOnEvent(e => events.push(e))
   await manager.init([{ ...MEOW_AGENT }, { ...PTY_AGENT }])
-  return { manager, store, events, createLlm, savedPermissions, llmCalls, llmSystems, llmMessages, llmVariants, llmModels, hangState, onRetryCaptured }
+  return { manager, store, events, createLlm, savedPermissions, llmCalls, llmSystems, llmMessages, llmVariants, llmModels, llmOutputCaps, hangState, onRetryCaptured }
 }
 
 describe('MeowAgentManager', () => {
@@ -1827,5 +1829,32 @@ describe('MeowAgentManager draft session file suggestions', () => {
     const { manager } = await makeManager()
     manager.setProjectPath('/proj')
     expect(await manager.suggestFiles('nope', 'src/')).toEqual([])
+  })
+})
+
+describe('MeowAgentManager output cap', () => {
+  it('always sends a bounded max_tokens when no limit is configured or known', async () => {
+    const cfgDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-wire-'))
+    const cfgPath = path.join(cfgDir, 'meow.json')
+    writeFileSync(cfgPath, JSON.stringify({
+      provider: { test: { apiKey: 'sk-test', models: ['test-model'] } },
+      model: 'test'
+    }))
+    const { manager, llmOutputCaps } = await makeManager({ configPath: cfgPath })
+    await manager.send('a1', 'hello')
+    expect(llmOutputCaps[0]).toBe(32000)
+  })
+
+  it('passes an explicit maxOutputTokens override through unchanged', async () => {
+    const cfgDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-wire-'))
+    const cfgPath = path.join(cfgDir, 'meow.json')
+    writeFileSync(cfgPath, JSON.stringify({
+      provider: { test: { apiKey: 'sk-test', models: ['test-model'] } },
+      model: 'test',
+      maxOutputTokens: 50000
+    }))
+    const { manager, llmOutputCaps } = await makeManager({ configPath: cfgPath })
+    await manager.send('a1', 'hello')
+    expect(llmOutputCaps[0]).toBe(50000)
   })
 })

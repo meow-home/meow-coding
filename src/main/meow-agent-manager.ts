@@ -4,7 +4,7 @@ import type { ChatDelegationMeta, ChatEvent, ChatMessage, ChatTranscriptItem, Co
 import { DRAFT_SESSION_ID, type AgentConfig, type AgentMode, type ArtifactEntry, type CatalogProviderSummary, type Command, type ModelRef, type SubagentType } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, resolveApiKey, settingsToConfig, writeMeowConfig,
-  resolveOutputTokens,
+  resolveOutputTokens, resolveWireOutputTokens,
   DEFAULT_MAX_CONTEXT_TOKENS,
   DEFAULT_MAX_OUTPUT_TOKENS,
   OLLAMA_CLOUD_BASE_URL,
@@ -1404,10 +1404,9 @@ ${content}` : content
       overrides: { context: cfg.maxContextTokens, output: cfg.maxOutputTokens }
     })
     const contextTokens = limits.context
-    const outputWire = limits.output
-    // Reserve = wire đã xác minh (hoặc 32k) — chỉ cho compaction/footer, không
-    // phải giá trị gửi provider.
-    const outputReserve = resolveOutputTokens({ output: outputWire ?? undefined }, contextTokens, DEFAULT_MAX_OUTPUT_TOKENS)
+    const outputWire = resolveWireOutputTokens(limits.output, cfg.maxOutputTokens)
+    // The reserve (compaction budget + footer) follows what is actually sent.
+    const outputReserve = resolveOutputTokens({ output: outputWire }, contextTokens, DEFAULT_MAX_OUTPUT_TOKENS)
     const skills = collectSkills(agent.cwd, this.deps.userSkillsDir, this.deps.builtinSkillsDir)
     // AGENTS.md/CLAUDE.md walking up from cwd are inlined into the system
     // prompt (opencode-style); module-level ones attach on read via loop.ts.
@@ -1487,6 +1486,7 @@ ${content}` : content
       hooks,
       maxContextTokens: contextTokens,
       maxOutputTokens: outputReserve,
+      maxOutputTokensWire: outputWire,
       compaction: cfg.compaction,
       toolOutput: cfg.toolOutput,
       truncation: this.deps.truncation,
@@ -1622,7 +1622,7 @@ ${content}` : content
       maxSteps: cfg.maxSteps,
       maxContextTokens: contextTokens,
       maxOutputTokens: outputReserve,
-      maxOutputTokensWire: outputWire ?? undefined,
+      maxOutputTokensWire: outputWire,
       onContextOverflow: (promptTokens, message) => this.learnedLimits.recordContextOverflow(
         learnedKey,
         parseContextLimitFromError(message) ?? promptTokens

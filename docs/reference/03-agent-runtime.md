@@ -394,14 +394,16 @@ order and returns `{ context: number, output: number | null }`:
 4. **Catalog** — models.dev via `ModelsCatalog.getModelLimit`.
 5. **Default** — `DEFAULT_MAX_CONTEXT_TOKENS = 128000`.
 
-`output: null` means *omit `max_tokens` entirely* and let the provider choose — that request can
-never fail with "max_tokens exceeds".
+`output: null` means no source knows the cap. `max_tokens` is still always sent:
+`resolveWireOutputTokens` picks the override, else `min(output ?? 32000, 32000)`, so a looping
+model can never generate until the context is full. Subagents on a different model get the 32k
+default.
 
 Two distinct output numbers exist and must not be confused:
 
 | Name | Meaning |
 |---|---|
-| `maxOutputTokensWire` | The verified value actually sent to the provider as `max_tokens`; `undefined` = omit |
+| `maxOutputTokensWire` | The value sent to the provider as max_tokens (resolveWireOutputTokens); always set by the manager |
 | `maxOutputTokens` (the **reserve**) | `resolveOutputTokens(...)` — used only for budgeting: subtracted from the context window for compaction and shown in the UI footer |
 
 `resolveOutputTokens(modelLimit, contextLimit, fallback)` =

@@ -118,8 +118,10 @@ until the provider itself confirms or refutes it.
 | 4 | **Catalog** | models.dev. Its `output` is capped at `MAX_OUTPUT_HARD_CAP` (131 072) because the catalog is the one source that can overclaim wildly |
 | 5 | **Default** | `context: 128000`, `output: null` |
 
-**`output: null` means omit `max_tokens` from the request entirely.** That is precisely what makes
-`max_tokens exceeds model's maximum output tokens` impossible for models whose real cap is unknown.
+**`output: null` means no source knows the cap.** The request still carries a bound:
+`resolveWireOutputTokens(output, override)` sends the `maxOutputTokens` override unchanged, else
+`min(output ?? 32000, 32000)` (`DEFAULT_OUTPUT_WIRE_CAP`). A real cap below that is learned from
+the provider's `max_tokens exceeds` rejection (see *Learning from errors*).
 
 Model-id matching (`matchModel`) is forgiving because server tags drift from config ids: exact match
 → match after stripping `:tag` (Ollama Cloud serves `deepseek-v4-flash:0731` for

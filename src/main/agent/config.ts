@@ -110,6 +110,15 @@ export function resolveOutputTokens(
   if (!contextLimit || contextLimit <= 0) return Math.min(base, MAX_OUTPUT_HARD_CAP)
   return Math.min(base, MAX_OUTPUT_HARD_CAP, Math.floor(contextLimit / 2))
 }
+
+// Sent as max_tokens on every request. Without a bound, a model that falls into
+// a repetition loop keeps generating until the context window is full.
+export const DEFAULT_OUTPUT_WIRE_CAP = 32000
+
+export function resolveWireOutputTokens(limitOutput: number | null | undefined, override?: number): number {
+  if (override !== undefined) return override
+  return Math.min(limitOutput ?? DEFAULT_OUTPUT_WIRE_CAP, DEFAULT_OUTPUT_WIRE_CAP)
+}
 export const DEFAULT_COMPACTION: MeowCompactionConfig = {
   auto: true,
   tailTurns: 2
