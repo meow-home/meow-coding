@@ -8,7 +8,7 @@ The tool registry for the native Meow agent. Each file exports a `ToolDefinition
 
 | File | Responsibility |
 |---|---|
-| `types.ts` | `ToolDefinition` interface + `ToolSchema` type — the contract every tool implements. |
+| `types.ts` | `ToolDefinition` interface + `ToolSchema` type — the contract every tool implements. `concurrencySafe?: boolean` marks read-only tools that may run in parallel (default: runs alone). |
 | `registry.ts` | `createDefaultTools()` — the default tool map handed to `MeowAgentManager`. |
 | `bash.ts` | Runs shell commands (`bashTool`, `bashOutputTool`, `killShellTool`). Windows: wraps via git-bash fallback; kills process tree on timeout/abort; supports `run_in_background` to spawn long-lived processes managed via `BackgroundProcessStore`. |
 | `monitor.ts` | `monitorTool` — async watch over a background shell or polled command; returns immediately (`background: true`) by default, or with `wait: true` awaits up to 60 seconds and returns an immediate/buffered resolution through the tool result without a duplicate feed notification. |
@@ -40,3 +40,4 @@ The tool registry for the native Meow agent. Each file exports a `ToolDefinition
 - Subagents never receive `todowrite`: their runner has no `setTodos` sink.
 - A subagent may only be given tools that already exist in the map passed to `createTaskTool`; `task` is not in that map, so subagents cannot nest.
 - `delegate_session` is registered per-runner by `MeowAgentManager`, not in `registry.ts`, so subagents and unrelated runners never receive it.
+- Mark a new tool `concurrencySafe: true` only if it never writes files, spawns a foreground process, or prompts the user; everything else runs alone, in model order.

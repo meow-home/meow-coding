@@ -250,6 +250,7 @@ export function createTaskTool(opts: {
 
   return {
     name: 'task',
+    concurrencySafe: true,
     description:
       'Dispatch a focused task to a subagent (an isolated agent with its own context and tools). ' +
       'Launch multiple task calls in a single message to run them in parallel. ' +

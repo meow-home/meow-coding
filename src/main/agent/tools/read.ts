@@ -8,6 +8,7 @@ const MAX_CHARS = 20000
 
 export const readTool: ToolDefinition = {
   name: 'read',
+  concurrencySafe: true,
   description:
     'Read a text file from the project. Returns up to 2000 lines (capped at 20000 ' +
     'characters) by default. Use offset/limit to page through large files.',

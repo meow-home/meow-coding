@@ -6,6 +6,7 @@ import type { LspManager } from '../lsp/manager'
 export function createLspTool(lsp: LspManager): ToolDefinition {
   return {
     name: 'lsp',
+    concurrencySafe: true,
     description:
       'Query a language server for code intelligence: goToDefinition, findReferences, hover, ' +
       'documentSymbol. Use to understand how code is wired together before editing.',

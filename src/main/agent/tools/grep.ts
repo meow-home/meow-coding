@@ -5,6 +5,7 @@ import { searchProject } from '../../project-search'
 
 export const grepTool: ToolDefinition = {
   name: 'grep',
+  concurrencySafe: true,
   description:
     'Search file contents with a regular expression and return matching file:line entries.',
   schema: z.object({

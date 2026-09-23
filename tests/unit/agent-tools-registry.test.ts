@@ -30,3 +30,15 @@ describe('default permission', () => {
     expect(DEFAULT_MEOW_CONFIG.permission.office).toBe('ask')
   })
 })
+
+describe('concurrency-safe tools', () => {
+  it('marks read-only tools safe and leaves writers and shells serial', () => {
+    const tools = createDefaultTools()
+    for (const name of ['read', 'glob', 'grep', 'webfetch', 'websearch', 'skill', 'bash_output']) {
+      expect(tools.get(name)?.concurrencySafe, name).toBe(true)
+    }
+    for (const name of ['bash', 'write', 'edit', 'apply-patch', 'todowrite', 'question', 'kill_shell', 'monitor']) {
+      expect(tools.get(name)?.concurrencySafe, name).toBeFalsy()
+    }
+  })
+})

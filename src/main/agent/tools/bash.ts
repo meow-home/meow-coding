@@ -136,6 +136,7 @@ export const bashTool: ToolDefinition = {
 
 export const bashOutputTool: ToolDefinition = {
   name: 'bash_output',
+  concurrencySafe: true,
   description:
     'Read new stdout/stderr produced by a background shell (started with bash run_in_background) since your last read. ' +
     'Optionally pass a regex filter to keep only matching lines.',

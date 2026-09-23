@@ -9,6 +9,7 @@ interface TavilyResult {
 
 export const websearchTool: ToolDefinition = {
   name: 'websearch',
+  concurrencySafe: true,
   description:
     'Search the web using the Tavily API and return a concise list of results. ' +
     'Requires a TAVILY_API_KEY environment variable.',

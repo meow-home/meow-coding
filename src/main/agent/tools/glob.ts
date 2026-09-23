@@ -6,6 +6,7 @@ const MAX_RESULTS = 200
 
 export const globTool: ToolDefinition = {
   name: 'glob',
+  concurrencySafe: true,
   description: 'Find files matching a glob pattern (relative to the project root).',
   schema: z.object({
     pattern: z.string().describe('Glob pattern, e.g. "src/**/*.ts".')

@@ -6,6 +6,7 @@ const DEFAULT_MAX_CHARS = 8000
 
 export const webfetchTool: ToolDefinition = {
   name: 'webfetch',
+  concurrencySafe: true,
   description: 'Fetch a URL and return its content as markdown. Use for reading web pages and docs.',
   schema: z.object({
     url: z.string().describe('The http(s) URL to fetch.'),

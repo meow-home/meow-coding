@@ -8,6 +8,7 @@ export function createSkillTool(
 ): ToolDefinition {
   return {
     name: 'skill',
+    concurrencySafe: true,
     description:
       'Load a skill (a bundle of reusable instructions) by name. ' +
       'Available skills are listed in the system prompt.',

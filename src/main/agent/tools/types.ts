@@ -12,6 +12,11 @@ export interface ToolDefinition {
   name: string
   description: string
   schema: ToolSchema
+  /**
+   * Read-only and safe to run alongside other safe calls. Absent = runs alone,
+   * which is the only safe default for MCP and user tools.
+   */
+  concurrencySafe?: boolean
   run(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolRunResult>
 }
 

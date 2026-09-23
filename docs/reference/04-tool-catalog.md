@@ -76,6 +76,12 @@ in Settings → Permissions.
 | `websearch` | (unset → ask) | Tavily web search |
 | `lsp` | (unset → ask) | Language-server queries for a file |
 
+**Concurrency.** Tools flagged `concurrencySafe` — `read`, `glob`, `grep`, `webfetch`,
+`websearch`, `lsp`, `skill`, `bash_output`, `task` — run in parallel (at most 10 at once) when
+the model emits them back to back and they are auto-allowed. Every other call, including MCP and
+user tools and any call that prompts for permission, runs alone. Results always reach the
+transcript in the model's call order.
+
 ### `read`
 
 `{ file_path: string, offset?: number (0-based line), limit?: number }`
