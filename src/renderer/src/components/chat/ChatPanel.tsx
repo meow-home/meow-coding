@@ -23,6 +23,7 @@ type FeedItem =
   | { kind: 'error'; id: string; text: string }
   | { kind: 'compaction'; id: string; running?: boolean; failed?: boolean }
   | { kind: 'retry'; id: string; attempt: number; maxAttempts: number; delayMs: number; unbounded?: boolean }
+  | { kind: 'notice'; id: string; text: string }
   | { kind: 'subagent'; taskId: string; subagentType?: string; text: string; reasoning?: string; result?: string; background?: boolean; tools: string[]; state: 'running' | 'completed' | 'cancelled' | 'error' }
 
 // Transcript items (message/tool from the windowed IPC read) share a common
@@ -235,6 +236,14 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   // Id của dòng "Retrying…" đang hiển thị; null = không có dòng nào. Upsert giữ
   // một dòng duy nhất, xóa khi attempt thật sự sinh output hoặc turn kết thúc.
   const retryIdRef = useRef<string | null>(null)
+  // Set by step-start: the next delta opens a new assistant bubble, so each
+  // model request renders as its own row instead of being glued to the last.
+  const newBubbleRef = useRef(false)
+  // Bubbles opened since the last step-start, dropped on step-discarded.
+  const stepBubbleIdsRef = useRef<string[]>([])
+  // Unique ids even when two bubbles open in the same millisecond.
+  const bubbleSeqRef = useRef(0)
+  const noticeIdRef = useRef<string | null>(null)
 
   const refreshVariants = useCallback(() => {
     void window.api.getAgentVariants(agentId).then(list => {
@@ -441,26 +450,24 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     const { text, reasoning } = deltaBufRef.current
     if (!text && !reasoning) return
     deltaBufRef.current = { text: '', reasoning: '' }
+    const forceNew = newBubbleRef.current
+    newBubbleRef.current = false
+    const newId = `a-${Date.now()}-${++bubbleSeqRef.current}`
     setItems(prev => {
       const next = [...prev]
-      if (text) {
-        const last = next[next.length - 1]
-        if (last && last.kind === 'message' && last.role === 'assistant') {
-          next[next.length - 1] = { ...last, text: appendStreamDelta(last.text, text) }
-        } else {
-          next.push({ kind: 'message', id: 'a-' + Date.now(), role: 'assistant', text })
+      const last = next[next.length - 1]
+      if (!forceNew && last && last.kind === 'message' && last.role === 'assistant') {
+        next[next.length - 1] = {
+          ...last,
+          text: text ? appendStreamDelta(last.text, text) : last.text,
+          reasoning: reasoning ? appendStreamDelta(last.reasoning ?? '', reasoning) : last.reasoning
         }
-      }
-      if (reasoning) {
-        const last = next[next.length - 1]
-        if (last && last.kind === 'message' && last.role === 'assistant') {
-          next[next.length - 1] = { ...last, reasoning: appendStreamDelta(last.reasoning ?? '', reasoning) }
-        } else {
-          next.push({ kind: 'message', id: 'a-' + Date.now(), role: 'assistant', text: '', reasoning })
-        }
+      } else {
+        next.push({ kind: 'message', id: newId, role: 'assistant', text, reasoning: reasoning || undefined })
       }
       return next
     })
+    if (forceNew) stepBubbleIdsRef.current.push(newId)
   }, [setItems])
 
   useEffect(() => () => {
@@ -490,6 +497,12 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
       if (retryIdRef.current == null) return
       retryIdRef.current = null
       setItems(prev => prev.filter(i => i.kind !== 'retry'))
+    }
+    const clearNotice = () => {
+      if (noticeIdRef.current == null) return
+      const id = noticeIdRef.current
+      noticeIdRef.current = null
+      setItems(prev => prev.filter(i => !(i.kind === 'notice' && i.id === id)))
     }
     if (e.type === 'subagent-event') {
       setItems(prev => {
@@ -619,6 +632,7 @@ if (e.type === 'usage') {
     }
     if (e.type === 'done' || e.type === 'error') {
       clearRetry()
+      clearNotice()
       flushDeltas()
       setRunning(false)
       setPendingPrompt(null)
@@ -639,7 +653,7 @@ if (e.type === 'usage') {
       } else if (e.reason === 'stuck') {
         const detail = e.stuckCategory === 'tool'
           ? ` The repeated tool was ${e.stuckTool ?? 'unknown'}.`
-          : e.stuckCategory === 'stream' ? ' The provider stream repeated the same content.' : ''
+          : e.stuckCategory === 'stream' ? ' Its output kept repeating, even after a retry.' : ''
         setItems(prev => [...prev, {
           kind: 'error',
           id: 'stuck-' + Date.now(),
@@ -675,8 +689,27 @@ if (e.type === 'usage') {
       setPromptCollapsed(false)
       return
     }
+    if (e.type === 'step-start') {
+      flushDeltas()
+      newBubbleRef.current = true
+      stepBubbleIdsRef.current = []
+      return
+    }
+    if (e.type === 'step-discarded') {
+      flushDeltas()
+      const drop = new Set(stepBubbleIdsRef.current)
+      stepBubbleIdsRef.current = []
+      const id = 'n-' + Date.now()
+      noticeIdRef.current = id
+      setItems(prev => [
+        ...prev.filter(i => !(i.kind === 'message' && drop.has(i.id))),
+        { kind: 'notice', id, text: 'Model output started repeating — retrying…' }
+      ])
+      return
+    }
     if (e.type === 'text-delta' || e.type === 'reasoning-delta') {
       clearRetry()
+      clearNotice()
       const buf = deltaBufRef.current
       if (e.type === 'text-delta') buf.text += e.delta
       else buf.reasoning += e.delta
@@ -951,6 +984,9 @@ if (e.type === 'usage') {
             return (
               <RetryCountdown key={item.id} id={item.id} attempt={item.attempt} maxAttempts={item.maxAttempts} delayMs={item.delayMs} unbounded={item.unbounded} />
             )
+          }
+          if (item.kind === 'notice') {
+            return <div key={item.id} className="chat-compacted running">{item.text}</div>
           }
           if (item.kind === 'message') {
             // text can be absent on legacy/malformed stored messages; treat it
