@@ -90,10 +90,31 @@ describe('toLlmMessages', () => {
     // Reasoning must precede text/tool-call so thinking-mode providers accept
     // the replayed turn (DeepSeek rejects a turn whose reasoning_content is dropped).
     expect(assistant.content).toEqual([
-      { type: 'reasoning', text: 'I should list the files first.', provider: 'deepseek' },
+      { type: 'reasoning', text: 'I should list the files first.' },
       { type: 'text', text: 'reading...' },
       { type: 'tool-call', toolCallId: 'c1', toolName: 'glob', input: { pattern: '**/*.ts' } }
     ])
+  })
+
+  it('replays reasoning only for the current turn, not earlier turns', () => {
+    const earlier: ChatMessage = { ...msg('assistant', 'first answer'), reasoning: 'old thoughts' }
+    const current: ChatMessage = { ...msg('assistant', ''), reasoning: 'current thoughts' }
+    const items = [
+      { kind: 'message' as const, message: msg('user', 'first question') },
+      { kind: 'message' as const, message: earlier },
+      { kind: 'message' as const, message: msg('user', 'second question') },
+      { kind: 'message' as const, message: current },
+      { kind: 'tool' as const, tool: toolCall('glob', { pattern: '*' }) }
+    ]
+    const llm = toLlmMessages(items)
+    const assistants = llm.filter(m => m.role === 'assistant') as Array<{ content: Array<{ type: string; text?: string }> }>
+    expect(assistants[0].content).toEqual([{ type: 'text', text: 'first answer' }])
+    expect(assistants[1].content[0]).toEqual({ type: 'reasoning', text: 'current thoughts' })
+  })
+
+  it('does not give tool definitions an execute function', () => {
+    const def = { name: 'read', description: 'Read a file', schema: { type: 'object', properties: {} }, run: async () => ({}) } as unknown as ToolDefinition
+    expect(toToolDefinition(def)).not.toHaveProperty('execute')
   })
 
   it('replays string tool inputs as parsed objects (no double-encoding)', () => {

@@ -40,9 +40,7 @@ Two independent ways to reach a model:
 or the base URL hostname ends with `deepseek.com`. It enables `includeUsage: true` (DeepSeek only
 reports streamed usage when `stream_options.include_usage` is sent) and a custom `convertUsage` that
 reads cache hits from `prompt_cache_hit_tokens` rather than OpenAI's
-`prompt_tokens_details.cached_tokens`. `providerType` is also what drives echoing
-`reasoning_content` back in subsequent requests for reasoning models that require it
-(`agent/message.ts` emits a `reasoning` assistant part).
+`prompt_tokens_details.cached_tokens`. Reasoning is echoed back as `reasoning_content` only for assistant messages after the last user message (the current tool loop, where thinking-mode tool use requires it); earlier turns are replayed without reasoning (`agent/message.ts`).
 
 **opencode handling** is triggered when the provider id is `opencode`/`opencode-go` or the base URL
 hostname ends with `opencode.ai`. The Zen/Go gateway routes requests by session and rejects them with

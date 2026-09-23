@@ -6,7 +6,7 @@ import type { ToolDefinition, ToolSchema } from './tools/types'
 
 export type TranscriptItem = ChatTranscriptItem
 
-type AssistantPart = { type: 'text'; text: string } | { type: 'tool-call'; toolCallId: string; toolName: string; input: unknown } | { type: 'reasoning'; text: string; provider?: string }
+type AssistantPart = { type: 'text'; text: string } | { type: 'tool-call'; toolCallId: string; toolName: string; input: unknown } | { type: 'reasoning'; text: string }
 
 export interface ToLlmOptions {
   toolOutputMaxChars?: number
@@ -80,7 +80,7 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
       // reasoning block makes the provider reject the replayed turn with
       // "reasoning_content in the thinking mode must be passed back to the API".
       if (pendingAssistant.reasoning) {
-        content.push({ type: 'reasoning', text: pendingAssistant.reasoning, provider: 'deepseek' })
+        content.push({ type: 'reasoning', text: pendingAssistant.reasoning })
       }
       if (pendingAssistant.text) content.push({ type: 'text', text: pendingAssistant.text })
       for (const call of pendingAssistant.calls) {
@@ -101,6 +101,15 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
   const maxOutput = opts?.toolOutputMaxChars
   const truncate = opts?.truncate
   const fullFrom = recentTurnStart(items, opts?.keepFullTurns ?? 0)
+
+  // Reasoning is echoed only inside the current tool loop (after the last user
+  // message), matching DeepSeek/Anthropic semantics. Replaying every past
+  // turn's reasoning bloats context and primes the model to repeat itself.
+  let lastUserIndex = -1
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i]
+    if (it.kind === 'message' && it.message.role === 'user') { lastUserIndex = i; break }
+  }
 
   for (let index = 0; index < items.length; index++) {
     const item = items[index]
@@ -125,7 +134,7 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
           })
         }
       } else {
-        pendingAssistant = { text: item.message.text, calls: [], reasoning: item.message.reasoning }
+        pendingAssistant = { text: item.message.text, calls: [], reasoning: index > lastUserIndex ? item.message.reasoning : undefined }
       }
     } else {
       // A tool item must follow the assistant message that made the call. An
@@ -159,10 +168,10 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
 }
 
 export function toToolDefinition(def: ToolDefinition): Tool {
+  // No execute: the SDK only reports calls; SessionRunner runs them.
   return {
     description: def.description,
-    inputSchema: toInputSchema(def.schema),
-    execute: async () => ({ ok: true })
+    inputSchema: toInputSchema(def.schema)
   }
 }
 
