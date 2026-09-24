@@ -161,7 +161,7 @@ export function createTaskTool(opts: {
       ),
       ask: opts.ask ?? (async () => null),
       hooks: opts.hooks,
-      maxSteps: opts.maxSteps ?? 30,
+      maxSteps: opts.maxSteps ?? 0,
       maxContextTokens: opts.maxContextTokens,
       maxOutputTokens: opts.maxOutputTokens,
       maxOutputTokensWire: role.model || sub ? DEFAULT_OUTPUT_WIRE_CAP : opts.maxOutputTokensWire,

@@ -107,7 +107,7 @@ export interface LoopDeps {
   hooks?: () => HooksRunner
 }
 
-const DEFAULT_MAX_STEPS = 50
+const DEFAULT_MAX_STEPS = 0
 const DEFAULT_KEEP_FULL_TURNS = 2
 const MAX_COMPACT_PER_RUN = 2
 const MAX_STEPS_PROMPT = 'Final step: wrap up and provide your final answer now. Tool calls are disabled.'

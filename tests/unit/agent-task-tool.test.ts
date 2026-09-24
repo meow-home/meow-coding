@@ -354,7 +354,35 @@ describe('subagent snapshots and todo filtering', () => {
   })
 })
 
+// Calls a fresh tool input each step for `steps` steps, then answers, so the
+// tool-loop detector never sees a repeat.
+class LongRunningLlm implements LlmClient {
+  private n = 0
+  constructor(private steps: number) {}
+  async *stream(): AsyncGenerator<LlmStreamPart> {
+    if (this.n < this.steps) {
+      this.n++
+      yield { kind: 'tool-call', toolCallId: `t${this.n}`, toolName: 'read', toolInput: { path: `f${this.n}` } }
+      yield { kind: 'finish' }
+      return
+    }
+    yield { kind: 'text', text: 'long task done' }
+    yield { kind: 'finish' }
+  }
+}
+
 describe('subagent step budget', () => {
+  it('runs a subagent without a step cap by default', async () => {
+    const task = createTaskTool({
+      llm: new LongRunningLlm(40),
+      model: 'm',
+      tools: new Map([['read', stubTool('read')]]),
+      permission: allowAll()
+    })
+    const r = await task.run({ prompt: 'x', subagent_type: 'research' }, { cwd: '/p', ask: async () => null })
+    expect(r.output).toContain('long task done')
+    expect(r.output).not.toContain('state="incomplete"')
+  })
   it('reports an incomplete task when the subagent runs out of steps', async () => {
     const task = createTaskTool({
       llm: new NeverFinishingLlm(),

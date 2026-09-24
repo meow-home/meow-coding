@@ -531,7 +531,7 @@ exist), `model` (`provider/model`), `deny`, `ask`. **There is no `allow` key** â
 ### Execution
 
 - The subagent gets its own `SessionRunner` with `agentId = sub-<role>-<taskId>`, its own transcript
-  array, `maxSteps` from `subagentMaxSteps` (default 30), and the parent's compaction/tool-output
+  array, `maxSteps` from `subagentMaxSteps` (default 0 = unlimited, like the parent), and the parent's compaction/tool-output
   budget.
 - `todowrite` is always removed (a subagent runner has no `setTodos` sink).
 - `task` is **not** in the tool map handed to `createTaskTool`, so subagents cannot nest.

@@ -194,7 +194,7 @@ normalized settings).
 | `AgentsTab` | Per-agent name, system prompt, provider/model |
 | `PermissionsTab` | Per-tool allow / ask / deny |
 | `McpTab` | MCP server configs + connection status |
-| `ContextTab` | Basic: max steps, auto-compact, MCP output max tokens. Advanced (collapsible): buffer / keepTokens / tailTurns / toolOutputMaxChars / maxBytes / maxLines + Notifications. **Empty optional fields mean auto**, and the placeholder shows the auto value for the active agent |
+| `ContextTab` | Basic: max steps (empty = unlimited), auto-compact, MCP output max tokens. Advanced (collapsible): buffer / keepTokens / tailTurns / toolOutputMaxChars / maxBytes / maxLines + Notifications. **Empty optional fields mean auto**, and the placeholder shows the auto value for the active agent |
 | `CommandsTab` | Slash-command editor ("+ Add command" in the header) |
 | `UpdatesTab` | Update channel, check, install |
 | `RemoteTab` | Remote control enable, relay URL, pairing, revoke |

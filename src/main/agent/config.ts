@@ -82,13 +82,15 @@ export interface AccountEndpointResolver {
 // uncatalogued OpenAI-compatible models cap at 128k, so assuming 200k would
 // delay compaction past the real limit.
 export const DEFAULT_MAX_CONTEXT_TOKENS = 128000
-// A finite cap so a model stuck in a tool-call loop wraps up instead of
-// burning tokens forever. The budget resets whenever steered messages are
-// promoted, so this bounds one uninterrupted run, not a whole session.
-export const DEFAULT_MAX_STEPS = 100
-// Subagents get a tighter budget than the parent: they are single-purpose and
-// a runaway loop there is pure waste.
-export const DEFAULT_SUBAGENT_MAX_STEPS = 30
+// 0 = no step cap, like Claude Code and Codex: runaway loops are caught by the
+// response guard and the tool-loop detector (done('stuck')), so a fixed count
+// would only cut legitimate long runs short. A positive value is an opt-in cap.
+export const DEFAULT_MAX_STEPS = 0
+export const DEFAULT_SUBAGENT_MAX_STEPS = 0
+// Budgets that older builds wrote into meow.json as defaults; migrateUnlimitedSteps
+// treats them as "never chosen" and turns them into 0.
+const LEGACY_MAX_STEPS = 100
+const LEGACY_SUBAGENT_MAX_STEPS = 30
 // Reserved from the context budget and sent as the provider's output cap.
 // Fallback for models whose limit is unknown from the catalog: kept well
 // under the 64k some models allow, a coding answer never needs that much.
@@ -366,8 +368,8 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     mcp: normalizeMcp(raw.mcp),
     maxContextTokens: raw.maxContextTokens,
     maxOutputTokens: raw.maxOutputTokens,
-    maxSteps: raw.maxSteps ?? DEFAULT_MAX_STEPS,
-    subagentMaxSteps: raw.subagentMaxSteps ?? DEFAULT_SUBAGENT_MAX_STEPS,
+    maxSteps: normalizeSteps(raw.maxSteps, DEFAULT_MAX_STEPS),
+    subagentMaxSteps: normalizeSteps(raw.subagentMaxSteps, DEFAULT_SUBAGENT_MAX_STEPS),
     compaction: normalizeCompaction(raw.compaction),
     toolOutput: normalizeToolOutput(raw.toolOutput),
     mcpOutput: normalizeMcpOutput(raw.mcpOutput),
@@ -378,6 +380,26 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     hooks: normalizeHooks(raw.hooks),
     sampling: normalizeSampling(raw.sampling)
   }
+}
+
+function normalizeSteps(value: unknown, fallback: number): number {
+  if (value === undefined) return fallback
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0
+}
+
+export function migrateUnlimitedSteps(filePath: string): void {
+  if (!existsSync(filePath)) return
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(readFileSync(filePath, 'utf-8'))
+  } catch {
+    return
+  }
+  if (typeof parsed !== 'object' || parsed === null) return
+  let changed = false
+  if (parsed.maxSteps === LEGACY_MAX_STEPS) { parsed.maxSteps = 0; changed = true }
+  if (parsed.subagentMaxSteps === LEGACY_SUBAGENT_MAX_STEPS) { parsed.subagentMaxSteps = 0; changed = true }
+  if (changed) writeFileSync(filePath, JSON.stringify(parsed, null, 2))
 }
 
 export function loadMeowConfig(filePath: string): MeowConfig {

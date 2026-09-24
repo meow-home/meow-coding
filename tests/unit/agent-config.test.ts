@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
@@ -9,6 +9,7 @@ import {
   MAX_OUTPUT_HARD_CAP,
   configToSettings,
   loadMeowConfig,
+  migrateUnlimitedSteps,
   normalizeCompaction,
   resolveAgentConfig,
   resolveApiKey,
@@ -424,7 +425,7 @@ describe('configToSettings / settingsToConfig', () => {
     const cfg = loadMeowConfig(file)
     expect(cfg.maxContextTokens).toBeUndefined()
     expect(cfg.maxOutputTokens).toBeUndefined()
-    expect(cfg.maxSteps).toBe(100)
+    expect(cfg.maxSteps).toBe(0)
     expect(cfg.compaction).toEqual({
       auto: true,
       buffer: undefined,
@@ -563,10 +564,9 @@ function cfgWithProviders() {
 }
 
 describe('maxSteps default', () => {
-  it('caps maxSteps at a finite value so a runaway tool loop terminates', () => {
-    const cfg = loadMeowConfig(file)
-    expect(Number.isFinite(cfg.maxSteps)).toBe(true)
-    expect(cfg.maxSteps).toBeGreaterThan(20)
+  it('defaults maxSteps to 0 (unlimited)', () => {
+    expect(DEFAULT_MEOW_CONFIG.maxSteps).toBe(0)
+    expect(loadMeowConfig(file).maxSteps).toBe(0)
   })
 
   it('keeps maxSteps 0 (unlimited) through settings round-trip and reload', () => {
@@ -577,8 +577,50 @@ describe('maxSteps default', () => {
     expect(loadMeowConfig(file).maxSteps).toBe(0)
   })
 
-  it('defaults subagentMaxSteps to 30', () => {
-    expect(DEFAULT_MEOW_CONFIG.subagentMaxSteps).toBe(30)
+  it('defaults subagentMaxSteps to 0 (unlimited)', () => {
+    expect(DEFAULT_MEOW_CONFIG.subagentMaxSteps).toBe(0)
+    expect(loadMeowConfig(file).subagentMaxSteps).toBe(0)
+  })
+
+  it('normalizes negative or non-numeric step budgets to 0', () => {
+    writeFileSync(file, JSON.stringify({ maxSteps: -5, subagentMaxSteps: 'many' }))
+    const cfg = loadMeowConfig(file)
+    expect(cfg.maxSteps).toBe(0)
+    expect(cfg.subagentMaxSteps).toBe(0)
+  })
+
+  it('keeps a user-chosen positive step budget', () => {
+    writeFileSync(file, JSON.stringify({ maxSteps: 250, subagentMaxSteps: 12 }))
+    const cfg = loadMeowConfig(file)
+    expect(cfg.maxSteps).toBe(250)
+    expect(cfg.subagentMaxSteps).toBe(12)
+  })
+})
+
+describe('migrateUnlimitedSteps', () => {
+  const read = () => JSON.parse(readFileSync(file, 'utf-8'))
+
+  it('turns the old default budgets into unlimited', () => {
+    writeFileSync(file, JSON.stringify({ model: 'x', maxSteps: 100, subagentMaxSteps: 30 }))
+    migrateUnlimitedSteps(file)
+    expect(read()).toEqual({ model: 'x', maxSteps: 0, subagentMaxSteps: 0 })
+  })
+
+  it('leaves user-chosen budgets untouched', () => {
+    writeFileSync(file, JSON.stringify({ maxSteps: 50, subagentMaxSteps: 12 }))
+    migrateUnlimitedSteps(file)
+    expect(read()).toEqual({ maxSteps: 50, subagentMaxSteps: 12 })
+  })
+
+  it('leaves a corrupt config file alone', () => {
+    writeFileSync(file, '{ not json')
+    expect(() => migrateUnlimitedSteps(file)).not.toThrow()
+    expect(readFileSync(file, 'utf-8')).toBe('{ not json')
+  })
+
+  it('does not create a missing config file', () => {
+    migrateUnlimitedSteps(file)
+    expect(existsSync(file)).toBe(false)
   })
 })
 

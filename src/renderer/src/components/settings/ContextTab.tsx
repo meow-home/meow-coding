@@ -94,7 +94,7 @@ export default function ContextTab({
                 placeholder="unlimited"
                 onChange={e => setMaxSteps(e.target.value)}
               />
-              <span className="context-field-hint">Maximum tool steps per turn (empty = unlimited).</span>
+              <span className="context-field-hint">Empty = unlimited; loops are stopped by the stuck detector.</span>
             </div>
 
             <div className="context-field-item">

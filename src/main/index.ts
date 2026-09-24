@@ -6,6 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { createJsonStore } from './json-store'
 import { resetToSingleSession } from './fresh-start'
+import { migrateUnlimitedSteps } from './agent/config'
 import { WorkspaceStore } from './workspace-store'
 import { PtyManager } from './pty-manager'
 import { LogManager } from './log-manager'
@@ -1104,6 +1105,18 @@ app.whenReady().then(async () => {
   // v0.37 reset above so a reset that deletes sessions.json is not undone by a
   // migration that would have backed the file up first.
   mainApp.sessionFiles.migrateLegacy()
+  // One-time switch to unlimited step budgets: older builds wrote the old default
+  // caps into meow.json on every settings save, so a new default alone would not
+  // reach those users. Same flag-after-success pattern as the reset above.
+  const stepsFlag = path.join(app.getPath('userData'), '.max-steps-unlimited')
+  if (!existsSync(stepsFlag)) {
+    try {
+      migrateUnlimitedSteps(path.join(app.getPath('userData'), 'meow.json'))
+      writeFileSync(stepsFlag, String(Date.now()))
+    } catch (err) {
+      mainApp.systemLogger.log('ERROR', 'main', `max steps migration failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
   registerIpcHandlers()
   createWindow()
   tray = TrayManager.create({

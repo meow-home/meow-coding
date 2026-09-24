@@ -216,6 +216,9 @@ the modal from closing.
    `userData/.sessions-model-reset` is written. Wrapped in `try/catch` — a locked/read-only `userData`
    logs the failure and skips the migration, and because the flag is written only on success it is retried
    on the next launch. Runs before any workspace activation (which is what first loads the session store).
+   Then `sessionFiles.migrateLegacy()`, and the one-time unlimited-steps switch (`migrateUnlimitedSteps`):
+   `maxSteps: 100` / `subagentMaxSteps: 30` in `meow.json` (the old defaults, written on every settings
+   save) become `0`, then `userData/.max-steps-unlimited` is written. Same flag-after-success `try/catch`.
 9. `registerIpcHandlers()`, `createWindow()`, `TrayManager.create()`.
 10. After 1.5s, an automatic update check (packaged builds only).
 

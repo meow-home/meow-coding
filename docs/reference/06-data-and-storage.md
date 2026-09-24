@@ -29,6 +29,7 @@ in `src/main/index.ts`).
 | `sessions-index.json` | `agent/session-file-store.ts` | `SessionIndexEntry[]` | Lightweight session summaries (id, agentId, projectPath, title, messageCount, timestamps, usage) so listing does not parse every transcript. Debounced; rebuilt by scanning `projects/` when missing or corrupt (parked as `.corrupt`). See [6.4](#64-session-format) |
 | `sessions.json.migrated-bak` | `agent/session-migrate.ts` | `StoredSession[]` | The legacy single-file store, kept as a backup after the one-time migration. Never deleted |
 | `.sessions-migrated-v1` | `agent/session-migrate.ts` | timestamp text | Flag for the one-time `sessions.json` -> per-session jsonl migration (flag-guarded, idempotent) |
+| `.max-steps-unlimited` | `migrateUnlimitedSteps` in `agent/config.ts` (boot block in `index.ts`) | timestamp text | Flag for the one-time switch to unlimited step budgets: `maxSteps: 100` / `subagentMaxSteps: 30` (the old defaults) in `meow.json` become `0`; other values are kept. Written only after the migration succeeds |
 | `.sessions-model-reset` | `fresh-start.ts` (boot block in `index.ts`) | timestamp text | Flag for the one-time **destructive** v0.37 model switch (every project reset to one native session, `sessions.json` deleted). Written only after the reset succeeds, so an absent flag means the migration is retried on the next launch |
 | `snapshots.json` | `agent/snapshot.ts` | `SnapshotTurn[]` | `{ agentId, ts, before: {path: content}, after: {path: content} }`, max 50 turns |
 | `permissions.json` | `agent/saved-permissions.ts` | `SavedPermission[]` | "Always allow" decisions per (project, tool) |
@@ -114,8 +115,8 @@ writes it through `settingsToConfig`.
   // ── Budgets ──────────────────────────────────────────────────────────────
   "maxContextTokens": 200000,   // optional override; otherwise resolved (learned/live/catalog/128k)
   "maxOutputTokens": 32000,     // optional override; absent = min(known model limit, 32000) is sent
-  "maxSteps": 100,              // steps per uninterrupted run (DEFAULT_MAX_STEPS); 0 = unlimited
-  "subagentMaxSteps": 30,       // DEFAULT_SUBAGENT_MAX_STEPS
+  "maxSteps": 0,                // steps per uninterrupted run; 0 = unlimited (DEFAULT_MAX_STEPS)
+  "subagentMaxSteps": 0,        // subagent step cap; 0 = unlimited (DEFAULT_SUBAGENT_MAX_STEPS)
 
   // ── Compaction ───────────────────────────────────────────────────────────
   "compaction": {

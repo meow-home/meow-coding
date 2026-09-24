@@ -106,7 +106,7 @@ straight to the code.
 | **Session** | The unit of work the UI shows: one chat, listed per project in the sidebar and rendered in its pane. One session per agent — creating a session adds an agent. |
 | **Transcript item** | The persisted unit of a session: either a `message` (user/assistant) or a `tool` (a tool call with input/output/permission). It is the single source of truth for what the LLM sees. |
 | **Turn** | One user message and everything the agent does in response, until `done` or `error`. |
-| **Step** | One LLM request inside a turn. A turn runs many steps; `maxSteps` bounds an uninterrupted run. |
+| **Step** | One LLM request inside a turn. A turn runs many steps; there is no step cap by default (`maxSteps` 0), and a positive `maxSteps` is an opt-in bound on an uninterrupted run. Runaway loops are stopped by the stuck detector instead. |
 | **Steering** | Injecting queued user messages at a step boundary of a running turn (rather than waiting for it to finish). Resets the step budget. |
 | **Compaction** | Shrinking the transcript so it fits the model's context window: LLM-summarize the head, keep the recent tail verbatim → hard-truncate as a last resort. |
 | **Variant** | A provider-specific option bundle for a model, typically reasoning effort (`low`/`medium`/`high`/`xhigh`). |
