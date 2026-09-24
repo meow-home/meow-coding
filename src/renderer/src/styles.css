@@ -946,43 +946,104 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 
 /* Toolbar tạm ẩn (undo/redo vẫn hoạt động qua handlers, chỉ ẩn UI). */
 .chat-history-actions { display: none; }
-/* Todo pill (direction A): a compact floating pill over the chat's top-right.
-   The ring + count is the always-on glance; clicking opens a dropdown with the
-   full list. It overlays the feed, so it never pushes the layout (zero shift). */
+/* Todo pill (direction 1 / mission badge): an eye-catching floating pill
+   over the chat's top-right with an orange TODO tag, progress ring + count,
+   pulsing cyan status dot, and active task ticker.
+   Hovering or clicking opens a scroll-capped dropdown with the full list.
+   Overlays the feed (zero layout shift). */
 .todo-pill { position: absolute; top: 0.666667rem; right: 0.833333rem; z-index: 5; }
 .todo-pill-btn {
   display: inline-flex; align-items: center; gap: 0.5rem;
-  padding: 0.333333rem 0.666667rem 0.333333rem 0.5rem;
-  appearance: none; background: var(--bg-raised); border: 0.083333rem solid var(--hairline);
-  border-radius: 999px; color: var(--text); cursor: pointer;
-  box-shadow: var(--shadow-1);
-  transition: background 120ms ease, border-color 120ms ease;
+  padding: 0.333333rem 0.666667rem 0.333333rem 0.416667rem;
+  appearance: none;
+  background: #19191d;
+  border: 0.083333rem solid rgba(31, 156, 240, 0.4);
+  border-radius: 999px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 0 12px rgba(31, 156, 240, 0.25);
+  transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
-.todo-pill-btn:hover { background: var(--bg-hover); border-color: var(--accent-border); }
+.todo-pill-btn:hover {
+  background: #202026;
+  border-color: var(--accent-strong);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55), 0 0 16px rgba(31, 156, 240, 0.4);
+  transform: translateY(-1px);
+}
+[data-theme="light"] .todo-pill-btn {
+  background: var(--bg-raised);
+  border-color: rgba(0, 122, 204, 0.4);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08), 0 0 8px rgba(0, 122, 204, 0.15);
+}
+[data-theme="light"] .todo-pill-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12), 0 0 12px rgba(0, 122, 204, 0.25);
+}
 .todo-pill-ring {
   width: 1.375rem; height: 1.375rem; border-radius: 50%; flex: 0 0 auto;
   display: grid; place-items: center;
+  box-shadow: 0 0 6px rgba(31, 156, 240, 0.25);
 }
 .todo-pill-ring::after {
-  content: ''; width: 1rem; height: 1rem; border-radius: 50%; background: var(--bg-raised);
+  content: ''; width: 1rem; height: 1rem; border-radius: 50%; background: #19191d;
+}
+[data-theme="light"] .todo-pill-ring::after {
+  background: var(--bg-raised);
+}
+.todo-pill-tag {
+  font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 700;
+  color: var(--orange); letter-spacing: 0.06em;
+  background: rgba(255, 180, 84, 0.12); padding: 0.083333rem 0.333333rem;
+  border-radius: var(--radius-xs); flex: 0 0 auto;
+}
+.todo-pill-info {
+  display: flex; align-items: center; gap: 0.416667rem;
+  font-size: var(--fs-xs); min-width: 0;
 }
 .todo-pill-count {
-  font-size: var(--fs-xs); color: var(--text-dim); font-family: var(--font-ui);
-  font-variant-numeric: tabular-nums; white-space: nowrap;
+  font-size: var(--fs-xs); color: var(--text-strong); font-family: var(--font-mono);
+  font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; flex: 0 0 auto;
 }
-.todo-pill-chev { color: var(--text-faint); transition: transform 120ms ease; }
+@keyframes activePulse {
+  0% { box-shadow: 0 0 0 0 rgba(31, 156, 240, 0.55); }
+  70% { box-shadow: 0 0 0 5px rgba(31, 156, 240, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(31, 156, 240, 0); }
+}
+.todo-pill-pulse {
+  width: 0.375rem; height: 0.375rem; border-radius: 50%;
+  background: var(--accent-strong);
+  display: inline-block;
+  animation: activePulse 2s infinite ease-out;
+  flex: 0 0 auto;
+}
+.todo-pill-ticker {
+  max-width: 10rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+@media (max-width: 640px) {
+  .todo-pill-ticker { display: none; }
+}
+.todo-pill-chev { color: var(--text-faint); transition: transform 140ms ease; flex: 0 0 auto; }
 .todo-pill-btn.open .todo-pill-chev { transform: rotate(180deg); }
 
 /* Dropdown: capped height so a long todo list scrolls instead of growing the
    popup (and the page) beyond the viewport. Header stays pinned; only the list
    scrolls. */
 .todo-pill-menu {
-  width: 22rem;
+  width: 24rem;
   display: flex; flex-direction: column;
   max-height: 16rem;
-  background: var(--bg-raised); border: 0.083333rem solid var(--hairline);
+  background: var(--bg-raised); border: 0.083333rem solid var(--hairline-strong);
   border-radius: var(--radius); box-shadow: var(--shadow-2);
   overflow: hidden;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 .todo-pill-menu-inner {
   display: flex; flex-direction: column;
@@ -991,16 +1052,26 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .todo-pill-head {
   flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
   padding: 0.5rem 0.666667rem; border-bottom: 0.083333rem solid var(--hairline);
+  background: rgba(255, 255, 255, 0.02);
 }
-.todo-pill-title { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--orange); font-family: var(--font-display); font-weight: var(--fw-semibold); }
+.todo-pill-title {
+  font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--orange); font-family: var(--font-mono); font-weight: var(--fw-semibold);
+}
 .todo-pill-list {
   list-style: none; margin: 0; padding: 0.333333rem;
   overflow-y: auto; flex: 1 1 auto; min-height: 0;
 }
 .todo-pill-list::-webkit-scrollbar { width: 0.5rem; }
 .todo-pill-list::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 0.25rem; }
-.todo-pill-item { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.333333rem 0.416667rem; font-size: var(--fs-md); line-height: 1.45; border-radius: var(--radius-sm); }
+.todo-pill-item {
+  display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.333333rem 0.416667rem;
+  font-size: var(--fs-md); line-height: 1.45; border-radius: var(--radius-sm);
+  transition: background 100ms ease;
+}
 .todo-pill-item:hover { background: var(--menu-hover); }
+.todo-pill-item.status-in_progress { background: rgba(31, 156, 240, 0.08); }
+.todo-pill-item.status-in_progress .todo-pill-content { color: var(--text-strong); font-weight: 500; }
 .todo-pill-mark { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; margin-top: 0.083333rem; }
 .todo-pill-content { white-space: pre-wrap; overflow-wrap: break-word; min-width: 0; }
 .todo-pill-item.status-completed .todo-pill-content { color: var(--text-dim); text-decoration: line-through; }

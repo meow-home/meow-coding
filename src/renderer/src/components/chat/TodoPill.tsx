@@ -12,7 +12,7 @@ function TodoStatusIcon({ status }: { status: TodoStatus }) {
     case 'completed':
       return <CheckCircle2 size={13} style={{ color: 'var(--green)' }} aria-hidden="true" />
     case 'in_progress':
-      return <Clock size={13} style={{ color: 'var(--blue)' }} aria-hidden="true" />
+      return <Clock size={13} style={{ color: 'var(--accent-strong)' }} aria-hidden="true" />
     case 'pending':
       return <Circle size={13} style={{ color: 'var(--text-faint)' }} aria-hidden="true" />
     case 'cancelled':
@@ -20,12 +20,13 @@ function TodoStatusIcon({ status }: { status: TodoStatus }) {
   }
 }
 
-// Direction A: a compact floating pill over the chat's top-right. The ring +
-// count is the always-on glance; hovering (or clicking) opens a dropdown with
-// the full list. The dropdown is capped in height and scrolls internally, so a
-// long todo list never grows beyond the viewport. It overlays the feed (zero
-// layout shift). Hover uses a short close delay so moving from the pill onto
-// the dropdown doesn't flicker it closed.
+// Direction 1 (Mission Badge): an eye-catching floating pill over the chat's
+// top-right with an orange TODO tag, progress ring + count, pulsing cyan status dot,
+// and active task ticker. Hovering (or clicking) opens a dropdown with the full list.
+// The dropdown is capped in height and scrolls internally, so a long todo list
+// never grows beyond the viewport. Overlays the feed (zero layout shift).
+// Hover uses a short close delay so moving from the pill onto the dropdown doesn't
+// flicker it closed.
 function TodoPill({ todos }: TodoPillProps) {
   const [open, setOpen] = useState(false)
   const closeTimer = useRef<number | null>(null)
@@ -44,8 +45,14 @@ function TodoPill({ todos }: TodoPillProps) {
 
   const total = todos.length
   const doneCount = todos.filter(t => t.status === 'completed' || t.status === 'cancelled').length
+  const isAllDone = total > 0 && doneCount === total
   const pct = total > 0 ? (doneCount / total) * 100 : 0
   const ring = `conic-gradient(var(--accent-strong) 0 ${pct}%, var(--bg-hover) ${pct}% 100%)`
+
+  const activeTask =
+    todos.find(t => t.status === 'in_progress')?.content ||
+    todos.find(t => t.status === 'pending')?.content ||
+    (isAllDone ? 'All completed' : '')
 
   return (
     <div
@@ -61,14 +68,23 @@ function TodoPill({ todos }: TodoPillProps) {
         trigger={({ open: isOpen, toggle }) => (
           <button
             className={`todo-pill-btn ${isOpen ? 'open' : ''}`}
-            title="Todo list"
+            title={activeTask ? `Todo: ${activeTask}` : 'Todo list'}
             aria-label="Todo list"
             aria-haspopup="listbox"
             aria-expanded={isOpen}
             onClick={toggle}
           >
             <span className="todo-pill-ring" style={{ background: ring }} />
-            <span className="todo-pill-count">{doneCount}/{total}</span>
+            <span className="todo-pill-tag">TODO</span>
+            <div className="todo-pill-info">
+              <span className="todo-pill-count">{doneCount}/{total}</span>
+              {!isAllDone && <span className="todo-pill-pulse" aria-hidden="true" />}
+              {activeTask && (
+                <span className="todo-pill-ticker" title={activeTask}>
+                  {activeTask}
+                </span>
+              )}
+            </div>
             <ChevronDown size={12} className="todo-pill-chev" aria-hidden="true" />
           </button>
         )}
