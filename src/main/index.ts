@@ -255,7 +255,8 @@ export class MainApp {
         error: 'target resolved to no run'
       },
       appendResult: (input) => this.meowAgent.appendDelegationResult(input),
-      wakeSource: (input) => this.meowAgent.wakeDelegationSource(input)
+      wakeSource: (input) => this.meowAgent.wakeDelegationSource(input),
+      stopRun: (agentId) => this.meowAgent.stop(agentId)
     }
   })
   remoteStore = new RemoteSettingsStore(

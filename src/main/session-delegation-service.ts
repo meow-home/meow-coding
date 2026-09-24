@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { SessionDelegationStore } from './session-delegation-store'
+import { normalizeProjectPath } from './session-delegation-store'
 import type { SessionDelegation, DelegationStatus } from '../shared/types'
 import type {
   AgentRunContext,
@@ -7,6 +8,7 @@ import type {
   DelegatedTurnInput,
   DelegationResultInput
 } from './agent/run-context'
+import { EXTERNAL_SOURCE_ID, EXTERNAL_SOURCE_NAME } from '../shared/external-api-types'
 
 export interface DelegationAgent {
   agentId: string
@@ -21,12 +23,20 @@ export interface DelegationRuntime {
   runDelegatedTurn(input: DelegatedTurnInput): Promise<AgentTurnResult>
   appendResult(input: DelegationResultInput): Promise<void>
   wakeSource(input: DelegationResultInput): Promise<void>
+  stopRun(agentId: string): void
 }
 
 export interface CreateDelegationInput {
   sourceRun: AgentRunContext
   targetAgentId: string
   task: string
+}
+
+export interface CreateExternalDelegationInput {
+  projectPath: string
+  targetAgentId: string
+  task: string
+  planKey: string
 }
 
 export interface SessionDelegationServiceDeps {
@@ -112,16 +122,7 @@ export class SessionDelegationService {
     if (source.projectPath !== target.projectPath) {
       throw new Error('[meow] Delegation is only allowed between sessions in the same project.')
     }
-    const task = (input.task ?? '').trim()
-    if (!task) throw new Error('[meow] Delegation task must not be empty.')
-    if (Buffer.byteLength(task, 'utf8') > TASK_MAX_BYTES) {
-      throw new Error(`[meow] Delegation task exceeds the ${TASK_MAX_BYTES / 1024} KiB limit.`)
-    }
-    const active = this.store.list({ targetAgentId: target.agentId })
-      .filter(d => d.status === 'queued' || d.status === 'running' || d.status === 'waiting_for_input')
-    if (active.length >= MAX_NONTERMINAL_PER_TARGET) {
-      throw new Error(`[meow] Too many queued delegations for this session (max ${MAX_NONTERMINAL_PER_TARGET}).`)
-    }
+    const task = this.validateTask(input.task, target.agentId)
 
     const record = this.store.create({
       id: this.id(),
@@ -132,6 +133,45 @@ export class SessionDelegationService {
       targetSessionId: target.sessionId,
       targetBusyAtCreation: this.runtime.isBusy(target.agentId),
       task
+    })
+    this.emit(record)
+    this.notifyAgentAvailable(target.agentId)
+    return record
+  }
+
+  private validateTask(rawTask: string, targetAgentId: string): string {
+    const task = (rawTask ?? '').trim()
+    if (!task) throw new Error('[meow] Delegation task must not be empty.')
+    if (Buffer.byteLength(task, 'utf8') > TASK_MAX_BYTES) {
+      throw new Error(`[meow] Delegation task exceeds the ${TASK_MAX_BYTES / 1024} KiB limit.`)
+    }
+    const active = this.store.list({ targetAgentId })
+      .filter(d => d.status === 'queued' || d.status === 'running' || d.status === 'waiting_for_input')
+    if (active.length >= MAX_NONTERMINAL_PER_TARGET) {
+      throw new Error(`[meow] Too many queued delegations for this session (max ${MAX_NONTERMINAL_PER_TARGET}).`)
+    }
+    return task
+  }
+
+  createExternal(input: CreateExternalDelegationInput): SessionDelegation {
+    const target = this.runtime.resolveAgent(input.targetAgentId)
+    if (!target) throw new Error(`[meow] Delegation target session does not exist: ${input.targetAgentId}`)
+    if (normalizeProjectPath(target.projectPath) !== normalizeProjectPath(input.projectPath)) {
+      throw new Error('[meow] Delegation target belongs to a different project.')
+    }
+    const task = this.validateTask(input.task, target.agentId)
+    const record = this.store.create({
+      id: this.id(),
+      projectPath: target.projectPath,
+      sourceAgentId: EXTERNAL_SOURCE_ID,
+      sourceSessionId: EXTERNAL_SOURCE_ID,
+      targetAgentId: target.agentId,
+      targetSessionId: target.sessionId,
+      targetBusyAtCreation: this.runtime.isBusy(target.agentId),
+      task,
+      sourceKind: 'external',
+      externalClient: 'claude',
+      planKey: input.planKey
     })
     this.emit(record)
     this.notifyAgentAvailable(target.agentId)
@@ -169,14 +209,16 @@ export class SessionDelegationService {
         if (!next) break
         const target = this.runtime.resolveAgent(targetAgentId)
         if (!target) break
-        const source = this.runtime.resolveAgent(next.sourceAgentId)
-        if (!source || source.projectPath !== target.projectPath) {
-          const failed = this.store.transition(next.id, next.revision, 'failed', {
-            finishedAt: this.now(),
-            error: '[meow] A participant session is no longer available.'
-          })
-          if (failed) this.emit(failed)
-          continue
+        if (next.sourceKind !== 'external') {
+          const source = this.runtime.resolveAgent(next.sourceAgentId)
+          if (!source || source.projectPath !== target.projectPath) {
+            const failed = this.store.transition(next.id, next.revision, 'failed', {
+              finishedAt: this.now(),
+              error: '[meow] A participant session is no longer available.'
+            })
+            if (failed) this.emit(failed)
+            continue
+          }
         }
         if (this.runtime.isBusy(targetAgentId)) {
           await this.waitForAvailable(targetAgentId)
@@ -213,7 +255,9 @@ export class SessionDelegationService {
     const result = await this.runtime.runDelegatedTurn({
       delegationId: running.id,
       sourceAgentId: running.sourceAgentId,
-      sourceName: this.runtime.resolveAgent(running.sourceAgentId)?.name ?? running.sourceAgentId,
+      sourceName: running.sourceKind === 'external'
+        ? EXTERNAL_SOURCE_NAME
+        : this.runtime.resolveAgent(running.sourceAgentId)?.name ?? running.sourceAgentId,
       targetAgentId: running.targetAgentId,
       targetSessionId: running.targetSessionId,
       task: running.task
@@ -244,6 +288,11 @@ export class SessionDelegationService {
   }
 
   private async finishTerminal(record: SessionDelegation): Promise<void> {
+    if (record.sourceKind === 'external') {
+      const delivered = this.store.markDelivered(record.id, record.revision, this.now())
+      if (delivered) this.emit(delivered)
+      return
+    }
     const input: DelegationResultInput = {
       delegationId: record.id,
       sourceAgentId: record.sourceAgentId,
@@ -297,6 +346,16 @@ export class SessionDelegationService {
     const cancelled = this.store.transition(id, record.revision, 'cancelled', { finishedAt: this.now() })!
     this.emit(cancelled)
     return cancelled
+  }
+
+  async cancel(id: string): Promise<SessionDelegation> {
+    const record = this.store.get(id)
+    if (!record) throw new Error(`[meow] Unknown delegation: ${id}`)
+    if (record.status === 'queued') return this.cancelQueued(id)
+    if (record.status === 'running' || record.status === 'waiting_for_input') {
+      this.runtime.stopRun(record.targetAgentId)
+    }
+    return this.store.get(id) ?? record
   }
 
   async handleAgentRemoved(agentId: string): Promise<void> {
