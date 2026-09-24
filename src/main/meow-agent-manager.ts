@@ -407,6 +407,11 @@ export class MeowAgentManager {
     }
   }
 
+  async ensureAgent(agent: AgentConfig): Promise<void> {
+    if (agent.kind !== 'native' || this.agents.has(agent.id)) return
+    await this.register(agent)
+  }
+
   listAgents(): AgentConfig[] {
     return [...this.agents.values()]
   }

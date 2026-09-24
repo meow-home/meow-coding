@@ -120,6 +120,16 @@ describe('MeowAgentManager delegation runtime', () => {
     expect(manager.isBusy('a1')).toBe(false)
   })
 
+  it('ensureAgent registers an unknown native agent so it becomes resolvable', async () => {
+    const { manager } = await makeManager()
+    const agent: AgentConfig = { id: 'ext-1', name: '[claude] plan', templateId: 'meow', cwd: '/proj', kind: 'native' }
+    expect(manager.resolveDelegationAgent('ext-1')).toBeUndefined()
+    await manager.ensureAgent(agent)
+    expect(manager.resolveDelegationAgent('ext-1')?.name).toBe('[claude] plan')
+    await manager.ensureAgent(agent)
+    expect(manager.listAgents().filter(a => a.id === 'ext-1')).toHaveLength(1)
+  })
+
   it('runs a delegated turn against the fixed target session and returns a correlated result', async () => {
     const { manager, store } = await makeManager()
     const input: DelegatedTurnInput = {
