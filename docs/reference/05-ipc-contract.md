@@ -158,6 +158,10 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `RemoteSetRelayUrl` | `remote:set-relay-url` | `setRemoteRelayUrl(url)` |
 | `RemoteStartPairing` | `remote:start-pairing` | `startRemotePairing(): { code, expiresAt } \| null` |
 | `RemoteRevokeToken` | `remote:revoke-token` | `revokeRemoteToken()` |
+| `ExternalApiGetStatus` | `external-api:get-status` | `getExternalApiStatus(): ExternalApiStatus` |
+| `ExternalApiSetEnabled` | `external-api:set-enabled` | `setExternalApiEnabled(enabled): ExternalApiStatus` |
+| `ExternalApiRegenerateToken` | `external-api:regenerate-token` | `regenerateExternalApiToken(): ExternalApiStatus` |
+| `ExternalApiInstallClaudeSkill` | `external-api:install-claude-skill` | `installClaudeSkill(): string` — writes `~/.claude/skills/meow-delegate/SKILL.md`, returns the written path |
 
 ### App & window
 
@@ -194,6 +198,8 @@ captured in preload).
 | `EventActivateAgent` | `agent:activate` | `ActivateAgentEvent { projectPath, agentId }` — sent when the user clicks an OS notification; the renderer opens that workspace and activates the agent's session | `onActivateAgent` |
 | `EventUpdaterStatus` | `updater:status` | `UpdaterStatusEvent` | `onUpdaterStatus` |
 | `EventWindowMaximizedChange` | `window:maximized-change` | `{ maximized }` | `onWindowMaximizedChange` |
+| `EventExternalApiStatus` | `external-api:status` | `ExternalApiStatus { enabled, listening, port, error?, cliPath, configPath }` | `onExternalApiStatus` |
+| `EventWorkspaceChanged` | `workspace:changed` | `WorkspaceChangedEvent { runtime: WorkspaceRuntime }` — fires when external delegation auto-adds a project or session from main, so the renderer can refresh without a manual reload | `onWorkspaceChanged` |
 
 `EventAgentState` is emitted only when `status`, `exitCode`, or `alert` actually changed —
 `lastOutputAt` alone never triggers a send (it changes on every byte of PTY output).

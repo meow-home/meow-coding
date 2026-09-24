@@ -36,6 +36,8 @@ in `src/main/index.ts`).
 | `commands.json` | `agent/commands.ts` `CommandStore` | `Command[]` | User slash commands |
 | `models.json` | `models-catalog.ts` | object | Cached models.dev catalog (falls back to the bundled `models-snapshot.json`) |
 | `remote.json` | `remote/remote-settings.ts` | object | `{ enabled, relayUrl, deviceId, sessionToken? }` |
+| `external-api.json` | `external-api/config-file.ts` | object | `{ enabled, port, token, cliPath }` for the external-delegation loopback API; `token` is 32 random bytes (hex), created once and kept until `regenerateToken()`. See [08 — Integrations](08-integrations.md#86-external-delegation-claude-code--meow) |
+| `bin/meow-delegate.mjs` | `external-api/manager.ts` | file | The external-delegation CLI, copied from `resources/external-api/meow-delegate.mjs` on every app start |
 | `logs/<agentId>.log` | `log-manager.ts` | text | Raw PTY output, append-only |
 | `logs/<YYYY-MM-DD>-log.txt` | `system-logger.ts` | text | App-wide system log (main/render/agent), append-only, pruned after 7 days on startup |
 | `truncation/<agentId>-<toolId>.txt` | `agent/truncation.ts` | text | Full text of truncated tool output; cleaned up after 7 days on startup |
@@ -288,9 +290,16 @@ interface SessionDelegation {
   touchedFiles?: string[]
   deliveredAt?: number      // terminal; set once the result message is appended
   wakeAt?: number           // terminal; set once the source wake is claimed
+  sourceKind?: 'session' | 'external'   // absent = 'session' (existing records stay valid)
+  externalClient?: 'claude'             // set when sourceKind is 'external'
+  planKey?: string                      // normalized plan path; external records only
 }
 ```
 
+- `sourceKind: 'external'` records come from the [external delegation](08-integrations.md#86-external-delegation-claude-code--meow)
+  API: `sourceAgentId`/`sourceSessionId` are the sentinel `external:claude`, there is no source session
+  to append results to or wake, and `planKey` is how the facade finds the session to reuse for a given
+  plan.
 - `projectPath` is normalized (Windows: lower-cased, forward slashes) for cross-process identity.
 - Every state change is **revision-checked and idempotent**: `transition` accepts only
   `expectedRevision` and only a transition present in the explicit table; `markDelivered` /

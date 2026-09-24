@@ -14,6 +14,9 @@ handlers and the app lifecycle.
   The main window logs `render-process-gone` (reason/exitCode), `unresponsive` and `responsive` to the
   system log — a dead renderer paints the near-black window background and freezes interaction, so these
   events are the only way to capture that failure (a crashed renderer cannot log for itself).
+  Owns the `ExternalApiManager` (`external-api/`): starts it after the delegation service, stops it on
+  quit, forwards external delegation changes to its long-poll waiters, and pushes `workspace:changed`
+  when the facade adds a project or session.
 - `meow-agent-manager.ts` — `MeowAgentManager`: orchestrates the agent chat loop, sessions, commands,
   permissions, subagents, MCP/user tools, stats, settings. The only place that orchestrates the native agent.
   Tracks draft session model preferences (`DRAFT_SESSION_ID`) and resolves default models for unmaterialized sessions;
@@ -38,6 +41,8 @@ handlers and the app lifecycle.
   session-title derivation still applies)),
   and feeds same-project `SessionPeer`s into the turn reminder. Exposes `getMode(agentId)` so the main
   process can resolve live peer modes for the reminder / peer roster.
+  `ensureAgent(agent)` awaits registration of a native session (used by external delegation for
+  projects that were never opened).
 - `pty-manager.ts` — node-pty wrapper, emits `data`/`exit` events. `buildSpawnCommand` wraps non-`.exe`
   commands through `cmd.exe` on Windows (ConPTY cannot spawn `.cmd` shims directly). Uses `tree-kill`
   to kill the entire process tree on stop.
@@ -51,7 +56,9 @@ handlers and the app lifecycle.
   (user-origin run, distinct same-project target, ≤32 KiB task, ≤5 nonterminal per target), runs queued
   FIFO via a `DelegationRuntime`, persists terminal results, marks `deliveredAt`/`wakeAt`, truncates
   UTF-8 results to 64 KiB, recovers on restart (interrupt in-flight, resume queued, redeliver once), and
-  handles agent/project removal.
+  handles agent/project removal. `createExternal` (source-less `sourceKind: 'external'` records: no
+  source checks, no result append/wake, only `markDelivered`) and `cancel(id)` (queued → cancelled;
+  running → `runtime.stopRun`).
 - `peer-roster.ts` — `computePeerTargets(workspaces, lookup)` computes delegatable same-project peer
   `SessionPeer`s (excluding the requester) with live mode/run-state supplied by the caller. Used for the
   per-turn `delegate_session` reminder and the delegate tool's target discovery.
@@ -86,6 +93,7 @@ handlers and the app lifecycle.
 - `window-chrome.ts` — `getWindowChromeOptions`: hides the title-bar on Windows/Linux; `applyTitleBarTheme` re-colors the Windows overlay (min/max/close) live when the app theme toggles dark/light. The OS draws those buttons, so `TITLE_BAR_COLORS` is their only color source and must equal the renderer's title bar surface (`.title-bar-right` → `var(--bg)`); `tests/unit/window-chrome.test.ts` parses `styles.css` and fails if the two drift apart.
 - `vault.ts` — encrypted secret store (safeStorage) for provider API keys.
 - `browser/` — BrowserBridge (local WS server + pairing) + Chrome launcher + snapshot format.
+- `external-api/` — loopback API + CLI for delegation from Claude Code; see its AGENTS.md.
 
 ## Conventions
 
