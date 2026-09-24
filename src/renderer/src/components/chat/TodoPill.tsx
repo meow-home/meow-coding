@@ -7,6 +7,12 @@ interface TodoPillProps {
   todos: TodoItem[]
 }
 
+// Ring geometry — matching ContextFooter circular progress ring
+const SIZE = 16
+const STROKE = 2
+const R = (SIZE - STROKE) / 2
+const C = 2 * Math.PI * R
+
 function TodoStatusIcon({ status }: { status: TodoStatus }) {
   switch (status) {
     case 'completed':
@@ -46,8 +52,8 @@ function TodoPill({ todos }: TodoPillProps) {
   const total = todos.length
   const doneCount = todos.filter(t => t.status === 'completed' || t.status === 'cancelled').length
   const isAllDone = total > 0 && doneCount === total
-  const pct = total > 0 ? (doneCount / total) * 100 : 0
-  const ring = `conic-gradient(var(--accent-strong) 0 ${pct}%, var(--bg-hover) ${pct}% 100%)`
+  const pct = total > 0 ? doneCount / total : 0
+  const dashOffset = C * (1 - pct)
 
   return (
     <div
@@ -69,7 +75,36 @@ function TodoPill({ todos }: TodoPillProps) {
             aria-expanded={isOpen}
             onClick={toggle}
           >
-            <span className="todo-pill-ring" style={{ background: ring }} />
+            <span
+              className={`todo-pill-ring ${isAllDone ? 'done' : ''}`}
+              role="img"
+              aria-label={`Progress: ${doneCount} of ${total} completed`}
+            >
+              <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
+                <circle
+                  className="todo-pill-ring-track"
+                  cx={SIZE / 2}
+                  cy={SIZE / 2}
+                  r={R}
+                  strokeWidth={STROKE}
+                  fill="none"
+                />
+                {total > 0 && (
+                  <circle
+                    className="todo-pill-ring-arc"
+                    cx={SIZE / 2}
+                    cy={SIZE / 2}
+                    r={R}
+                    strokeWidth={STROKE}
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeDasharray={C}
+                    strokeDashoffset={dashOffset}
+                    transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
+                  />
+                )}
+              </svg>
+            </span>
             <span className="todo-pill-tag">TODO</span>
             <span className="todo-pill-count">{doneCount}/{total}</span>
             {!isAllDone && <span className="todo-pill-pulse" aria-hidden="true" />}

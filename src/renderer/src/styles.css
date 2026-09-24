@@ -956,7 +956,9 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .todo-pill { display: inline-flex; align-items: center; }
 .todo-pill-btn {
   display: inline-flex; align-items: center; gap: 0.416667rem;
-  padding: 0.208333rem 0.5rem 0.208333rem 0.333333rem;
+  height: 2rem;
+  padding: 0 0.583333rem 0 0.416667rem;
+  box-sizing: border-box;
   appearance: none;
   background: var(--bg-raised);
   border: 0.083333rem solid var(--hairline);
@@ -964,22 +966,22 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   color: var(--text);
   cursor: pointer;
   user-select: none;
-  transition: background 140ms ease, border-color 140ms ease;
+  transition: background 140ms ease;
 }
 .todo-pill-btn:hover {
   background: var(--bg-hover);
-  border-color: var(--hairline-strong);
 }
 .todo-pill-ring {
-  width: 1.125rem; height: 1.125rem; border-radius: 50%; flex: 0 0 auto;
-  display: grid; place-items: center;
+  width: 1.333333rem; height: 1.333333rem; flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--accent-strong);
 }
-.todo-pill-ring::after {
-  content: ''; width: 0.833333rem; height: 0.833333rem; border-radius: 50%; background: var(--bg-raised);
+.todo-pill-ring.done {
+  color: var(--green);
 }
-[data-theme="light"] .todo-pill-ring::after {
-  background: var(--bg-raised);
-}
+.todo-pill-ring svg { display: block; }
+.todo-pill-ring-track { stroke: var(--bg-active); }
+.todo-pill-ring-arc { stroke: currentColor; transition: stroke-dashoffset 0.3s ease, stroke 0.2s ease; }
 .todo-pill-tag {
   font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 700;
   color: var(--orange); letter-spacing: 0.06em;

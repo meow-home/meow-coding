@@ -17,7 +17,7 @@ describe('installClaudeSkill', () => {
     })
     expect(out).toBe(path.join(dir, 'meow-delegate', 'SKILL.md'))
     const text = readFileSync(out, 'utf8')
-    expect(text).toMatch(/^---\nname: meow-delegate\n/)
+    expect(text).toMatch(/^---\r?\nname: meow-delegate\r?\n/)
     expect(text).toContain('node "C:/Users/me/AppData/Roaming/Meow Coding/bin/meow-delegate.mjs"')
     expect(text).not.toContain('{{CLI_PATH}}')
   })
