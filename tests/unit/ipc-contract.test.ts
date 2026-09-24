@@ -32,7 +32,7 @@ describe('IPC contract', () => {
       'getBrowserStatus', 'pairBrowser', 'openBrowserInstallGuide', 'openBrowserExtensionFolder', 'openBrowserChromeExtensions',
       'getBrowserConsoleLogs', 'getBrowserNetworkLogs', 'onBrowserStatus', 'onBrowserOpenInstallGuide',
       'getRemoteStatus', 'setRemoteEnabled', 'setRemoteRelayUrl', 'startRemotePairing', 'revokeRemoteToken', 'onRemoteStatus',
-      'getExternalApiStatus', 'setExternalApiEnabled', 'regenerateExternalApiToken', 'installClaudeSkill', 'onExternalApiStatus',
+      'getExternalApiStatus', 'setExternalApiEnabled', 'regenerateExternalApiToken', 'installClaudeSkill', 'copyExternalApiToken', 'onExternalApiStatus',
       'onWorkspaceChanged'
     ]
     const api: AgentApi = {
@@ -133,6 +133,7 @@ describe('IPC contract', () => {
       setExternalApiEnabled: async () => ({ enabled: false, listening: false, port: null, cliPath: null, configPath: '' }),
       regenerateExternalApiToken: async () => ({ enabled: false, listening: false, port: null, cliPath: null, configPath: '' }),
       installClaudeSkill: async () => '',
+      copyExternalApiToken: async () => {},
       onExternalApiStatus: () => () => {},
       onWorkspaceChanged: () => () => {},
       platform: 'win32',

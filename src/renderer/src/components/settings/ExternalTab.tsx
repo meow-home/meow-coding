@@ -6,6 +6,7 @@ export default function ExternalTab() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [skillPath, setSkillPath] = useState('')
+  const [notice, setNotice] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -19,6 +20,7 @@ export default function ExternalTab() {
   const act = useCallback(async (fn: () => Promise<void>) => {
     setBusy(true)
     setError('')
+    setNotice('')
     try { await fn() } catch (err) { setError(String(err)) } finally { setBusy(false) }
   }, [])
 
@@ -49,10 +51,19 @@ export default function ExternalTab() {
       <div className="settings-row"><span>CLI</span><code>{status.cliPath ?? '—'}</code></div>
       <div className="settings-row">
         <span>Token</span>
-        <button className="btn" disabled={busy} onClick={() => void act(async () => {
-          setStatus(await window.api.regenerateExternalApiToken())
-        })}>Regenerate token</button>
+        <span>
+          <button className="btn" disabled={busy} onClick={() => void act(async () => {
+            await window.api.copyExternalApiToken()
+            setNotice('Token copied to clipboard.')
+          })}>Copy token</button>
+          {' '}
+          <button className="btn" disabled={busy} onClick={() => void act(async () => {
+            setStatus(await window.api.regenerateExternalApiToken())
+            setNotice(`Token regenerated at ${new Date().toLocaleTimeString()}. The CLI picks it up automatically; the old token is rejected.`)
+          })}>Regenerate token</button>
+        </span>
       </div>
+      {notice && <div className="settings-hint">{notice}</div>}
       <div className="settings-row">
         <span>Claude skill</span>
         <button className="btn" disabled={busy} onClick={() => void act(async () => {

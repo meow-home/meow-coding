@@ -62,6 +62,10 @@ export class ExternalApiManager {
     return this.getStatus()
   }
 
+  getToken(): string {
+    return this.deps.config.load().token
+  }
+
   installClaudeSkill(): string {
     if (!this.cliPath) this.installCli()
     return installClaudeSkill({

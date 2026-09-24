@@ -99,6 +99,15 @@ describe('ExternalApiManager', () => {
     expect(res.status).toBe(401)
   })
 
+  it('getToken returns the current token, including after regeneration', () => {
+    const before = mgr.getToken()
+    expect(before).toBe(config.load().token)
+    mgr.regenerateToken()
+    const after = mgr.getToken()
+    expect(after).not.toBe(before)
+    expect(after).toBe(config.load().token)
+  })
+
   it('installs the Claude skill pointing at the installed CLI', async () => {
     await mgr.start()
     const out = mgr.installClaudeSkill()

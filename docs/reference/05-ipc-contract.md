@@ -162,6 +162,7 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `ExternalApiSetEnabled` | `external-api:set-enabled` | `setExternalApiEnabled(enabled): ExternalApiStatus` |
 | `ExternalApiRegenerateToken` | `external-api:regenerate-token` | `regenerateExternalApiToken(): ExternalApiStatus` |
 | `ExternalApiInstallClaudeSkill` | `external-api:install-claude-skill` | `installClaudeSkill(): string` — writes `~/.claude/skills/meow-delegate/SKILL.md`, returns the written path |
+| `ExternalApiCopyToken` | `external-api:copy-token` | `copyExternalApiToken(): void` — main writes the token to the system clipboard; the token never crosses IPC |
 
 ### App & window
 

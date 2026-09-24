@@ -134,6 +134,7 @@ export const Channels = {
   ExternalApiSetEnabled: 'external-api:set-enabled',
   ExternalApiRegenerateToken: 'external-api:regenerate-token',
   ExternalApiInstallClaudeSkill: 'external-api:install-claude-skill',
+  ExternalApiCopyToken: 'external-api:copy-token',
   EventExternalApiStatus: 'external-api:status',
   EventWorkspaceChanged: 'workspace:changed',
   EventBrowserOpenInstallGuide: 'browser:install-guide',
@@ -317,6 +318,7 @@ export interface AgentApi {
   setExternalApiEnabled(enabled: boolean): Promise<ExternalApiStatus>
   regenerateExternalApiToken(): Promise<ExternalApiStatus>
   installClaudeSkill(): Promise<string>
+  copyExternalApiToken(): Promise<void>
   onExternalApiStatus(cb: (s: ExternalApiStatus) => void): () => void
   onWorkspaceChanged(cb: (e: WorkspaceChangedEvent) => void): () => void
   onBrowserOpenInstallGuide(cb: (e: BrowserInstallGuideEvent) => void): () => void

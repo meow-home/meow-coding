@@ -192,6 +192,7 @@ const api: AgentApi = {
   setExternalApiEnabled: (enabled: boolean) => ipcRenderer.invoke(Channels.ExternalApiSetEnabled, enabled),
   regenerateExternalApiToken: () => ipcRenderer.invoke(Channels.ExternalApiRegenerateToken),
   installClaudeSkill: () => ipcRenderer.invoke(Channels.ExternalApiInstallClaudeSkill),
+  copyExternalApiToken: () => ipcRenderer.invoke(Channels.ExternalApiCopyToken),
   onExternalApiStatus: (cb: (s: ExternalApiStatus) => void) => subscribe(Channels.EventExternalApiStatus, cb),
   onWorkspaceChanged: (cb: (e: WorkspaceChangedEvent) => void) => subscribe(Channels.EventWorkspaceChanged, cb),
   onBrowserOpenInstallGuide: (cb: (e: BrowserInstallGuideEvent) => void) => subscribe(Channels.EventBrowserOpenInstallGuide, cb),

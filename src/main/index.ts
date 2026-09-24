@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Notification, screen, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Notification, screen, shell } from 'electron'
 import { spawn } from 'node:child_process'
 import { existsSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { stat, writeFile } from 'node:fs/promises'
@@ -1050,6 +1050,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.ExternalApiSetEnabled, (_e, enabled: boolean) => mainApp.externalApi.setEnabled(enabled))
   ipcMain.handle(Channels.ExternalApiRegenerateToken, () => mainApp.externalApi.regenerateToken())
   ipcMain.handle(Channels.ExternalApiInstallClaudeSkill, () => mainApp.externalApi.installClaudeSkill())
+  ipcMain.handle(Channels.ExternalApiCopyToken, () => clipboard.writeText(mainApp.externalApi.getToken()))
 }
 
 app.whenReady().then(async () => {

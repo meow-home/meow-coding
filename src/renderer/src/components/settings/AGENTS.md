@@ -17,7 +17,7 @@ main process config.
 | `CommandsTab.tsx` | Slash-command editor (project-level). "+ Add command" button in header (top), same `agents-head` pattern as AgentsTab. Displays delete button only for custom user commands (`!builtIn` and not `system`). |
 | `PersonalizeTab.tsx` | App-wide font size & theme controls: theme-compatible background cards, Lucide icons (`Type`, `Sparkles`, `Palette`, `Moon`, `Sun`), Color Theme selector (Dark vs Light mode), font size preset buttons (10px–20px), and live text preview box. |
 | `UpdatesTab.tsx` | Update channel + check/install: redesigned with white background card, Lucide icons (`DownloadCloud`, `CheckCircle2`, `RefreshCw`, `ArrowUpCircle`, `AlertCircle`, `Sparkles`), status badges, progress bar, and version info. |
-| `ExternalTab.tsx` | External delegation tab ("Controls & Context" group): enable/disable the loopback API, status line, config file path, CLI path, regenerate token, and install the Claude skill. Uses `window.api.getExternalApiStatus/setExternalApiEnabled/regenerateExternalApiToken/installClaudeSkill/onExternalApiStatus`. |
+| `ExternalTab.tsx` | External delegation tab ("Controls & Context" group): enable/disable the loopback API, status line, config file path, CLI path, copy token (clipboard write happens in main, the token is never sent to the renderer), regenerate token (shows a confirmation notice), and install the Claude skill. Uses `window.api.getExternalApiStatus/setExternalApiEnabled/copyExternalApiToken/regenerateExternalApiToken/installClaudeSkill/onExternalApiStatus`. |
 | `Modal.tsx` | Inner settings modal wrapper wrapping `BaseModal` with standard Cancel/Save footer actions. |
 
 ## Conventions

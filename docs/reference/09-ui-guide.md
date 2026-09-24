@@ -198,7 +198,7 @@ normalized settings).
 | `CommandsTab` | Slash-command editor ("+ Add command" in the header) |
 | `UpdatesTab` | Update channel, check, install |
 | `RemoteTab` | Remote control enable, relay URL, pairing, revoke |
-| `ExternalTab` | External delegation enable, status, config file / CLI paths, regenerate token, install Claude skill |
+| `ExternalTab` | External delegation enable, status, config file / CLI paths, copy token (to clipboard, via main) / regenerate token with a confirmation notice, install Claude skill |
 | `Modal.tsx` | Reusable modal shell (built on `BaseModal`) |
 
 Adding a setting touches three places: `MeowSettings` in `src/shared/types.ts`, the normalize path in
