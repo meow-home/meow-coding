@@ -40,6 +40,8 @@ const MEOW_AGENT: AgentConfig = {
 interface StubLlmOptions {
   partsQueue?: LlmStreamPart[][]
   hangUntilAbort?: boolean
+  hangFromCall?: number
+  partialBeforeHang?: string
 }
 
 async function makeManager(opts: StubLlmOptions & {
@@ -65,10 +67,13 @@ async function makeManager(opts: StubLlmOptions & {
     save: (next) => permEntries.splice(0, permEntries.length, ...next)
   })
   const events: ChatEvent[] = []
+  let streamCalls = 0
   const createLlm = vi.fn((_provider?: unknown, _apiKey?: unknown, _baseUrl?: unknown, _opts?: unknown): LlmClient => {
     return {
       async *stream(request: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
-        if (opts.hangUntilAbort) {
+        const call = streamCalls++
+        if (opts.hangUntilAbort || (opts.hangFromCall !== undefined && call >= opts.hangFromCall)) {
+          if (opts.partialBeforeHang) yield { kind: 'text', text: opts.partialBeforeHang }
           await new Promise<void>(resolve => {
             if (request.signal?.aborted) return resolve()
             request.signal?.addEventListener('abort', () => resolve(), { once: true })
@@ -118,6 +123,16 @@ describe('MeowAgentManager delegation runtime', () => {
     manager.stop('a1')
     await runPromise
     expect(manager.isBusy('a1')).toBe(false)
+  })
+
+  it('ensureAgent registers an unknown native agent so it becomes resolvable', async () => {
+    const { manager } = await makeManager()
+    const agent: AgentConfig = { id: 'ext-1', name: '[claude] plan', templateId: 'meow', cwd: '/proj', kind: 'native' }
+    expect(manager.resolveDelegationAgent('ext-1')).toBeUndefined()
+    await manager.ensureAgent(agent)
+    expect(manager.resolveDelegationAgent('ext-1')?.name).toBe('[claude] plan')
+    await manager.ensureAgent(agent)
+    expect(manager.listAgents().filter(a => a.id === 'ext-1')).toHaveLength(1)
   })
 
   it('runs a delegated turn against the fixed target session and returns a correlated result', async () => {
@@ -296,5 +311,46 @@ describe('MeowAgentManager delegation runtime', () => {
       .filter((i): i is { kind: 'message'; message: { id: string } } => i.kind === 'message')
       .map(i => i.message)
     expect(messages.filter(m => m.id === 'delegation-incoming:d-redeliver')).toHaveLength(1)
+  })
+
+  it('reports a stopped delegated turn as cancelled without a stale answer from an earlier turn', async () => {
+    const { manager } = await makeManager({ hangFromCall: 1, partialBeforeHang: 'partial' })
+    const base = {
+      sourceAgentId: 'external:claude',
+      sourceName: 'Claude (external)',
+      targetAgentId: 'a1',
+      targetSessionId: 'del-session-cancel'
+    }
+    const first = await manager.runDelegatedTurn({ ...base, delegationId: 'c1', task: 'first task' })
+    expect(first?.reason).toBe('completed')
+    expect(first?.finalText).toBe('hi')
+    const secondPromise = manager.runDelegatedTurn({ ...base, delegationId: 'c2', task: 'second task' })
+    await new Promise(r => setTimeout(r, 20))
+    expect(manager.isBusy('a1')).toBe(true)
+    manager.stop('a1')
+    const second = await secondPromise
+    expect(second?.reason).toBe('cancelled')
+    expect(second?.finalText).toBeUndefined()
+  })
+
+  it('does not return an earlier turn\'s answer when a turn adds no assistant text', async () => {
+    const { manager } = await makeManager({
+      partsQueue: [
+        [{ kind: 'text', text: 'old answer' }, { kind: 'finish' }],
+        [{ kind: 'finish' }],
+        [{ kind: 'finish' }],
+        [{ kind: 'finish' }]
+      ]
+    })
+    const base = {
+      sourceAgentId: 'external:claude',
+      sourceName: 'Claude (external)',
+      targetAgentId: 'a1',
+      targetSessionId: 'del-session-empty'
+    }
+    const first = await manager.runDelegatedTurn({ ...base, delegationId: 'e1', task: 'first task' })
+    expect(first?.finalText).toBe('old answer')
+    const second = await manager.runDelegatedTurn({ ...base, delegationId: 'e2', task: 'second task' })
+    expect(second?.finalText).toBeUndefined()
   })
 })

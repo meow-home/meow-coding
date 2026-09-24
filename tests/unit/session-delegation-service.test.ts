@@ -26,6 +26,15 @@ class FakeRuntime implements DelegationRuntime {
   gates = new Map<string, { release: () => void; promise: Promise<void> }>()
   /** Deterministic run results keyed by delegationId. */
   runResults = new Map<string, AgentTurnResult>()
+  stopped: string[] = []
+  cancelledRuns = new Set<string>()
+  stopRun(agentId: string): void {
+    this.stopped.push(agentId)
+    for (const turn of this.turns.filter(t => t.targetAgentId === agentId)) {
+      this.cancelledRuns.add(turn.delegationId)
+      this.gates.get(turn.delegationId)?.release()
+    }
+  }
 
   add(agentId: string, projectPath = '/p', name?: string) {
     this.agents.set(agentId, { agentId, name: name ?? `Agent ${agentId}`, projectPath, sessionId: `${agentId}-s` })
@@ -49,6 +58,9 @@ class FakeRuntime implements DelegationRuntime {
       return preset
     }
     await this.gates.get(input.delegationId)?.promise
+    if (this.cancelledRuns.has(input.delegationId)) {
+      return { runId: input.delegationId, reason: 'cancelled', touchedFiles: [] }
+    }
     return { runId: input.delegationId, reason: 'completed', finalText: `done-${input.task}`, touchedFiles: ['/p/a.ts'] }
   }
   async appendResult(input: DelegationResultInput): Promise<void> { this.results.push(input) }
@@ -289,6 +301,85 @@ describe('SessionDelegationService', () => {
       expect(env.service.getStatus(d.id)?.wakeAt).toBe(2_000_000)
       expect(await env.service.claimSourceWake(d.id, 3_000_000)).toBe(false)
       expect(env.service.getStatus(d.id)?.wakeAt).toBe(2_000_000)
+    })
+  })
+
+  describe('external delegations', () => {
+    const ext = (over: Partial<{ projectPath: string; targetAgentId: string; task: string; planKey: string }> = {}) => ({
+      projectPath: '/p', targetAgentId: 'beta', task: 'ext task', planKey: '/p/plan.md', ...over
+    })
+
+    it('creates a queued external record with the sentinel source', async () => {
+      await env.service.start()
+      env.runtime.gate('x')
+      const rec = env.service.createExternal(ext())
+      expect(rec.sourceKind).toBe('external')
+      expect(rec.externalClient).toBe('claude')
+      expect(rec.sourceAgentId).toBe('external:claude')
+      expect(rec.sourceSessionId).toBe('external:claude')
+      expect(rec.planKey).toBe('/p/plan.md')
+    })
+
+    it('runs without a resolvable source and passes the external display name', async () => {
+      await env.service.start()
+      const rec = env.service.createExternal(ext())
+      expect(await until(() => env.service.getStatus(rec.id)?.status === 'completed')).toBe(true)
+      expect(env.runtime.turns[0].sourceName).toBe('Claude (external)')
+      expect(env.runtime.turns[0].sourceAgentId).toBe('external:claude')
+    })
+
+    it('never appends a result or wakes a source, but marks delivered', async () => {
+      await env.service.start()
+      const rec = env.service.createExternal(ext())
+      expect(await until(() => env.service.getStatus(rec.id)?.deliveredAt !== undefined)).toBe(true)
+      expect(env.runtime.results).toHaveLength(0)
+      expect(env.runtime.wakes).toHaveLength(0)
+    })
+
+    it('rejects an unknown target, a cross-project target, an empty task and an oversized task', async () => {
+      await env.service.start()
+      expect(() => env.service.createExternal(ext({ targetAgentId: 'nope' }))).toThrow(/does not exist/)
+      expect(() => env.service.createExternal(ext({ projectPath: '/other' }))).toThrow(/project/)
+      expect(() => env.service.createExternal(ext({ task: '  ' }))).toThrow(/empty/)
+      expect(() => env.service.createExternal(ext({ task: 'x'.repeat(32 * 1024 + 1) }))).toThrow(/KiB/)
+    })
+
+    it('enforces the per-target nonterminal cap', async () => {
+      env.runtime.busy.add('beta')
+      await env.service.start()
+      for (let i = 0; i < 5; i++) env.service.createExternal(ext({ task: `t${i}` }))
+      expect(() => env.service.createExternal(ext({ task: 't5' }))).toThrow(/max 5/)
+    })
+  })
+
+  describe('cancel', () => {
+    it('cancels a queued delegation', async () => {
+      env.runtime.busy.add('beta')
+      await env.service.start()
+      const rec = env.service.createExternal({ projectPath: '/p', targetAgentId: 'beta', task: 't', planKey: 'k' })
+      const out = await env.service.cancel(rec.id)
+      expect(out.status).toBe('cancelled')
+    })
+
+    it('stops a running delegation through the runtime', async () => {
+      env.runtime.busy.add('beta')
+      await env.service.start()
+      const rec = env.service.createExternal({ projectPath: '/p', targetAgentId: 'beta', task: 't', planKey: 'k' })
+      env.runtime.gate(rec.id)
+      env.runtime.busy.delete('beta')
+      env.service.notifyAgentAvailable('beta')
+      expect(await until(() => env.service.getStatus(rec.id)?.status === 'running')).toBe(true)
+      const out = await env.service.cancel(rec.id)
+      expect(env.runtime.stopped).toEqual(['beta'])
+      expect(out.status).toBe('cancelled')
+    })
+
+    it('returns a terminal record unchanged and throws for an unknown id', async () => {
+      await env.service.start()
+      const rec = env.service.createExternal({ projectPath: '/p', targetAgentId: 'beta', task: 't', planKey: 'k' })
+      expect(await until(() => env.service.getStatus(rec.id)?.status === 'completed')).toBe(true)
+      expect((await env.service.cancel(rec.id)).status).toBe('completed')
+      await expect(env.service.cancel('missing')).rejects.toThrow(/Unknown delegation/)
     })
   })
 })

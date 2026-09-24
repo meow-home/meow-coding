@@ -1,6 +1,6 @@
 # External Delegation (Claude → Meow) — Design Spec
 
-Date: 2026-09-24 · Status: awaiting written-spec review
+Date: 2026-09-24 · Status: approved — implemented per plan 2026-09-24-external-delegation.md
 
 ## 1. Goal
 
@@ -64,13 +64,22 @@ New module `src/main/external-api/`:
 |---|---|
 | `server.ts` | `ExternalApiServer`: `node:http` on `127.0.0.1`, bearer auth (`timingSafeEqual`), 64 KiB body cap, rejects any request carrying an `Origin` header, routing, long-poll waiters woken by delegation changes. `start()` / `stop()`. |
 | `facade.ts` | `ExternalDelegationFacade`: resolve/add the project for a cwd, resolve/create the per-plan session, create/cancel external delegations, map records to API DTOs. |
-| `connection-file.ts` | Read/write `userData/external-api.json` (`{ port, token, cliPath }`); token generation and regeneration. |
-| `cli/meow-delegate.mjs` | The CLI shipped to `userData/bin/meow-delegate.mjs` on every app start. |
+| `config-file.ts` | `ExternalApiConfigFile`: read/write `userData/external-api.json` (`{ enabled, port, token, cliPath }`); token generation and regeneration. |
+| `manager.ts` | `ExternalApiManager`: copies the CLI to `userData/bin/` on every app start, starts/stops the server with the setting, status for the Settings tab, `installClaudeSkill()`. |
 | `claude-skill.ts` | Renders the Claude skill template with the absolute CLI path and writes it to `~/.claude/skills/meow-delegate/SKILL.md`. |
 
-`MainApp` (`src/main/index.ts`) owns the server: starts it after `delegationService.start()` when the
-setting is enabled, stops it on quit or when the setting is turned off, and forwards the service's
-`onChanged` to the server's waiters.
+The CLI itself lives at `resources/external-api/meow-delegate.mjs` (packaged via `extraResources` to
+`external-api/`), not under `src/main/external-api/cli/`, because it is copied as a plain file rather
+than bundled.
+
+`MainApp` (`src/main/index.ts`) owns the `ExternalApiManager`: starts it after `delegationService.start()`
+when the setting is enabled, stops it on quit or when the setting is turned off, and forwards the
+service's `onChanged` to the server's waiters via `notifyChanged`. When the facade auto-adds a project
+or creates a per-plan session, `MainApp` pushes a new `workspace:changed` event
+(`WorkspaceChangedEvent { runtime: WorkspaceRuntime }`) so the renderer refreshes without a manual
+reload — no such event existed before this feature. The facade also calls
+`MeowAgentManager.ensureAgent(agent)` before creating a delegation, so a session in a never-opened
+project is runnable.
 
 ## 5. Data model
 
@@ -100,8 +109,12 @@ normalized like project paths (Windows lower-cased, forward slashes).
   only `markDelivered` and emit. Result truncation (64 KiB UTF-8) is unchanged.
 - `cancel(id)` — `queued` → `cancelled` as today; `running` / `waiting_for_input` → call
   `runtime.stopRun(targetAgentId)` (the manager's existing `stop`, which aborts the turn and
-  tree-kills its processes); the run then settles as `cancelled`. Terminal records return as-is.
-- Restart recovery is unchanged: in-flight → `interrupted`, queued → resumed.
+  tree-kills its processes); the run then settles as `cancelled` (an aborted turn is always
+  `cancelled`, even with partial text), and `cancel` waits up to 5 s for that terminal status before
+  returning the latest record. Terminal records return as-is.
+- Restart recovery is unchanged: in-flight → `interrupted`, queued → resumed. Because the service
+  starts before workspaces are opened, the facade's `resumeQueued()` registers each queued external
+  target (`ensureAgent`) and calls `notifyAgentAvailable` after the API has started.
 
 `DelegationRuntime` gains `stopRun(agentId: string): void`.
 
@@ -118,22 +131,28 @@ request with an `Origin` header gets 403. Unknown route 404; malformed body 400.
 | Route | Behavior |
 |---|---|
 | `GET /v1/health` | `{ version }` |
-| `POST /v1/tasks` | Body `{ cwd, planKey, title?, task, sessionId? }`. With `sessionId` (a target agent id), queue into that session (must be an existing session created by this feature). Without it, resolve/create the per-plan session. Returns `{ taskId, sessionId, agentId, status }`. `cwd` must be an existing directory (400). |
+| `POST /v1/tasks` | Body `{ cwd, planKey, title?, task, sessionId? }`. With `sessionId` (a target agent id), queue into that session (must be an existing session created by this feature). Without it, resolve/create the per-plan session. Returns `{ task: TaskDto }`. `cwd` must be an existing directory (400). |
 | `GET /v1/tasks/:id` | `{ task: TaskDto }` |
 | `GET /v1/tasks/:id/wait?timeout=<s>` | Returns as soon as the task is terminal, or after `timeout` (default 60, max 120): `{ done, task }` |
 | `POST /v1/tasks/:id/cancel` | `{ task }` after the cancel is applied |
 
-`TaskDto`: `{ id, status, sessionId, agentId, projectPath, planKey, createdAt, startedAt?,
+`TaskDto`: `{ id, status, sessionId, projectPath, planKey, createdAt, startedAt?,
 finishedAt?, result?, resultTruncated?, error?, touchedFiles }`. `sessionId` in the API is the
-Meow agent id (the UI's "session").
+Meow agent id (the UI's "session"); there is no separate `agentId` field — it would be redundant
+with `sessionId`.
 
-**Connection file** `userData/external-api.json`: `{ port, token, cliPath }`. The token is
-32 random bytes (hex), created once and kept across restarts until regenerated. Preferred port
-`3929`; if taken, bind port `0` and record the actual port. The file is rewritten on each start.
+**Config file** `userData/external-api.json`: `{ enabled, port, token, cliPath }`. `enabled` is the
+Settings toggle. The token is 32 random bytes (hex), created once and kept across restarts until
+regenerated. Preferred port `3929`; if taken (`EADDRINUSE`) or inside a Windows excluded port range
+(`EACCES`), bind port `0` and record the actual port; `port` is `null` when not listening (cleared on
+disable and on quit). The file is rewritten on each start and written with mode `0600` (POSIX).
 
 ## 8. CLI (`meow-delegate.mjs`)
 
-Plain Node ≥ 18, global `fetch`, no dependencies. Reads the connection file relative to its own
+Source lives at `resources/external-api/meow-delegate.mjs` (packaged via `extraResources` to
+`external-api/`), and is copied to `userData/bin/meow-delegate.mjs` on every app start.
+
+Plain Node ≥ 18, global `fetch`, no dependencies. Reads the config file relative to its own
 location (`<userData>/bin/../external-api.json`), so it follows the real `userData` directory —
 which differs between dev (`meow-coding`), packaged builds (`Meow Coding`), and `MEOW_USER_DATA`
 overrides. Overridable with `--config <path>`.
@@ -146,7 +165,9 @@ node meow-delegate.mjs cancel <taskId>
 ```
 
 Task text always comes from a file to avoid shell quoting problems on Windows. `start` and `send`
-wait by default, looping on `/wait`. Transient connection failures are retried for 30 s.
+wait by default, looping on `/wait`. Transient connection failures are retried for 30 s, re-reading
+the config file on each retry (and once on a 401) so a restarted Meow on a new port or a regenerated
+token is picked up.
 
 Output when the task is terminal:
 
@@ -160,19 +181,22 @@ touched_files:
 ```
 
 Exit codes: `0` completed · `1` failed / interrupted · `2` cancelled · `3` Meow unreachable, feature
-disabled, or 401 · `4` invalid arguments or 400/404.
+disabled, 401 or 403 · `4` invalid arguments or 400/404/413.
 
 ## 9. Settings and IPC
 
-- `MeowSettings.externalDelegation: { enabled: boolean }`, default `false`.
-- Settings panel section "External delegation": enable toggle, status line (listening port or
-  error), "Regenerate token", "Install Claude skill" (shows the written path).
-- New `Channels` entries + `AgentApi` methods: `externalApiStatus`, `externalApiRegenerateToken`,
-  `externalApiInstallClaudeSkill`. The toggle goes through the existing settings save path.
+- `enabled` lives in `userData/external-api.json` (`ExternalApiConfigFile`) next to `port`/`token`/
+  `cliPath`, not in `meow.json`'s `MeowSettings` — this mirrors `remote.json` + `RemoteTab`, which
+  already keep their own settings file outside `meow.json`. Default `false`.
+- Settings panel section "External delegation" (`ExternalTab`): enable toggle, status line
+  (listening port or error), "Regenerate token", "Install Claude skill" (shows the written path).
+- New `Channels` entries + `AgentApi` methods: `getExternalApiStatus`, `setExternalApiEnabled`,
+  `regenerateExternalApiToken`, `installClaudeSkill`, plus the `EventExternalApiStatus` push event.
+  The enable toggle goes through `setExternalApiEnabled`, not the `meow.json` settings save path.
 
 ## 10. Claude skill (`meow-delegate`)
 
-Template kept in the repo at `src/main/external-api/claude-skill.md`; the CLI path is substituted at
+Template kept in the repo at `resources/external-api/claude-skill.md`; the CLI path is substituted at
 install time. The skill instructs Claude to:
 
 1. Use it when a written plan exists and the user wants Meow to execute it.

@@ -1,6 +1,6 @@
 # 08 — Integrations
 
-Four external-system integrations plus one companion service.
+Five external-system integrations plus one companion service.
 
 ## 8.1 MCP (Model Context Protocol)
 
@@ -263,3 +263,99 @@ manages providers.
 1. Run the relay (`cd server && npm install && npm start`) behind TLS.
 2. Settings → Remote Control → enable, set the relay URL (`wss://relay.example.com`).
 3. Click **Start pairing** and enter the 6-digit code on the phone.
+
+## 8.6 External delegation (Claude Code → Meow)
+
+Lets an external coding agent — Claude Code running in the Claude desktop app — hand plan tasks to
+Meow, get notified when each one finishes, verify the result itself, and send feedback into the same
+Meow session. Built on `src/main/external-api/` (see its `AGENTS.md`) plus the existing
+`SessionDelegationService`, with delegations tagged `sourceKind: 'external'`. **Disabled by default.**
+
+### Flow
+
+```
+Claude (desktop) ─ Bash run_in_background ─▶ node meow-delegate.mjs start|send|status|cancel
+                                                   │ HTTP 127.0.0.1:<port>, Bearer <token>
+                                                   ▼
+Meow main: ExternalApiServer ─▶ ExternalDelegationFacade ─▶ SessionDelegationService
+                                                              └─▶ session "[claude] <plan title>"
+```
+
+Claude never polls through its own turns: the CLI blocks until the Meow task is terminal (or the
+`/wait` timeout), and Claude Code re-invokes the model when the `run_in_background` command exits,
+delivering the "task finished" message into the Claude session.
+
+### Config file (`userData/external-api.json`)
+
+`{ enabled, port, token, cliPath }` — see [06 — Data & Storage](06-data-and-storage.md#62-userdata-inventory).
+`enabled` is the Settings toggle; `port` is the bound port, `null` when not listening (cleared on
+disable and on quit); `token`
+is 32 random bytes (hex), created once and kept until regenerated; `cliPath` is the CLI's copied
+location under `userData/bin/`. The file is written with mode `0600` on POSIX.
+
+### Routes
+
+All routes are under `/v1`, JSON, and require `Authorization: Bearer <token>` (401 otherwise).
+
+| Route | Behavior |
+|---|---|
+| `GET /v1/health` | `{ version }` |
+| `POST /v1/tasks` | Body `{ cwd, planKey, title?, task, sessionId? }`. With `sessionId` (a target agent id), queues into that existing session. Without it, resolves/creates the per-plan session (`[claude] <title>`, auto-adding the project for `cwd` when missing). Returns `{ task: TaskDto }`. |
+| `GET /v1/tasks/:id` | `{ task: TaskDto }` |
+| `GET /v1/tasks/:id/wait?timeout=<s>` | Long-polls until the task is terminal, or `timeout` elapses (default 60s, max 120s): `{ done, task }` |
+| `POST /v1/tasks/:id/cancel` | `{ task }` after the cancel is applied; a running task is stopped and the call waits up to 5 s for it to settle, so `task.status` is normally `cancelled` |
+
+`TaskDto`: `{ id, status, sessionId, projectPath, planKey, createdAt, startedAt?, finishedAt?, result?,
+resultTruncated?, error?, touchedFiles }`. `sessionId` is the Meow agent id (the UI's "session"); there
+is no separate `agentId` field.
+
+### CLI (`meow-delegate.mjs`)
+
+Plain Node ≥ 18 (global `fetch`, no dependencies), packaged from `resources/external-api/` and copied
+to `userData/bin/meow-delegate.mjs` on every app start; reads `../external-api.json` relative to its
+own location, so it follows the real `userData` directory.
+
+```
+node meow-delegate.mjs start  --cwd <dir> --plan <plan.md> [--title <t>] --task-file <f> [--no-wait]
+node meow-delegate.mjs send   --session <id> --message-file <f> [--no-wait]
+node meow-delegate.mjs status <taskId>
+node meow-delegate.mjs cancel <taskId>
+```
+
+Task text always comes from a file (avoids Windows shell-quoting problems). `start` and `send` wait
+by default, long-polling `/wait`; transient connection failures are retried for 30s, re-reading the
+config file on each retry (and once on a 401) to follow a restarted Meow or a regenerated token. When
+the task is terminal:
+
+```
+=== MEOW TASK RESULT ===
+task: <id>   session: <id>   status: <status>
+touched_files:
+- <path>
+--- final answer ---
+<result or error>
+```
+
+Exit codes: `0` completed · `1` failed/interrupted · `2` cancelled · `3` Meow unreachable, feature
+disabled, 401 or 403 · `4` invalid arguments or 400/404/413.
+
+Queued external tasks survive a restart: after the API starts, `ExternalDelegationFacade.resumeQueued()`
+registers each queued task's target session and wakes its pump.
+
+### Security
+
+- Loopback only (`127.0.0.1`), preferred port `3929`, fallback port `0` (OS-assigned) when the preferred
+  port is taken (`EADDRINUSE`) or excluded on Windows (`EACCES`).
+- Bearer token required on every route, compared with `crypto.timingSafeEqual`.
+- Any request carrying an `Origin` header is rejected with 403 — blocks browser pages; no CORS headers
+  are ever sent.
+- Request body capped at 64 KiB (413 when exceeded).
+- Feature is off until the user enables it in Settings → External delegation.
+
+### Claude skill install
+
+Settings → External delegation → **Install Claude skill** renders
+`resources/external-api/claude-skill.md` (substituting the CLI's absolute path) to
+`~/.claude/skills/meow-delegate/SKILL.md`. The skill instructs Claude to delegate one plan task at a
+time, wait in the background, verify Meow's work itself (diff + the plan's verification commands), and
+send corrective feedback into the same session (at most 3 rounds before asking the user).

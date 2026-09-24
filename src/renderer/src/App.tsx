@@ -441,6 +441,23 @@ export default function App() {
         }
       }))
     })
+    const offWorkspaceChanged = window.api.onWorkspaceChanged(({ runtime }) => {
+      void refreshWorkspaces()
+      const path = runtime.workspace.projectPath
+      if (!runtimesRef.current[path]) return
+      setRuntimes(prev => {
+        const current = prev[path]
+        if (!current) return prev
+        return {
+          ...prev,
+          [path]: {
+            ...current,
+            workspace: runtime.workspace,
+            agents: runtime.agents.map(a => current.agents.find(x => x.agentId === a.agentId) ?? a)
+          }
+        }
+      })
+    })
     const offBrowser = window.api.onBrowserStatus((info) => {
       setBrowser(info)
     })
@@ -468,11 +485,12 @@ export default function App() {
       offGit()
       offBg()
       offConfig()
+      offWorkspaceChanged()
       offBrowser()
       offInstallGuide()
       offUpdater()
     }
-  }, [])
+  }, [refreshWorkspaces, setRuntimes])
 
   // Sidebar "needs input" badges: seed from main (agents waiting from before
   // this window mounted) then keep in sync via push events.

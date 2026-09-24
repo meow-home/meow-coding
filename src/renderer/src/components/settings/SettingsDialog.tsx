@@ -7,7 +7,8 @@ import {
   Terminal,
   Sliders,
   Palette,
-  DownloadCloud
+  DownloadCloud,
+  Share2
 } from 'lucide-react'
 import type { CatalogProviderSummary, McpServerStatus, MeowSettings } from '@shared/types'
 import BaseModal from '../common/BaseModal'
@@ -17,6 +18,7 @@ import McpTab from './McpTab'
 import ContextTab from './ContextTab'
 import CommandsTab from './CommandsTab'
 import RemoteTab from './RemoteTab'
+import ExternalTab from './ExternalTab'
 import UpdatesTab from './UpdatesTab'
 import ProvidersTab from './ProvidersTab'
 import PersonalizeTab from './PersonalizeTab'
@@ -28,6 +30,7 @@ export type TabId =
   | 'context'
   | 'commands'
   | 'remote'
+  | 'external'
   | 'updates'
   | 'providers'
   | 'personalize'
@@ -58,7 +61,8 @@ const TAB_GROUPS: TabGroup[] = [
     items: [
       { id: 'permissions', label: 'Permissions', icon: ShieldCheck },
       { id: 'commands', label: 'Commands', icon: Terminal },
-      { id: 'context', label: 'Context', icon: Sliders }
+      { id: 'context', label: 'Context', icon: Sliders },
+      { id: 'external', label: 'External delegation', icon: Share2 }
     ]
   },
   {
@@ -296,6 +300,7 @@ export default function SettingsDialog({ onClose, projectPath, initialTab = 'age
             )}
             {tab === 'commands' && <CommandsTab projectPath={projectPath} />}
             {tab === 'remote' && <RemoteTab />}
+            {tab === 'external' && <ExternalTab />}
             {tab === 'updates' && <UpdatesTab />}
             {tab === 'personalize' && <PersonalizeTab />}
           </div>

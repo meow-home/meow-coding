@@ -124,6 +124,38 @@ describe('SessionDelegationStore', () => {
     expect(store.get('old1')).toBeUndefined()
     expect(store.get('fresh1')).toBeDefined()
   })
+
+  it('persists external source fields and round-trips them through load()', async () => {
+    const store = make()
+    const created = store.create({
+      id: 'x1',
+      projectPath: 'E:\\Repo',
+      sourceAgentId: 'external:claude',
+      sourceSessionId: 'external:claude',
+      targetAgentId: 'beta',
+      targetSessionId: 'beta-s',
+      targetBusyAtCreation: false,
+      task: 't',
+      sourceKind: 'external',
+      externalClient: 'claude',
+      planKey: 'e:/repo/docs/plan.md'
+    })
+    expect(created.sourceKind).toBe('external')
+    expect(created.externalClient).toBe('claude')
+    expect(created.planKey).toBe('e:/repo/docs/plan.md')
+    await store.load()
+    expect(store.get('x1')?.planKey).toBe('e:/repo/docs/plan.md')
+  })
+
+  it('omits external fields for ordinary session delegations', () => {
+    const store = make()
+    const created = store.create({
+      id: 's1', projectPath: '/p', sourceAgentId: 'a', sourceSessionId: 'a-s',
+      targetAgentId: 'b', targetSessionId: 'b-s', targetBusyAtCreation: false, task: 't'
+    })
+    expect('sourceKind' in created).toBe(false)
+    expect('planKey' in created).toBe(false)
+  })
 })
 
 describe('SessionStore idempotency helpers', () => {

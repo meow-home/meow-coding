@@ -4,9 +4,10 @@ import { Channels } from '../shared/ipc'
 ipcRenderer.setMaxListeners(100)
 import type { ArtifactsChangedEvent } from '../shared/ipc'
 import type { ChatEvent, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, TranscriptWindowOpts, UpdaterStatusEvent } from '../shared/types'
-import type { ActivateAgentEvent, AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, GitStatusEvent, PromptStateEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
+import type { ActivateAgentEvent, AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, GitStatusEvent, PromptStateEvent, WindowMaximizedChangeEvent, WorkspaceChangedEvent } from '../shared/ipc'
 import type { BrowserStatusInfo } from '../shared/browser-types'
 import type { RemoteStatus } from '../shared/remote-types'
+import type { ExternalApiStatus } from '../shared/external-api-types'
 
 function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
   const listener = (_event: unknown, payload: T) => cb(payload)
@@ -187,6 +188,12 @@ const api: AgentApi = {
   startRemotePairing: () => ipcRenderer.invoke(Channels.RemoteStartPairing),
   revokeRemoteToken: () => ipcRenderer.invoke(Channels.RemoteRevokeToken),
   onRemoteStatus: (cb: (s: RemoteStatus) => void) => subscribe(Channels.EventRemoteStatus, cb),
+  getExternalApiStatus: () => ipcRenderer.invoke(Channels.ExternalApiGetStatus),
+  setExternalApiEnabled: (enabled: boolean) => ipcRenderer.invoke(Channels.ExternalApiSetEnabled, enabled),
+  regenerateExternalApiToken: () => ipcRenderer.invoke(Channels.ExternalApiRegenerateToken),
+  installClaudeSkill: () => ipcRenderer.invoke(Channels.ExternalApiInstallClaudeSkill),
+  onExternalApiStatus: (cb: (s: ExternalApiStatus) => void) => subscribe(Channels.EventExternalApiStatus, cb),
+  onWorkspaceChanged: (cb: (e: WorkspaceChangedEvent) => void) => subscribe(Channels.EventWorkspaceChanged, cb),
   onBrowserOpenInstallGuide: (cb: (e: BrowserInstallGuideEvent) => void) => subscribe(Channels.EventBrowserOpenInstallGuide, cb),
   suggestFiles: (agentId: string, prefix: string) =>
     ipcRenderer.invoke(Channels.FilesSuggest, agentId, prefix),

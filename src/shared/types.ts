@@ -185,6 +185,9 @@ export interface SessionDelegation {
   touchedFiles?: string[]
   deliveredAt?: number
   wakeAt?: number
+  sourceKind?: 'session' | 'external'
+  externalClient?: 'claude'
+  planKey?: string
 }
 
 export type SessionDelegationSummary = SessionDelegation
