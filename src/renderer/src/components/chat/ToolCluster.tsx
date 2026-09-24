@@ -46,8 +46,10 @@ export default memo(function ToolCluster({ calls, firstId }: Props) {
           // ToolCallCard already keys on its own id; passing `key` here would
           // double-apply. ToolCallCard is memo'd and replaces its call object
           // wholesale on tool-start/tool-result, so it only re-renders when
-          // the call itself changes.
-          <ToolCallCard key={c.id} call={c} />
+          // the call itself changes. Inside a cluster we collapse each step
+          // by default — the cluster header already shows progress, so a long
+          // run of steps shouldn't each pop open and scatter the feed.
+          <ToolCallCard key={c.id} call={c} collapseWhileRunning />
         ))}
       </div>
     </details>

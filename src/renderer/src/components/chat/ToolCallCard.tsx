@@ -5,6 +5,10 @@ import DiffView from './DiffView'
 
 interface Props {
   call: ToolCallData
+  // When true, the card never auto-opens (even while the call is `pending`).
+  // Used by ToolCluster so a long run of tool steps stays collapsed and the
+  // feed reads as a tight group — the user can still click any step to peek.
+  collapseWhileRunning?: boolean
 }
 
 // Short single-line description of what the tool did, shown on the collapsed
@@ -38,7 +42,7 @@ function describeInput(call: ToolCallData): string {
 
 // call objects are replaced wholesale on tool-start/tool-result, so memo keeps
 // finished cards from re-rendering (and re-stringifying) on every stream delta.
-export default memo(function ToolCallCard({ call }: Props) {
+export default memo(function ToolCallCard({ call, collapseWhileRunning }: Props) {
   const pending = call.permission === 'pending'
   const input = call.input ?? {}
   const editDiff = call.tool === 'edit'
@@ -54,8 +58,18 @@ export default memo(function ToolCallCard({ call }: Props) {
       ? 'status-err'
       : 'status-ok'
 
+  // Default: open while running so the user can watch what the agent is doing.
+  // In a cluster, the parent (ToolCluster) passes collapseWhileRunning so the
+  // step stays collapsed — the cluster header already shows progress.
+  const openDefault = collapseWhileRunning ? false : pending
+
+  // Re-key on the pending → done transition so the card resets to collapsed
+  // even if the user had clicked it open during the run; otherwise the
+  // browser keeps the open attribute from the previous render.
+  const stepKey = pending ? `pending:${call.id}` : `done:${call.id}`
+
   return (
-    <details className={`tool-call ${statusClass}`} open={pending}>
+    <details className={`tool-call ${statusClass}`} open={openDefault} key={stepKey}>
       <summary className="tool-call-header">
         <ChevronRight className="tool-call-chevron" />
         <span className={`tool-call-badge tool-call-badge-${call.tool}`}>{call.tool}</span>

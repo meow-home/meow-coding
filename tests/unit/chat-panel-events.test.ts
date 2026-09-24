@@ -241,4 +241,61 @@ describe('ChatPanel live event reconciliation', () => {
     // The lone tool renders as a bare .tool-call (no cluster wrapper).
     expect(container.querySelectorAll('.tool-call:not(.tool-cluster .tool-call)')).toHaveLength(1)
   })
+
+  it('keeps clustered tool steps collapsed by default, even while running; a lone running tool still auto-opens', async () => {
+    let resolveTranscript!: (page: TranscriptPage) => void
+    const transcript = new Promise<TranscriptPage>(resolve => { resolveTranscript = resolve })
+    let onEvent: ((event: ChatEvent) => void) | undefined
+    const api = new Proxy({}, {
+      get: (_target, key) => {
+        if (key === 'listChatTranscript') return () => transcript
+        if (key === 'onChatEvent') return (listener: (event: ChatEvent) => void) => { onEvent = listener; return () => {} }
+        if (key === 'getAgentVariants' || key === 'getChatTodos' || key === 'listCommands' || key === 'listModels') {
+          return async () => []
+        }
+        if (key === 'getContextInfo') return async () => ({ limit: 128000, compactThreshold: 100000, sessionCost: 0 })
+        if (key === 'isChatRunning') return async () => false
+        if (key === 'getPendingPrompt') return async () => null
+        return async () => undefined
+      }
+    }) as Window['api']
+    Object.defineProperty(window, 'api', { configurable: true, value: api })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => { root?.render(createElement(ChatPanel, { agentId: 'agent-1', cwd: 'C:\\repo' })) })
+    await act(async () => { resolveTranscript({ items: [], hasMore: false }); await transcript })
+
+    // Cluster: two pending tool calls — both must render collapsed.
+    act(() => onEvent?.({ type: 'tool-start', agentId: 'agent-1', call: { id: 'tc-1', tool: 'bash', input: { command: 'ls' }, permission: 'pending' } }))
+    act(() => onEvent?.({ type: 'tool-start', agentId: 'agent-1', call: { id: 'tc-2', tool: 'read', input: { file_path: 'a.txt' }, permission: 'pending' } }))
+    const clusterCards = container.querySelectorAll('.tool-cluster .tool-call')
+    expect(clusterCards).toHaveLength(2)
+    for (const card of Array.from(clusterCards)) {
+      expect((card as HTMLDetailsElement).open).toBe(false)
+    }
+
+    // First tool finishes — still collapsed.
+    act(() => onEvent?.({ type: 'tool-result', agentId: 'agent-1', call: { id: 'tc-1', tool: 'bash', input: { command: 'ls' }, permission: 'allowed', output: 'a.txt' } }))
+    const finishedCards = container.querySelectorAll('.tool-cluster .tool-call')
+    for (const card of Array.from(finishedCards)) {
+      // tc-2 may have its own open attribute (pending, collapsed) — the test is
+      // that nothing auto-opened after tc-1 finished.
+      expect((card as HTMLDetailsElement).open).toBe(false)
+    }
+
+    // An assistant message between the cluster and the next tool call breaks the run,
+    // so the next tool renders as a lone tool-call outside any cluster.
+    act(() => onEvent?.({
+      type: 'user-message', agentId: 'agent-1',
+      message: { id: 'u-break', role: 'user', text: 'break', createdAt: Date.now() }
+    }))
+
+    // Lone pending tool outside any cluster must still auto-open (legacy behavior).
+    act(() => onEvent?.({ type: 'tool-start', agentId: 'agent-1', call: { id: 'tc-lone', tool: 'bash', input: { command: 'pwd' }, permission: 'pending' } }))
+    const lone = container.querySelector('.tool-call:not(.tool-cluster .tool-call)') as HTMLDetailsElement | null
+    expect(lone).not.toBeNull()
+    expect(lone!.open).toBe(true)
+  })
 })
