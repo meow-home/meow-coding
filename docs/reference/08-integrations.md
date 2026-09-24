@@ -288,9 +288,10 @@ delivering the "task finished" message into the Claude session.
 ### Config file (`userData/external-api.json`)
 
 `{ enabled, port, token, cliPath }` — see [06 — Data & Storage](06-data-and-storage.md#62-userdata-inventory).
-`enabled` is the Settings toggle; `port` is the last bound port (`null` when not listening); `token`
+`enabled` is the Settings toggle; `port` is the bound port, `null` when not listening (cleared on
+disable and on quit); `token`
 is 32 random bytes (hex), created once and kept until regenerated; `cliPath` is the CLI's copied
-location under `userData/bin/`.
+location under `userData/bin/`. The file is written with mode `0600` on POSIX.
 
 ### Routes
 
@@ -302,7 +303,7 @@ All routes are under `/v1`, JSON, and require `Authorization: Bearer <token>` (4
 | `POST /v1/tasks` | Body `{ cwd, planKey, title?, task, sessionId? }`. With `sessionId` (a target agent id), queues into that existing session. Without it, resolves/creates the per-plan session (`[claude] <title>`, auto-adding the project for `cwd` when missing). Returns `{ task: TaskDto }`. |
 | `GET /v1/tasks/:id` | `{ task: TaskDto }` |
 | `GET /v1/tasks/:id/wait?timeout=<s>` | Long-polls until the task is terminal, or `timeout` elapses (default 60s, max 120s): `{ done, task }` |
-| `POST /v1/tasks/:id/cancel` | `{ task }` after the cancel is applied |
+| `POST /v1/tasks/:id/cancel` | `{ task }` after the cancel is applied; a running task is stopped and the call waits up to 5 s for it to settle, so `task.status` is normally `cancelled` |
 
 `TaskDto`: `{ id, status, sessionId, projectPath, planKey, createdAt, startedAt?, finishedAt?, result?,
 resultTruncated?, error?, touchedFiles }`. `sessionId` is the Meow agent id (the UI's "session"); there
@@ -322,8 +323,9 @@ node meow-delegate.mjs cancel <taskId>
 ```
 
 Task text always comes from a file (avoids Windows shell-quoting problems). `start` and `send` wait
-by default, long-polling `/wait`; transient connection failures are retried for 30s. When the task is
-terminal:
+by default, long-polling `/wait`; transient connection failures are retried for 30s, re-reading the
+config file on each retry (and once on a 401) to follow a restarted Meow or a regenerated token. When
+the task is terminal:
 
 ```
 === MEOW TASK RESULT ===
@@ -335,11 +337,15 @@ touched_files:
 ```
 
 Exit codes: `0` completed · `1` failed/interrupted · `2` cancelled · `3` Meow unreachable, feature
-disabled, or 401 · `4` invalid arguments or 400/404/413.
+disabled, 401 or 403 · `4` invalid arguments or 400/404/413.
+
+Queued external tasks survive a restart: after the API starts, `ExternalDelegationFacade.resumeQueued()`
+registers each queued task's target session and wakes its pump.
 
 ### Security
 
-- Loopback only (`127.0.0.1`), preferred port `3929`, fallback port `0` (OS-assigned).
+- Loopback only (`127.0.0.1`), preferred port `3929`, fallback port `0` (OS-assigned) when the preferred
+  port is taken (`EADDRINUSE`) or excluded on Windows (`EACCES`).
 - Bearer token required on every route, compared with `crypto.timingSafeEqual`.
 - Any request carrying an `Origin` header is rejected with 403 — blocks browser pages; no CORS headers
   are ever sent.

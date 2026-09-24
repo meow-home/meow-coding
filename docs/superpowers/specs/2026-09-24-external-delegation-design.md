@@ -109,8 +109,12 @@ normalized like project paths (Windows lower-cased, forward slashes).
   only `markDelivered` and emit. Result truncation (64 KiB UTF-8) is unchanged.
 - `cancel(id)` — `queued` → `cancelled` as today; `running` / `waiting_for_input` → call
   `runtime.stopRun(targetAgentId)` (the manager's existing `stop`, which aborts the turn and
-  tree-kills its processes); the run then settles as `cancelled`. Terminal records return as-is.
-- Restart recovery is unchanged: in-flight → `interrupted`, queued → resumed.
+  tree-kills its processes); the run then settles as `cancelled` (an aborted turn is always
+  `cancelled`, even with partial text), and `cancel` waits up to 5 s for that terminal status before
+  returning the latest record. Terminal records return as-is.
+- Restart recovery is unchanged: in-flight → `interrupted`, queued → resumed. Because the service
+  starts before workspaces are opened, the facade's `resumeQueued()` registers each queued external
+  target (`ensureAgent`) and calls `notifyAgentAvailable` after the API has started.
 
 `DelegationRuntime` gains `stopRun(agentId: string): void`.
 
@@ -139,8 +143,9 @@ with `sessionId`.
 
 **Config file** `userData/external-api.json`: `{ enabled, port, token, cliPath }`. `enabled` is the
 Settings toggle. The token is 32 random bytes (hex), created once and kept across restarts until
-regenerated. Preferred port `3929`; if taken, bind port `0` and record the actual port. The file is
-rewritten on each start.
+regenerated. Preferred port `3929`; if taken (`EADDRINUSE`) or inside a Windows excluded port range
+(`EACCES`), bind port `0` and record the actual port; `port` is `null` when not listening (cleared on
+disable and on quit). The file is rewritten on each start and written with mode `0600` (POSIX).
 
 ## 8. CLI (`meow-delegate.mjs`)
 
@@ -160,7 +165,9 @@ node meow-delegate.mjs cancel <taskId>
 ```
 
 Task text always comes from a file to avoid shell quoting problems on Windows. `start` and `send`
-wait by default, looping on `/wait`. Transient connection failures are retried for 30 s.
+wait by default, looping on `/wait`. Transient connection failures are retried for 30 s, re-reading
+the config file on each retry (and once on a 401) so a restarted Meow on a new port or a regenerated
+token is picked up.
 
 Output when the task is terminal:
 
@@ -174,7 +181,7 @@ touched_files:
 ```
 
 Exit codes: `0` completed · `1` failed / interrupted · `2` cancelled · `3` Meow unreachable, feature
-disabled, or 401 · `4` invalid arguments or 400/404/413.
+disabled, 401 or 403 · `4` invalid arguments or 400/404/413.
 
 ## 9. Settings and IPC
 

@@ -36,7 +36,7 @@ in `src/main/index.ts`).
 | `commands.json` | `agent/commands.ts` `CommandStore` | `Command[]` | User slash commands |
 | `models.json` | `models-catalog.ts` | object | Cached models.dev catalog (falls back to the bundled `models-snapshot.json`) |
 | `remote.json` | `remote/remote-settings.ts` | object | `{ enabled, relayUrl, deviceId, sessionToken? }` |
-| `external-api.json` | `external-api/config-file.ts` | object | `{ enabled, port, token, cliPath }` for the external-delegation loopback API; `token` is 32 random bytes (hex), created once and kept until `regenerateToken()`. See [08 — Integrations](08-integrations.md#86-external-delegation-claude-code--meow) |
+| `external-api.json` | `external-api/config-file.ts` | object | `{ enabled, port, token, cliPath }` for the external-delegation loopback API; `token` is 32 random bytes (hex), created once and kept until `regenerateToken()`; `port` is `null` when not listening; mode `0600` on POSIX. See [08 — Integrations](08-integrations.md#86-external-delegation-claude-code--meow) |
 | `bin/meow-delegate.mjs` | `external-api/manager.ts` | file | The external-delegation CLI, copied from `resources/external-api/meow-delegate.mjs` on every app start |
 | `logs/<agentId>.log` | `log-manager.ts` | text | Raw PTY output, append-only |
 | `logs/<YYYY-MM-DD>-log.txt` | `system-logger.ts` | text | App-wide system log (main/render/agent), append-only, pruned after 7 days on startup |

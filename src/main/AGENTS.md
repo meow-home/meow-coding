@@ -59,7 +59,8 @@ handlers and the app lifecycle.
   UTF-8 results to 64 KiB, recovers on restart (interrupt in-flight, resume queued, redeliver once), and
   handles agent/project removal. `createExternal` (source-less `sourceKind: 'external'` records: no
   source checks, no result append/wake, only `markDelivered`) and `cancel(id)` (queued → cancelled;
-  running → `runtime.stopRun`).
+  running → `runtime.stopRun`, then waits up to 5 s for the terminal status and returns the latest
+  record). `validateTaskText` (trim, non-empty, ≤ 32 KiB) is exported for the external facade.
 - `peer-roster.ts` — `computePeerTargets(workspaces, lookup)` computes delegatable same-project peer
   `SessionPeer`s (excluding the requester) with live mode/run-state supplied by the caller. Used for the
   per-turn `delegate_session` reminder and the delegate tool's target discovery.
