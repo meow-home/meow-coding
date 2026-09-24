@@ -356,6 +356,27 @@ describe('MeowAgentManager delegation runtime', () => {
     expect(result?.finalText).toBe('partial summary')
   })
 
+  it('reports a cut turn with no assistant text as completed with its endReason, not cancelled', async () => {
+    const { manager } = await makeManager({
+      maxSteps: 2,
+      partsQueue: [
+        [{ kind: 'tool-call', toolCallId: 't1', toolName: 'todowrite', toolInput: { todos: [] } }, { kind: 'finish' }],
+        [{ kind: 'finish' }]
+      ]
+    })
+    const result = await manager.runDelegatedTurn({
+      sourceAgentId: 'external:claude',
+      sourceName: 'Claude (external)',
+      targetAgentId: 'a1',
+      targetSessionId: 'del-session-empty-cut',
+      delegationId: 'm2',
+      task: 'long task'
+    })
+    expect(result?.reason).toBe('completed')
+    expect(result?.endReason).toBe('max-steps')
+    expect(result?.finalText).toBeFalsy()
+  })
+
   it('leaves endReason unset for a normally finished turn', async () => {
     const { manager } = await makeManager()
     const result = await manager.runDelegatedTurn({

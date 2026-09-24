@@ -713,14 +713,17 @@ export class MeowAgentManager {
       this.emit({ type: 'error', agentId, message: run.error })
       return { runId, reason: 'failed', touchedFiles: [...run.touchedFiles], error: run.error }
     }
-    if (run.aborted || !run.finalText) {
+    // A turn the harness cut short (stuck, step cap, …) can end with no
+    // assistant text; it still completed, so only an abort or a textless normal
+    // end counts as cancelled.
+    if (run.aborted || (!run.finalText && !run.endReason)) {
       return { runId, reason: 'cancelled', touchedFiles: [...run.touchedFiles], error: run.error }
     }
     return {
       runId,
       reason: 'completed',
       ...(run.endReason ? { endReason: run.endReason } : {}),
-      finalText: run.finalText,
+      ...(run.finalText ? { finalText: run.finalText } : {}),
       touchedFiles: [...run.touchedFiles]
     }
   }
