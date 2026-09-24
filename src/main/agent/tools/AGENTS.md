@@ -40,4 +40,4 @@ The tool registry for the native Meow agent. Each file exports a `ToolDefinition
 - Subagents never receive `todowrite`: their runner has no `setTodos` sink.
 - A subagent may only be given tools that already exist in the map passed to `createTaskTool`; `task` is not in that map, so subagents cannot nest.
 - `delegate_session` is registered per-runner by `MeowAgentManager`, not in `registry.ts`, so subagents and unrelated runners never receive it.
-- Mark a new tool `concurrencySafe: true` only if it never writes files, spawns a foreground process, or prompts the user; everything else runs alone, in model order.
+- Mark a new tool `concurrencySafe: true` only if it never writes files, spawns a foreground process, or prompts the user; everything else runs alone, in model order. `task` is the deliberate exception: subagents are meant to run in parallel.

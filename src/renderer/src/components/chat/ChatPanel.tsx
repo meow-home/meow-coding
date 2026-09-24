@@ -653,7 +653,7 @@ if (e.type === 'usage') {
       } else if (e.reason === 'stuck') {
         const detail = e.stuckCategory === 'tool'
           ? ` The repeated tool was ${e.stuckTool ?? 'unknown'}.`
-          : e.stuckCategory === 'stream' ? ' Its output kept repeating, even after a retry.' : ''
+          : e.stuckCategory === 'stream' ? ' Its output kept degenerating (repeating itself or running past its tool calls).' : ''
         setItems(prev => [...prev, {
           kind: 'error',
           id: 'stuck-' + Date.now(),
