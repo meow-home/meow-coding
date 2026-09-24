@@ -369,9 +369,9 @@ describe('SessionDelegationService', () => {
       env.runtime.busy.delete('beta')
       env.service.notifyAgentAvailable('beta')
       expect(await until(() => env.service.getStatus(rec.id)?.status === 'running')).toBe(true)
-      await env.service.cancel(rec.id)
+      const out = await env.service.cancel(rec.id)
       expect(env.runtime.stopped).toEqual(['beta'])
-      expect(await until(() => env.service.getStatus(rec.id)?.status === 'cancelled')).toBe(true)
+      expect(out.status).toBe('cancelled')
     })
 
     it('returns a terminal record unchanged and throws for an unknown id', async () => {

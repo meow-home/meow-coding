@@ -51,6 +51,7 @@ const TASK_MAX_BYTES = 32 * 1024
 const RESULT_MAX_BYTES = 64 * 1024
 const MAX_NONTERMINAL_PER_TARGET = 5
 const RETENTION_MS = 30 * 86_400_000
+const CANCEL_SETTLE_MS = 5_000
 
 const TERMINAL: ReadonlySet<DelegationStatus> = new Set(['completed', 'failed', 'cancelled', 'interrupted'])
 
@@ -101,6 +102,7 @@ export class SessionDelegationService {
   private pumping = new Set<string>()
   private waiters = new Map<string, Waiter>()
   private pumpPromises = new Set<Promise<void>>()
+  private terminalWaiters = new Map<string, Set<() => void>>()
 
   constructor(deps: SessionDelegationServiceDeps) {
     this.store = deps.store
@@ -112,6 +114,28 @@ export class SessionDelegationService {
 
   private emit(d: SessionDelegation): void {
     this.onChanged?.(d)
+    if (TERMINAL.has(d.status)) {
+      const waiters = this.terminalWaiters.get(d.id)
+      this.terminalWaiters.delete(d.id)
+      for (const resolve of waiters ?? []) resolve()
+    }
+  }
+
+  private waitForTerminal(id: string, timeoutMs: number): Promise<void> {
+    const current = this.store.get(id)
+    if (!current || TERMINAL.has(current.status)) return Promise.resolve()
+    return new Promise<void>(resolve => {
+      const waiters = this.terminalWaiters.get(id) ?? new Set<() => void>()
+      this.terminalWaiters.set(id, waiters)
+      const done = (): void => {
+        clearTimeout(timer)
+        waiters.delete(done)
+        if (waiters.size === 0 && this.terminalWaiters.get(id) === waiters) this.terminalWaiters.delete(id)
+        resolve()
+      }
+      const timer = setTimeout(done, timeoutMs)
+      waiters.add(done)
+    })
   }
 
   /** Store backing the service, for observers. */
@@ -360,6 +384,7 @@ export class SessionDelegationService {
     if (record.status === 'queued') return this.cancelQueued(id)
     if (record.status === 'running' || record.status === 'waiting_for_input') {
       this.runtime.stopRun(record.targetAgentId)
+      await this.waitForTerminal(id, CANCEL_SETTLE_MS)
     }
     return this.store.get(id) ?? record
   }
