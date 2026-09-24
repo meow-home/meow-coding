@@ -17,7 +17,8 @@ Loopback API that lets an external coding agent (Claude Code) delegate plan task
 The CLI itself is `resources/external-api/meow-delegate.mjs` (plain Node ≥ 18, no deps; packaged via
 `extraResources` to `external-api/`). It reads `../external-api.json` relative to itself, and re-reads it
 on each connection retry and once on a 401. `start`/`send` print the task id line before waiting; `wait <taskId>` resumes
-waiting on an existing task; exit `5` = completed but stopped at the step limit (`endReason: 'max-steps'`).
+waiting on an existing task; exit `5` = completed but stopped at a configured step cap (`endReason: 'max-steps'`), exit `6` = completed but
+unfinished (`stuck`/`length`/`refusal`).
 
 ## Conventions
 

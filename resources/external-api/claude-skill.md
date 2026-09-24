@@ -30,18 +30,22 @@ timeout; you are re-invoked when they exit, so end your turn after starting one.
 4. You are re-invoked when the command exits. Read its output block:
    `task`, `session`, `status`, `touched_files`, `final answer`.
    - Exit 0: the task finished — verify it (step 5).
-   - Exit 5 (`status: completed (max steps reached)`): Meow hit its per-turn step limit before
-     finishing. Verify what is done so far, then send a continuation to the same session (step 6)
-     with "Continue the task where you left off" plus anything still missing. This does not count
-     as a feedback round.
+   - Exit 5 (`status: completed (max steps reached)`): Meow hit a per-turn step cap the user
+     configured (the default is unlimited). Verify what is done so far, then send a continuation to
+     the same session (step 6) with "Continue the task where you left off" plus anything still
+     missing. This does not count as a feedback round.
+   - Exit 6 (`status: completed (stuck)`, `(length)` or `(refusal)`): Meow stopped without
+     finishing — `stuck` means its loop detector broke a repeating tool call or output, `length`
+     means the answer was cut off, `refusal` means the model declined. The final answer may be
+     `(no output)`. Inspect `git diff` to see how far it got, then send concrete feedback (step 6)
+     that names what to do differently (e.g. the failing command, the file to fix). This counts as a
+     feedback round.
    - Exit 1: the task failed or was interrupted (e.g. Meow restarted). Read the error; retry once
      with `send`, otherwise ask the user.
    - Exit 2: the task was cancelled. Ask the user how to proceed.
    - Exit 3: Meow is not open or external delegation is disabled. Tell the user to open Meow and
      enable Settings → External delegation, then stop.
    - Exit 4: fix your command (bad path or argument) and retry once.
-   - A status such as `completed (stuck)` means Meow stopped a loop; treat it like a failed
-     verification and give concrete feedback.
 5. Verify independently — never trust the final answer alone:
    - `git diff` on the touched files and compare against the task's requirements.
    - Run the plan's verification commands (tests, typecheck) yourself.

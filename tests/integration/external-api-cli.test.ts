@@ -83,11 +83,14 @@ describe('meow-delegate CLI', () => {
     expect(r.out).toContain('did half')
   })
 
-  it('shows other end reasons in the status without a special exit code', async () => {
-    handler.final = { status: 'completed', endReason: 'stuck', result: 'looping', touchedFiles: [] }
-    const r = await run(['start', '--config', config, '--cwd', dir, '--plan', 'p.md', '--task-file', taskFile])
-    expect(r.code).toBe(0)
-    expect(r.out).toContain('status: completed (stuck)')
+  it('exits 6 and names the reason when the turn stopped unfinished (stuck, length, refusal)', async () => {
+    for (const endReason of ['stuck', 'length', 'refusal'] as const) {
+      handler.final = { status: 'completed', endReason, touchedFiles: [] }
+      const r = await run(['start', '--config', config, '--cwd', dir, '--plan', 'p.md', '--task-file', taskFile])
+      expect(r.code).toBe(6)
+      expect(r.out).toContain(`status: completed (${endReason})`)
+      expect(r.out).toContain('(no output)')
+    }
   })
 
   it('wait resumes waiting on an existing task', async () => {

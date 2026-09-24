@@ -340,9 +340,11 @@ touched_files:
 ```
 
 Exit codes: `0` completed · `1` failed/interrupted · `2` cancelled · `3` Meow unreachable, feature
-disabled, 401 or 403 · `4` invalid arguments or 400/404/413 · `5` completed but the turn stopped at the
-per-turn step limit (`endReason: 'max-steps'`; the status reads `completed (max steps reached)`). Other
-end reasons (`stuck`, `length`, `refusal`) show in the status (`completed (stuck)`) with exit `0`.
+disabled, 401 or 403 · `4` invalid arguments or 400/404/413 · `5` completed but the turn stopped at a
+configured per-turn step cap (`endReason: 'max-steps'`, status `completed (max steps reached)`; the default
+budget is unlimited, so this only happens with an opt-in `maxSteps`) · `6` completed but unfinished —
+`endReason` `stuck` (loop detector), `length` (answer cut off) or `refusal`, shown as `completed (stuck)` etc.
+A cut turn with no assistant text still completes (result `(no output)`); only an abort is `cancelled`.
 `TaskDto.endReason` carries the reason; the delegation record stores it as `endReason`.
 
 Queued external tasks survive a restart: after the API starts, `ExternalDelegationFacade.resumeQueued()`

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const EXIT = { ok: 0, failed: 1, cancelled: 2, unreachable: 3, invalid: 4, maxSteps: 5 }
+const EXIT = { ok: 0, failed: 1, cancelled: 2, unreachable: 3, invalid: 4, maxSteps: 5, unfinished: 6 }
 const END_REASON_LABEL = { 'max-steps': 'max steps reached' }
 const TERMINAL = new Set(['completed', 'failed', 'cancelled', 'interrupted'])
 const RETRY_MS = Number(process.env.MEOW_DELEGATE_RETRY_MS ?? 30_000)
@@ -107,7 +107,10 @@ function printResult(task) {
     `touched_files:\n${files}\n` +
     `--- final answer ---\n${answer}\n`
   )
-  if (task.status === 'completed') return task.endReason === 'max-steps' ? EXIT.maxSteps : EXIT.ok
+  if (task.status === 'completed') {
+    if (!task.endReason) return EXIT.ok
+    return task.endReason === 'max-steps' ? EXIT.maxSteps : EXIT.unfinished
+  }
   if (task.status === 'cancelled') return EXIT.cancelled
   return TERMINAL.has(task.status) ? EXIT.failed : EXIT.ok
 }
