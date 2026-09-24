@@ -1,5 +1,6 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest'
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import { createServer } from 'node:net'
+import { Server as HttpServer } from 'node:http'
 import { ExternalApiServer, type ExternalApiHandler } from '../../src/main/external-api/server'
 import { ExternalApiError } from '../../src/main/external-api/errors'
 import type { CreateTaskBody, TaskDto } from '../../src/shared/external-api-types'
@@ -132,5 +133,22 @@ describe('ExternalApiServer', () => {
     expect(port).not.toBe(taken)
     await other.stop()
     await new Promise<void>(r => blocker.close(() => r()))
+  })
+
+  it('falls back to another port when the preferred one is in an excluded range (EACCES)', async () => {
+    const spy = vi.spyOn(HttpServer.prototype, 'listen').mockImplementationOnce(function (this: HttpServer) {
+      process.nextTick(() => this.emit('error', Object.assign(new Error('listen EACCES'), { code: 'EACCES' })))
+      return this
+    })
+    const other = new ExternalApiServer({ handler, getToken: () => TOKEN, preferredPort: 3929 })
+    try {
+      const port = await other.start()
+      expect(port).toBeGreaterThan(0)
+      expect(spy).toHaveBeenCalledTimes(2)
+      expect(spy.mock.calls[1][0]).toBe(0)
+    } finally {
+      spy.mockRestore()
+      await other.stop()
+    }
   })
 })

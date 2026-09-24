@@ -20,12 +20,18 @@ export interface ExternalApiManagerDeps {
 export class ExternalApiManager {
   private server: ExternalApiServer | null = null
   private error: string | undefined
+  private cliError: string | undefined
   private cliPath: string | null = null
 
   constructor(private deps: ExternalApiManagerDeps) {}
 
   async start(): Promise<void> {
-    this.installCli()
+    try {
+      this.installCli()
+    } catch (err) {
+      this.cliError = err instanceof Error ? err.message : String(err)
+      this.deps.log?.(`[meow] external API CLI install failed: ${this.cliError}`)
+    }
     if (this.deps.config.load().enabled) await this.listen()
     this.emit()
   }
@@ -33,7 +39,9 @@ export class ExternalApiManager {
   async stop(): Promise<void> {
     const server = this.server
     this.server = null
-    await server?.stop()
+    if (!server) return
+    await server.stop()
+    this.deps.config.update({ port: null })
   }
 
   async setEnabled(enabled: boolean): Promise<ExternalApiStatus> {
@@ -65,11 +73,12 @@ export class ExternalApiManager {
 
   getStatus(): ExternalApiStatus {
     const cfg = this.deps.config.load()
+    const error = this.error ?? this.cliError
     return {
       enabled: cfg.enabled,
       listening: this.server !== null,
       port: this.server?.port ?? null,
-      ...(this.error ? { error: this.error } : {}),
+      ...(error ? { error } : {}),
       cliPath: this.cliPath ?? cfg.cliPath,
       configPath: this.deps.config.filePath
     }
@@ -84,6 +93,7 @@ export class ExternalApiManager {
     const target = path.join(this.deps.binDir, 'meow-delegate.mjs')
     copyFileSync(this.deps.cliSource, target)
     this.cliPath = target
+    this.cliError = undefined
     this.deps.config.update({ cliPath: target })
   }
 

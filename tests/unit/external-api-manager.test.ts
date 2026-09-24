@@ -61,6 +61,35 @@ describe('ExternalApiManager', () => {
     expect(mgr.getStatus().listening).toBe(true)
   })
 
+  it('stop clears the recorded port but keeps the feature enabled', async () => {
+    config.update({ enabled: true })
+    await mgr.start()
+    expect(config.load().port).toBeGreaterThan(0)
+    await mgr.stop()
+    expect(config.load()).toMatchObject({ enabled: true, port: null })
+  })
+
+  it('still listens and reports the error when the CLI cannot be installed', async () => {
+    const broken = new ExternalApiManager({
+      config, handler,
+      cliSource: path.join(dir, 'missing-cli.mjs'),
+      skillTemplate: path.resolve('resources/external-api/claude-skill.md'),
+      binDir: path.join(dir, 'bin'),
+      claudeSkillsDir: path.join(dir, 'claude-skills'),
+      preferredPort: 0,
+      log: () => {}
+    })
+    config.update({ enabled: true })
+    try {
+      await expect(broken.start()).resolves.toBeUndefined()
+      const s = broken.getStatus()
+      expect(s.listening).toBe(true)
+      expect(s.error).toMatch(/missing-cli\.mjs/)
+    } finally {
+      await broken.stop()
+    }
+  })
+
   it('regenerated tokens apply to the next request', async () => {
     await mgr.start()
     const { port } = await mgr.setEnabled(true)

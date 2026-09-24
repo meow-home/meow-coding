@@ -103,7 +103,9 @@ export class ExternalApiServer {
     try {
       await this.listen(server, preferred, host)
     } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw err
+      // Windows reports ports inside a Hyper-V/WinNAT excluded range as EACCES.
+      const code = (err as NodeJS.ErrnoException).code
+      if (code !== 'EADDRINUSE' && code !== 'EACCES') throw err
       await this.listen(server, 0, host)
     }
     const addr = server.address()

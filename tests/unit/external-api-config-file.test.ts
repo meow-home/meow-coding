@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { ExternalApiConfigFile } from '../../src/main/external-api/config-file'
@@ -40,6 +40,14 @@ describe('ExternalApiConfigFile', () => {
   it('recovers from a corrupt file', () => {
     writeFileSync(file, '{not json')
     expect(new ExternalApiConfigFile(file, token).load().enabled).toBe(false)
+  })
+
+  it.skipIf(process.platform === 'win32')('keeps the token file private to the user (0600)', () => {
+    const f = new ExternalApiConfigFile(file, token)
+    f.load()
+    expect(statSync(file).mode & 0o777).toBe(0o600)
+    f.update({ enabled: true })
+    expect(statSync(file).mode & 0o777).toBe(0o600)
   })
 
   it('defaults the token generator to 64 hex chars', () => {

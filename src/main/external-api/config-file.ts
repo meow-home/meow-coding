@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { chmodSync, readFileSync } from 'node:fs'
 import { writeFileAtomic } from '../atomic-write'
 
 export interface ExternalApiConfig {
@@ -45,5 +45,10 @@ export class ExternalApiConfigFile {
 
   private write(cfg: ExternalApiConfig): void {
     writeFileAtomic(this.filePath, JSON.stringify(cfg, null, 2))
+    try {
+      chmodSync(this.filePath, 0o600)
+    } catch {
+      /* best effort; Windows ignores POSIX modes */
+    }
   }
 }
