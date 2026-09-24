@@ -936,13 +936,6 @@ if (e.type === 'usage') {
     return () => window.removeEventListener('keydown', onKey)
   }, [pendingPrompt, questionIndex, toggleOption, respond, startCustomInput])
 
-  const onPanelKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== 'Tab') return
-    if (pendingPrompt && pendingPrompt.promptType === 'permission') return
-    e.preventDefault()
-    switchMode(currentMode === 'build' ? 'plan' : 'build')
-  }, [pendingPrompt, currentMode, switchMode])
-
   const permissionActions = [
     { label: 'Allow', key: '1', run: () => pendingPrompt && respond(pendingPrompt.promptId, true) },
     { label: 'Always', key: '2', run: () => pendingPrompt && respond(pendingPrompt.promptId, true, undefined, true) },
@@ -950,7 +943,7 @@ if (e.type === 'usage') {
   ]
 
   return (
-    <div className="chat-panel" onKeyDown={onPanelKeyDown} style={{ display: 'flex', flexDirection: 'row', flex: 1, minHeight: 0, position: 'relative' }}>
+    <div className="chat-panel" style={{ display: 'flex', flexDirection: 'row', flex: 1, minHeight: 0, position: 'relative' }}>
       <div className="chat-panel-main" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, position: 'relative' }}>
         {lightboxUrl && (
           <div className="chat-lightbox" onClick={() => setLightboxUrl(null)}>
