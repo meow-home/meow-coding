@@ -15,7 +15,7 @@ import { BackgroundProcessStore, type BgExitInfo, type BgDataEvent, type BgExitE
 import { handleBackgroundExit } from './agent/background-exit'
 import { MonitorStore, handleMonitorResolve, type MonitorResolveInfo } from './agent/monitor-store'
 import { PollMonitorStore } from './agent/poll-monitor-store'
-import { resolveCompactionSettings, usableContextTokens } from './agent/compact'
+import { COMPACTION_MARKER, resolveCompactionSettings, usableContextTokens } from './agent/compact'
 import { LimitsService, parseContextLimitFromError } from './agent/limits'
 import { LearnedLimitsStore, normalizeLearnedKey } from './agent/learned-limits'
 import { createLlm } from './agent/llm'
@@ -110,6 +110,7 @@ interface ActiveRun {
   context: AgentRunContext
   finalText?: string
   error?: string
+  aborted?: boolean
   touchedFiles: Set<string>
 }
 
@@ -701,7 +702,7 @@ export class MeowAgentManager {
       this.emit({ type: 'error', agentId, message: run.error })
       return { runId, reason: 'failed', touchedFiles: [...run.touchedFiles], error: run.error }
     }
-    if (!run.finalText) {
+    if (run.aborted || !run.finalText) {
       return { runId, reason: 'cancelled', touchedFiles: [...run.touchedFiles], error: run.error }
     }
     return { runId, reason: 'completed', finalText: run.finalText, touchedFiles: [...run.touchedFiles] }
@@ -791,8 +792,14 @@ ${content}` : content
     this.emit({ type: 'turn-started', agentId })
     this.redoStacks.delete(agentId)
     this.deps.snapshots.beginTurn(agentId)
+    // Only an assistant message this turn produced is its answer; ids (not a
+    // transcript length) survive a mid-turn compaction rewriting the items.
+    const priorMessageIds = new Set(
+      (this.deps.store.get(sessionId)?.items ?? []).flatMap(i => (i.kind === 'message' ? [i.message.id] : []))
+    )
     try {
       await runner.run(controller.signal)
+      run.aborted = controller.signal.aborted
       // Capture touched files from the snapshot buffer committed this turn.
       const touched = this.deps.snapshots.commitTurn(agentId)
       for (const f of touched) run.touchedFiles.add(f)
@@ -800,7 +807,9 @@ ${content}` : content
       const msgs = (session?.items ?? [])
         .filter((i): i is { kind: 'message'; message: ChatMessage } => i.kind === 'message')
         .map(i => i.message)
-      const lastAssistant = [...msgs].reverse().find(m => m.role === 'assistant')
+      const lastAssistant = [...msgs]
+        .reverse()
+        .find((m, idx, rev) => m.role === 'assistant' && !priorMessageIds.has(m.id) && rev[idx + 1]?.text !== COMPACTION_MARKER)
       if (lastAssistant) run.finalText = lastAssistant.text
     } finally {
       this.deps.snapshots.abortTurn(agentId)

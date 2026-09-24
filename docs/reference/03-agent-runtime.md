@@ -123,7 +123,9 @@ orphan tool item and providers reject the whole conversation with
    emit `turn-started`, clear the redo stack, `snapshots.beginTurn`.
 5. `await runner.run(signal)`; `snapshots.commitTurn` returns the touched-file paths, and the turn's
    last assistant message is captured as `finalText` (both stored on the run's `ActiveRun` for
-   delegation correlation).
+   delegation correlation). Only an assistant message appended during this turn counts (message ids
+   present before the run, and a compaction summary, are skipped), and a turn whose signal was
+   aborted settles as `cancelled` even if it streamed partial text.
 6. `finally`: clear running/controller, resolve any pending prompt with `null`, and remove the run's
    active record.
 
