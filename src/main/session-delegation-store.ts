@@ -24,6 +24,9 @@ export interface CreateDelegationRecord {
   targetSessionId: string
   targetBusyAtCreation: boolean
   task: string
+  sourceKind?: 'session' | 'external'
+  externalClient?: 'claude'
+  planKey?: string
 }
 
 export interface TransitionPatch {
@@ -112,7 +115,10 @@ export class SessionDelegationStore {
       revision: 1,
       targetBusyAtCreation: input.targetBusyAtCreation,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
+      ...(input.sourceKind !== undefined ? { sourceKind: input.sourceKind } : {}),
+      ...(input.externalClient !== undefined ? { externalClient: input.externalClient } : {}),
+      ...(input.planKey !== undefined ? { planKey: input.planKey } : {})
     }
     this.save([...this.all(), record])
     return clone(record)
