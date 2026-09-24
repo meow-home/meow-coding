@@ -44,22 +44,30 @@ function feedItemKey(item: FeedItem): string {
   return item.kind === 'subagent' ? `subagent:${item.taskId}` : `${item.kind}:${item.id}`
 }
 
-// Walks a flat FeedItem list and folds every run of 2+ consecutive `tool`
-// items into a single `cluster` row. Lone tool calls and any non-tool items
-// pass through unchanged — so the rest of the chat feed (reasoning,
-// assistant text, sub-agent rows, retries, ...) is untouched. Clustering
-// happens at render time, not in state, so transcript paging and live
-// upserts still work against the flat shape.
+// Walks a flat FeedItem list and folds every `tool` item into a `cluster` row,
+// even a single tool call (1-tool clusters still get the "Ran 1 command"
+// chrome). Empty assistant messages (no text, no reasoning, no images) are
+// dropped entirely AND do not break the run — the agent's loop persists these
+// between tool batches (`if (textBuffer || calls.length > 0 || reasoningBuffer)`
+// in src/main/agent/loop.ts), so the stored transcript would otherwise scatter
+// otherwise-consecutive tools across 1-tool clusters. FeedMessage already drops
+// these empty bubbles at render, so the visible result matches a fresh live
+// session. Clustering happens at render time, not in state, so transcript
+// paging and live upserts still work against the flat shape.
 function clusterToolRows(items: FeedItem[]): FeedItem[] {
+  const isEmptyAssistant = (it: FeedItem): boolean => {
+    if (it.kind !== 'message') return false
+    if (it.role !== 'assistant') return false
+    const textEmpty = !it.text || it.text.trim() === ''
+    const reasoningEmpty = !it.reasoning || it.reasoning.trim() === ''
+    const imagesEmpty = !it.images || it.images.length === 0
+    return textEmpty && reasoningEmpty && imagesEmpty
+  }
   const out: FeedItem[] = []
   let run: ToolCallData[] | null = null
   const flush = () => {
     if (run === null) return
-    if (run.length >= 2) {
-      out.push({ kind: 'cluster', id: run[0].id, calls: run })
-    } else {
-      out.push({ kind: 'tool', id: run[0].id, call: run[0] })
-    }
+    out.push({ kind: 'cluster', id: run[0].id, calls: run })
     run = null
   }
   for (const item of items) {
@@ -68,6 +76,9 @@ function clusterToolRows(items: FeedItem[]): FeedItem[] {
       else run.push(item.call)
       continue
     }
+    // Empty assistant messages are dropped AND do not break the tool run —
+    // they are pure structural artifacts of the agent's batched persistence.
+    if (isEmptyAssistant(item)) continue
     flush()
     out.push(item)
   }
