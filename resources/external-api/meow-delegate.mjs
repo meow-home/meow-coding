@@ -43,11 +43,20 @@ function loadConfig(flags) {
   let cfg
   try { cfg = JSON.parse(readFileSync(file, 'utf8')) } catch { throw new CliError(EXIT.unreachable, UNREACHABLE) }
   if (!cfg.enabled || !cfg.port || !cfg.token) throw new CliError(EXIT.unreachable, UNREACHABLE)
-  return cfg
+  return { ...cfg, flags }
+}
+
+// Meow may restart on another port or regenerate its token while a CLI call is
+// in flight; refresh in place so later requests (the /wait loop) follow it.
+function reloadConfig(cfg) {
+  const before = `${cfg.port}:${cfg.token}`
+  try { Object.assign(cfg, loadConfig(cfg.flags)) } catch { /* keep the last good values */ }
+  return `${cfg.port}:${cfg.token}` !== before
 }
 
 async function request(cfg, method, route, body) {
   const deadline = Date.now() + RETRY_MS
+  let reloadedOnAuth = false
   for (;;) {
     let res
     try {
@@ -59,9 +68,14 @@ async function request(cfg, method, route, body) {
     } catch {
       if (Date.now() >= deadline) throw new CliError(EXIT.unreachable, UNREACHABLE)
       await new Promise(r => setTimeout(r, Math.min(1000, RETRY_MS)))
+      reloadConfig(cfg)
       continue
     }
     const json = await res.json().catch(() => ({}))
+    if (res.status === 401 && !reloadedOnAuth) {
+      reloadedOnAuth = true
+      if (reloadConfig(cfg)) continue
+    }
     if (res.status === 401 || res.status === 403) throw new CliError(EXIT.unreachable, `${UNREACHABLE} (${json.error ?? res.status})`)
     if (res.status >= 400) throw new CliError(EXIT.invalid, json.error ?? `[meow] HTTP ${res.status}`)
     return json

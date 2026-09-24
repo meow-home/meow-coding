@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import { spawn } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { createServer } from 'node:net'
 import path from 'node:path'
 import { ExternalApiServer, type ExternalApiHandler } from '../../src/main/external-api/server'
 import type { CreateTaskBody, TaskDto } from '../../src/shared/external-api-types'
@@ -9,9 +10,9 @@ import type { CreateTaskBody, TaskDto } from '../../src/shared/external-api-type
 const CLI = path.resolve('resources/external-api/meow-delegate.mjs')
 const TOKEN = 'b'.repeat(64)
 
-function run(args: string[]): Promise<{ code: number; out: string; err: string }> {
+function run(args: string[], retryMs = '300'): Promise<{ code: number; out: string; err: string }> {
   return new Promise(resolve => {
-    const p = spawn(process.execPath, [CLI, ...args], { env: { ...process.env, MEOW_DELEGATE_RETRY_MS: '300' } })
+    const p = spawn(process.execPath, [CLI, ...args], { env: { ...process.env, MEOW_DELEGATE_RETRY_MS: retryMs } })
     let out = ''
     let err = ''
     p.stdout.on('data', d => { out += d })
@@ -104,6 +105,21 @@ describe('meow-delegate CLI', () => {
     await server.stop()
     const r = await run(['status', 't1', '--config', config])
     expect(r.code).toBe(3)
+  })
+
+  it('reloads the config while retrying, following Meow to a new port', async () => {
+    const port = server.port
+    const dead = createServer()
+    await new Promise<void>(r => dead.listen(0, '127.0.0.1', () => r()))
+    const deadPort = (dead.address() as { port: number }).port
+    await new Promise<void>(r => dead.close(() => r()))
+    writeFileSync(config, JSON.stringify({ enabled: true, port: deadPort, token: TOKEN, cliPath: CLI }))
+    const pending = run(['start', '--config', config, '--cwd', dir, '--plan', 'p.md', '--task-file', taskFile], '10000')
+    await new Promise(r => setTimeout(r, 300))
+    writeFileSync(config, JSON.stringify({ enabled: true, port, token: TOKEN, cliPath: CLI }))
+    const r = await pending
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('status: completed')
   })
 
   it('exits 3 on a wrong token', async () => {
