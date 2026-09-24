@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Meow Coding — Todo pill in the chat header</title>
+<style>
+  :root {
+    --bg: #0a0a0b;
+    --bg-chat: #0f0f11;
+    --bg-raised: #161618;
+    --bg-hover: #1c1c20;
+    --bg-active: #28282d;
+    --text: #ffffff;
+    --text-strong: #ffffff;
+    --text-dim: #b0b0b0;
+    --text-faint: #707076;
+    --accent: #007acc;
+    --accent-strong: #1f9cf0;
+    --orange: #ffb454;
+    --green: #4ade9f;
+    --hairline: rgba(255,255,255,0.09);
+    --hairline-strong: rgba(255,255,255,0.18);
+    --font-ui: 'Segoe UI Variable','Segoe UI',system-ui,sans-serif;
+    --font-mono: 'JetBrainsMonoNerdFontMono','JetBrains Mono',ui-monospace,monospace;
+    --radius: 0.5rem;
+    --radius-lg: 0.666667rem;
+    --radius-xs: 0.1875rem;
+    --fs-xs: 0.75rem;
+    --fs-md: 0.875rem;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--font-ui); font-size: 14px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 1180px; margin: 0 auto; padding: 2.5rem 2rem 5rem; }
+  h1 { font-size: 1.6rem; font-weight: 600; margin: 0 0 0.25rem; letter-spacing: -0.01em; }
+  .sub { color: var(--text-dim); margin: 0 0 0.5rem; max-width: 64ch; }
+  .sub code { font-family: var(--font-mono); color: var(--orange); font-size: 0.85em; }
+  .hint { color: var(--text-faint); font-size: 0.8rem; margin: 0 0 2.5rem; }
+
+  .grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+
+  .card {
+    background: var(--bg-chat);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.9rem 1.1rem; border-bottom: 1px solid var(--hairline);
+  }
+  .card-head h2 { margin: 0; font-size: 1.02rem; font-weight: 600; }
+  .card-head .tag { font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent-strong); letter-spacing: 0.06em; }
+  .card-body { padding: 1.1rem; }
+
+  .note { font-size: 0.82rem; color: var(--text-dim); margin-top: 0.9rem; line-height: 1.5; }
+  .note b { color: var(--text); font-weight: 500; }
+  .note .k { font-family: var(--font-mono); color: var(--orange); font-size: 0.9em; }
+
+  /* ---- Shared chat-stage scaffold: a real pane header + feed ---- */
+  .stage {
+    position: relative;
+    background: var(--bg);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    height: 320px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  /* The actual PaneHeader: 48px, status dot + title + actions pushed right */
+  .pane-header {
+    display: flex; align-items: center; gap: 0.666667rem;
+    padding: 0 0.833333rem;
+    height: 3rem; flex: 0 0 auto;
+    background: var(--bg-chat); color: var(--text-dim); font-size: var(--fs-md);
+    border-bottom: 1px solid var(--hairline);
+  }
+  .status-dot { width: 0.666667rem; height: 0.666667rem; border-radius: 50%; background: var(--green); box-shadow: 0 0 0.666667rem rgba(74,222,159,0.4); flex: 0 0 auto; }
+  .pane-title { font-weight: 600; white-space: nowrap; color: var(--text-strong); font-size: 0.85rem; }
+  .pane-actions { margin-left: auto; display: flex; gap: 0.333333rem; align-items: center; }
+  .icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 2rem; height: 2rem; padding: 0; flex: 0 0 auto;
+    border: none; background: transparent; color: var(--text-faint);
+    border-radius: var(--radius-xs); cursor: pointer;
+    transition: background 120ms ease, color 120ms ease;
+  }
+  .icon-btn:hover { background: var(--bg-hover); color: var(--text); }
+
+  .stage-feed { flex: 1; min-height: 0; overflow: hidden; padding: 0.8rem 0.9rem; display: flex; flex-direction: column; gap: 0.5rem; }
+  .msg { font-size: 0.8rem; color: var(--text-dim); }
+  .msg .who { color: var(--accent-strong); font-family: var(--font-mono); font-size: 0.72rem; margin-right: 0.4rem; }
+  .msg .user { color: var(--text); }
+  .stage-composer {
+    flex: 0 0 auto; height: 40px; margin: 0.6rem; margin-top: 0;
+    background: var(--bg-raised); border: 1px solid var(--hairline);
+    border-radius: var(--radius); display: flex; align-items: center; padding: 0 0.8rem;
+    font-size: 0.8rem; color: var(--text-faint);
+  }
+
+  /* ---- Shared dropdown menu (what opens on click) ---- */
+  .pop {
+    position: absolute; top: calc(100% + 6px); right: 0; z-index: 100;
+    width: 22rem; max-height: 16rem;
+    background: var(--bg-raised); border: 1px solid var(--hairline-strong);
+    border-radius: var(--radius); box-shadow: 0 12px 36px rgba(0,0,0,0.65);
+    display: flex; flex-direction: column; overflow: hidden;
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  }
+  .pop .phead {
+    flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+    padding: 0.5rem 0.666667rem; border-bottom: 1px solid var(--hairline);
+    background: rgba(255,255,255,0.02);
+  }
+  .pop .ptitle { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--orange); font-family: var(--font-mono); font-weight: 600; }
+  .pop .pcount { font-size: 0.66rem; color: var(--text-dim); font-family: var(--font-mono); }
+  .pop ul { list-style: none; margin: 0; padding: 0.333333rem; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+  .pop ul::-webkit-scrollbar { width: 8px; }
+  .pop ul::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 4px; }
+  .pop li { display: flex; align-items: center; gap: 0.4rem; font-size: 0.74rem; padding: 0.28rem 0.4rem; border-radius: 6px; }
+  .pop li:hover { background: var(--bg-hover); }
+  .pop li .mk { font-size: 0.7rem; flex: 0 0 auto; }
+  .pop li.done .tx { color: var(--text-faint); text-decoration: line-through; }
+  .pop li.cur { background: rgba(31,156,240,0.08); }
+  .pop li.cur .tx { color: var(--text); font-weight: 500; }
+  .pop li.cur .mk { color: var(--accent-strong); }
+
+  /* ============================================================
+     DIRECTION 1 — "Inline segmented pill" (ring + tag + count)
+     A compact pill sitting flush in the header, left of the ⋮.
+     ============================================================ */
+  .todo-pill-d1 {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.25rem 0.6rem 0.25rem 0.35rem;
+    background: var(--bg-raised);
+    border: 1px solid rgba(31,156,240,0.4);
+    border-radius: 999px;
+    color: var(--text); cursor: pointer; user-select: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35), 0 0 8px rgba(31,156,240,0.2);
+    transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+  }
+  .todo-pill-d1:hover { background: var(--bg-hover); border-color: var(--accent-strong); box-shadow: 0 2px 10px rgba(0,0,0,0.4), 0 0 12px rgba(31,156,240,0.35); }
+  .todo-pill-d1 .ring {
+    width: 1.25rem; height: 1.25rem; border-radius: 50%; flex: 0 0 auto;
+    display: grid; place-items: center;
+    background: conic-gradient(var(--accent-strong) 0 43%, var(--bg-hover) 43% 100%);
+  }
+  .todo-pill-d1 .ring::after { content: ''; width: 0.9rem; height: 0.9rem; border-radius: 50%; background: var(--bg-raised); }
+  .todo-pill-d1 .tag {
+    font-family: var(--font-mono); font-size: 0.62rem; font-weight: 700;
+    color: var(--orange); letter-spacing: 0.06em;
+    background: rgba(255,180,84,0.12); padding: 0.05rem 0.3rem; border-radius: 3px;
+  }
+  .todo-pill-d1 .cnt { font-family: var(--font-mono); font-size: 0.7rem; font-weight: 600; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+  .todo-pill-d1 .chev { color: var(--text-faint); font-size: 0.6rem; }
+
+  /* ============================================================
+     DIRECTION 2 — "Icon-only ring" (just the progress ring + count)
+     Minimal: the ring doubles as the progress and the trigger.
+     ============================================================ */
+  .todo-pill-d2 {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    padding: 0.2rem 0.5rem 0.2rem 0.3rem;
+    background: transparent;
+    border: 1px solid var(--hairline);
+    border-radius: 999px;
+    color: var(--text-dim); cursor: pointer; user-select: none;
+    transition: background 140ms ease, border-color 140ms ease;
+  }
+  .todo-pill-d2:hover { background: var(--bg-hover); border-color: var(--hairline-strong); }
+  .todo-pill-d2 .ring {
+    width: 1.4rem; height: 1.4rem; border-radius: 50%; flex: 0 0 auto;
+    display: grid; place-items: center;
+    background: conic-gradient(var(--accent-strong) 0 43%, var(--bg-hover) 43% 100%);
+  }
+  .todo-pill-d2 .ring::after { content: ''; width: 1.05rem; height: 1.05rem; border-radius: 50%; background: var(--bg-chat); }
+  .todo-pill-d2 .cnt { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+  /* ============================================================
+     DIRECTION 3 — "Tag + count chip" (no ring, orange accent)
+     Reads as a status label in the header, matches the ⋮ chrome.
+     ============================================================ */
+  .todo-pill-d3 {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.28rem 0.6rem;
+    background: var(--bg-raised);
+    border: 1px solid var(--hairline);
+    border-radius: 999px;
+    color: var(--text-dim); cursor: pointer; user-select: none;
+    transition: background 140ms ease, border-color 140ms ease;
+  }
+  .todo-pill-d3:hover { background: var(--bg-hover); border-color: var(--hairline-strong); }
+  .todo-pill-d3 .tag {
+    font-family: var(--font-mono); font-size: 0.62rem; font-weight: 700;
+    color: var(--orange); letter-spacing: 0.06em;
+  }
+  .todo-pill-d3 .cnt { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+  .todo-pill-d3 .bar { width: 3rem; height: 3px; background: var(--bg-hover); border-radius: 2px; overflow: hidden; }
+  .todo-pill-d3 .bar i { display: block; height: 100%; background: var(--accent-strong); width: 43%; border-radius: 2px; }
+
+  /* ============================================================
+     DIRECTION 4 — "Progress bar chip" (thin bar + count)
+     Compact, quiet, sits between title and ⋮.
+     ============================================================ */
+  .todo-pill-d4 {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.3rem 0.6rem;
+    background: var(--bg-raised);
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    color: var(--text-dim); cursor: pointer; user-select: none;
+    transition: background 140ms ease, border-color 140ms ease;
+  }
+  .todo-pill-d4:hover { background: var(--bg-hover); border-color: var(--hairline-strong); }
+  .todo-pill-d4 .cnt { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+  .todo-pill-d4 .bar { width: 4rem; height: 4px; background: var(--bg-hover); border-radius: 2px; overflow: hidden; }
+  .todo-pill-d4 .bar i { display: block; height: 100%; background: var(--accent-strong); width: 43%; border-radius: 2px; }
+</style>
+</head>
+<body>
+  <div class="page">
+    <h1>Todo pill in the chat header</h1>
+    <p class="sub">Four ways to seat the todo pill in the <code>PaneHeader</code> — immediately to the left of the <code>⋮</code> action menu — instead of floating over the feed. All four open the same scroll-capped dropdown on click.</p>
+    <p class="hint">The header is 48px tall; the pill sits vertically centered, flush with the action button's chrome. Hover each pill to feel the affordance.</p>
+
+    <div class="grid">
+
+      <!-- DIRECTION 1 -->
+      <div class="card">
+        <div class="card-head"><h2>1. Inline segmented pill</h2><span class="tag">RING + TAG + COUNT</span></div>
+        <div class="card-body">
+          <div class="stage">
+            <div class="pane-header">
+              <span class="status-dot"></span>
+              <span class="pane-title">refactoring</span>
+              <span class="pane-actions">
+                <button class="todo-pill-d1">
+                  <span class="ring"></span>
+                  <span class="tag">TODO</span>
+                  <span class="cnt">3/7</span>
+                  <span class="chev">▾</span>
+                </button>
+                <button class="icon-btn" title="Pane menu" aria-label="menu">⋮</button>
+              </span>
+            </div>
+            <div class="stage-feed">
+              <div class="msg"><span class="who">meow</span>I'm refactoring the IPC contract. Updating the type definitions.</div>
+              <div class="msg"><span class="who">meow</span><span class="user">edit src/shared/ipc.ts</span></div>
+              <div class="msg"><span class="who">you</span>keep going</div>
+            </div>
+            <div class="stage-composer">Ask meow anything…</div>
+          </div>
+          <p class="note"><b>Concept.</b> Keeps the full mission-badge identity (ring + orange <span class="k">TODO</span> tag + count) but compacts it to fit the 48px header. The cyan glow and pulsing affordance carry over from the floating version, now anchored to the session chrome.</p>
+        </div>
+      </div>
+
+      <!-- DIRECTION 2 -->
+      <div class="card">
+        <div class="card-head"><h2>2. Icon-only ring</h2><span class="tag">MINIMAL</span></div>
+        <div class="card-body">
+          <div class="stage">
+            <div class="pane-header">
+              <span class="status-dot"></span>
+              <span class="pane-title">refactoring</span>
+              <span class="pane-actions">
+                <button class="todo-pill-d2">
+                  <span class="ring"></span>
+                  <span class="cnt">3/7</span>
+                </button>
+                <button class="icon-btn" title="Pane menu" aria-label="menu">⋮</button>
+              </span>
+            </div>
+            <div class="stage-feed">
+              <div class="msg"><span class="who">meow</span>I'm refactoring the IPC contract. Updating the type definitions.</div>
+              <div class="msg"><span class="who">meow</span><span class="user">edit src/shared/ipc.ts</span></div>
+              <div class="msg"><span class="who">you</span>keep going</div>
+            </div>
+            <div class="stage-composer">Ask meow anything…</div>
+          </div>
+          <p class="note"><b>Concept.</b> The quietest option — the progress ring is the whole story, with a small count beside it. Reads like a status glyph next to the <span class="k">⋮</span>, barely competing with the title.</p>
+        </div>
+      </div>
+
+      <!-- DIRECTION 3 -->
+      <div class="card">
+        <div class="card-head"><h2>3. Tag + count chip</h2><span class="tag">STATUS LABEL</span></div>
+        <div class="card-body">
+          <div class="stage">
+            <div class="pane-header">
+              <span class="status-dot"></span>
+              <span class="pane-title">refactoring</span>
+              <span class="pane-actions">
+                <button class="todo-pill-d3">
+                  <span class="tag">TODO</span>
+                  <span class="cnt">3/7</span>
+                  <span class="bar"><i></i></span>
+                </button>
+                <button class="icon-btn" title="Pane menu" aria-label="menu">⋮</button>
+              </span>
+            </div>
+            <div class="stage-feed">
+              <div class="msg"><span class="who">meow</span>I'm refactoring the IPC contract. Updating the type definitions.</div>
+              <div class="msg"><span class="who">meow</span><span class="user">edit src/shared/ipc.ts</span></div>
+              <div class="msg"><span class="who">you</span>keep going</div>
+            </div>
+            <div class="stage-composer">Ask meow anything…</div>
+          </div>
+          <p class="note"><b>Concept.</b> Drops the ring for a thin progress bar, keeping the orange <span class="k">TODO</span> label + count. The bar gives at-a-glance progress without the circular glow — quieter, more "status tag" than "badge".</p>
+        </div>
+      </div>
+
+      <!-- DIRECTION 4 -->
+      <div class="card">
+        <div class="card-head"><h2>4. Progress bar chip</h2><span class="tag">COMPACT</span></div>
+        <div class="card-body">
+          <div class="stage">
+            <div class="pane-header">
+              <span class="status-dot"></span>
+              <span class="pane-title">refactoring</span>
+              <span class="pane-actions">
+                <button class="todo-pill-d4">
+                  <span class="cnt">3/7</span>
+                  <span class="bar"><i></i></span>
+                </button>
+                <button class="icon-btn" title="Pane menu" aria-label="menu">⋮</button>
+              </span>
+            </div>
+            <div class="stage-feed">
+              <div class="msg"><span class="who">meow</span>I'm refactoring the IPC contract. Updating the type definitions.</div>
+              <div class="msg"><span class="who">meow</span><span class="user">edit src/shared/ipc.ts</span></div>
+              <div class="msg"><span class="who">you</span>keep going</div>
+            </div>
+            <div class="stage-composer">Ask meow anything…</div>
+          </div>
+          <p class="note"><b>Concept.</b> The most compact — just the count + a thin progress bar, no ring, no tag. Smallest footprint in the header, still clickable for the full list.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

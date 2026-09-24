@@ -16,7 +16,6 @@ import ModelPicker from './ModelPicker'
 import VariantPicker from './VariantPicker'
 import ModePicker from './ModePicker'
 import ContextFooter from './ContextFooter'
-import TodoPill from './TodoPill'
 import SubagentOverlay, { SUBAGENT_DEFAULT_WIDTH, type SubagentOverlayItem } from './SubagentOverlay'
 
 type FeedItem =
@@ -209,6 +208,7 @@ interface Props {
   onVariantChange?: (variant: string | undefined) => void
   onSendDraftMessage?: (textAndImages: { text: string; images?: ImageAttachment[] }) => void
   onOpenSubagent?: (item: SubagentOverlayItem) => void
+  onTodosChange?: (todos: TodoItem[]) => void
 }
 
 function RetryCountdown({ id, attempt, maxAttempts, delayMs, unbounded }: { id: string; attempt: number; maxAttempts: number; delayMs: number; unbounded?: boolean }) {
@@ -225,7 +225,7 @@ function RetryCountdown({ id, attempt, maxAttempts, delayMs, unbounded }: { id: 
   )
 }
 
-function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVariantChange, onSendDraftMessage, onOpenSubagent }: Props) {
+function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVariantChange, onSendDraftMessage, onOpenSubagent, onTodosChange }: Props) {
   const [items, setItems] = useState<FeedItem[]>([])
   const [running, setRunning] = useState(false)
   const [currentMode, setCurrentMode] = useState<AgentMode>(mode)
@@ -252,6 +252,10 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const [compactThreshold, setCompactThreshold] = useState<number | null>(null)
   const [commands, setCommands] = useState<Command[]>([])
   const [todos, setTodos] = useState<TodoItem[]>([])
+  // Keep the pane header's todo pill in sync with the chat's todo list. The
+  // pill lives in the header (a sibling of this panel), so the list is lifted
+  // up via onTodosChange rather than rendered here.
+  useEffect(() => { onTodosChange?.(todos) }, [todos, onTodosChange])
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   const [queue, setQueue] = useState<QueuedMessage[]>([])
   const queueRef = useRef<QueuedMessage[]>([])
@@ -944,9 +948,6 @@ if (e.type === 'usage') {
     { label: 'Deny', key: '3', run: () => pendingPrompt && respond(pendingPrompt.promptId, false) }
   ]
 
-  const todoList = Array.isArray(todos) ? todos : []
-  const doneCount = todoList.filter(t => t.status === 'completed' || t.status === 'cancelled').length
-
   return (
     <div className="chat-panel" onKeyDown={onPanelKeyDown} style={{ display: 'flex', flexDirection: 'row', flex: 1, minHeight: 0, position: 'relative' }}>
       <div className="chat-panel-main" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, position: 'relative' }}>
@@ -959,7 +960,6 @@ if (e.type === 'usage') {
         <button className="btn small" title="Undo last turn" onClick={handleUndo} disabled={running}>Undo</button>
         <button className="btn small" title="Redo undone turn" onClick={handleRedo} disabled={running}>Redo</button>
       </div>
-      {todoList.length > 0 && <TodoPill todos={todoList} />}
       <div className="chat-feed-wrap">
 
         <div

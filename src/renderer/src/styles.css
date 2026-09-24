@@ -951,43 +951,31 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
    pulsing cyan status dot, and active task ticker.
    Hovering or clicking opens a scroll-capped dropdown with the full list.
    Overlays the feed (zero layout shift). */
-.todo-pill { position: absolute; top: 0.666667rem; left: 0.833333rem; z-index: 5; }
+/* Seated inline in the pane header (left of the ⋮ action button), so it is a
+   normal flex child — no absolute positioning, no floating shadow. */
+.todo-pill { display: inline-flex; align-items: center; }
 .todo-pill-btn {
-  display: inline-flex; align-items: center; gap: 0.5rem;
-  padding: 0.333333rem 0.666667rem 0.333333rem 0.416667rem;
+  display: inline-flex; align-items: center; gap: 0.416667rem;
+  padding: 0.208333rem 0.5rem 0.208333rem 0.333333rem;
   appearance: none;
-  background: #19191d;
-  border: 0.083333rem solid rgba(31, 156, 240, 0.4);
+  background: var(--bg-raised);
+  border: 0.083333rem solid var(--hairline);
   border-radius: 999px;
   color: var(--text);
   cursor: pointer;
   user-select: none;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 0 12px rgba(31, 156, 240, 0.25);
-  transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+  transition: background 140ms ease, border-color 140ms ease;
 }
 .todo-pill-btn:hover {
-  background: #202026;
-  border-color: var(--accent-strong);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55), 0 0 16px rgba(31, 156, 240, 0.4);
-  transform: translateY(-1px);
-}
-[data-theme="light"] .todo-pill-btn {
-  background: var(--bg-raised);
-  border-color: rgba(0, 122, 204, 0.4);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08), 0 0 8px rgba(0, 122, 204, 0.15);
-}
-[data-theme="light"] .todo-pill-btn:hover {
   background: var(--bg-hover);
-  border-color: var(--accent);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12), 0 0 12px rgba(0, 122, 204, 0.25);
+  border-color: var(--hairline-strong);
 }
 .todo-pill-ring {
-  width: 1.375rem; height: 1.375rem; border-radius: 50%; flex: 0 0 auto;
+  width: 1.125rem; height: 1.125rem; border-radius: 50%; flex: 0 0 auto;
   display: grid; place-items: center;
-  box-shadow: 0 0 6px rgba(31, 156, 240, 0.25);
 }
 .todo-pill-ring::after {
-  content: ''; width: 1rem; height: 1rem; border-radius: 50%; background: #19191d;
+  content: ''; width: 0.833333rem; height: 0.833333rem; border-radius: 50%; background: var(--bg-raised);
 }
 [data-theme="light"] .todo-pill-ring::after {
   background: var(--bg-raised);

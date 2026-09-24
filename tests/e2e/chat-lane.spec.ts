@@ -5,7 +5,8 @@ import path from 'node:path'
 
 // The chat lane: the transcript content, the question/permission prompt and the
 // composer card all sit on ONE centered column of `--chat-lane-w` (64rem). The
-// todo list is a floating pill overlay (TodoPill), not a lane surface. Two
+// todo list is a compact pill (TodoPill) seated in the pane header, not a lane
+// surface. Two
 // details are load-bearing and pinned here:
 //
 //  1. The feed box stays full panel width, so the scrollbar hugs the panel edge
@@ -118,8 +119,9 @@ async function measureLane(window: Page) {
 type LaneBox = { left: number; right: number } | null
 
 /** Every surface that must sit on the lane column: the transcript content lane,
- *  the composer card and the composer footer. The todo list is a floating pill
- *  overlay now (see TodoPill), so it is intentionally NOT a lane surface. */
+ *  the composer card and the composer footer. The todo list is a compact pill
+ *  (see TodoPill) seated in the pane header, so it is intentionally NOT a lane
+ *  surface. */
 function laneBoxes(m: Awaited<ReturnType<typeof measureLane>>): Array<[string, LaneBox]> {
   return [
     ['.chat-feed-content', m.feedContent],

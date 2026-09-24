@@ -1,5 +1,5 @@
-import { useCallback } from 'react'
-import type { ImageAttachment } from '@shared/types'
+import { useCallback, useState } from 'react'
+import type { ImageAttachment, TodoItem } from '@shared/types'
 import type { PaneModel } from '../App'
 import PaneHeader from './PaneHeader'
 import ChatPanel from './chat/ChatPanel'
@@ -21,6 +21,10 @@ interface Props {
 export default function Pane({ pane, background, active, onFocus, onRemove, onSendDraftMessage, onOpenFiles, onOpenProcesses, onOpenSubagent }: Props) {
   const id = pane.agent.id
   const native = pane.agent.kind === 'native'
+  // The todo list lives here so the header pill (a sibling of ChatPanel) can
+  // render it next to the action menu. ChatPanel reports it up on every change.
+  const [todos, setTodos] = useState<TodoItem[]>([])
+  const handleTodosChange = useCallback((t: TodoItem[]) => setTodos(t), [])
   // Stable callbacks so App-level re-renders (git poll, agent state) don't
   // cascade past the memoized ChatPanel into the chat feed.
   const handleStop = useCallback(() => {
@@ -53,6 +57,7 @@ export default function Pane({ pane, background, active, onFocus, onRemove, onSe
         onOpenFiles={onOpenFiles}
         onOpenProcesses={onOpenProcesses}
         onRemove={onRemove}
+        todos={todos}
       />
       {background ? (
         <button className="pane-background-badge" onClick={() => void window.api.setAgentBackground(id, false)}>
@@ -72,6 +77,7 @@ export default function Pane({ pane, background, active, onFocus, onRemove, onSe
             onVariantChange={handleVariantChange}
             onSendDraftMessage={onSendDraftMessage}
             onOpenSubagent={onOpenSubagent}
+            onTodosChange={handleTodosChange}
           />
         </ChatErrorBoundary>
       </div>

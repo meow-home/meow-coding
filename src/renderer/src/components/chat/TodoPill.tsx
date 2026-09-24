@@ -20,13 +20,13 @@ function TodoStatusIcon({ status }: { status: TodoStatus }) {
   }
 }
 
-// Direction 1 (Mission Badge): an eye-catching floating pill over the chat's
-// top-left with an orange TODO tag, progress ring + count, pulsing cyan status dot,
-// and active task ticker. Hovering (or clicking) opens a dropdown with the full list.
-// The dropdown is capped in height and scrolls internally, so a long todo list
-// never grows beyond the viewport. Overlays the feed (zero layout shift).
-// Hover uses a short close delay so moving from the pill onto the dropdown doesn't
-// flicker it closed.
+// Direction 1 (Mission Badge): a compact inline chip seated in the pane header,
+// immediately left of the action (⋮) button. It shows an orange TODO tag, a
+// progress ring + done/total count, and a pulsing cyan status dot while work
+// remains. Clicking opens a dropdown with the full list; the dropdown is capped
+// in height and scrolls internally, so a long todo list never grows beyond the
+// viewport. Hover uses a short close delay so moving from the pill onto the
+// dropdown doesn't flicker it closed.
 function TodoPill({ todos }: TodoPillProps) {
   const [open, setOpen] = useState(false)
   const closeTimer = useRef<number | null>(null)
@@ -58,7 +58,7 @@ function TodoPill({ todos }: TodoPillProps) {
       <BaseDropdown
         open={open}
         onOpenChange={setOpen}
-        placement="top-start"
+        placement="bottom-end"
         menuClassName="todo-pill-menu"
         trigger={({ open: isOpen, toggle }) => (
           <button
