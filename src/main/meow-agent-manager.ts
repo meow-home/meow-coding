@@ -1004,28 +1004,29 @@ ${content}` : content
     writeMeowConfig(this.deps.configPath, { ...cfg, lastUsedModel: model })
   }
 
-  getAgentModel(agentId: string): ModelRef | null {
-    if (agentId === DRAFT_SESSION_ID) {
-      if (this.draftModel) return this.draftModel
-      const cfg = loadMeowConfig(this.deps.configPath)
-      if (cfg.lastUsedModel) {
-        const last = cfg.lastUsedModel
-        const resolvedLast = this.resolveAgentConfig(cfg, 'New session', `${last.provider}/${last.model}`, last.accountId)
-        if (resolvedLast.provider && resolvedLast.model && (last.provider !== 'codex' || resolvedLast.apiKey !== null)) {
-          return {
-            provider: resolvedLast.provider,
-            model: resolvedLast.model,
-            ...(last.accountId ? { accountId: last.accountId } : {})
-          }
+  defaultSessionModel(): ModelRef | null {
+    const cfg = loadMeowConfig(this.deps.configPath)
+    if (cfg.lastUsedModel) {
+      const last = cfg.lastUsedModel
+      const resolvedLast = this.resolveAgentConfig(cfg, 'New session', `${last.provider}/${last.model}`, last.accountId)
+      if (resolvedLast.provider && resolvedLast.model && (last.provider !== 'codex' || resolvedLast.apiKey !== null)) {
+        return {
+          provider: resolvedLast.provider,
+          model: resolvedLast.model,
+          ...(last.accountId ? { accountId: last.accountId } : {})
         }
       }
-      const resolved = this.resolveAgentConfig(cfg, 'New session')
-      if (!resolved.provider || !resolved.model) return null
-      return {
-        provider: resolved.provider,
-        model: resolved.model
-      }
     }
+    const resolved = this.resolveAgentConfig(cfg, 'New session')
+    if (!resolved.provider || !resolved.model) return null
+    return {
+      provider: resolved.provider,
+      model: resolved.model
+    }
+  }
+
+  getAgentModel(agentId: string): ModelRef | null {
+    if (agentId === DRAFT_SESSION_ID) return this.draftModel ?? this.defaultSessionModel()
     const agent = this.agents.get(agentId)
     if (!agent) return null
     const cfg = loadMeowConfig(this.deps.configPath)

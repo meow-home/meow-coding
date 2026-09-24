@@ -20,7 +20,7 @@ handlers and the app lifecycle.
   calls `externalFacade.resumeQueued()` so queued external tasks from a previous run start.
 - `meow-agent-manager.ts` — `MeowAgentManager`: orchestrates the agent chat loop, sessions, commands,
   permissions, subagents, MCP/user tools, stats, settings. The only place that orchestrates the native agent.
-  Tracks draft session model preferences (`DRAFT_SESSION_ID`) and resolves default models for unmaterialized sessions;
+  Tracks draft session model preferences (`DRAFT_SESSION_ID`) and resolves default models for unmaterialized sessions (`defaultSessionModel()`: last used model, else the default provider — also used for sessions created by external delegation);
   `suggestFiles` for a draft session (`DRAFT_SESSION_ID`) falls back to the active project path, so `@`-file
   completion works before the session exists.
   Bridges background shells to the renderer for the Processes overlay: owns a `procSubscriptions` set and, on

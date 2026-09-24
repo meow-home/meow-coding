@@ -1809,6 +1809,50 @@ describe('MeowAgentManager subagents', () => {
     const draftModel = manager.getAgentModel(DRAFT_SESSION_ID)
     expect(draftModel).toEqual({ provider: 'anthropic', model: 'claude-3-7-sonnet' })
   })
+
+  it('defaultSessionModel prefers the last used model', async () => {
+    const { manager } = await makeManager()
+    await manager.saveSettings({
+      providers: [
+        { id: 'openai', apiKey: 'sk-123', models: ['gpt-4o'] },
+        { id: 'anthropic', apiKey: 'sk-456', models: ['claude-3-7-sonnet'] }
+      ],
+      defaultProvider: 'openai',
+      agents: [],
+      permission: {},
+      mcp: {},
+      maxSteps: 100,
+      compaction: { auto: true, tailTurns: 2 },
+      toolOutput: { maxBytes: 51200, maxLines: 2000 },
+      lsp: { enabled: true, diagnosticsTimeoutMs: 3000 }
+    })
+    manager.setModel('agent-1', { provider: 'anthropic', model: 'claude-3-7-sonnet' })
+    expect(manager.defaultSessionModel()).toEqual({ provider: 'anthropic', model: 'claude-3-7-sonnet' })
+  })
+
+  it('defaultSessionModel falls back to the default provider when the last used provider is gone', async () => {
+    const { manager } = await makeManager()
+    const settings = {
+      defaultProvider: 'openai',
+      agents: [],
+      permission: {},
+      mcp: {},
+      maxSteps: 100,
+      compaction: { auto: true, tailTurns: 2 },
+      toolOutput: { maxBytes: 51200, maxLines: 2000 },
+      lsp: { enabled: true, diagnosticsTimeoutMs: 3000 }
+    }
+    await manager.saveSettings({
+      ...settings,
+      providers: [
+        { id: 'openai', apiKey: 'sk-123', models: ['gpt-4o'] },
+        { id: 'anthropic', apiKey: 'sk-456', models: ['claude-3-7-sonnet'] }
+      ]
+    })
+    manager.setModel('agent-1', { provider: 'anthropic', model: 'claude-3-7-sonnet' })
+    await manager.saveSettings({ ...settings, providers: [{ id: 'openai', apiKey: 'sk-123', models: ['gpt-4o'] }] })
+    expect(manager.defaultSessionModel()?.provider).toBe('openai')
+  })
 })
 
 describe('MeowAgentManager draft session file suggestions', () => {

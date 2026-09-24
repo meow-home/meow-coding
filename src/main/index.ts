@@ -273,7 +273,8 @@ export class MainApp {
     delegations: this.delegationService,
     isDirectory: (p) => { try { return statSync(p).isDirectory() } catch { return false } },
     onWorkspaceChanged: (ws) => win?.webContents.send(Channels.EventWorkspaceChanged, { runtime: this.runtimeFor(ws) }),
-    version: app.getVersion()
+    version: app.getVersion(),
+    defaultModel: () => this.meowAgent.defaultSessionModel()
   })
   externalApi = new ExternalApiManager({
     config: new ExternalApiConfigFile(path.join(app.getPath('userData'), 'external-api.json')),

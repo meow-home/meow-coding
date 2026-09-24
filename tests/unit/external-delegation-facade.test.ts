@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import path from 'node:path'
 import { ExternalDelegationFacade, type ExternalDelegationFacadeDeps } from '../../src/main/external-api/facade'
 import { ExternalApiError } from '../../src/main/external-api/errors'
-import type { AgentConfig, NewAgentInput, SessionDelegation, Workspace } from '../../src/shared/types'
+import type { AgentConfig, ModelRef, NewAgentInput, SessionDelegation, Workspace } from '../../src/shared/types'
 
 const ROOT = path.resolve('/repo')
 
@@ -27,7 +27,7 @@ class FakeDelegations {
   getStore() { return { list: (f?: { projectPath?: string }) => this.records.filter(r => !f?.projectPath || r.projectPath === f.projectPath) } }
 }
 
-function setup(existing: Workspace[] = []) {
+function setup(existing: Workspace[] = [], defaultModel: () => ModelRef | null = () => null) {
   const workspaces = [...existing]
   const ensured: string[] = []
   const changed: string[] = []
@@ -47,7 +47,8 @@ function setup(existing: Workspace[] = []) {
     delegations: delegations as unknown as ExternalDelegationFacadeDeps['delegations'],
     isDirectory: (p) => p !== path.resolve('/missing'),
     onWorkspaceChanged: (ws) => { changed.push(ws.projectPath) },
-    version: '1.2.3'
+    version: '1.2.3',
+    defaultModel
   }
   return { facade: new ExternalDelegationFacade(deps), workspaces, ensured, changed, delegations }
 }
@@ -64,6 +65,29 @@ describe('ExternalDelegationFacade', () => {
     expect(env.changed.length).toBeGreaterThanOrEqual(1)
     expect(task.sessionId).toBe('a1')
     expect(task.status).toBe('queued')
+  })
+
+  it('creates a new session on the last used model, including its account', async () => {
+    const e = setup([], () => ({ provider: 'codex', model: 'gpt-5', accountId: 'acc-1' }))
+    await e.facade.createTask({ cwd: ROOT, planKey: 'p.md', task: 'T1' })
+    expect(e.workspaces[0].agents[0]).toMatchObject({ model: 'codex/gpt-5', accountId: 'acc-1' })
+  })
+
+  it('leaves the model unset when no default model resolves', async () => {
+    await env.facade.createTask({ cwd: ROOT, planKey: 'p.md', task: 'T1' })
+    expect('model' in env.workspaces[0].agents[0]).toBe(false)
+    expect('accountId' in env.workspaces[0].agents[0]).toBe(false)
+  })
+
+  it('keeps the model of a reused session', async () => {
+    let model: ModelRef | null = { provider: 'openai', model: 'gpt-4o' }
+    const e = setup([], () => model)
+    const a = await e.facade.createTask({ cwd: ROOT, planKey: 'p.md', task: 'T1' })
+    model = { provider: 'anthropic', model: 'claude' }
+    const b = await e.facade.createTask({ cwd: ROOT, planKey: 'p.md', task: 'T2' })
+    expect(b.sessionId).toBe(a.sessionId)
+    expect(e.workspaces[0].agents).toHaveLength(1)
+    expect(e.workspaces[0].agents[0].model).toBe('openai/gpt-4o')
   })
 
   it('uses the title when given', async () => {

@@ -1,5 +1,5 @@
 import path from 'node:path'
-import type { AgentConfig, NewAgentInput, SessionDelegation, Workspace } from '../../shared/types'
+import type { AgentConfig, ModelRef, NewAgentInput, SessionDelegation, Workspace } from '../../shared/types'
 import type { CreateTaskBody, TaskDto } from '../../shared/external-api-types'
 import { validateTaskText, type SessionDelegationService } from '../session-delegation-service'
 import { normalizeProjectPath } from '../session-delegation-store'
@@ -17,6 +17,7 @@ export interface ExternalDelegationFacadeDeps {
   isDirectory(p: string): boolean
   onWorkspaceChanged(ws: Workspace): void
   version: string
+  defaultModel(): ModelRef | null
 }
 
 export function toTaskDto(d: SessionDelegation): TaskDto {
@@ -120,11 +121,14 @@ export class ExternalDelegationFacade implements ExternalApiHandler {
       .find((a): a is AgentConfig => a !== undefined)
     if (reused) return { ws, agent: reused, planKey }
     const title = body.title?.trim() || path.basename(body.planKey, path.extname(body.planKey)) || 'plan'
+    const model = this.deps.defaultModel()
     const updated = this.deps.workspaces.addAgent(ws.projectPath, {
       name: `[claude] ${title}`,
       templateId: 'meow',
       cwd: ws.projectPath,
-      kind: 'native'
+      kind: 'native',
+      ...(model ? { model: `${model.provider}/${model.model}` } : {}),
+      ...(model?.accountId ? { accountId: model.accountId } : {})
     })
     this.deps.onWorkspaceChanged(updated)
     return { ws: updated, agent: updated.agents[updated.agents.length - 1], planKey }

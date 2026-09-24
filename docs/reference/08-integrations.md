@@ -300,7 +300,7 @@ All routes are under `/v1`, JSON, and require `Authorization: Bearer <token>` (4
 | Route | Behavior |
 |---|---|
 | `GET /v1/health` | `{ version }` |
-| `POST /v1/tasks` | Body `{ cwd, planKey, title?, task, sessionId? }`. With `sessionId` (a target agent id), queues into that existing session. Without it, resolves/creates the per-plan session (`[claude] <title>`, auto-adding the project for `cwd` when missing). Returns `{ task: TaskDto }`. |
+| `POST /v1/tasks` | Body `{ cwd, planKey, title?, task, sessionId? }`. With `sessionId` (a target agent id), queues into that existing session. Without it, resolves/creates the per-plan session (`[claude] <title>`, auto-adding the project for `cwd` when missing). A new session starts on the same model as a new draft session — the last used model (`meow.json` `lastUsedModel`), falling back to the default provider when that provider is no longer connected; a reused session keeps its own model. Returns `{ task: TaskDto }`. |
 | `GET /v1/tasks/:id` | `{ task: TaskDto }` |
 | `GET /v1/tasks/:id/wait?timeout=<s>` | Long-polls until the task is terminal, or `timeout` elapses (default 60s, max 120s): `{ done, task }` |
 | `POST /v1/tasks/:id/cancel` | `{ task }` after the cancel is applied; a running task is stopped and the call waits up to 5 s for it to settle, so `task.status` is normally `cancelled` |
