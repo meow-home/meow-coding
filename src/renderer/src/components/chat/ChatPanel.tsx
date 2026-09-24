@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 
 import { Check, ChevronDown, Copy } from 'lucide-react'
 import type { AgentMode, ChatDelegationMeta, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ImageAttachment, QuestionOption, QueuedMessage, TodoItem, ToolCallData } from '@shared/types'
 import { DRAFT_SESSION_ID } from '@shared/types'
+import { isExternalPeer } from '@shared/external-api-types'
 import { appendStreamDelta } from '@shared/text'
 import { contextTokens } from '@shared/usage'
 import ChatInput from './ChatInput'
@@ -175,7 +176,7 @@ const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, c
           {delegation?.direction === 'incoming' && (
             <div className="chat-delegation-label">
               <span className="chat-delegation-badge">delegation</span>
-              <span>From session: {delegation.peerName}</span>
+              <span>{isExternalPeer(delegation.peerAgentId) ? 'From' : 'From session'}: {delegation.peerName}</span>
             </div>
           )}
           {images && images.length > 0 && (
