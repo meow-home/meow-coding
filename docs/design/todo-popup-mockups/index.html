@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Todo popup — 4 directions</title>
+<style>
+  :root {
+    --bg: #0a0a0b;
+    --bg-panel: #0f0f11;
+    --bg-raised: #161618;
+    --bg-hover: #1c1c20;
+    --bg-code: #0a0a0b;
+    --text: #ffffff;
+    --text-dim: #b0b0b0;
+    --text-faint: #707076;
+    --accent: #007acc;
+    --accent-strong: #1f9cf0;
+    --orange: #ffb454;
+    --green: #4ade9f;
+    --red: #ff5f56;
+    --hairline: rgba(255,255,255,0.09);
+    --font-ui: 'Segoe UI Variable','Segoe UI',system-ui,sans-serif;
+    --font-mono: 'JetBrainsMonoNerdFontMono','JetBrains Mono',ui-monospace,monospace;
+    --radius: 0.5rem;
+    --radius-lg: 0.666667rem;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--font-ui); font-size: 14px; line-height: 1.5;
+  }
+  .page { max-width: 1180px; margin: 0 auto; padding: 2.5rem 2rem 5rem; }
+  h1 { font-size: 1.6rem; font-weight: 600; margin: 0 0 0.25rem; letter-spacing: -0.01em; }
+  .sub { color: var(--text-dim); margin: 0 0 2.5rem; max-width: 60ch; }
+  .sub code { font-family: var(--font-mono); color: var(--orange); font-size: 0.85em; }
+
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--bg-panel);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.9rem 1.1rem; border-bottom: 1px solid var(--hairline);
+  }
+  .card-head .tag { font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent-strong); letter-spacing: 0.06em; }
+  .card-head h2 { margin: 0; font-size: 1.02rem; font-weight: 600; }
+  .card-head .pro { font-size: 0.78rem; color: var(--text-faint); }
+  .card-body { padding: 1.1rem; }
+
+  .note { font-size: 0.82rem; color: var(--text-dim); margin-top: 0.9rem; line-height: 1.5; }
+  .note b { color: var(--text); font-weight: 500; }
+  .note .k { font-family: var(--font-mono); color: var(--orange); font-size: 0.9em; }
+
+  /* ---- Shared chat-stage scaffold (what the todo sits on) ---- */
+  .stage {
+    position: relative;
+    background: var(--bg);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    height: 300px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .stage-topbar {
+    height: 26px; flex: 0 0 auto; background: var(--bg-panel);
+    border-bottom: 1px solid var(--hairline);
+    display: flex; align-items: center; padding: 0 0.7rem; gap: 0.4rem;
+  }
+  .stage-topbar .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .stage-topbar .dot.r { background: #ff5f56; }
+  .stage-topbar .dot.y { background: #ffb454; }
+  .stage-topbar .dot.g { background: #4ade9f; }
+  .stage-topbar .url { margin-left: 0.6rem; font-size: 0.7rem; color: var(--text-faint); font-family: var(--font-mono); }
+  .stage-feed { flex: 1; min-height: 0; overflow: hidden; padding: 0.7rem 0.9rem; display: flex; flex-direction: column; gap: 0.5rem; }
+  .msg { font-size: 0.8rem; color: var(--text-dim); }
+  .msg .who { color: var(--accent-strong); font-family: var(--font-mono); font-size: 0.72rem; margin-right: 0.4rem; }
+  .msg .user { color: var(--text); }
+  .msg .dim { color: var(--text-faint); }
+  .stage-composer {
+    flex: 0 0 auto; height: 40px; margin: 0.6rem; margin-top: 0;
+    background: var(--bg-raised); border: 1px solid var(--hairline);
+    border-radius: var(--radius); display: flex; align-items: center; padding: 0 0.8rem;
+    font-size: 0.8rem; color: var(--text-faint);
+  }
+
+  /* ---- Direction A: floating pill, top-right ---- */
+  .pill {
+    position: absolute; top: 0.7rem; right: 0.7rem; z-index: 5;
+    display: flex; flex-direction: column; gap: 0.3rem;
+    width: 190px;
+  }
+  .pill-btn {
+    align-self: flex-end;
+    display: flex; align-items: center; gap: 0.5rem;
+    background: var(--bg-raised); border: 1px solid var(--hairline);
+    border-radius: 999px; padding: 0.4rem 0.7rem 0.4rem 0.5rem;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    cursor: pointer; user-select: none;
+  }
+  .pill-btn .ring {
+    width: 22px; height: 22px; border-radius: 50%; flex: 0 0 auto;
+    background: conic-gradient(var(--accent-strong) 0 43%, var(--bg-hover) 43% 100%);
+    display: grid; place-items: center;
+  }
+  .pill-btn .ring::after {
+    content: ''; width: 16px; height: 16px; border-radius: 50%; background: var(--bg-raised);
+  }
+  .pill-btn .cnt { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+  .pill-btn .chev { color: var(--text-faint); font-size: 0.6rem; transition: transform 150ms ease; }
+  .pill-btn.open .chev { transform: rotate(180deg); }
+  .pill-pop {
+    background: var(--bg-raised); border: 1px solid var(--hairline);
+    border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+    /* Cap the dropdown height so a long todo list scrolls instead of growing
+       the popup (and the page) beyond the viewport. */
+    max-height: 15rem;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .pill-pop .phead {
+    flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--hairline);
+  }
+  .pill-pop .ptitle { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--orange); font-weight: 600; }
+  .pill-pop .pcount { font-size: 0.66rem; color: var(--text-dim); font-family: var(--font-mono); }
+  .pill-pop ul { list-style: none; margin: 0; padding: 0.3rem; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+  .pill-pop ul::-webkit-scrollbar { width: 8px; }
+  .pill-pop ul::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 4px; }
+  .pill-pop li { display: flex; align-items: center; gap: 0.4rem; font-size: 0.74rem; padding: 0.28rem 0.4rem; border-radius: 6px; }
+  .pill-pop li:hover { background: var(--bg-hover); }
+  .pill-pop li .mk { font-size: 0.7rem; flex: 0 0 auto; }
+  .pill-pop li.done .tx { color: var(--text-faint); text-decoration: line-through; }
+  .pill-pop li.cur .tx { color: var(--text); }
+  .pill-pop li.cur .mk { color: var(--accent-strong); }
+
+  /* ---- Direction B: collapsible strip, top of chat ---- */
+  .strip { flex: 0 0 auto; margin: 0.6rem 0.6rem 0; border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--bg-raised); overflow: hidden; }
+  .strip-rail { height: 3px; background: var(--bg-hover); }
+  .strip-rail .fill { height: 100%; background: var(--accent-strong); width: 43%; transition: width 0.3s ease; }
+  .strip-head { display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.7rem; cursor: pointer; user-select: none; }
+  .strip-head .t { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--orange); font-weight: 600; }
+  .strip-head .c { font-size: 0.7rem; color: var(--text-dim); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .strip-head .cur { flex: 1; font-size: 0.74rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .strip-head .cur b { color: var(--text); font-weight: 500; }
+  .strip-head .chev { color: var(--text-faint); font-size: 0.6rem; transition: transform 150ms ease; }
+  .strip.open .chev { transform: rotate(180deg); }
+  .strip-body { max-height: 0; overflow: hidden; transition: max-height 180ms ease; }
+  .strip.open .strip-body { max-height: 160px; }
+  .strip-body ul { list-style: none; margin: 0; padding: 0.2rem 0.6rem 0.5rem; }
+  .strip-body li { display: flex; align-items: center; gap: 0.4rem; font-size: 0.74rem; padding: 0.26rem 0.4rem; border-radius: 6px; }
+  .strip-body li:hover { background: var(--bg-hover); }
+  .strip-body li .mk { font-size: 0.7rem; flex: 0 0 auto; }
+  .strip-body li.done .tx { color: var(--text-faint); text-decoration: line-through; }
+  .strip-body li.cur .tx { color: var(--text); }
+  .strip-body li.cur .mk { color: var(--accent-strong); }
+
+  /* ---- Direction C: corner badge with radial ring ---- */
+  .badge {
+    position: absolute; right: 0.7rem; bottom: 3.4rem; z-index: 5;
+    display: flex; align-items: flex-end; gap: 0.6rem; flex-direction: column;
+  }
+  .badge-btn {
+    width: 46px; height: 46px; border-radius: 50%;
+    background: conic-gradient(var(--accent-strong) 0 43%, var(--bg-hover) 43% 100%);
+    display: grid; place-items: center; cursor: pointer; user-select: none;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.55);
+  }
+  .badge-btn::after { content: ''; width: 36px; height: 36px; border-radius: 50%; background: var(--bg-raised); display: grid; place-items: center; }
+  .badge-btn .num { position: absolute; font-family: var(--font-mono); font-size: 0.72rem; color: var(--text); font-variant-numeric: tabular-nums; }
+  .badge-pop {
+    background: var(--bg-raised); border: 1px solid var(--hairline); border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.55); width: 210px; overflow: hidden;
+  }
+  .badge-pop .phead { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--hairline); }
+  .badge-pop .ptitle { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--orange); font-weight: 600; }
+  .badge-pop .pcount { font-size: 0.66rem; color: var(--text-dim); font-family: var(--font-mono); }
+  .badge-pop ul { list-style: none; margin: 0; padding: 0.3rem; }
+  .badge-pop li { display: flex; align-items: center; gap: 0.4rem; font-size: 0.74rem; padding: 0.28rem 0.4rem; border-radius: 6px; }
+  .badge-pop li:hover { background: var(--bg-hover); }
+  .badge-pop li .mk { font-size: 0.7rem; flex: 0 0 auto; }
+  .badge-pop li.done .tx { color: var(--text-faint); text-decoration: line-through; }
+  .badge-pop li.cur .tx { color: var(--text); }
+  .badge-pop li.cur .mk { color: var(--accent-strong); }
+
+  /* ---- Direction D: side gutter dots ---- */
+  .gutter {
+    position: absolute; right: 0.55rem; top: 2.6rem; bottom: 4.6rem; z-index: 5;
+    width: 18px; border-left: 1px solid var(--hairline);
+    display: flex; flex-direction: column; align-items: center; gap: 0.4rem; padding-top: 0.4rem;
+  }
+  .gutter .gdot { width: 8px; height: 8px; border-radius: 50%; background: var(--bg-hover); border: 1px solid var(--hairline); }
+  .gutter .gdot.done { background: var(--green); border-color: var(--green); }
+  .gutter .gdot.cur { background: var(--accent-strong); border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(31,156,240,0.2); }
+  .gutter .gdot:hover { transform: scale(1.3); }
+  .gutter .gtooltip {
+    position: absolute; right: 22px; top: 0; background: var(--bg-raised);
+    border: 1px solid var(--hairline); border-radius: 6px; padding: 0.3rem 0.5rem;
+    font-size: 0.68rem; color: var(--text-dim); white-space: nowrap; opacity: 0; pointer-events: none;
+    transition: opacity 120ms ease; font-family: var(--font-mono);
+  }
+  .gutter .gdot:hover .gtooltip { opacity: 1; }
+  .gutter .ghead {
+    font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint);
+    writing-mode: vertical-rl; font-weight: 600; margin-bottom: 0.2rem;
+  }
+  .gutter .gcount { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+
+  .prog-row { display: flex; align-items: center; gap: 0.5rem; }
+  .prog-row .lbl { font-size: 0.72rem; color: var(--text-faint); font-family: var(--font-mono); }
+  .prog-row input { accent-color: var(--accent); }
+  .prog-row .val { font-size: 0.72rem; color: var(--text-dim); font-family: var(--font-mono); min-width: 3ch; font-variant-numeric: tabular-nums; }
+  .demo-btn {
+    font-family: var(--font-ui); font-size: 0.72rem; color: var(--text-dim);
+    background: var(--bg-raised); border: 1px solid var(--hairline); border-radius: 6px;
+    padding: 0.2rem 0.6rem; cursor: pointer;
+  }
+  .demo-btn:hover { color: var(--text); background: var(--bg-hover); }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Todo popup — 4 directions</h1>
+  <p class="sub">Four spatial answers to the same brief: <em>keep the agent's todo observable without permanently eating chat space.</em>
+  Each mockup is live — click the trigger to expand/collapse, drag the progress slider to watch the state change.
+  All four share the app's dark palette (<code>--accent #007acc</code>, <code>--orange #ffb454</code>, <code>--green #4ade9f</code>).</p>
+
+  <div class="grid">
+
+    <!-- A -->
+    <div class="card">
+      <div class="card-head">
+        <div><span class="tag">A · FLOATING PILL</span><h2>Progress pill, top-right</h2></div>
+        <span class="pro">zero permanent footprint</span>
+      </div>
+      <div class="card-body">
+        <div class="stage" id="stageA">
+          <div class="stage-topbar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">meow — session 4</span></div>
+          <div class="pill" id="pillA">
+            <div class="pill-btn" id="pillBtnA">
+              <span class="ring"></span>
+              <span class="cnt" id="pillCntA">3/7</span>
+              <span class="chev">▾</span>
+            </div>
+            <div class="pill-pop" id="pillPopA" style="display:none"></div>
+          </div>
+          <div class="stage-feed">
+            <div class="msg"><span class="who">agent</span> Refactoring the IPC contract…</div>
+            <div class="msg"><span class="who">agent</span> <span class="dim">tool call</span> write_file src/shared/ipc.ts</div>
+            <div class="msg"><span class="user">you</span> keep it observable but compact</div>
+            <div class="msg"><span class="who">agent</span> <span class="dim">streaming</span> ▍</div>
+          </div>
+          <div class="stage-composer">Ask the agent…</div>
+        </div>
+        <div class="prog-row"><span class="lbl">progress</span><input type="range" id="progA" min="0" max="7" value="3"><span class="val" id="valA">3/7</span></div>
+        <div class="prog-row" style="margin-top:0.4rem"><span class="lbl">demo</span><button class="demo-btn" id="loadA">Load 20 tasks</button><button class="demo-btn" id="resetA">Reset</button></div>
+        <p class="note"><b>Idea.</b> A small pill floats over the chat's top-right. The ring + <span class="k">3/7</span> is the always-on glance; click to drop a compact card with the full list. It never pushes the feed — it overlays it. The dropdown is capped at <span class="k">15rem</span> and scrolls when the list is long. Best when you want <b>zero</b> layout shift.</p>
+      </div>
+    </div>
+
+    <!-- B -->
+    <div class="card">
+      <div class="card-head">
+        <div><span class="tag">B · COLLAPSIBLE STRIP</span><h2>Inline strip, top of chat</h2></div>
+        <span class="pro">collapses to one line</span>
+      </div>
+      <div class="card-body">
+        <div class="stage" id="stageB">
+          <div class="stage-topbar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">meow — session 4</span></div>
+          <div class="strip" id="stripB">
+            <div class="strip-rail"><div class="fill" id="stripFillB"></div></div>
+            <div class="strip-head" id="stripHeadB">
+              <span class="t">TODO</span>
+              <span class="c" id="stripCntB">3/7</span>
+              <span class="cur">Refactor <b>IPC contract</b></span>
+              <span class="chev">▾</span>
+            </div>
+            <div class="strip-body" id="stripBodyB"></div>
+          </div>
+          <div class="stage-feed">
+            <div class="msg"><span class="who">agent</span> Refactoring the IPC contract…</div>
+            <div class="msg"><span class="who">agent</span> <span class="dim">tool call</span> write_file src/shared/ipc.ts</div>
+            <div class="msg"><span class="user">you</span> keep it observable but compact</div>
+            <div class="msg"><span class="who">agent</span> <span class="dim">streaming</span> ▍</div>
+          </div>
+          <div class="stage-composer">Ask the agent…</div>
+        </div>
+        <div class="prog-row"><span class="lbl">progress</span><input type="range" id="progB" min="0" max="7" value="3"><span class="val" id="valB">3/7</span></div>
+        <p class="note"><b>Idea.</b> Lives <i>in</i> the layout as a one-line strip: a 3px rail fills as items complete, and the current step is always visible. Click to expand the full list inline. Best when you want the <b>current step</b> always on screen.</p>
+      </div>
+    </div>
+
+    <!-- C -->
+    <div class="card">
+      <div class="card-head">
+        <div><span class="tag">C · CORNER BADGE</span><h2>Radial ring, bottom-right</h2></div>
+        <span class="pro">progress at a glance</span>
+      </div>
+      <div class="card-body">
+        <div class="stage" id="stageC">
+          <div class="stage-topbar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">meow — session 4</span></div>
+          <div class="badge" id="badgeC">
+            <div class="badge-pop" id="badgePopC" style="display:none"></div>
+            <div class="badge-btn" id="badgeBtnC"><span class="num" id="badgeNumC">3</span></div>
+          </div>
+          <div class="stage-feed">
+            <div class="msg"><span class="who">agent</span> Refactoring the IPC contract…</div>
+            <div class="msg"><span class="who">agent</span> <span class="dim">tool call</span> write_file src/shared/ipc.ts</div>
+            <div class="msg"><span class="user">you</span> keep it observable but compact</div>
+            <div class="msg"><span class="who">agent</span> <span class="dim">streaming</span> ▍</div>
+          </div>
+          <div class="stage-composer">Ask the agent…</div>
+        </div>
+        <div class="prog-row"><span class="lbl">progress</span><input type="range" id="progC" min="0" max="7" value="3"><span class="val" id="valC">3/7</span></div>
+        <p class="note"><b>Idea.</b> A 46px ring in the corner reads as <span class="k">% done</span> without reading anything. Hover/click for the list. The most glanceable, the least informative when collapsed. Best when the feed is the star and progress is background.</p>
+      </div>
+    </div>
+
+    <!-- D -->
+    <div class="card">
+      <div class="card-head">
+        <div><span class="tag">D · SIDE GUTTER</span><h2>Queue dots, right edge</h2></div>
+        <span class="pro">remaining queue as dots</span>
+      </div>
+      <div class="card-body">
+        <div class="stage" id="stageD">
+          <div class="stage-topbar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">meow — session 4</span></div>
+          <div class="gutter" id="gutterD">
+            <span class="ghead">TODO</span>
+            <span class="gdot done"><span class="gtooltip">done — Scaffold IPC contract</span></span>
+            <span class="gdot done"><span class="gtooltip">done — Type the shared DTOs</span></span>
+            <span class="gdot done"><span class="gtooltip">done — Wire preload bridge</span></span>
+            <span class="gdot cur"><span class="gtooltip">now — Refactor IPC contract</span></span>
+            <span class="gdot"><span class="gtooltip">Add unit tests</span></span>
+            <span class="gdot"><span class="gtooltip">Run typecheck</span></span>
+            <span class="gdot"><span class="gtooltip">Update AGENTS.md</span></span>
+            <span class="gcount" id="gutterCntD">3/7</span>
+          </div>
+          <div class="stage-feed">
+            <div class="msg"><span class="who">agent</span> Refactoring the IPC contract…</div>
+            <div class="msg"><span class="who">agent</span> <span class="dim">tool call</span> write_file src/shared/ipc.ts</div>
+            <div class="msg"><span class="user">you</span> keep it observable but compact</div>
+            <div class="msg"><span class="who">agent</span> <span class="dim">streaming</span> ▍</div>
+          </div>
+          <div class="stage-composer">Ask the agent…</div>
+        </div>
+        <p class="note"><b>Idea.</b> A slim rail on the chat's right edge. Each item is a dot — done = green, current = blue ring, remaining = grey. Hover a dot for its label. The whole queue is visible as a <b>vertical stack</b> without any popup. Best when you want the full queue in view.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const TODOS = [
+    { t: 'Scaffold IPC contract', s: 'done' },
+    { t: 'Type the shared DTOs', s: 'done' },
+    { t: 'Wire preload bridge', s: 'done' },
+    { t: 'Refactor IPC contract', s: 'cur' },
+    { t: 'Add unit tests', s: 'todo' },
+    { t: 'Run typecheck', s: 'todo' },
+    { t: 'Update AGENTS.md', s: 'todo' },
+  ];
+  const MARK = { done: '✓', cur: '●', todo: '○' };
+
+  function renderList(el, n) {
+    let items = el.querySelector('ul');
+    if (!items) {
+      items = document.createElement('ul');
+      el.appendChild(items);
+    }
+    items.innerHTML = TODOS.map((x, i) => {
+      const s = i < n ? 'done' : (i === n ? 'cur' : 'todo');
+      return `<li class="${s}"><span class="mk">${MARK[s]}</span><span class="tx">${x.t}</span></li>`;
+    }).join('');
+    if (!el.querySelector('.phead')) {
+      const head = document.createElement('div');
+      head.className = 'phead';
+      head.innerHTML = '<span class="ptitle">TODO LIST</span><span class="pcount"></span>';
+      el.prepend(head);
+    }
+    el.querySelector('.pcount').textContent = `${n}/${TODOS.length}`;
+  }
+  function ring(pct) {
+    return `conic-gradient(var(--accent-strong) 0 ${pct}%, var(--bg-hover) ${pct}% 100%)`;
+  }
+
+  // A
+  const pillBtnA = document.getElementById('pillBtnA');
+  const pillPopA = document.getElementById('pillPopA');
+  const pillCntA = document.getElementById('pillCntA');
+  const ringA = pillBtnA.querySelector('.ring');
+  renderList(pillPopA, 3);
+  pillBtnA.addEventListener('click', () => {
+    const open = pillPopA.style.display !== 'none';
+    pillPopA.style.display = open ? 'none' : 'block';
+    pillBtnA.classList.toggle('open', !open);
+  });
+  const progA = document.getElementById('progA');
+  const valA = document.getElementById('valA');
+  progA.addEventListener('input', () => {
+    const n = +progA.value;
+    valA.textContent = `${n}/${TODOS.length}`;
+    pillCntA.textContent = `${n}/${TODOS.length}`;
+    ringA.style.background = ring(n / TODOS.length * 100);
+    renderList(pillPopA, n);
+  });
+  document.getElementById('loadA').addEventListener('click', () => {
+    if (TODOS.length >= 20) return;
+    for (let i = TODOS.length + 1; i <= 20; i++) {
+      TODOS.push({ t: `Task ${i} — long enough to show the scrollbar`, s: 'todo' });
+    }
+    progA.max = 20;
+    progA.value = 3;
+    valA.textContent = `3/${TODOS.length}`;
+    pillCntA.textContent = `3/${TODOS.length}`;
+    renderList(pillPopA, 3);
+  });
+  document.getElementById('resetA').addEventListener('click', () => {
+    TODOS.length = 7;
+    progA.max = 7;
+    progA.value = 3;
+    valA.textContent = '3/7';
+    pillCntA.textContent = '3/7';
+    ringA.style.background = ring(3 / 7 * 100);
+    renderList(pillPopA, 3);
+  });
+
+  // B
+  const stripB = document.getElementById('stripB');
+  const stripHeadB = document.getElementById('stripHeadB');
+  const stripBodyB = document.getElementById('stripBodyB');
+  const stripCntB = document.getElementById('stripCntB');
+  const stripFillB = document.getElementById('stripFillB');
+  renderList(stripBodyB, 3);
+  stripHeadB.addEventListener('click', () => stripB.classList.toggle('open'));
+  const progB = document.getElementById('progB');
+  const valB = document.getElementById('valB');
+  progB.addEventListener('input', () => {
+    const n = +progB.value;
+    valB.textContent = `${n}/7`;
+    stripCntB.textContent = `${n}/7`;
+    stripFillB.style.width = `${n / 7 * 100}%`;
+    renderList(stripBodyB, n);
+  });
+
+  // C
+  const badgeBtnC = document.getElementById('badgeBtnC');
+  const badgePopC = document.getElementById('badgePopC');
+  const badgeNumC = document.getElementById('badgeNumC');
+  renderList(badgePopC, 3);
+  badgeBtnC.addEventListener('click', () => {
+    const open = badgePopC.style.display !== 'none';
+    badgePopC.style.display = open ? 'none' : 'block';
+  });
+  const progC = document.getElementById('progC');
+  const valC = document.getElementById('valC');
+  progC.addEventListener('input', () => {
+    const n = +progC.value;
+    valC.textContent = `${n}/7`;
+    badgeNumC.textContent = n;
+    badgeBtnC.style.background = ring(n / 7 * 100);
+    renderList(badgePopC, n);
+  });
+
+  // D (static queue, no slider)
+  document.getElementById('gutterCntD').textContent = '3/7';
+</script>
+</body>
+</html>

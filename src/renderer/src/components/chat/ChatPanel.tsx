@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Check, CheckCircle2, ChevronDown, Circle, Clock, Copy, XCircle } from 'lucide-react'
-import type { AgentMode, ChatDelegationMeta, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ImageAttachment, QuestionOption, QueuedMessage, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
+import { Check, ChevronDown, Copy } from 'lucide-react'
+import type { AgentMode, ChatDelegationMeta, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ImageAttachment, QuestionOption, QueuedMessage, TodoItem, ToolCallData } from '@shared/types'
 import { DRAFT_SESSION_ID } from '@shared/types'
 import { appendStreamDelta } from '@shared/text'
 import { contextTokens } from '@shared/usage'
@@ -16,6 +16,7 @@ import ModelPicker from './ModelPicker'
 import VariantPicker from './VariantPicker'
 import ModePicker from './ModePicker'
 import ContextFooter from './ContextFooter'
+import TodoPill from './TodoPill'
 import SubagentOverlay, { SUBAGENT_DEFAULT_WIDTH, type SubagentOverlayItem } from './SubagentOverlay'
 
 type FeedItem =
@@ -251,7 +252,6 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const [compactThreshold, setCompactThreshold] = useState<number | null>(null)
   const [commands, setCommands] = useState<Command[]>([])
   const [todos, setTodos] = useState<TodoItem[]>([])
-  const [todosCollapsed, setTodosCollapsed] = useState(false)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   const [queue, setQueue] = useState<QueuedMessage[]>([])
   const queueRef = useRef<QueuedMessage[]>([])
@@ -944,19 +944,6 @@ if (e.type === 'usage') {
     { label: 'Deny', key: '3', run: () => pendingPrompt && respond(pendingPrompt.promptId, false) }
   ]
 
-  const renderTodoStatusIcon = (status: TodoStatus) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle2 size={13} style={{ color: 'var(--green)' }} aria-hidden="true" />
-      case 'in_progress':
-        return <Clock size={13} style={{ color: 'var(--blue)' }} aria-hidden="true" />
-      case 'pending':
-        return <Circle size={13} style={{ color: 'var(--text-faint)' }} aria-hidden="true" />
-      case 'cancelled':
-        return <XCircle size={13} style={{ color: 'var(--text-faint)' }} aria-hidden="true" />
-    }
-  }
-
   const todoList = Array.isArray(todos) ? todos : []
   const doneCount = todoList.filter(t => t.status === 'completed' || t.status === 'cancelled').length
 
@@ -972,33 +959,7 @@ if (e.type === 'usage') {
         <button className="btn small" title="Undo last turn" onClick={handleUndo} disabled={running}>Undo</button>
         <button className="btn small" title="Redo undone turn" onClick={handleRedo} disabled={running}>Redo</button>
       </div>
-      {todoList.length > 0 && (
-        <div className="chat-todos">
-          <div className="chat-todos-progress" style={{ width: `${(doneCount / todoList.length) * 100}%` }} />
-          <div className="chat-todos-head">
-            <span className="chat-todos-title">TODO LIST</span>
-            <span className="chat-todos-count">{doneCount}/{todoList.length}</span>
-            <button
-              className={`chat-todos-toggle ${todosCollapsed ? 'collapsed' : ''}`}
-              title={todosCollapsed ? 'Expand' : 'Collapse'}
-              aria-label={todosCollapsed ? 'Expand todo list' : 'Collapse todo list'}
-              onClick={() => setTodosCollapsed(v => !v)}
-            >
-              <ChevronDown size={12} aria-hidden="true" />
-            </button>
-          </div>
-          {!todosCollapsed && (
-          <ul className="chat-todos-list">
-            {todoList.map((t, i) => (
-              <li key={i} className={`chat-todo status-${t.status}`}>
-                <span className="chat-todo-mark">{renderTodoStatusIcon(t.status)}</span>
-                <span className="chat-todo-content">{t.content}</span>
-              </li>
-            ))}
-          </ul>
-          )}
-        </div>
-      )}
+      {todoList.length > 0 && <TodoPill todos={todoList} />}
       <div className="chat-feed-wrap">
 
         <div

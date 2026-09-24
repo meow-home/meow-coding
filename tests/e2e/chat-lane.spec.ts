@@ -3,9 +3,10 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-// The chat lane: the transcript content, the todo list, the question/permission
-// prompt and the composer card all sit on ONE centered column of
-// `--chat-lane-w` (64rem). Two details are load-bearing and pinned here:
+// The chat lane: the transcript content, the question/permission prompt and the
+// composer card all sit on ONE centered column of `--chat-lane-w` (64rem). The
+// todo list is a floating pill overlay (TodoPill), not a lane surface. Two
+// details are load-bearing and pinned here:
 //
 //  1. The feed box stays full panel width, so the scrollbar hugs the panel edge
 //     instead of being pulled inside the lane; the lane is applied to the inner
@@ -80,7 +81,7 @@ async function launchAt(userData: string, size: { width: number; height: number 
  * One evaluation returning every column edge that matters. The lane column is
  * derived from the composer's padding box (the composer spans the full panel and
  * insets the lane with padding, so its padding box IS the lane), then checked
- * against the feed's rendered content lane, the todo card, the composer children
+ * against the feed's rendered content lane, the composer children
  * and the prompt.
  */
 async function measureLane(window: Page) {
@@ -108,7 +109,6 @@ async function measureLane(window: Page) {
       feedContent: box('.chat-feed-content'),
       card: box('.chat-input'),
       footer: box('.chat-footer'),
-      todos: box('.chat-todos'),
       prompt: box('.chat-prompt'),
       overflowsX: feed.scrollWidth > feed.clientWidth + 1
     }
@@ -118,11 +118,11 @@ async function measureLane(window: Page) {
 type LaneBox = { left: number; right: number } | null
 
 /** Every surface that must sit on the lane column: the transcript content lane,
- *  the todo card, the composer card and the composer footer. */
+ *  the composer card and the composer footer. The todo list is a floating pill
+ *  overlay now (see TodoPill), so it is intentionally NOT a lane surface. */
 function laneBoxes(m: Awaited<ReturnType<typeof measureLane>>): Array<[string, LaneBox]> {
   return [
     ['.chat-feed-content', m.feedContent],
-    ['.chat-todos', m.todos],
     ['.chat-input', m.card],
     ['.chat-footer', m.footer]
   ]
@@ -141,7 +141,7 @@ for (const long of [true, false]) {
     const { userData } = createFixture(long)
     const { app, window } = await launchAt(userData, WIDE)
     try {
-      await expect(window.locator('.chat-todos')).toBeVisible()
+      await expect(window.locator('.todo-pill')).toBeVisible()
       expect((await measureLane(window)).feedOverflows).toBe(long)
 
       const m = await measureLane(window)
@@ -150,7 +150,7 @@ for (const long of [true, false]) {
       // Centered at the lane width (not shifted by the scrollbar gutter).
       expect(Math.abs(m.laneContentWidth - lane)).toBeLessThanOrEqual(1)
 
-      // Feed content, todo card, composer card and footer on the same column.
+      // Feed content, composer card and footer on the same column.
       expectOnLane(m)
 
       // The scroller itself is still full width: its right edge is the panel
