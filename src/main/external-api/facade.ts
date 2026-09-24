@@ -1,7 +1,7 @@
 import path from 'node:path'
 import type { AgentConfig, NewAgentInput, SessionDelegation, Workspace } from '../../shared/types'
 import type { CreateTaskBody, TaskDto } from '../../shared/external-api-types'
-import type { SessionDelegationService } from '../session-delegation-service'
+import { validateTaskText, type SessionDelegationService } from '../session-delegation-service'
 import { normalizeProjectPath } from '../session-delegation-store'
 import { ExternalApiError } from './errors'
 import type { ExternalApiHandler } from './server'
@@ -13,7 +13,7 @@ export interface ExternalDelegationFacadeDeps {
     addAgent(projectPath: string, input: NewAgentInput): Workspace
   }
   ensureAgent(agent: AgentConfig): Promise<void>
-  delegations: Pick<SessionDelegationService, 'createExternal' | 'cancel' | 'getStatus' | 'getStore'>
+  delegations: Pick<SessionDelegationService, 'createExternal' | 'cancel' | 'getStatus' | 'getStore' | 'notifyAgentAvailable'>
   isDirectory(p: string): boolean
   onWorkspaceChanged(ws: Workspace): void
   version: string
@@ -44,6 +44,11 @@ export class ExternalDelegationFacade implements ExternalApiHandler {
   }
 
   async createTask(body: CreateTaskBody): Promise<TaskDto> {
+    try {
+      validateTaskText(body.task)
+    } catch (err) {
+      throw new ExternalApiError(400, err instanceof Error ? err.message : String(err))
+    }
     const { ws, agent, planKey } = body.sessionId !== undefined
       ? this.resolveSession(body.sessionId)
       : this.resolvePlanSession(body)
@@ -69,6 +74,20 @@ export class ExternalDelegationFacade implements ExternalApiHandler {
   async cancelTask(id: string): Promise<TaskDto> {
     if (!this.getTask(id)) throw new ExternalApiError(404, `[meow] Unknown task: ${id}`)
     return toTaskDto(await this.deps.delegations.cancel(id))
+  }
+
+  /** Registers the target of every queued external task and wakes its pump;
+   *  the service's startup pump runs before workspaces are opened. */
+  async resumeQueued(): Promise<void> {
+    const targets = new Set(
+      this.externalRecords().filter(d => d.status === 'queued').map(d => d.targetAgentId)
+    )
+    for (const target of targets) {
+      const agent = this.deps.workspaces.load().flatMap(w => w.agents).find(a => a.id === target)
+      if (!agent) continue
+      await this.deps.ensureAgent(agent)
+      this.deps.delegations.notifyAgentAvailable(target)
+    }
   }
 
   private externalRecords(projectPath?: string): SessionDelegation[] {

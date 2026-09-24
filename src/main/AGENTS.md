@@ -16,7 +16,8 @@ handlers and the app lifecycle.
   events are the only way to capture that failure (a crashed renderer cannot log for itself).
   Owns the `ExternalApiManager` (`external-api/`): starts it after the delegation service, stops it on
   quit, forwards external delegation changes to its long-poll waiters, and pushes `workspace:changed`
-  when the facade adds a project or session.
+  when the facade adds a project or session. After the API and the delegation service have started it
+  calls `externalFacade.resumeQueued()` so queued external tasks from a previous run start.
 - `meow-agent-manager.ts` — `MeowAgentManager`: orchestrates the agent chat loop, sessions, commands,
   permissions, subagents, MCP/user tools, stats, settings. The only place that orchestrates the native agent.
   Tracks draft session model preferences (`DRAFT_SESSION_ID`) and resolves default models for unmaterialized sessions;

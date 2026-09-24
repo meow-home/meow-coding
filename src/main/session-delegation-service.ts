@@ -54,6 +54,16 @@ const RETENTION_MS = 30 * 86_400_000
 
 const TERMINAL: ReadonlySet<DelegationStatus> = new Set(['completed', 'failed', 'cancelled', 'interrupted'])
 
+/** Trims a delegation task and enforces the non-empty and size limits. */
+export function validateTaskText(rawTask: string): string {
+  const task = (rawTask ?? '').trim()
+  if (!task) throw new Error('[meow] Delegation task must not be empty.')
+  if (Buffer.byteLength(task, 'utf8') > TASK_MAX_BYTES) {
+    throw new Error(`[meow] Delegation task exceeds the ${TASK_MAX_BYTES / 1024} KiB limit.`)
+  }
+  return task
+}
+
 interface Waiter {
   promise: Promise<void>
   resolve: () => void
@@ -140,11 +150,7 @@ export class SessionDelegationService {
   }
 
   private validateTask(rawTask: string, targetAgentId: string): string {
-    const task = (rawTask ?? '').trim()
-    if (!task) throw new Error('[meow] Delegation task must not be empty.')
-    if (Buffer.byteLength(task, 'utf8') > TASK_MAX_BYTES) {
-      throw new Error(`[meow] Delegation task exceeds the ${TASK_MAX_BYTES / 1024} KiB limit.`)
-    }
+    const task = validateTaskText(rawTask)
     const active = this.store.list({ targetAgentId })
       .filter(d => d.status === 'queued' || d.status === 'running' || d.status === 'waiting_for_input')
     if (active.length >= MAX_NONTERMINAL_PER_TARGET) {

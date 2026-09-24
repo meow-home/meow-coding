@@ -267,16 +267,17 @@ export class MainApp {
   externalApiResources = app.isPackaged
     ? path.join(process.resourcesPath, 'external-api')
     : path.join(app.getAppPath(), 'resources', 'external-api')
+  externalFacade = new ExternalDelegationFacade({
+    workspaces: this.workspaces,
+    ensureAgent: (agent) => this.meowAgent.ensureAgent(agent),
+    delegations: this.delegationService,
+    isDirectory: (p) => { try { return statSync(p).isDirectory() } catch { return false } },
+    onWorkspaceChanged: (ws) => win?.webContents.send(Channels.EventWorkspaceChanged, { runtime: this.runtimeFor(ws) }),
+    version: app.getVersion()
+  })
   externalApi = new ExternalApiManager({
     config: new ExternalApiConfigFile(path.join(app.getPath('userData'), 'external-api.json')),
-    handler: new ExternalDelegationFacade({
-      workspaces: this.workspaces,
-      ensureAgent: (agent) => this.meowAgent.ensureAgent(agent),
-      delegations: this.delegationService,
-      isDirectory: (p) => { try { return statSync(p).isDirectory() } catch { return false } },
-      onWorkspaceChanged: (ws) => win?.webContents.send(Channels.EventWorkspaceChanged, { runtime: this.runtimeFor(ws) }),
-      version: app.getVersion()
-    }),
+    handler: this.externalFacade,
     cliSource: path.join(this.externalApiResources, 'meow-delegate.mjs'),
     skillTemplate: path.join(this.externalApiResources, 'claude-skill.md'),
     binDir: path.join(app.getPath('userData'), 'bin'),
@@ -1068,8 +1069,12 @@ app.whenReady().then(async () => {
     console.error('[meow] connections init failed:', err)
   })
   await mainApp.delegations.load()
-  mainApp.delegationService.start()
-  void mainApp.externalApi.start().catch(err => console.error('[meow] external API:', err))
+  const delegationsStarted = mainApp.delegationService.start()
+  void mainApp.externalApi.start()
+    .catch(err => console.error('[meow] external API:', err))
+    .then(() => delegationsStarted)
+    .then(() => mainApp.externalFacade.resumeQueued())
+    .catch(err => console.error('[meow] external API resume:', err))
   const extSource = app.isPackaged
     ? path.join(process.resourcesPath, 'browser-extension')
     : path.join(app.getAppPath(), 'out', 'browser-extension')

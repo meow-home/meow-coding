@@ -9,6 +9,8 @@ const ROOT = path.resolve('/repo')
 class FakeDelegations {
   records: SessionDelegation[] = []
   n = 0
+  notified: string[] = []
+  notifyAgentAvailable(agentId: string): void { this.notified.push(agentId) }
   createExternal(input: { projectPath: string; targetAgentId: string; task: string; planKey: string }): SessionDelegation {
     if (input.task.includes('bad')) throw new Error('[meow] Delegation task must not be empty.')
     const rec: SessionDelegation = {
@@ -119,6 +121,27 @@ describe('ExternalDelegationFacade', () => {
     expect(env.facade.getTask('internal')).toBeUndefined()
     await expect(env.facade.cancelTask('internal')).rejects.toMatchObject({ status: 404 })
     expect((await env.facade.cancelTask(a.id)).status).toBe('cancelled')
+  })
+
+  it('rejects an empty or oversized task before creating a session', async () => {
+    await expect(env.facade.createTask({ cwd: ROOT, planKey: 'p.md', task: '   ' }))
+      .rejects.toMatchObject({ status: 400, message: '[meow] Delegation task must not be empty.' })
+    await expect(env.facade.createTask({ cwd: ROOT, planKey: 'p.md', task: 'x'.repeat(32 * 1024 + 1) }))
+      .rejects.toMatchObject({ status: 400, message: '[meow] Delegation task exceeds the 32 KiB limit.' })
+    expect(env.workspaces.flatMap(w => w.agents)).toHaveLength(0)
+    expect(env.ensured).toEqual([])
+  })
+
+  it('resumeQueued registers each queued external target and wakes its pump', async () => {
+    const a = await env.facade.createTask({ cwd: ROOT, planKey: 'p.md', task: 'T1' })
+    await env.facade.createTask({ cwd: ROOT, planKey: 'p.md', task: 'T2' })
+    const c = await env.facade.createTask({ cwd: ROOT, planKey: 'q.md', task: 'T3' })
+    env.delegations.records.find(r => r.targetAgentId === c.sessionId)!.status = 'completed'
+    env.delegations.records.push({ ...env.delegations.records[0], id: 'gone', targetAgentId: 'missing' })
+    env.ensured.length = 0
+    await env.facade.resumeQueued()
+    expect(env.ensured).toEqual([a.sessionId])
+    expect(env.delegations.notified).toEqual([a.sessionId])
   })
 
   it('reports the version', () => {
