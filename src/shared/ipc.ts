@@ -8,6 +8,7 @@ import type {
 } from './types'
 import type { BrowserStatusInfo, PairingInfo } from './browser-types'
 import type { RemoteStatus } from './remote-types'
+import type { ExternalApiStatus } from './external-api-types'
 
 export const Channels = {
   WorkspaceList: 'workspace:list',
@@ -129,6 +130,12 @@ export const Channels = {
   RemoteStartPairing: 'remote:start-pairing',
   RemoteRevokeToken: 'remote:revoke-token',
   EventRemoteStatus: 'remote:status',
+  ExternalApiGetStatus: 'external-api:get-status',
+  ExternalApiSetEnabled: 'external-api:set-enabled',
+  ExternalApiRegenerateToken: 'external-api:regenerate-token',
+  ExternalApiInstallClaudeSkill: 'external-api:install-claude-skill',
+  EventExternalApiStatus: 'external-api:status',
+  EventWorkspaceChanged: 'workspace:changed',
   EventBrowserOpenInstallGuide: 'browser:install-guide',
   DirList: 'dir:list',
   FilesListDir: 'files:list-dir',
@@ -306,5 +313,15 @@ export interface AgentApi {
   startRemotePairing(): Promise<{ code: string; expiresAt: number } | null>
   revokeRemoteToken(): Promise<void>
   onRemoteStatus(cb: (s: RemoteStatus) => void): () => void
+  getExternalApiStatus(): Promise<ExternalApiStatus>
+  setExternalApiEnabled(enabled: boolean): Promise<ExternalApiStatus>
+  regenerateExternalApiToken(): Promise<ExternalApiStatus>
+  installClaudeSkill(): Promise<string>
+  onExternalApiStatus(cb: (s: ExternalApiStatus) => void): () => void
+  onWorkspaceChanged(cb: (e: WorkspaceChangedEvent) => void): () => void
   onBrowserOpenInstallGuide(cb: (e: BrowserInstallGuideEvent) => void): () => void
+}
+
+export interface WorkspaceChangedEvent {
+  runtime: WorkspaceRuntime
 }

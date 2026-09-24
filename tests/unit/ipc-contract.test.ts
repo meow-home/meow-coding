@@ -31,7 +31,9 @@ describe('IPC contract', () => {
       'minimizeWindow', 'toggleMaximizeWindow', 'closeWindow', 'isWindowMaximized', 'setTitleBarTheme', 'onWindowMaximizedChange',
       'getBrowserStatus', 'pairBrowser', 'openBrowserInstallGuide', 'openBrowserExtensionFolder', 'openBrowserChromeExtensions',
       'getBrowserConsoleLogs', 'getBrowserNetworkLogs', 'onBrowserStatus', 'onBrowserOpenInstallGuide',
-      'getRemoteStatus', 'setRemoteEnabled', 'setRemoteRelayUrl', 'startRemotePairing', 'revokeRemoteToken', 'onRemoteStatus'
+      'getRemoteStatus', 'setRemoteEnabled', 'setRemoteRelayUrl', 'startRemotePairing', 'revokeRemoteToken', 'onRemoteStatus',
+      'getExternalApiStatus', 'setExternalApiEnabled', 'regenerateExternalApiToken', 'installClaudeSkill', 'onExternalApiStatus',
+      'onWorkspaceChanged'
     ]
     const api: AgentApi = {
       listWorkspaces: async () => [],
@@ -127,6 +129,12 @@ describe('IPC contract', () => {
       startRemotePairing: async () => null,
       revokeRemoteToken: async () => {},
       onRemoteStatus: () => () => {},
+      getExternalApiStatus: async () => ({ enabled: false, listening: false, port: null, cliPath: null, configPath: '' }),
+      setExternalApiEnabled: async () => ({ enabled: false, listening: false, port: null, cliPath: null, configPath: '' }),
+      regenerateExternalApiToken: async () => ({ enabled: false, listening: false, port: null, cliPath: null, configPath: '' }),
+      installClaudeSkill: async () => '',
+      onExternalApiStatus: () => () => {},
+      onWorkspaceChanged: () => () => {},
       platform: 'win32',
       minimizeWindow: async () => {},
       toggleMaximizeWindow: async () => {},

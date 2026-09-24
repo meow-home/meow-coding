@@ -48,6 +48,7 @@ const config: Configuration = {
   ],
   extraResources: [
     { from: 'resources/skills', to: 'skills' },
+    { from: 'resources/external-api', to: 'external-api' },
     { from: 'out/browser-extension', to: 'browser-extension' },
     { from: 'resources/tray-icon.png', to: 'tray-icon.png' },
     {

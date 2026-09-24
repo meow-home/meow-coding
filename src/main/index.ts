@@ -1,7 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, Notification, screen, shell } from 'electron'
 import { spawn } from 'node:child_process'
-import { existsSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { stat, writeFile } from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import { createJsonStore } from './json-store'
 import { resetToSingleSession } from './fresh-start'
@@ -52,6 +53,9 @@ import { createChromeLauncher, ensureExtensionInstalled } from './browser/chrome
 import { RemoteManager } from './remote/remote-manager'
 import { RemoteSettingsStore } from './remote/remote-settings'
 import { RemotePairing } from './remote/remote-pairing'
+import { ExternalApiConfigFile } from './external-api/config-file'
+import { ExternalApiManager } from './external-api/manager'
+import { ExternalDelegationFacade } from './external-api/facade'
 import { Channels } from '../shared/ipc'
 import { formatLogArg, safeJson } from '../shared/log-helpers'
 import type { AgentState, Command, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, ProjectSearchHit, PromptResponse, SessionDelegation, TranscriptWindowOpts, Workspace, WorkspaceRuntime } from '../shared/types'
@@ -257,7 +261,28 @@ export class MainApp {
       appendResult: (input) => this.meowAgent.appendDelegationResult(input),
       wakeSource: (input) => this.meowAgent.wakeDelegationSource(input),
       stopRun: (agentId) => this.meowAgent.stop(agentId)
-    }
+    },
+    onChanged: (d) => { if (d.sourceKind === 'external') this.externalApi.notifyChanged(d.id) }
+  })
+  externalApiResources = app.isPackaged
+    ? path.join(process.resourcesPath, 'external-api')
+    : path.join(app.getAppPath(), 'resources', 'external-api')
+  externalApi = new ExternalApiManager({
+    config: new ExternalApiConfigFile(path.join(app.getPath('userData'), 'external-api.json')),
+    handler: new ExternalDelegationFacade({
+      workspaces: this.workspaces,
+      ensureAgent: (agent) => this.meowAgent.ensureAgent(agent),
+      delegations: this.delegationService,
+      isDirectory: (p) => { try { return statSync(p).isDirectory() } catch { return false } },
+      onWorkspaceChanged: (ws) => win?.webContents.send(Channels.EventWorkspaceChanged, { runtime: this.runtimeFor(ws) }),
+      version: app.getVersion()
+    }),
+    cliSource: path.join(this.externalApiResources, 'meow-delegate.mjs'),
+    skillTemplate: path.join(this.externalApiResources, 'claude-skill.md'),
+    binDir: path.join(app.getPath('userData'), 'bin'),
+    claudeSkillsDir: path.join(os.homedir(), '.claude', 'skills'),
+    onStatus: (s) => win?.webContents.send(Channels.EventExternalApiStatus, s),
+    log: (msg) => mainApp.systemLogger.log('ERROR', 'main', msg)
   })
   remoteStore = new RemoteSettingsStore(
     createJsonStore(path.join(app.getPath('userData'), 'remote.json'))
@@ -1020,6 +1045,10 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.RemoteSetRelayUrl, (_e, url: string) => mainApp.remote?.setRelayUrl(url))
   ipcMain.handle(Channels.RemoteStartPairing, () => mainApp.remote?.startPairing() ?? null)
   ipcMain.handle(Channels.RemoteRevokeToken, () => mainApp.remote?.revokeToken())
+  ipcMain.handle(Channels.ExternalApiGetStatus, () => mainApp.externalApi.getStatus())
+  ipcMain.handle(Channels.ExternalApiSetEnabled, (_e, enabled: boolean) => mainApp.externalApi.setEnabled(enabled))
+  ipcMain.handle(Channels.ExternalApiRegenerateToken, () => mainApp.externalApi.regenerateToken())
+  ipcMain.handle(Channels.ExternalApiInstallClaudeSkill, () => mainApp.externalApi.installClaudeSkill())
 }
 
 app.whenReady().then(async () => {
@@ -1040,6 +1069,7 @@ app.whenReady().then(async () => {
   })
   await mainApp.delegations.load()
   mainApp.delegationService.start()
+  void mainApp.externalApi.start().catch(err => console.error('[meow] external API:', err))
   const extSource = app.isPackaged
     ? path.join(process.resourcesPath, 'browser-extension')
     : path.join(app.getAppPath(), 'out', 'browser-extension')
@@ -1101,6 +1131,7 @@ app.on('before-quit', (event) => {
   isQuitting = true
   mainApp.stopGitPoll()
   mainApp.delegationService.suspend()
+  void mainApp.externalApi.stop()
   void mainApp.delegationService.flush().then(() => {
     return mainApp.meowAgent.dispose()
   }).then(() => {
