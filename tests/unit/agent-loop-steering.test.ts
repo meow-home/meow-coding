@@ -103,8 +103,9 @@ describe('SessionRunner steering', () => {
       takeSteers: () => (++calls === 2 ? [steer('steer me')] : [])
     })
     // maxSteps=2 without steering would stop at the 2nd step with max-steps.
-    // Steering resets steps=0 after the 1st tool step, so a 3rd provider turn
-    // runs and the run completes instead of hitting the budget.
+    // Steering resets steps=0 after the 1st tool step, so the 2nd tool step
+    // still runs with tools and a 3rd provider turn happens; that 3rd turn is
+    // the last step of the fresh budget, so it ends as max-steps.
     h.llm.queue = [
       [{ kind: 'tool-call', toolCallId: 'tc1', toolName: 'todowrite', toolInput: { todos: [] } }, { kind: 'finish' }],
       [{ kind: 'tool-call', toolCallId: 'tc2', toolName: 'todowrite', toolInput: { todos: [] } }, { kind: 'finish' }],
@@ -114,8 +115,9 @@ describe('SessionRunner steering', () => {
     await new Promise(r => setTimeout(r, 50))
 
     expect(h.llm.calls.length).toBe(3)
+    expect(h.llm.calls[1]?.tools.length).toBeGreaterThan(0)
     const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
-    expect(done.reason).toBe('complete')
+    expect(done.reason).toBe('max-steps')
   })
 
   it('does nothing when there are no steers', async () => {

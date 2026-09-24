@@ -569,6 +569,14 @@ describe('maxSteps default', () => {
     expect(cfg.maxSteps).toBeGreaterThan(20)
   })
 
+  it('keeps maxSteps 0 (unlimited) through settings round-trip and reload', () => {
+    const cfg = loadMeowConfig(file)
+    const back = settingsToConfig({ ...configToSettings(cfg), maxSteps: 0 }, cfg)
+    expect(back.maxSteps).toBe(0)
+    writeMeowConfig(file, back)
+    expect(loadMeowConfig(file).maxSteps).toBe(0)
+  })
+
   it('defaults subagentMaxSteps to 30', () => {
     expect(DEFAULT_MEOW_CONFIG.subagentMaxSteps).toBe(30)
   })

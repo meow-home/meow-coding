@@ -13,7 +13,7 @@ main process config.
 | `AgentsTab.tsx` | Per-agent config (name, system prompt, provider/model). |
 | `PermissionsTab.tsx` | Tool permission rules (allow/ask/deny). |
 | `McpTab.tsx` | MCP server configs + connection status: redesigned with server cards (HTTP vs Stdio command), status badges, exposed tools summary chips, empty state card, test connections button, server editing modal, JSON header paste import, and transport mode selection (Auto SSE/HTTP, SSE, Streamable HTTP). |
-| `ContextTab.tsx` | Context/compaction settings: redesigned with white background cards, 2-column grid layout, Lucide icons (`Gauge`, `Bell`, `Sliders`), toggle row selectors, and collapsible Advanced compaction tuning section. |
+| `ContextTab.tsx` | Context/compaction settings: redesigned with white background cards, 2-column grid layout, Lucide icons (`Gauge`, `Bell`, `Sliders`), toggle row selectors, and collapsible Advanced compaction tuning section. Clearing "Max steps per turn" saves `maxSteps: 0` (unlimited). |
 | `CommandsTab.tsx` | Slash-command editor (project-level). "+ Add command" button in header (top), same `agents-head` pattern as AgentsTab. Displays delete button only for custom user commands (`!builtIn` and not `system`). |
 | `PersonalizeTab.tsx` | App-wide font size & theme controls: theme-compatible background cards, Lucide icons (`Type`, `Sparkles`, `Palette`, `Moon`, `Sun`), Color Theme selector (Dark vs Light mode), font size preset buttons (10px–20px), and live text preview box. |
 | `UpdatesTab.tsx` | Update channel + check/install: redesigned with white background card, Lucide icons (`DownloadCloud`, `CheckCircle2`, `RefreshCw`, `ArrowUpCircle`, `AlertCircle`, `Sparkles`), status badges, progress bar, and version info. |

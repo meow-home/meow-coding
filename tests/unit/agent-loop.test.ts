@@ -193,6 +193,39 @@ describe('SessionRunner', () => {
     expect(h.llm.calls.length).toBe(2)
   })
 
+  it('reports max-steps when the model obeys the final step and answers with text only', async () => {
+    const h = makeHarness({
+      tools: new Map([['todowrite', stubTool('todowrite')]]),
+      maxSteps: 2
+    })
+    h.llm.queue = [
+      [{ kind: 'tool-call', toolCallId: 'tc1', toolName: 'todowrite', toolInput: { todos: [] } }, { kind: 'finish' }],
+      textParts('wrap-up summary')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 50))
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+    expect(done.reason).toBe('max-steps')
+    expect(h.llm.calls.length).toBe(2)
+  })
+
+  it('treats maxSteps 0 as unlimited', async () => {
+    const h = makeHarness({
+      tools: new Map([['todowrite', stubTool('todowrite')]]),
+      maxSteps: 0
+    })
+    const toolStep = (i: number) => [
+      { kind: 'tool-call', toolCallId: `tc${i}`, toolName: 'todowrite', toolInput: { todos: [] } },
+      { kind: 'finish' }
+    ]
+    h.llm.queue = [toolStep(1), toolStep(2), toolStep(3), toolStep(4), toolStep(5), textParts('done')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 80))
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+    expect(done.reason).not.toBe('max-steps')
+    expect(h.llm.calls.length).toBe(6)
+  })
+
   it('emits done stopped when the signal is already aborted', async () => {
     const h = makeHarness()
     const controller = new AbortController()
@@ -1391,7 +1424,7 @@ describe('SessionRunner compact-on-reject', () => {
     expect(h.llm.calls[2]?.tools.length).toBeGreaterThan(0)
     expect(h.appended.tools).toBe(1)
     const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }> | undefined
-    expect(done?.reason).toBe('complete')
+    expect(done?.reason).toBe('max-steps')
   })
 })
 

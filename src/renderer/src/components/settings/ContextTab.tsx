@@ -51,7 +51,7 @@ export default function ContextTab({
   const [advancedOpen, setAdvancedOpen] = useState(false)
 
   const setMaxSteps = (value: string) =>
-    onChange({ maxSteps: num(value, maxSteps), compaction, toolOutput, notifications, mcpOutput })
+    onChange({ maxSteps: value.trim() === '' ? 0 : num(value, maxSteps), compaction, toolOutput, notifications, mcpOutput })
   const setComp = (patch: Partial<CompactionSettings>) =>
     onChange({ maxSteps, compaction: { ...compaction, ...patch }, toolOutput, notifications, mcpOutput })
   const setToolOutput = (patch: Partial<ToolOutputSettings>) =>

@@ -247,7 +247,7 @@ export class SessionRunner {
       const antiRepetition = retryStep
       retryStep = false
       if (!antiRepetition) steps++
-      const isLastStep = steps >= this.maxSteps
+      const isLastStep = this.maxSteps > 0 && steps >= this.maxSteps
 
       await this.compactIfOverThreshold(signal)
 
@@ -478,7 +478,7 @@ export class SessionRunner {
           })
           continue
         }
-        const reason = classifyFinish(finishReason)
+        const reason = isLastStep ? 'max-steps' : classifyFinish(finishReason)
         if (await this.blockedByStopHook(textBuffer)) {
           steps = 0
           continue

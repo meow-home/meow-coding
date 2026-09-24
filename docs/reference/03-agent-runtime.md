@@ -144,7 +144,7 @@ loop:
   if steers.length > 0  → append each as a user message, emit user-message,
                           reset steps = 0, continue        ← steering
   steps++ (not on a repetition retry)
-  isLastStep = steps >= maxSteps
+  isLastStep = maxSteps > 0 && steps >= maxSteps   (maxSteps 0 = unlimited)
   await compactIfOverThreshold(signal)
   llmMessages = toLlmMessages(items, opts)  (+ MAX_STEPS_PROMPT when isLastStep)
   emit step-start{step}
@@ -167,7 +167,7 @@ loop:
   cuts past MAX_LOOP_BREAKS in a row (a clean step resets the count) → done{stuck, stuckCategory:'stream'}
   if no tool call:
     if length/max_tokens and resumes < MAX_LENGTH_RESUMES → append continuation nudge (user msg), continue
-    emit done{reason: classifyFinish(finishReason)}; return
+    emit done{reason: isLastStep ? 'max-steps' : classifyFinish(finishReason)}; return   ← a text-only answer on the last (tool-less) step is still max-steps
   if isLastStep   → emit done{reason:'max-steps'}; return
 ```
 
