@@ -129,9 +129,11 @@ until the provider itself confirms or refutes it.
 | 5 | **Default** | `context: 128000`, `output: null` |
 
 **`output: null` means no source knows the cap.** The request still carries a bound:
-`resolveWireOutputTokens(output, override)` sends the `maxOutputTokens` override unchanged, else
-`min(output ?? 32000, 32000)` (`DEFAULT_OUTPUT_WIRE_CAP`). A real cap below that is learned from
-the provider's `max_tokens exceeds` rejection (see *Learning from errors*).
+`resolveWireOutputTokens(output, override)` picks the `maxOutputTokens` override, else
+`min(output ?? 32000, 32000)` (`DEFAULT_OUTPUT_WIRE_CAP`), and the wire sends `min(that, reserve)`
+where the reserve is `resolveOutputTokens` (half the context window, `MAX_OUTPUT_HARD_CAP`) — so
+prompt + `max_tokens` stays within small-context servers such as vLLM. A real cap below that is
+learned from the provider's `max_tokens` rejection (see *Learning from errors*).
 
 Model-id matching (`matchModel`) is forgiving because server tags drift from config ids: exact match
 → match after stripping `:tag` (Ollama Cloud serves `deepseek-v4-flash:0731` for
@@ -142,7 +144,8 @@ Model-id matching (`matchModel`) is forgiving because server tags drift from con
 | Error | Detector | Recorded as |
 |---|---|---|
 | Context overflow | `classifyContextOverflowError` matches `prompt is too long`, `context length exceeded`, `maximum context length`, `context_length_exceeded`, `exceeds the context window`, `please reduce the length of the messages` | `parseContextLimitFromError(message) ?? estimateUsage(prompt)` → `recordContextOverflow` |
-| `max_tokens` rejected | `reduceBudgetForMaxTokensError` parses `max_tokens (N) exceeds model's maximum output tokens (M)` | `M` → `recordMaxTokensLimit`, and the same request is immediately retried with budget `M` |
+| `max_tokens` rejected | `parseMaxTokensRejection` / `reduceBudgetForMaxTokensError` parse `max_tokens (N) exceeds model's maximum output tokens (M)` (DeepSeek), `max_tokens is too large: N. This model supports at most M completion tokens` (OpenAI), `` `max_tokens` must be less than or equal to `M` `` (Groq, backticks optional) | `M` → `recordMaxTokensLimit`, and the same request is immediately retried with budget `M` |
+| Prompt + `max_tokens` over context (vLLM) | same parser: `maximum context length is C tokens. However, you requested T tokens (P in the messages, O in the completion)` | not recorded (fits this prompt only); the request is retried with budget `C - P - 256` when positive |
 
 `parseContextLimitFromError` handles the OpenAI phrasing
 (`This model's maximum context length is 128000 tokens`), the Anthropic phrasing

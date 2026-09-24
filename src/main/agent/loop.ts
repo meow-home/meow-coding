@@ -71,9 +71,9 @@ export interface LoopDeps {
    */
   maxOutputTokens?: number
   /**
-   * Giá trị đã xác minh gửi provider làm `max_tokens`; undefined = omit hẳn
-   * (provider tự chọn) — không thể lỗi `max_tokens exceeds`. Khác `maxOutputTokens`
-   * (reserve, chỉ cho compaction/footer).
+   * Sent to the provider as `max_tokens`. The manager always sets it to the
+   * output reserve (a bound capped at half the context window), so a runaway
+   * answer cannot fill the context; undefined omits `max_tokens` entirely.
    */
   maxOutputTokensWire?: number
   /** Provider reject context overflow — ghi trần context học được. */

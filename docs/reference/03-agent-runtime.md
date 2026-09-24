@@ -410,15 +410,17 @@ order and returns `{ context: number, output: number | null }`:
 5. **Default** — `DEFAULT_MAX_CONTEXT_TOKENS = 128000`.
 
 `output: null` means no source knows the cap. `max_tokens` is still always sent:
-`resolveWireOutputTokens` picks the override, else `min(output ?? 32000, 32000)`, so a looping
-model can never generate until the context is full. Subagents on a different model get the 32k
-default.
+`resolveWireOutputTokens` picks the override, else `min(output ?? 32000, 32000)`, and the manager
+sends `min(that, reserve)` — the output reserve below, capped at half the context window — so a
+looping model can never generate until the context is full, and servers that reject
+prompt + `max_tokens` > context (vLLM) accept the request. An explicit `maxOutputTokens` override is
+capped the same way. Subagents on a different model get the 32k default.
 
 Two distinct output numbers exist and must not be confused:
 
 | Name | Meaning |
 |---|---|
-| `maxOutputTokensWire` | The value sent to the provider as max_tokens (resolveWireOutputTokens); always set by the manager |
+| `maxOutputTokensWire` | The value sent to the provider as max_tokens: `resolveWireOutputTokens` capped by the reserve (the manager passes the reserve itself); always set by the manager |
 | `maxOutputTokens` (the **reserve**) | `resolveOutputTokens(...)` — used only for budgeting: subtracted from the context window for compaction and shown in the UI footer |
 
 `resolveOutputTokens(modelLimit, contextLimit, fallback)` =
@@ -479,9 +481,14 @@ written to the transcript.
 ### Budget reduction
 
 A non-retryable 400 can still be recoverable. When the catalog overstates a model's real output cap,
-the provider answers `max_tokens (N) exceeds model's maximum output tokens (M)`.
-`reduceBudgetForMaxTokensError` parses `M`, the stream is re-run with that budget, and
-`onReducedBudget(M)` persists it in `learned-limits.json` so the next turn starts correct.
+the provider answers `max_tokens (N) exceeds model's maximum output tokens (M)` (DeepSeek),
+`max_tokens is too large: N. This model supports at most M completion tokens` (OpenAI) or
+`` `max_tokens` must be less than or equal to `M` `` (Groq). `parseMaxTokensRejection` (and its
+number-only wrapper `reduceBudgetForMaxTokensError`) parses `M`, the stream is re-run with that
+budget, and `onReducedBudget(M)` persists it in `learned-limits.json` so the next turn starts correct.
+A vLLM context rejection (`maximum context length is C tokens. However, you requested T tokens
+(P in the messages, O in the completion)`) re-runs with `C - P - 256` when that is positive; that
+budget only fits this prompt, so it is not learned.
 
 ## 3.11 Subagents (the `task` tool)
 

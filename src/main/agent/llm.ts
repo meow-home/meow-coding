@@ -293,7 +293,7 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string, re
     stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
       return withRetry(
         (budget) => rawStream(budget === undefined ? opts : { ...opts, maxOutputTokens: budget }),
-        { ...retry, signal: opts.signal, reduceBudget: reduceBudgetForMaxTokensError }
+        { ...retry, signal: opts.signal, reduceBudget: parseMaxTokensRejection }
       )
     }
   }
@@ -304,15 +304,35 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string, re
 // 64k). The rejection names the real limit; parse it so the retry can send a
 // budget the model actually accepts.
 const MAX_TOKENS_EXCEEDS_RE = /max_tokens\s*\(\d+\)\s*exceeds\s+model's\s+maximum\s+output\s+tokens\s*\((\d+)\)/i
+const MAX_TOKENS_TOO_LARGE_RE = /max_tokens\s+is\s+too\s+large:\s*\d+\.\s*This\s+model\s+supports\s+at\s+most\s+(\d+)\s+completion\s+tokens/i
+const MAX_TOKENS_AT_MOST_RE = /`?max_tokens`?\s+must\s+be\s+less\s+than\s+or\s+equal\s+to\s+`?(\d+)`?/i
+// vLLM rejects prompt + max_tokens > context and reports both parts, so the
+// budget that fits is what the prompt leaves free, minus a small margin.
+const CONTEXT_REQUESTED_RE = /maximum\s+context\s+length\s+is\s+(\d+)\s+tokens\.\s*However,\s+you\s+requested\s+\d+\s+tokens\s*\((\d+)\s+in\s+the\s+messages,\s*\d+\s+in\s+the\s+completion\)/i
+const CONTEXT_BUDGET_MARGIN = 256
+
+export interface ReducedBudget {
+  budget: number
+  /** False when the budget only fits this prompt (a context rejection), so it must not be learned as the model's cap. */
+  modelLimit: boolean
+}
 
 export function reduceBudgetForMaxTokensError(err: unknown): number | undefined {
+  return parseMaxTokensRejection(err)?.budget
+}
+
+export function parseMaxTokensRejection(err: unknown): ReducedBudget | undefined {
   const text = typeof err === 'string'
     ? err
     : (err && typeof err === 'object'
       ? ((err as { responseBody?: string }).responseBody ?? (err as { message?: string }).message ?? '')
       : '')
-  const m = MAX_TOKENS_EXCEEDS_RE.exec(text)
-  return m ? Number(m[1]) : undefined
+  const direct = MAX_TOKENS_EXCEEDS_RE.exec(text) ?? MAX_TOKENS_TOO_LARGE_RE.exec(text) ?? MAX_TOKENS_AT_MOST_RE.exec(text)
+  if (direct) return { budget: Number(direct[1]), modelLimit: true }
+  const ctx = CONTEXT_REQUESTED_RE.exec(text)
+  if (!ctx) return undefined
+  const budget = Number(ctx[1]) - Number(ctx[2]) - CONTEXT_BUDGET_MARGIN
+  return budget > 0 ? { budget, modelLimit: false } : undefined
 }
 
 // Statuses where the identical request can succeed on a later attempt. 4xx
@@ -439,7 +459,7 @@ export function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> 
  */
 export async function* withRetry(
   makeStream: (budget?: number) => AsyncGenerator<LlmStreamPart>,
-  opts: RetryOptions & { reduceBudget?: (err: unknown) => number | undefined } = {}
+  opts: RetryOptions & { reduceBudget?: (err: unknown) => number | ReducedBudget | undefined } = {}
 ): AsyncGenerator<LlmStreamPart> {
   const maxAttempts = opts.maxAttempts ?? DEFAULT_MAX_ATTEMPTS
   const baseDelayMs = opts.baseDelayMs ?? DEFAULT_BASE_DELAY_MS
@@ -454,6 +474,10 @@ export async function* withRetry(
     return sleep(delayMs)
   }
 
+  const reduceFor = (err: unknown): ReducedBudget | undefined => {
+    const r = opts.reduceBudget?.(err)
+    return typeof r === 'number' ? { budget: r, modelLimit: true } : r
+  }
   let budget: number | undefined
   for (let attempt = 1; ; attempt++) {
     let emitted = false
@@ -475,11 +499,11 @@ export async function* withRetry(
         await scheduleRetry(after, attempt, unbounded)
         continue
       }
-      const reduced = opts.reduceBudget?.(err)
-      if (reduced !== undefined && reduced < (budget ?? Number.POSITIVE_INFINITY)) {
+      const reduced = reduceFor(err)
+      if (reduced && reduced.budget < (budget ?? Number.POSITIVE_INFINITY)) {
         if (!canRetry(true, attempt, maxAttempts, opts.signal)) throw err
-        budget = reduced
-        opts.onReducedBudget?.(reduced)
+        budget = reduced.budget
+        if (reduced.modelLimit) opts.onReducedBudget?.(reduced.budget)
         continue
       }
       throw err
@@ -490,11 +514,11 @@ export async function* withRetry(
       await scheduleRetry(failure.retryAfterMs, attempt, failure.unbounded)
       continue
     }
-    const reduced = opts.reduceBudget?.(failure.error)
-    if (reduced !== undefined && reduced < (budget ?? Number.POSITIVE_INFINITY)) {
+    const reduced = reduceFor(failure.error)
+    if (reduced && reduced.budget < (budget ?? Number.POSITIVE_INFINITY)) {
       if (!canRetry(true, attempt, maxAttempts, opts.signal)) { yield failure; return }
-      budget = reduced
-      opts.onReducedBudget?.(reduced)
+      budget = reduced.budget
+      if (reduced.modelLimit) opts.onReducedBudget?.(reduced.budget)
       continue
     }
     yield failure

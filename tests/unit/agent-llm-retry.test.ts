@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { abortableSleep, classifyLlmError, MAX_RETRY_AFTER_MS, reduceBudgetForMaxTokensError, withRetry } from '../../src/main/agent/llm'
+import { abortableSleep, classifyLlmError, MAX_RETRY_AFTER_MS, parseMaxTokensRejection, reduceBudgetForMaxTokensError, withRetry } from '../../src/main/agent/llm'
 import type { LlmStreamPart } from '../../src/main/agent/llm'
 
 function parts(...p: LlmStreamPart[]) {
@@ -101,6 +101,32 @@ describe('reduceBudgetForMaxTokensError', () => {
     expect(reduceBudgetForMaxTokensError(
       'max_tokens (131072) exceeds model\'s maximum output tokens (65536) for model deepseek-v4-flash'
     )).toBe(65536)
+  })
+
+  it('parses the OpenAI completion-token rejection', () => {
+    expect(reduceBudgetForMaxTokensError(
+      'max_tokens is too large: 40000. This model supports at most 16384 completion tokens, whereas you provided 40000.'
+    )).toBe(16384)
+  })
+
+  it('parses the Groq-style rejection with or without backticks', () => {
+    expect(reduceBudgetForMaxTokensError('`max_tokens` must be less than or equal to `8192`, the maximum value for `max_tokens` is less than the `context_window` for this model')).toBe(8192)
+    expect(reduceBudgetForMaxTokensError('max_tokens must be less than or equal to 8192')).toBe(8192)
+  })
+
+  it('derives the budget from a vLLM context rejection', () => {
+    const msg = 'This model\'s maximum context length is 32768 tokens. However, you requested 40000 tokens (8000 in the messages, 32000 in the completion). Please reduce the length of the messages or completion.'
+    expect(reduceBudgetForMaxTokensError(Object.assign(new Error(msg), {
+      statusCode: 400,
+      responseBody: JSON.stringify({ object: 'error', message: msg })
+    }))).toBe(24512)
+    expect(parseMaxTokensRejection(msg)).toEqual({ budget: 24512, modelLimit: false })
+  })
+
+  it('ignores a vLLM context rejection the prompt alone overflows', () => {
+    expect(reduceBudgetForMaxTokensError(
+      'This model\'s maximum context length is 32768 tokens. However, you requested 40000 tokens (32700 in the messages, 7300 in the completion).'
+    )).toBeUndefined()
   })
 
   it('returns undefined for unrelated errors', () => {
@@ -304,6 +330,27 @@ describe('withRetry', () => {
     const out = await collect(withRetry(make, { sleep: noSleep, reduceBudget: reduceBudgetForMaxTokensError }))
     expect(attempts).toBe(2)
     expect(budgets).toEqual([undefined, 65536])
+    expect(out.map(p => p.kind)).toEqual(['finish'])
+  })
+
+  it('retries a context-sized budget without learning it as the model cap', async () => {
+    const budgets: Array<number | undefined> = []
+    const learned: number[] = []
+    let attempts = 0
+    const make = (budget?: number) => {
+      budgets.push(budget)
+      attempts++
+      return attempts === 1
+        ? parts({ kind: 'error', error: 'This model\'s maximum context length is 32768 tokens. However, you requested 40000 tokens (8000 in the messages, 32000 in the completion).', retryable: false })()
+        : parts({ kind: 'finish' })()
+    }
+    const out = await collect(withRetry(make, {
+      sleep: noSleep,
+      reduceBudget: parseMaxTokensRejection,
+      onReducedBudget: (limit) => learned.push(limit)
+    }))
+    expect(budgets).toEqual([undefined, 24512])
+    expect(learned).toEqual([])
     expect(out.map(p => p.kind)).toEqual(['finish'])
   })
 

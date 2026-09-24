@@ -1846,6 +1846,19 @@ describe('MeowAgentManager output cap', () => {
     expect(llmOutputCaps[0]).toBe(32000)
   })
 
+  it('caps max_tokens at half the context window for small-context models', async () => {
+    const cfgDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-wire-'))
+    const cfgPath = path.join(cfgDir, 'meow.json')
+    writeFileSync(cfgPath, JSON.stringify({
+      provider: { test: { apiKey: 'sk-test', models: ['test-model'] } },
+      model: 'test',
+      maxContextTokens: 32768
+    }))
+    const { manager, llmOutputCaps } = await makeManager({ configPath: cfgPath })
+    await manager.send('a1', 'hello')
+    expect(llmOutputCaps[0]).toBe(16384)
+  })
+
   it('passes an explicit maxOutputTokens override through unchanged', async () => {
     const cfgDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-wire-'))
     const cfgPath = path.join(cfgDir, 'meow.json')

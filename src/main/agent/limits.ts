@@ -103,11 +103,12 @@ interface LiveCacheEntry {
 }
 
 /**
- * Phân giải giới hạn thật của model từ nguồn đáng tin cậy nhất có biết về nó.
- * "Trust the provider, verify by error": mỗi tầng là một phỏng đoán cho tới khi
- * provider tự xác nhận. output = null khi không nguồn nào đáng tin khai cap —
- * wire lúc đó bỏ hẳn max_tokens, đó chính là thứ làm lỗi `max_tokens exceeds`
- * không thể xảy ra.
+ * Resolves a model's real limits from the most trusted source that knows them.
+ * "Trust the provider, verify by error": each tier is a guess until the provider
+ * confirms it. output = null when no trusted source states a cap; the wire then
+ * still sends a bound (`resolveWireOutputTokens` falls back to
+ * `DEFAULT_OUTPUT_WIRE_CAP`, capped by the output reserve), and a rejection
+ * naming the real limit is learned from.
  */
 export class LimitsService {
   private liveCache = new Map<string, LiveCacheEntry>()

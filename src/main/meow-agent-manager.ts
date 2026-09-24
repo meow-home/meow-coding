@@ -1406,7 +1406,8 @@ ${content}` : content
     })
     const contextTokens = limits.context
     const outputWire = resolveWireOutputTokens(limits.output, cfg.maxOutputTokens)
-    // The reserve (compaction budget + footer) follows what is actually sent.
+    // The reserve (compaction budget + footer) is also what is sent: capping it
+    // at half the context keeps prompt + max_tokens within servers like vLLM.
     const outputReserve = resolveOutputTokens({ output: outputWire }, contextTokens, DEFAULT_MAX_OUTPUT_TOKENS)
     const skills = collectSkills(agent.cwd, this.deps.userSkillsDir, this.deps.builtinSkillsDir)
     // AGENTS.md/CLAUDE.md walking up from cwd are inlined into the system
@@ -1488,7 +1489,7 @@ ${content}` : content
       hooks,
       maxContextTokens: contextTokens,
       maxOutputTokens: outputReserve,
-      maxOutputTokensWire: outputWire,
+      maxOutputTokensWire: outputReserve,
       compaction: cfg.compaction,
       toolOutput: cfg.toolOutput,
       truncation: this.deps.truncation,
@@ -1624,7 +1625,7 @@ ${content}` : content
       maxSteps: cfg.maxSteps,
       maxContextTokens: contextTokens,
       maxOutputTokens: outputReserve,
-      maxOutputTokensWire: outputWire,
+      maxOutputTokensWire: outputReserve,
       onContextOverflow: (promptTokens, message) => this.learnedLimits.recordContextOverflow(
         learnedKey,
         parseContextLimitFromError(message) ?? promptTokens
