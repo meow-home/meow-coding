@@ -1290,6 +1290,54 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .tool-call-error { color: var(--red); border-top: 0.083333rem solid var(--hairline); }
 .tool-call-input { color: var(--text-dim); border-top: none; }
 
+/* Tool-call cluster — wraps consecutive .tool-call cards in a single
+   collapsible group so the feed stops scattering them with the default gap.
+   `content-visibility: auto` stays on each inner .tool-call (perf budget);
+   the cluster header is a single tight row above them. */
+.tool-cluster {
+  background: var(--bg-panel);
+  border: 0.083333rem solid var(--hairline);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.tool-cluster > summary { list-style: none; cursor: pointer; user-select: none; }
+.tool-cluster > summary::-webkit-details-marker { display: none; }
+.tool-cluster-header {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.416667rem 0.666667rem;
+  background: var(--bg-raised);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+.tool-cluster[open] > summary .tool-cluster-chevron { transform: rotate(90deg); }
+.tool-cluster-chevron {
+  flex-shrink: 0; width: 1rem; height: 1rem;
+  transition: transform 120ms ease; color: var(--text-faint);
+}
+.tool-cluster-title { color: var(--text); font-weight: var(--fw-semibold); font-family: var(--font-ui); }
+.tool-cluster-meta {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  margin-left: auto;
+}
+.tool-cluster-count {
+  font-family: var(--font-mono); font-size: var(--fs-xs);
+  padding: 0.083333rem 0.416667rem; border-radius: 999px;
+  border: 0.083333rem solid var(--hairline-strong);
+  color: var(--text-dim);
+}
+.tool-cluster-count.ok { color: var(--green); border-color: rgba(74, 222, 159, 0.35); }
+.tool-cluster-count.running { color: var(--yellow); border-color: rgba(255, 180, 84, 0.35); }
+.tool-cluster-count.err { color: var(--red); border-color: rgba(255, 95, 86, 0.35); }
+.tool-cluster-body { display: flex; flex-direction: column; }
+.tool-cluster-body > .tool-call {
+  border-radius: 0;
+  border-left-width: 0.25rem;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0.083333rem solid var(--hairline);
+}
+.tool-cluster-body > .tool-call:last-child { border-bottom: 0; }
+
 /* Prompt (permission / question) — rendered in-flow at the top of the chat
    input card, so it never overlays the chat history. */
 .chat-prompt {

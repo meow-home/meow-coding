@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meow Chat — Grouped Tool Calls — 3 layout options</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      /* Repo tokens (from src/renderer/src/styles.css) */
+      --bg: #0a0a0b;
+      --bg-panel: #0f0f11;
+      --bg-raised: #161618;
+      --bg-hover: #1c1c20;
+      --bg-bubble: #161618;
+      --bg-bubble-user: #1a3a5c;
+      --bg-input: #1a1a1d;
+      --bg-code: #0a0a0b;
+      --text: #ffffff;
+      --text-dim: #b0b0b0;
+      --text-faint: #707076;
+      --accent: #007acc;
+      --accent-strong: #1f9cf0;
+      --green: #4ade9f;
+      --yellow: #ffb454;
+      --red: #ff5f56;
+      --hairline: rgba(255, 255, 255, 0.10);
+      --hairline-strong: rgba(255, 255, 255, 0.18);
+      --radius-xs: 0.25rem;
+      --radius-sm: 0.333333rem;
+      --radius: 0.5rem;
+      --font-ui: 'Inter', 'Segoe UI Variable', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+    [data-theme='light'] {
+      --bg: #ffffff;
+      --bg-panel: #ffffff;
+      --bg-raised: #f5f5f5;
+      --bg-hover: #eaeaea;
+      --bg-bubble: #f5f5f5;
+      --bg-bubble-user: #dbeafe;
+      --bg-input: #ffffff;
+      --bg-code: #f5f5f5;
+      --text: #1e1e1e;
+      --text-dim: #4b4b4b;
+      --text-faint: #969696;
+      --accent: #007acc;
+      --accent-strong: #1f9cf0;
+      --green: #16a34a;
+      --yellow: #d97706;
+      --red: #dc2626;
+      --hairline: rgba(0, 0, 0, 0.10);
+      --hairline-strong: rgba(0, 0, 0, 0.18);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--font-ui); font-size: 14px; line-height: 1.5; }
+
+    /* Page chrome */
+    .page { max-width: 1280px; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+    .page h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.25rem; letter-spacing: -0.01em; }
+    .page .lede { color: var(--text-dim); margin: 0 0 2rem; max-width: 60ch; font-size: 0.95rem; }
+    .toolbar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .toolbar button {
+      background: var(--bg-raised); color: var(--text);
+      border: 1px solid var(--hairline); border-radius: var(--radius-sm);
+      padding: 0.4rem 0.75rem; font: inherit; font-size: 0.85rem; cursor: pointer;
+    }
+    .toolbar button:hover { background: var(--bg-hover); }
+    .toolbar .spacer { flex: 1; }
+    .toolbar .note { color: var(--text-faint); font-size: 0.8rem; }
+
+    /* 3-column grid of options */
+    .options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
+    @media (max-width: 1100px) { .options { grid-template-columns: 1fr; } }
+    .option {
+      background: var(--bg-panel); border: 1px solid var(--hairline);
+      border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column;
+    }
+    .option-head { padding: 0.85rem 1rem; border-bottom: 1px solid var(--hairline); background: var(--bg-raised); }
+    .option-head h2 { margin: 0; font-size: 0.95rem; font-weight: 600; letter-spacing: -0.005em; }
+    .option-head .meta { color: var(--text-faint); font-size: 0.8rem; margin-top: 0.2rem; }
+    .option-head .meta b { color: var(--text); font-weight: 600; }
+    .option-body { padding: 1.25rem; background: var(--bg); }
+    .option-foot { padding: 0.75rem 1rem; border-top: 1px solid var(--hairline); font-size: 0.8rem; color: var(--text-dim); display: flex; gap: 0.4rem; align-items: flex-start; }
+    .option-foot b { color: var(--text); }
+    .pill {
+      display: inline-block; font-size: 0.7rem; padding: 0.1rem 0.45rem;
+      border-radius: 999px; border: 1px solid var(--hairline-strong); color: var(--text-dim);
+      font-weight: 500; letter-spacing: 0.02em; text-transform: uppercase;
+    }
+
+    /* ─── Chat lane (shared, matches --chat-lane-w = 64rem, --chat-inset) ─── */
+    .chat-lane { max-width: 64rem; margin: 0 auto; }
+    .feed { display: flex; flex-direction: column; gap: 0.85rem; }
+
+    /* ─── Rows: shared ─── */
+    .row { border-radius: var(--radius); }
+    .row.assistant { align-self: stretch; }
+    .row.user { align-self: stretch; display: flex; justify-content: flex-end; }
+    .row .bubble-user {
+      background: var(--bg-bubble-user); color: var(--text);
+      padding: 0.7rem 0.95rem; border-radius: var(--radius); max-width: 78%;
+      font-size: 0.95rem;
+    }
+    .row .assistant-text { padding: 0; }
+    .row .assistant-text p { margin: 0; }
+    .reasoning {
+      background: var(--bg-panel); border: 1px solid var(--hairline);
+      border-radius: var(--radius); margin: 0 0 0.5rem; overflow: hidden;
+    }
+    .reasoning > summary {
+      list-style: none; cursor: pointer; padding: 0.5rem 0.85rem;
+      font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--text-dim); user-select: none; font-weight: 500;
+    }
+    .reasoning > summary::-webkit-details-marker { display: none; }
+    .reasoning > summary:hover { color: var(--accent); }
+    .reasoning-body { white-space: pre-wrap; color: var(--text-dim); font-size: 0.92rem; padding: 0 0.85rem 0.7rem; max-height: 17rem; overflow-y: auto; }
+
+    /* ─── Baseline tool call (matches existing .tool-call) ─── */
+    .tc {
+      border-left: 3px solid var(--yellow);
+      background: var(--bg-raised); border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+    .tc.ok { border-left-color: var(--green); }
+    .tc.err { border-left-color: var(--red); }
+    .tc > summary { list-style: none; cursor: pointer; user-select: none; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+    .tc > summary::-webkit-details-marker { display: none; }
+    .tc-chev { width: 1rem; height: 1rem; flex-shrink: 0; transition: transform 120ms ease; color: var(--text-faint); }
+    .tc[open] > summary .tc-chev { transform: rotate(90deg); }
+    .tc-badge {
+      font-family: var(--font-mono); font-size: 0.75rem; padding: 0.1rem 0.5rem;
+      border-radius: var(--radius-xs); background: var(--bg-code); color: var(--text);
+      border: 1px solid var(--hairline); flex-shrink: 0;
+    }
+    .tc-badge-bash { color: var(--yellow); border-color: rgba(255, 180, 84, 0.35); }
+    .tc-badge-read { color: var(--accent-strong); border-color: rgba(31, 156, 240, 0.35); }
+    .tc-summary { color: var(--text); font-size: 0.92rem; font-family: var(--font-mono); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tc-status { font-size: 0.78rem; flex-shrink: 0; }
+    .tc-status.ok { color: var(--green); }
+    .tc-status.err { color: var(--red); }
+    .tc-status.run { color: var(--yellow); }
+    .tc-body { border-top: 1px solid var(--hairline); }
+    .tc-body pre { margin: 0; padding: 0.6rem 0.75rem; font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-dim); white-space: pre-wrap; }
+
+    /* ─── Cluster chrome (shared bits across A / B / C) ─── */
+    .cluster { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--hairline); background: var(--bg-panel); }
+    .cluster > summary { list-style: none; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.85rem; font-size: 0.85rem; color: var(--text-dim); background: var(--bg-raised); }
+    .cluster > summary::-webkit-details-marker { display: none; }
+    .cluster > summary:hover { color: var(--text); }
+    .cluster > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .cluster-chev { width: 0.95rem; height: 0.95rem; flex-shrink: 0; transition: transform 120ms ease; color: var(--text-faint); }
+    .cluster[open] > summary .cluster-chev { transform: rotate(90deg); }
+    .cluster-title { color: var(--text); font-weight: 600; }
+    .cluster-count {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      font-family: var(--font-mono); font-size: 0.78rem;
+      color: var(--text-dim); background: var(--bg-code);
+      padding: 0.1rem 0.45rem; border-radius: 999px;
+      border: 1px solid var(--hairline);
+    }
+    .cluster-count .ok-dot { color: var(--green); font-size: 0.65rem; }
+    .cluster-count .err-dot { color: var(--red); font-size: 0.65rem; }
+    .cluster-count .run-dot { color: var(--yellow); font-size: 0.65rem; }
+    .cluster-meta { color: var(--text-faint); font-size: 0.78rem; }
+    .cluster-summary-list { display: flex; flex-direction: column; }
+    .cluster .tc { border-radius: 0; border-left-width: 3px; }
+
+    /* ─── Option A — single header + auto-collapse ─── */
+    .cluster-a .cluster-body { padding: 0; }
+    .cluster-a .cluster-body > .tc + .tc { border-top: 1px solid var(--hairline); }
+    .cluster-a .cluster-footer { padding: 0.4rem 0.85rem; color: var(--text-faint); font-size: 0.75rem; border-top: 1px solid var(--hairline); display: flex; justify-content: space-between; }
+
+    /* ─── Option B — horizontal "kebab" chips list (no chrome padding) ─── */
+    .cluster-b .cluster-body { padding: 0; background: var(--bg-raised); }
+    .cluster-b .cluster-body > .tc { border-left-width: 3px; }
+    .cluster-b .cluster-body > .tc + .tc { border-top: 1px solid var(--hairline); }
+
+    /* ─── Option C — counter pill inline + open-by-default ─── */
+    .cluster-c .cluster-body { padding: 0; background: var(--bg-raised); }
+    .cluster-c .cluster-body > .tc { border-left-width: 3px; }
+    .cluster-c .cluster-body > .tc + .tc { border-top: 1px solid var(--hairline); }
+    .cluster-c > summary { background: transparent; padding: 0.4rem 0.5rem; }
+    .cluster-c .cluster-title { color: var(--text-dim); font-weight: 500; }
+
+    /* ─── Subtle "thinking" line between tool clusters ─── */
+    .thinking-inline {
+      align-self: stretch; font-size: 0.82rem; color: var(--text-faint);
+      padding: 0.1rem 0.85rem; font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Grouped tool-call clusters — 3 layout options</h1>
+    <p class="lede">
+      Each panel below shows the same chat segment: a user prompt, an assistant thought, then four
+      tool calls in a row, then a follow-up assistant line. The only thing that changes between
+      options is how the four tool calls are grouped. Reasoning lines and assistant text stay
+      independent, per the spec. Light/dark toggle at the top to see both themes.
+    </p>
+    <div class="toolbar">
+      <button id="theme-toggle">Theme: Dark</button>
+      <span class="spacer"></span>
+      <span class="note">All three options collapse by default. Click "Ran 4 commands" to expand. Inside, each tool still expands independently.</span>
+    </div>
+
+    <div class="options">
+      <!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+      <!-- ║ OPTION A — Compact stack, single caret, dense rows            ║ -->
+      <!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+      <section class="option">
+        <header class="option-head">
+          <h2>A — Compact stack <span class="pill">closest to screenshot</span></h2>
+          <div class="meta"><b>Idea:</b> one caret + count, cards stacked with 1px hairline between them. Footer shows "Click ⌄ to expand".</div>
+        </header>
+        <div class="option-body">
+          <div class="chat-lane">
+            <div class="feed">
+              <div class="row user">
+                <div class="bubble-user">Hãy viết spec cho tính năng delegation.</div>
+              </div>
+              <div class="row assistant">
+                <details class="reasoning" open>
+                  <summary>Thinking</summary>
+                  <div class="reasoning-body">The user wants a spec for delegation. Let me check the docs folder for the existing spec format and look at the relevant APIs.</div>
+                </details>
+              </div>
+
+              <details class="cluster cluster-a" open>
+                <summary>
+                  <svg class="cluster-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                  <span class="cluster-title">Ran 4 commands</span>
+                  <span class="cluster-count"><span class="ok-dot">●</span>3 ok · <span class="run-dot">●</span>1 running</span>
+                </summary>
+                <div class="cluster-body">
+                  <details class="tc ok">
+                    <summary>
+                      <svg class="tc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                      <span class="tc-badge tc-badge-bash">bash</span>
+                      <span class="tc-summary">ls docs/superpowers/specs/</span>
+                      <span class="tc-status ok">✓</span>
+                    </summary>
+                    <div class="tc-body"><pre>2026-08-04-meow-agent-builtin-design.md
+2026-08-04-meow-coding-agent-console-design.md
+2026-08-04-meow-settings-providers-design.md
+...</pre></div>
+                  </details>
+                  <details class="tc ok">
+                    <summary>
+                      <svg class="tc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                      <span class="tc-badge tc-badge-read">read</span>
+                      <span class="tc-summary">docs/superpowers/specs/2026-08-05-meow-group-a-design.md</span>
+                      <span class="tc-status ok">✓</span>
+                    </summary>
+                  </details>
+                  <details class="tc ok">
+                    <summary>
+                      <svg class="tc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                      <span class="tc-badge tc-badge-bash">bash</span>
+                      <span class="tc-summary">grep -l "delegation" src/renderer/src/components/chat/*.tsx</span>
+                      <span class="tc-status ok">✓</span>
+                    </summary>
+                  </details>
+                  <details class="tc" open>
+                    <summary>
+                      <svg class="tc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                      <span class="tc-badge tc-badge-read">read</span>
+                      <span class="tc-summary">docs/reference/05-delegation.md</span>
+                      <span class="tc-status run">running…</span>
+                    </summary>
+                  </details>
+                </div>
+                <div class="cluster-footer"><span>Click ⌄ to expand any command</span><span>⏱ 2.1s</span></div>
+              </details>
+
+              <div class="thinking-inline">Spec đã được viết và commit tại <code>docs/superpowers/specs/2026-09-24-external-delegation-design.md</code>.</div>
+            </div>
+          </div>
+        </div>
+        <footer class="option-foot"><b>Best when:</b> you want a quiet, low-chrome grouping — the count badge tells the whole story until you need details.</footer>
+      </section>
+
+      <!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+      <!-- ║ OPTION B — Header on each row (no master caret)                ║ -->
+      <!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+      <section class="option">
+        <header class="option-head">
+          <h2>B — Per-row chips with a top header</h2>
+          <div class="meta"><b>Idea:</b> master caret shows "Ran 4 commands", each row keeps its own independent caret and expand toggle. Tighter than current feed (0px gap, 1px hairline between rows).</div>
+        </header>
+        <div class="option-body">
+          <div class="chat-lane">
+            <div class="feed">
+              <div class="row user">
+                <div class="bubble-user">Hãy viết spec cho tính năng delegation.</div>
+              </div>
+              <div class="row assistant">
+                <details class="reasoning" open>
+                  <summary>Thinking</summary>
+                  <div class="reasoning-body">The user wants a spec for delegation. Let me check the docs folder for the existing spec format and look at the relevant APIs.</div>
+                </details>
+              </div>
+
+              <details class="cluster cluster-b" open>
+                <summary>
+                  <svg class="cluster-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                  <span class="cluster-title">Ran 4 commands</span>
+                  <span class="cluster-meta">in 2.1s · 3 ok · 1 running</span>
+                </summary>
+                <div class="cluster-body">
+                  <details class="tc ok" open>
+                    <summary>
+                      <svg class="tc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                      <span class="tc-badge tc-badge-bash">bash</span>
+                      <span class="tc-summary">ls docs/superpowers/specs/</span>
+                      <span class="tc-status ok">✓</span>
+                    </summary>
+                    <div class="tc-body"><pre>2026-08-04-meow-agent-builtin-design.md
+2026-08-04-meow-coding-agent-console-design.md
+...</pre></div>
+                  </details>
+                  <details class="tc ok">
+                    <summary>
+                      <svg class="tc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                      <span class="tc-badge tc-badge-read">read</span>
+                      <span class="tc-summary">docs/superpowers/specs/2026-08-05-meow-group-a-design.md</span>
+                      <span class="tc-status ok">✓</span>
+                    </summary>
+                  </details>
+                  <details class="tc ok">
+                    <summary>
+                      <svg class="tc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                      <span class="tc-badge tc-badge-bash">bash</span>
+                      <span class="tc-summary">grep -l "delegation" src/renderer/src/components/chat/*.tsx</span>
+                      <span class="tc-status ok">✓</span>
+                    </summary>
+                  </details>
+                  <details class="tc" open>
+                    <summary>
+                      <svg class="tc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                      <span class="tc-badge tc-badge-read">read</span>
+                      <span class="tc-summary">docs/reference/05-delegation.md</span>
+                      <span class="tc-status run">running…</span>
+                    </summary>
+                  </details>
+                </div>
+              </details>
+
+              <div class="thinking-inline">Spec đã được viết và commit tại <code>docs/superpowers/specs/2026-09-24-external-delegation-design.md</code>.</div>
+            </div>
+          </div>
+        </div>
+        <footer class="option-foot"><b>Best when:</b> users often want to expand one specific tool (e.g. just the diff) without opening the whole group.</footer>
+      </section>
+
+      <!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+      <!-- ║ OPTION C — Quiet, open by default, minimal chrome             ║ -->
+      <!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+      <section class="option">
+        <header class="option-head">
+          <h2>C — Open by default, low-contrast header</h2>
+          <div class="meta"><b>Idea:</b> cluster opens by default; header is dim text (no background), cluster reads as a tight stack first, summary second.</div>
+        </header>
+        <div class="option-body">
+          <div class="chat-lane">
+            <div class="feed">
+              <div class="row user">
+                <div class="bubble-user">Hãy viết spec cho tính năng delegation.</div>
+              </div>
+              <div class="row assistant">
+                <details class="reasoning" open>
+                  <summary>Thinking</summary>
+                  <div class="reasoning-body">The user wants a spec for delegation. Let me check the docs folder for the existing spec format and look at the relevant APIs.</div>
+                </details>
+              </div>
+
+              <details class="cluster cluster-c" open>
+                <summary>
+                  <svg class="cluster-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                  <span class="cluster-title">4 commands</span>
+                  <span class="cluster-meta">· 3 ok · 1 running · 2.1s</span>
+                </summary>
+                <div class="cluster-body">
+                  <details class="tc ok">
+                    <summary>
+                      <svg class="tc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                      <span class="tc-badge tc-badge-bash">bash</span>
+                      <span class="tc-summary">ls docs/superpowers/specs/</span>
+                      <span class="tc-status ok">✓</span>
+                    </summary>
+                  </details>
+                  <details class="tc ok">
+                    <summary>
+                      <svg class="tc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                      <span class="tc-badge tc-badge-read">read</span>
+                      <span class="tc-summary">docs/superpowers/specs/2026-08-05-meow-group-a-design.md</span>
+                      <span class="tc-status ok">✓</span>
+                    </summary>
+                  </details>
+                  <details class="tc ok">
+                    <summary>
+                      <svg class="tc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                      <span class="tc-badge tc-badge-bash">bash</span>
+                      <span class="tc-summary">grep -l "delegation" src/renderer/src/components/chat/*.tsx</span>
+                      <span class="tc-status ok">✓</span>
+                    </summary>
+                  </details>
+                  <details class="tc" open>
+                    <summary>
+                      <svg class="tc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                      <span class="tc-badge tc-badge-read">read</span>
+                      <span class="tc-summary">docs/reference/05-delegation.md</span>
+                      <span class="tc-status run">running…</span>
+                    </summary>
+                  </details>
+                </div>
+              </details>
+
+              <div class="thinking-inline">Spec đã được viết và commit tại <code>docs/superpowers/specs/2026-09-24-external-delegation-design.md</code>.</div>
+            </div>
+          </div>
+        </div>
+        <footer class="option-foot"><b>Best when:</b> tool-call volume is low enough that the cluster rarely needs to collapse.</footer>
+      </section>
+    </div>
+
+    <p class="lede" style="margin-top:2.5rem">
+      <b>Common behaviors across all three options:</b> a single cluster only forms when two or more
+      <code>tool</code> items sit consecutively with no message/reasoning row between them; a lone
+      tool call still renders as today (no header, no wrapper). Reasoning
+      (<code>&lt;details class="chat-reasoning"&gt;</code>) and assistant text stay separate, per
+      your decision. Cluster chrome reuses existing tokens — no new palette.
+    </p>
+  </div>
+
+  <script>
+    const btn = document.getElementById('theme-toggle');
+    btn.addEventListener('click', () => {
+      const next = document.documentElement.dataset.theme === 'light' ? '' : 'light';
+      if (next) document.documentElement.dataset.theme = next;
+      else document.documentElement.removeAttribute('data-theme');
+      btn.textContent = 'Theme: ' + (next ? 'Light' : 'Dark');
+    });
+  </script>
+</body>
+</html>

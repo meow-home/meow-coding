@@ -10,6 +10,7 @@ import AddMenu from './AddMenu'
 import { useChatScroll } from './useChatScroll'
 import { buildQuestionAnswer } from './questionAnswer'
 import ToolCallCard from './ToolCallCard'
+import ToolCluster from './ToolCluster'
 import MarkdownText from './MarkdownText'
 import ModelPicker from './ModelPicker'
 import VariantPicker from './VariantPicker'
@@ -20,6 +21,7 @@ import SubagentOverlay, { SUBAGENT_DEFAULT_WIDTH, type SubagentOverlayItem } fro
 type FeedItem =
   | { kind: 'message'; id: string; role: ChatMessage['role']; text: string; reasoning?: string; images?: ImageAttachment[]; delegation?: ChatDelegationMeta }
   | { kind: 'tool'; id: string; call: ToolCallData }
+  | { kind: 'cluster'; id: string; calls: ToolCallData[] }
   | { kind: 'error'; id: string; text: string }
   | { kind: 'compaction'; id: string; running?: boolean; failed?: boolean }
   | { kind: 'retry'; id: string; attempt: number; maxAttempts: number; delayMs: number; unbounded?: boolean }
@@ -40,6 +42,37 @@ function toFeedItem(it: ChatTranscriptItem): FeedItem {
 
 function feedItemKey(item: FeedItem): string {
   return item.kind === 'subagent' ? `subagent:${item.taskId}` : `${item.kind}:${item.id}`
+}
+
+// Walks a flat FeedItem list and folds every run of 2+ consecutive `tool`
+// items into a single `cluster` row. Lone tool calls and any non-tool items
+// pass through unchanged — so the rest of the chat feed (reasoning,
+// assistant text, sub-agent rows, retries, ...) is untouched. Clustering
+// happens at render time, not in state, so transcript paging and live
+// upserts still work against the flat shape.
+function clusterToolRows(items: FeedItem[]): FeedItem[] {
+  const out: FeedItem[] = []
+  let run: ToolCallData[] | null = null
+  const flush = () => {
+    if (run === null) return
+    if (run.length >= 2) {
+      out.push({ kind: 'cluster', id: run[0].id, calls: run })
+    } else {
+      out.push({ kind: 'tool', id: run[0].id, call: run[0] })
+    }
+    run = null
+  }
+  for (const item of items) {
+    if (item.kind === 'tool') {
+      if (run === null) run = [item.call]
+      else run.push(item.call)
+      continue
+    }
+    flush()
+    out.push(item)
+  }
+  flush()
+  return out
 }
 
 interface PendingPrompt {
@@ -972,7 +1005,7 @@ if (e.type === 'usage') {
         {loadingOlder && (
           <div className="chat-loading-older">Loading earlier messages…</div>
         )}
-        {items.map(item => {
+        {clusterToolRows(items).map(item => {
           if (item.kind === 'compaction') {
             return (
               <div key={item.id} className={`chat-compacted ${item.failed ? 'failed' : ''} ${item.running ? 'running' : ''}`}>
@@ -1014,6 +1047,9 @@ if (e.type === 'usage') {
           }
           if (item.kind === 'tool') {
             return <ToolCallCard key={item.id} call={item.call} />
+          }
+          if (item.kind === 'cluster') {
+            return <ToolCluster key={item.id} firstId={item.id} calls={item.calls} />
           }
           if (item.kind === 'subagent') {
             return (

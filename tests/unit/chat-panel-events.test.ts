@@ -196,4 +196,49 @@ describe('ChatPanel live event reconciliation', () => {
     expect(container.textContent).toContain('typed by hand')
     expect(container.textContent).toContain('Delegation result — Staff Agent')
   })
+
+  it('clusters consecutive tool calls into a single collapsible group, leaves lone tools alone', async () => {
+    let resolveTranscript!: (page: TranscriptPage) => void
+    const transcript = new Promise<TranscriptPage>(resolve => { resolveTranscript = resolve })
+    let onEvent: ((event: ChatEvent) => void) | undefined
+    const api = new Proxy({}, {
+      get: (_target, key) => {
+        if (key === 'listChatTranscript') return () => transcript
+        if (key === 'onChatEvent') return (listener: (event: ChatEvent) => void) => { onEvent = listener; return () => {} }
+        if (key === 'getAgentVariants' || key === 'getChatTodos' || key === 'listCommands' || key === 'listModels') {
+          return async () => []
+        }
+        if (key === 'getContextInfo') return async () => ({ limit: 128000, compactThreshold: 100000, sessionCost: 0 })
+        if (key === 'isChatRunning') return async () => false
+        if (key === 'getPendingPrompt') return async () => null
+        return async () => undefined
+      }
+    }) as Window['api']
+    Object.defineProperty(window, 'api', { configurable: true, value: api })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => { root?.render(createElement(ChatPanel, { agentId: 'agent-1', cwd: 'C:\\repo' })) })
+    await act(async () => { resolveTranscript({ items: [], hasMore: false }); await transcript })
+
+    // Two tool calls back-to-back → one cluster.
+    act(() => onEvent?.({ type: 'tool-start', agentId: 'agent-1', call: { id: 'tc-1', tool: 'bash', input: { command: 'ls' }, permission: 'allowed', output: 'a.txt' } }))
+    act(() => onEvent?.({ type: 'tool-start', agentId: 'agent-1', call: { id: 'tc-2', tool: 'read', input: { file_path: 'a.txt' }, permission: 'allowed', output: 'hello' } }))
+
+    // An assistant message in between breaks the run.
+    act(() => onEvent?.({
+      type: 'user-message', agentId: 'agent-1',
+      message: { id: 'u-1', role: 'user', text: 'now run a single tool', createdAt: Date.now() }
+    }))
+
+    // Lone tool call after the message → not clustered.
+    act(() => onEvent?.({ type: 'tool-start', agentId: 'agent-1', call: { id: 'tc-3', tool: 'bash', input: { command: 'pwd' }, permission: 'allowed', output: '/repo' } }))
+
+    expect(container.querySelectorAll('.tool-cluster')).toHaveLength(1)
+    expect(container.querySelectorAll('.tool-cluster .tool-call')).toHaveLength(2)
+    expect(container.querySelector('.tool-cluster-title')!.textContent).toContain('Ran 2 commands')
+    // The lone tool renders as a bare .tool-call (no cluster wrapper).
+    expect(container.querySelectorAll('.tool-call:not(.tool-cluster .tool-call)')).toHaveLength(1)
+  })
 })
