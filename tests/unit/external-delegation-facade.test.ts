@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import path from 'node:path'
-import { ExternalDelegationFacade, type ExternalDelegationFacadeDeps } from '../../src/main/external-api/facade'
+import { ExternalDelegationFacade, toTaskDto, type ExternalDelegationFacadeDeps } from '../../src/main/external-api/facade'
 import { ExternalApiError } from '../../src/main/external-api/errors'
 import type { AgentConfig, ModelRef, NewAgentInput, SessionDelegation, Workspace } from '../../src/shared/types'
 
@@ -166,6 +166,13 @@ describe('ExternalDelegationFacade', () => {
     await env.facade.resumeQueued()
     expect(env.ensured).toEqual([a.sessionId])
     expect(env.delegations.notified).toEqual([a.sessionId])
+  })
+
+  it('exposes endReason on the task DTO only when set', async () => {
+    const a = await env.facade.createTask({ cwd: ROOT, planKey: 'p.md', task: 'T1' })
+    const rec = env.delegations.records.find(r => r.id === a.id)!
+    expect('endReason' in toTaskDto(rec)).toBe(false)
+    expect(toTaskDto({ ...rec, status: 'completed', endReason: 'max-steps' }).endReason).toBe('max-steps')
   })
 
   it('reports the version', () => {

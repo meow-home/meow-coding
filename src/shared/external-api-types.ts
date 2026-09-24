@@ -1,4 +1,4 @@
-import type { DelegationStatus } from './types'
+import type { DelegationStatus, TurnEndReason } from './types'
 
 export const EXTERNAL_SOURCE_ID = 'external:claude'
 export const EXTERNAL_SOURCE_NAME = 'Claude (external)'
@@ -27,6 +27,7 @@ export interface TaskDto {
   result?: string
   resultTruncated?: boolean
   error?: string
+  endReason?: TurnEndReason
   touchedFiles: string[]
 }
 

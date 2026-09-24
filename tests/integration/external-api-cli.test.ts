@@ -68,6 +68,42 @@ describe('meow-delegate CLI', () => {
     expect(handler.bodies[0]).toEqual({ cwd: path.resolve(dir), planKey: 'docs/plan.md', title: 'P', task: 'Implement task 1' })
   })
 
+  it('prints the task id before waiting so a killed CLI still leaves it', async () => {
+    const r = await run(['start', '--config', config, '--cwd', dir, '--plan', 'p.md', '--task-file', taskFile])
+    const early = r.out.indexOf('task: t1   session: s1   status: running')
+    expect(early).toBeGreaterThanOrEqual(0)
+    expect(early).toBeLessThan(r.out.indexOf('=== MEOW TASK RESULT ==='))
+  })
+
+  it('exits 5 and flags the status when the task stopped at the step limit', async () => {
+    handler.final = { status: 'completed', endReason: 'max-steps', result: 'did half', touchedFiles: [] }
+    const r = await run(['start', '--config', config, '--cwd', dir, '--plan', 'p.md', '--task-file', taskFile])
+    expect(r.code).toBe(5)
+    expect(r.out).toContain('status: completed (max steps reached)')
+    expect(r.out).toContain('did half')
+  })
+
+  it('shows other end reasons in the status without a special exit code', async () => {
+    handler.final = { status: 'completed', endReason: 'stuck', result: 'looping', touchedFiles: [] }
+    const r = await run(['start', '--config', config, '--cwd', dir, '--plan', 'p.md', '--task-file', taskFile])
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('status: completed (stuck)')
+  })
+
+  it('wait resumes waiting on an existing task', async () => {
+    handler.task = { id: 't9', status: 'running', sessionId: 's1', projectPath: '/p', planKey: 'k', createdAt: 1, touchedFiles: [] }
+    setTimeout(() => { handler.task = { ...handler.task!, status: 'completed', result: 'resumed ok' }; onChange?.('t9') }, 50)
+    const r = await run(['wait', 't9', '--config', config])
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('task: t9   session: s1   status: completed')
+    expect(r.out).toContain('resumed ok')
+  })
+
+  it('wait rejects a missing or unknown task id', async () => {
+    expect((await run(['wait', '--config', config])).code).toBe(4)
+    expect((await run(['wait', 'nope', '--config', config])).code).toBe(4)
+  })
+
   it('exits 1 on failure and prints the error', async () => {
     handler.final = { status: 'failed', error: 'boom', touchedFiles: [] }
     const r = await run(['start', '--config', config, '--cwd', dir, '--plan', 'p.md', '--task-file', taskFile])

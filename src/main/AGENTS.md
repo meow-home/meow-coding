@@ -56,7 +56,8 @@ handlers and the app lifecycle.
   pumping a per-target scheduler (`start`/`notifyAgentAvailable`/`flush`/`suspend`). Validates creation
   (user-origin run, distinct same-project target, ≤32 KiB task, ≤5 nonterminal per target), runs queued
   FIFO via a `DelegationRuntime`, persists terminal results, marks `deliveredAt`/`wakeAt`, truncates
-  UTF-8 results to 64 KiB, recovers on restart (interrupt in-flight, resume queued, redeliver once), and
+  UTF-8 results to 64 KiB, stores the turn's `endReason` (`max-steps`/`stuck`/`length`/`refusal`, from
+  `AgentTurnResult.endReason`, which the manager captures from the run's `done` event), recovers on restart (interrupt in-flight, resume queued, redeliver once), and
   handles agent/project removal. `createExternal` (source-less `sourceKind: 'external'` records: no
   source checks, no result append/wake, only `markDelivered`) and `cancel(id)` (queued → cancelled;
   running → `runtime.stopRun`, then waits up to 5 s for the terminal status and returns the latest

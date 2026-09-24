@@ -148,6 +148,9 @@ export interface ImageAttachment {
   height?: number
 }
 
+/** Why a turn ended short of a normal finish; absent for a normal end. */
+export type TurnEndReason = 'max-steps' | 'stuck' | 'length' | 'refusal'
+
 export type DelegationStatus =
   | 'queued'
   | 'running'
@@ -185,6 +188,7 @@ export interface SessionDelegation {
   touchedFiles?: string[]
   deliveredAt?: number
   wakeAt?: number
+  endReason?: TurnEndReason
   sourceKind?: 'session' | 'external'
   externalClient?: 'claude'
   planKey?: string

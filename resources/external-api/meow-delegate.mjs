@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const EXIT = { ok: 0, failed: 1, cancelled: 2, unreachable: 3, invalid: 4 }
+const EXIT = { ok: 0, failed: 1, cancelled: 2, unreachable: 3, invalid: 4, maxSteps: 5 }
+const END_REASON_LABEL = { 'max-steps': 'max steps reached' }
 const TERMINAL = new Set(['completed', 'failed', 'cancelled', 'interrupted'])
 const RETRY_MS = Number(process.env.MEOW_DELEGATE_RETRY_MS ?? 30_000)
 const UNREACHABLE = '[meow] Meow is not running or external delegation is disabled.'
@@ -89,16 +90,24 @@ async function waitFor(cfg, id) {
   }
 }
 
+function statusLabel(task) {
+  return task.endReason ? `${task.status} (${END_REASON_LABEL[task.endReason] ?? task.endReason})` : task.status
+}
+
+function printTaskLine(task) {
+  process.stdout.write(`task: ${task.id}   session: ${task.sessionId}   status: ${task.status}\n`)
+}
+
 function printResult(task) {
   const files = task.touchedFiles?.length ? task.touchedFiles.map(f => `- ${f}`).join('\n') : '(none)'
   const answer = task.result ?? task.error ?? '(no output)'
   process.stdout.write(
     `=== MEOW TASK RESULT ===\n` +
-    `task: ${task.id}   session: ${task.sessionId}   status: ${task.status}\n` +
+    `task: ${task.id}   session: ${task.sessionId}   status: ${statusLabel(task)}\n` +
     `touched_files:\n${files}\n` +
     `--- final answer ---\n${answer}\n`
   )
-  if (task.status === 'completed') return EXIT.ok
+  if (task.status === 'completed') return task.endReason === 'max-steps' ? EXIT.maxSteps : EXIT.ok
   if (task.status === 'cancelled') return EXIT.cancelled
   return TERMINAL.has(task.status) ? EXIT.failed : EXIT.ok
 }
@@ -109,6 +118,7 @@ async function submit(cfg, body, flags) {
     process.stdout.write(`queued: ${task.id}   session: ${task.sessionId}\n`)
     return EXIT.ok
   }
+  printTaskLine(task)
   return printResult(await waitFor(cfg, task.id))
 }
 
@@ -133,10 +143,15 @@ async function main() {
       const cfg = loadConfig(flags)
       const { task } = await request(cfg, 'GET', `/v1/tasks/${encodeURIComponent(positional[0])}`)
       if (!TERMINAL.has(task.status)) {
-        process.stdout.write(`task: ${task.id}   session: ${task.sessionId}   status: ${task.status}\n`)
+        printTaskLine(task)
         return EXIT.ok
       }
       return printResult(task)
+    }
+    case 'wait': {
+      if (!positional[0]) throw new CliError(EXIT.invalid, '[meow] Usage: wait <taskId>')
+      const cfg = loadConfig(flags)
+      return printResult(await waitFor(cfg, positional[0]))
     }
     case 'cancel': {
       if (!positional[0]) throw new CliError(EXIT.invalid, '[meow] Usage: cancel <taskId>')
@@ -146,7 +161,7 @@ async function main() {
       return EXIT.ok
     }
     default:
-      throw new CliError(EXIT.invalid, '[meow] Usage: meow-delegate <start|send|status|cancel> ...')
+      throw new CliError(EXIT.invalid, '[meow] Usage: meow-delegate <start|send|status|wait|cancel> ...')
   }
 }
 

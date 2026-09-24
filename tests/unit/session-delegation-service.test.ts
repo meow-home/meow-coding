@@ -328,6 +328,27 @@ describe('SessionDelegationService', () => {
       expect(env.runtime.turns[0].sourceAgentId).toBe('external:claude')
     })
 
+    it('records the turn end reason on the terminal record', async () => {
+      await env.service.start()
+      env.runtime.busy.add('beta')
+      const rec = env.service.createExternal(ext())
+      env.runtime.runResults.set(rec.id, {
+        runId: rec.id, reason: 'completed', endReason: 'max-steps', finalText: 'partial', touchedFiles: []
+      })
+      env.runtime.busy.delete('beta')
+      env.service.notifyAgentAvailable('beta')
+      expect(await until(() => env.service.getStatus(rec.id)?.status === 'completed')).toBe(true)
+      expect(env.service.getStatus(rec.id)?.endReason).toBe('max-steps')
+      expect(env.service.getStatus(rec.id)?.result).toBe('partial')
+    })
+
+    it('leaves endReason unset for a normal finish', async () => {
+      await env.service.start()
+      const rec = env.service.createExternal(ext())
+      expect(await until(() => env.service.getStatus(rec.id)?.status === 'completed')).toBe(true)
+      expect('endReason' in env.service.getStatus(rec.id)!).toBe(false)
+    })
+
     it('never appends a result or wakes a source, but marks delivered', async () => {
       await env.service.start()
       const rec = env.service.createExternal(ext())

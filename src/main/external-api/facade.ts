@@ -33,6 +33,7 @@ export function toTaskDto(d: SessionDelegation): TaskDto {
     ...(d.result !== undefined ? { result: d.result } : {}),
     ...(d.resultTruncated ? { resultTruncated: true } : {}),
     ...(d.error !== undefined ? { error: d.error } : {}),
+    ...(d.endReason !== undefined ? { endReason: d.endReason } : {}),
     touchedFiles: d.touchedFiles ?? []
   }
 }

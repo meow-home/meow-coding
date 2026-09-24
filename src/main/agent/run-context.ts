@@ -1,3 +1,5 @@
+import type { TurnEndReason } from '../../shared/types'
+
 /** Fixed identity for a single agent turn, so delegated runs land in a stable
  *  internal session and results can be correlated back to the delegation. */
 export interface AgentRunContext {
@@ -10,6 +12,7 @@ export interface AgentRunContext {
 export interface AgentTurnResult {
   runId: string
   reason: 'completed' | 'failed' | 'cancelled'
+  endReason?: TurnEndReason
   finalText?: string
   error?: string
   touchedFiles: string[]

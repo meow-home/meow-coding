@@ -53,7 +53,7 @@ import { createDelegateSessionTool } from './agent/tools/delegate-session'
 import type { ResolvedSubagentModel } from './agent/tools/task'
 import type { AgentRunContext } from './agent/run-context'
 import type { SessionPeer } from './agent/env'
-import type { SessionDelegation } from '../shared/types'
+import type { SessionDelegation, TurnEndReason } from '../shared/types'
 import type { DelegationAgent } from './session-delegation-service'
 import type { DelegatedTurnInput, DelegationResultInput, AgentTurnResult } from './agent/run-context'
 import type { AccountEndpointResolver } from './agent/config'
@@ -61,6 +61,12 @@ import type { ToolDefinition } from './agent/tools/types'
 import type { NotificationService } from './notification-service'
 import type { Vault } from './vault'
 import { HooksExecutor, loadProjectHooks, mergeHooksConfig } from './agent/hooks'
+
+const TURN_END_REASONS: ReadonlySet<string> = new Set<TurnEndReason>(['max-steps', 'stuck', 'length', 'refusal'])
+
+function isTurnEndReason(reason: string | undefined): reason is TurnEndReason {
+  return reason !== undefined && TURN_END_REASONS.has(reason)
+}
 
 export interface MeowAgentManagerDeps {
   configPath: string
@@ -111,6 +117,7 @@ interface ActiveRun {
   finalText?: string
   error?: string
   aborted?: boolean
+  endReason?: TurnEndReason
   touchedFiles: Set<string>
 }
 
@@ -222,6 +229,10 @@ export class MeowAgentManager {
   setOnEvent(cb: (e: ChatEvent) => void): void {
     this.onEvent = (e) => {
       if (e.type === 'done' || e.type === 'error') this.running.delete(e.agentId)
+      if (e.type === 'done' && isTurnEndReason(e.reason)) {
+        const active = this.activeRuns.get(e.agentId)
+        if (active) active.endReason = e.reason
+      }
       cb(e)
       if (e.type === 'done' && this.deps.notifications?.onDone !== false) {
         const cost = e.cost !== undefined ? ` · ${e.cost.toFixed(4)}` : ''
@@ -705,7 +716,13 @@ export class MeowAgentManager {
     if (run.aborted || !run.finalText) {
       return { runId, reason: 'cancelled', touchedFiles: [...run.touchedFiles], error: run.error }
     }
-    return { runId, reason: 'completed', finalText: run.finalText, touchedFiles: [...run.touchedFiles] }
+    return {
+      runId,
+      reason: 'completed',
+      ...(run.endReason ? { endReason: run.endReason } : {}),
+      finalText: run.finalText,
+      touchedFiles: [...run.touchedFiles]
+    }
   }
 
   private async runTurnInner(

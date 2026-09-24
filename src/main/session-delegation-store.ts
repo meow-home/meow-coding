@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { JsonStore } from './json-store'
-import type { DelegationStatus, SessionDelegation } from '../shared/types'
+import type { DelegationStatus, SessionDelegation, TurnEndReason } from '../shared/types'
 
 /**
  * Path canonicalization for cross-process/project identity: on Windows the
@@ -36,6 +36,7 @@ export interface TransitionPatch {
   resultTruncated?: boolean
   error?: string
   touchedFiles?: string[]
+  endReason?: TurnEndReason
   deliveredAt?: number
   wakeAt?: number
 }
@@ -171,7 +172,8 @@ export class SessionDelegationStore {
       ...(patch?.result !== undefined ? { result: patch.result } : {}),
       ...(patch?.resultTruncated !== undefined ? { resultTruncated: patch.resultTruncated } : {}),
       ...(patch?.error !== undefined ? { error: patch.error } : {}),
-      ...(patch?.touchedFiles !== undefined ? { touchedFiles: [...patch.touchedFiles] } : {})
+      ...(patch?.touchedFiles !== undefined ? { touchedFiles: [...patch.touchedFiles] } : {}),
+      ...(patch?.endReason !== undefined ? { endReason: patch.endReason } : {})
     }
     all[idx] = next
     this.save(all)

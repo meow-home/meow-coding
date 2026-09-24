@@ -309,6 +309,7 @@ export class SessionDelegationService {
       ...(truncated.text !== undefined ? { result: truncated.text } : {}),
       ...(truncated.truncated ? { resultTruncated: true } : {}),
       ...(result.error !== undefined ? { error: result.error } : {}),
+      ...(result.endReason !== undefined ? { endReason: result.endReason } : {}),
       touchedFiles: result.touchedFiles
     })
     if (terminal) {

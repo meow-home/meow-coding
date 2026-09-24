@@ -319,13 +319,16 @@ own location, so it follows the real `userData` directory.
 node meow-delegate.mjs start  --cwd <dir> --plan <plan.md> [--title <t>] --task-file <f> [--no-wait]
 node meow-delegate.mjs send   --session <id> --message-file <f> [--no-wait]
 node meow-delegate.mjs status <taskId>
+node meow-delegate.mjs wait   <taskId>
 node meow-delegate.mjs cancel <taskId>
 ```
 
 Task text always comes from a file (avoids Windows shell-quoting problems). `start` and `send` wait
 by default, long-polling `/wait`; transient connection failures are retried for 30s, re-reading the
-config file on each retry (and once on a 401) to follow a restarted Meow or a regenerated token. When
-the task is terminal:
+config file on each retry (and once on a 401) to follow a restarted Meow or a regenerated token. Right after submitting (without
+`--no-wait`) they print `task: <id>   session: <id>   status: <status>`, so a CLI killed mid-wait (e.g. a
+foreground Bash timeout) still leaves the id; `wait <taskId>` resumes waiting on it without queueing
+the work again. When the task is terminal:
 
 ```
 === MEOW TASK RESULT ===
@@ -337,7 +340,10 @@ touched_files:
 ```
 
 Exit codes: `0` completed · `1` failed/interrupted · `2` cancelled · `3` Meow unreachable, feature
-disabled, 401 or 403 · `4` invalid arguments or 400/404/413.
+disabled, 401 or 403 · `4` invalid arguments or 400/404/413 · `5` completed but the turn stopped at the
+per-turn step limit (`endReason: 'max-steps'`; the status reads `completed (max steps reached)`). Other
+end reasons (`stuck`, `length`, `refusal`) show in the status (`completed (stuck)`) with exit `0`.
+`TaskDto.endReason` carries the reason; the delegation record stores it as `endReason`.
 
 Queued external tasks survive a restart: after the API starts, `ExternalDelegationFacade.resumeQueued()`
 registers each queued task's target session and wakes its pump.

@@ -46,6 +46,7 @@ interface StubLlmOptions {
 
 async function makeManager(opts: StubLlmOptions & {
   delegation?: MeowAgentManagerDeps['delegation']
+  maxSteps?: number
 } = {}) {
   const cfgDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-del-cfg-'))
   const defaultCfg = path.join(cfgDir, 'meow.json')
@@ -53,7 +54,8 @@ async function makeManager(opts: StubLlmOptions & {
     provider: { test: { apiKey: 'sk-test', models: ['test-model'] } },
     model: 'test',
     maxContextTokens: 128000,
-    maxOutputTokens: 32000
+    maxOutputTokens: 32000,
+    ...(opts.maxSteps !== undefined ? { maxSteps: opts.maxSteps } : {})
   }))
   const store = new SessionStore(new SessionFileStore(cfgDir))
   const snapshotEntries: SnapshotEntry[] = []
@@ -331,6 +333,41 @@ describe('MeowAgentManager delegation runtime', () => {
     const second = await secondPromise
     expect(second?.reason).toBe('cancelled')
     expect(second?.finalText).toBeUndefined()
+  })
+
+  it('reports a turn cut by maxSteps as completed with endReason max-steps', async () => {
+    const { manager } = await makeManager({
+      maxSteps: 2,
+      partsQueue: [
+        [{ kind: 'tool-call', toolCallId: 't1', toolName: 'todowrite', toolInput: { todos: [] } }, { kind: 'finish' }],
+        [{ kind: 'text', text: 'partial summary' }, { kind: 'finish' }]
+      ]
+    })
+    const result = await manager.runDelegatedTurn({
+      sourceAgentId: 'external:claude',
+      sourceName: 'Claude (external)',
+      targetAgentId: 'a1',
+      targetSessionId: 'del-session-steps',
+      delegationId: 'm1',
+      task: 'long task'
+    })
+    expect(result?.reason).toBe('completed')
+    expect(result?.endReason).toBe('max-steps')
+    expect(result?.finalText).toBe('partial summary')
+  })
+
+  it('leaves endReason unset for a normally finished turn', async () => {
+    const { manager } = await makeManager()
+    const result = await manager.runDelegatedTurn({
+      sourceAgentId: 'external:claude',
+      sourceName: 'Claude (external)',
+      targetAgentId: 'a1',
+      targetSessionId: 'del-session-normal',
+      delegationId: 'n1',
+      task: 'short task'
+    })
+    expect(result?.reason).toBe('completed')
+    expect(result?.endReason).toBeUndefined()
   })
 
   it('does not return an earlier turn\'s answer when a turn adds no assistant text', async () => {
