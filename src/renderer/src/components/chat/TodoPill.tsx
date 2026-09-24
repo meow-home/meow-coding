@@ -49,11 +49,6 @@ function TodoPill({ todos }: TodoPillProps) {
   const pct = total > 0 ? (doneCount / total) * 100 : 0
   const ring = `conic-gradient(var(--accent-strong) 0 ${pct}%, var(--bg-hover) ${pct}% 100%)`
 
-  const activeTask =
-    todos.find(t => t.status === 'in_progress')?.content ||
-    todos.find(t => t.status === 'pending')?.content ||
-    (isAllDone ? 'All completed' : '')
-
   return (
     <div
       className="todo-pill"
@@ -68,7 +63,7 @@ function TodoPill({ todos }: TodoPillProps) {
         trigger={({ open: isOpen, toggle }) => (
           <button
             className={`todo-pill-btn ${isOpen ? 'open' : ''}`}
-            title={activeTask ? `Todo: ${activeTask}` : 'Todo list'}
+            title="Todo list"
             aria-label="Todo list"
             aria-haspopup="listbox"
             aria-expanded={isOpen}
@@ -76,15 +71,8 @@ function TodoPill({ todos }: TodoPillProps) {
           >
             <span className="todo-pill-ring" style={{ background: ring }} />
             <span className="todo-pill-tag">TODO</span>
-            <div className="todo-pill-info">
-              <span className="todo-pill-count">{doneCount}/{total}</span>
-              {!isAllDone && <span className="todo-pill-pulse" aria-hidden="true" />}
-              {activeTask && (
-                <span className="todo-pill-ticker" title={activeTask}>
-                  {activeTask}
-                </span>
-              )}
-            </div>
+            <span className="todo-pill-count">{doneCount}/{total}</span>
+            {!isAllDone && <span className="todo-pill-pulse" aria-hidden="true" />}
             <ChevronDown size={12} className="todo-pill-chev" aria-hidden="true" />
           </button>
         )}
