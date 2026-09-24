@@ -161,7 +161,8 @@ loop:
   decide hooks + permission for every call (up front, concurrently)
   run calls in model-order batches (concurrencySafe + allow together, ≤ 10 in flight; others alone)
   append each result in model order; a tool-loop verdict or the cut adds a [meow] note to that result
-  past MAX_LOOP_BREAKS recoveries → done{stuck, stuckCategory:'tool'|'stream'}
+  tool-loop trips past MAX_LOOP_BREAKS per run → done{stuck, stuckCategory:'tool'}
+  cuts past MAX_LOOP_BREAKS in a row (a clean step resets the count) → done{stuck, stuckCategory:'stream'}
   if no tool call:
     if length/max_tokens and resumes < MAX_LENGTH_RESUMES → append continuation nudge (user msg), continue
     emit done{reason: classifyFinish(finishReason)}; return
@@ -187,8 +188,11 @@ Notable details:
   notes the cut on the last result. The tool-loop detector compares completed call + result
   fingerprints, so test/edit/test progress is not flagged; idle `bash_output` polling gets a
   "wait" note, other repeats a "change course" note. The loop never adds a synthetic user message
-  for recovery; all recovery text is a `<system-reminder>[meow]` note on a tool result. Recoveries
-  share `MAX_LOOP_BREAKS` (2) per run, then the turn ends `stuck`.
+  for recovery; all recovery text is a `<system-reminder>[meow]` note on a tool result. Repetition
+  retries and tool-loop trips share `MAX_LOOP_BREAKS` (2) per run, then the turn ends `stuck`. Cuts
+  count separately and only in a row (`consecutiveCutsThisRun`, reset by any step without a cut), so
+  occasional cuts on steps that still progress never end the turn; past `MAX_LOOP_BREAKS`
+  consecutive cuts it ends `stuck`/`stream`.
 
 ### Constants
 

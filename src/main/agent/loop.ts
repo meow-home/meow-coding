@@ -171,6 +171,9 @@ export class SessionRunner {
   private lengthResumesThisRun = 0
   // Recoveries in this run; past MAX_LOOP_BREAKS the turn ends as 'stuck'.
   private loopBreaksThisRun = 0
+  // Response cuts in a row; a clean step resets it, so occasional cuts on steps
+  // that still made progress never add up to 'stuck'.
+  private consecutiveCutsThisRun = 0
   // Provider-reported usage of the last LLM call; overflow detection trusts it
   // over the transcript char estimate because it includes the system prompt and
   // tool definitions (see maybeCompact).
@@ -204,6 +207,7 @@ export class SessionRunner {
     this.rejectRetriesThisRun = 0
     this.lengthResumesThisRun = 0
     this.loopBreaksThisRun = 0
+    this.consecutiveCutsThisRun = 0
     this.stopBlocksThisRun = 0
     this.toolLoop = toolLoopDetector()
     this.hooks = this.deps.hooks?.()
@@ -405,8 +409,8 @@ export class SessionRunner {
       // Any other verdict cuts the response but keeps the calls already
       // announced: each must get a result.
       const cut: CutReason | undefined = verdict.kind === 'ok' ? undefined : verdict.kind
+      this.consecutiveCutsThisRun = cut ? this.consecutiveCutsThisRun + 1 : 0
       if (cut) {
-        this.loopBreaksThisRun++
         let keepText = guard.textBeforeFirstCall()
         if (verdict.kind === 'repetition') {
           if (verdict.channel === 'reasoning') reasoningBuffer = reasoningBuffer.slice(0, verdict.keepChars)
@@ -444,12 +448,17 @@ export class SessionRunner {
         }
       }
 
-      if ((cut || tripped) && this.loopBreaksThisRun > MAX_LOOP_BREAKS) {
+      if (tripped && this.loopBreaksThisRun > MAX_LOOP_BREAKS) {
         this.deps.onEvent({
-          type: 'done', agentId, reason: 'stuck',
-          stuckCategory: tripped ? 'tool' : 'stream',
-          ...(tripped ? { stuckTool: tripped.tool } : {}),
+          type: 'done', agentId, reason: 'stuck', stuckCategory: 'tool', stuckTool: tripped.tool,
           recoveryCount: this.loopBreaksThisRun, tokens, cost: this.deps.computeCost?.(runUsage)
+        })
+        return
+      }
+      if (cut && this.consecutiveCutsThisRun > MAX_LOOP_BREAKS) {
+        this.deps.onEvent({
+          type: 'done', agentId, reason: 'stuck', stuckCategory: 'stream',
+          recoveryCount: this.consecutiveCutsThisRun, tokens, cost: this.deps.computeCost?.(runUsage)
         })
         return
       }

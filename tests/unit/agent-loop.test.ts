@@ -2109,6 +2109,42 @@ describe('SessionRunner response cuts', () => {
     expect(JSON.stringify(h.items)).not.toContain('counselor'.repeat(3))
   })
 
+  const interleavedStep = (n: number): LlmStreamPart[] => [
+    { kind: 'tool-call', toolCallId: `cut-${n}a`, toolName: 'read', toolInput: { file_path: `cut${n}a.ts` } },
+    { kind: 'text', text: 'Now I will read the next file. ' },
+    { kind: 'tool-call', toolCallId: `cut-${n}b`, toolName: 'read', toolInput: { file_path: `cut${n}b.ts` } },
+    { kind: 'finish' }
+  ]
+  const cleanStep = (n: number): LlmStreamPart[] => [
+    { kind: 'tool-call', toolCallId: `clean-${n}`, toolName: 'read', toolInput: { file_path: `clean${n}.ts` } },
+    { kind: 'finish' }
+  ]
+
+  it('does not end stuck for occasional cuts separated by clean steps', async () => {
+    const h = makeHarness({ tools: new Map([['read', stubTool('read')]]), maxSteps: 10 })
+    h.llm.queue = [
+      interleavedStep(1), cleanStep(1),
+      interleavedStep(2), cleanStep(2),
+      interleavedStep(3), textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 80))
+    expect(doneEvent(h.events).reason).toBe('complete')
+    expect(h.llm.calls.length).toBe(6)
+  })
+
+  it('ends as stuck/stream after three consecutive cut steps', async () => {
+    const h = makeHarness({ tools: new Map([['read', stubTool('read')]]), maxSteps: 10 })
+    h.llm.queue = [interleavedStep(1), interleavedStep(2), interleavedStep(3), textParts('done')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 80))
+    const done = doneEvent(h.events)
+    expect(done.reason).toBe('stuck')
+    expect(done.stuckCategory).toBe('stream')
+    expect(done.recoveryCount).toBe(3)
+    expect(h.llm.calls.length).toBe(3)
+  })
+
   it('never executes an invalid tool call and reports why', async () => {
     const run = vi.fn(async () => ({ output: 'should not run' }))
     const h = makeHarness({ tools: new Map([['read', stubTool('read', run)]]) })
