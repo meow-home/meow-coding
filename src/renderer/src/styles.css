@@ -2652,9 +2652,33 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 /* Composer footer: context on the left, mode/model/variant selectors on the right.
    position relative + z-index lifts the footer above the input so the context
    hover popover (which opens upward over the input) is never painted behind it. */
-.chat-footer { display: flex; align-items: center; gap: 0.666667rem; min-width: 0; position: relative; z-index: 10; }
+.chat-footer { display: flex; align-items: center; gap: 0.5rem; min-width: 0; position: relative; z-index: 10; }
 .chat-footer-context { flex: 1; min-width: 0; display: flex; align-items: center; }
-.chat-footer-controls { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; min-width: 0; }
+.chat-footer-controls { display: flex; align-items: center; gap: 0.333333rem; margin-left: auto; min-width: 0; }
+
+.chat-footer .dropdown-trigger,
+.chat-footer .model-trigger {
+  padding: 0.25rem 0.5rem;
+  font-size: var(--fs-sm);
+  gap: 0.25rem;
+  background: transparent;
+  border-color: transparent;
+}
+.chat-footer .dropdown-trigger:hover,
+.chat-footer .model-trigger:hover {
+  background: var(--bg-hover);
+  border-color: transparent;
+}
+.chat-footer .dropdown-trigger .dropdown-caret,
+.chat-footer .model-trigger .dropdown-caret {
+  width: 12px;
+  height: 12px;
+}
+.chat-footer .context-ring {
+  width: 1.666667rem;
+  height: 1.666667rem;
+}
+
 .model-picker { position: relative; display: inline-flex; }
 .model-trigger {
   display: inline-flex; align-items: center; gap: 0.5rem; max-width: 18.333333rem;
@@ -2743,7 +2767,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .add-dropdown { display: inline-flex; margin-right: 0.333333rem; }
 .add-dropdown .dropdown-trigger {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 2rem; height: 2rem; padding: 0; gap: 0; line-height: 0;
+  width: 1.833333rem; height: 1.833333rem; padding: 0; gap: 0; line-height: 0;
   border: none; background: transparent; color: var(--text-faint);
   border-radius: var(--radius-xs);
 }
