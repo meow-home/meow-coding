@@ -189,7 +189,7 @@ export class SessionRunner {
   // Compaction knobs resolved once per run from the model's context window
   // (auto knobs filled by ratio; overrides pass through).
   private compaction!: ResolvedCompaction
-  // Số lần đã tự sửa reject context-overflow trong một run — bounded by
+  // Context-overflow rejects already self-healed in this run — bounded by
   // MAX_OVERFLOW_RETRIES so a prompt truly over the limit emits an error instead of looping.
   private rejectRetriesThisRun = 0
   // Set when an automatic compaction shrank the context by less than
@@ -974,10 +974,10 @@ export class SessionRunner {
   }
 
   /**
-   * Một reject của provider có thể tự sửa thay vì giết cả turn:
-   * context overflow → force-compact transcript rồi retry step. Chặn bởi
-   * MAX_OVERFLOW_RETRIES để prompt thật sự quá trần emit lỗi. Caller quản lý
-   * `steps--` trước `continue` để retry không tốn step.
+   * Some provider rejects can be self-healed instead of killing the whole turn:
+   * context overflow → force-compact the transcript, then retry the step. Bounded by
+   * MAX_OVERFLOW_RETRIES so a prompt truly over the limit emits an error. The caller
+   * handles `steps--` before `continue` so the retry does not consume a step.
    */
   private async tryRecoverFromReject(
     llmMessages: ReturnType<typeof toLlmMessages>,
