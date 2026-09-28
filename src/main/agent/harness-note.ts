@@ -47,3 +47,11 @@ export function toolLoopNote(verdict: { kind: 'poll' | 'repeat'; tool: string; c
     'not change the result. Use what you have, try a different approach, or end your turn and explain what is blocking you.'
   )
 }
+
+/** Rides only on the re-run request after a looping response is discarded; never persisted. */
+export function recoveryNote(): string {
+  return harnessNote(
+    'Your previous response started repeating itself and was discarded. You already have the ' +
+    'information you need: call the next tool or give your answer now, without restarting your reasoning.'
+  )
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { attachNote, cutNote, harnessNote, toolLoopNote } from '../../src/main/agent/harness-note'
+import { attachNote, cutNote, harnessNote, recoveryNote, toolLoopNote } from '../../src/main/agent/harness-note'
 import type { ToolCallData } from '../../src/shared/types'
 
 const call = (over: Partial<ToolCallData> = {}): ToolCallData => ({ id: 'c', tool: 'read', input: {}, permission: 'allowed', ...over })
@@ -38,5 +38,12 @@ describe('harness notes', () => {
     const repeat = toolLoopNote({ kind: 'repeat', tool: 'read', count: 3 })
     expect(repeat).toContain('read')
     expect(repeat).toContain('3 times')
+  })
+
+  it('tells a discarded looping response to act now', () => {
+    const note = recoveryNote()
+    expect(note.startsWith('<system-reminder>\n[meow] ')).toBe(true)
+    expect(note).toContain('started repeating itself and was discarded')
+    expect(note).toContain('without restarting your reasoning')
   })
 })
