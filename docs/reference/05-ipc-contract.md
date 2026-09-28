@@ -230,7 +230,7 @@ The full agent-behavior stream. Every variant carries `agentId`.
 | `retry` | `attempt`, `maxAttempts`, `delayMs` | An LLM request will be retried (transient UI line only) |
 | `subagent-event` | `taskId`, `parentTaskId?`, `sub: 'start' \| 'delta' \| 'tool' \| 'done'`, `subagentType?`, `text?`, `tool?`, `reasoning?`, `background?`, `result?`, `state?` | Subagent progress |
 | `session-created` | — | A new session was created (e.g. by `/new`) |
-| `done` | `reason: string`, `tokens?`, `cost?` | Turn finished. `reason` ∈ `complete` \| `stopped` \| `max-steps` \| `length` \| `refusal` \| `stuck`; `stuck` carries `stuckCategory` (`stream` \| `tool`), `stuckTool?`, `recoveryCount?` — reported only once the recovery ladder is exhausted and the user chose Stop (or for a subagent, which does not pause) |
+| `done` | `reason: string`, `tokens?`, `cost?` | Turn finished. `reason` ∈ `complete` \| `stopped` \| `max-steps` \| `length` \| `refusal` \| `stuck`; `stuck` carries `stuckCategory` (`stream` \| `tool`), `stuckTool?`, `recoveryCount?` — reported only once the recovery ladder is exhausted and the user chose Stop or dismissed the prompt (or for a subagent, which does not pause) |
 | `error` | `message: string` | Turn aborted with an error |
 
 **Transient events** (`compaction-start`, `compaction-failed`, `retry`) exist only in renderer feed

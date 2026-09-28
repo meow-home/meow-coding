@@ -249,9 +249,11 @@ export class SessionRunner {
           this.deps.onEvent({ type: 'user-message', agentId, message: msg })
         }
         // Fresh step budget for the continued work, like opencode's
-        // currentStep reset after promoting steers.
+        // currentStep reset after promoting steers; a steer is new user
+        // guidance, like a custom pause answer, so it also resets the ladder.
         steps = 0
         pending = undefined
+        this.recovery.reset()
         continue
       }
       const adjust = pending
@@ -354,8 +356,8 @@ export class SessionRunner {
           } else if (part.kind === 'error') {
             if (await this.tryRecoverFromReject(llmMessages, part.error, signal)) {
               // A retried step was never counted; keep retrying it instead.
-              if (adjust?.rerun) pending = adjust
-              else steps--
+              if (adjust) pending = adjust
+              if (!adjust?.rerun) steps--
               recover = true
               break
             }
@@ -367,8 +369,8 @@ export class SessionRunner {
       } catch (err) {
         const message = formatLlmError(err)
         if (await this.tryRecoverFromReject(llmMessages, message, signal)) {
-          if (adjust?.rerun) pending = adjust
-          else steps--
+          if (adjust) pending = adjust
+          if (!adjust?.rerun) steps--
           stepController.abort()
           signal?.removeEventListener('abort', onRunAbort)
           continue
@@ -436,6 +438,9 @@ export class SessionRunner {
       // Any other verdict cuts the response but keeps the calls already
       // announced: each must get a result.
       const cut: CutReason | undefined = verdict.kind === 'ok' ? undefined : verdict.kind
+      // Captured before the cut below slices the buffers, so a later recovery
+      // log sees the actual repeating tail instead of the kept clean prefix.
+      const recoveryTail = verdict.kind === 'repetition' && verdict.channel === 'reasoning' ? reasoningBuffer : textBuffer
       if (cut) {
         let keepText = guard.textBeforeFirstCall()
         if (verdict.kind === 'repetition') {
@@ -481,7 +486,7 @@ export class SessionRunner {
           verdict.kind === 'repetition' ? verdict.channel : undefined,
           level,
           steps,
-          tripped ? tripped.tool : verdict.kind === 'repetition' && verdict.channel === 'reasoning' ? reasoningBuffer : textBuffer
+          tripped ? tripped.tool : recoveryTail
         )
         if (level > RECOVERY_AUTO_LEVELS) {
           const outcome = await this.pauseForRecovery(signal)

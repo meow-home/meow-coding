@@ -1,6 +1,6 @@
 # Agent Recovery Ladder — Design
 
-Date: 2026-09-28 · Status: awaiting written-spec review
+Date: 2026-09-28 · Status: implemented
 Supersedes: the `MAX_LOOP_BREAKS` stop rules in §5.2 and §6.2 of
 [2026-09-24 agent loop robustness](./2026-09-24-agent-loop-robustness-design.md). Its detectors
 (`repeatDetector`, `toolLoopDetector`, `createResponseGuard`), harness notes, sampling presets and

@@ -755,7 +755,7 @@ if (e.type === 'usage') {
           id,
           text: e.recovery
             ? `[meow] Model started repeating itself — recovering (${e.recovery.level}/${e.recovery.of})`
-            : 'Model output started repeating — retrying…'
+            : '[meow] Model kept repeating itself — waiting for your answer'
         }
       ])
       return

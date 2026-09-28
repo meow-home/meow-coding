@@ -163,8 +163,10 @@ Chat conventions:
   transcript, so they vanish on reload. That is deliberate.
 - **Recovery notice.** `step-discarded` with a `recovery` level shows a transient
   `[meow] Model started repeating itself — recovering (n/3)` notice; once automatic recovery is
-  exhausted the turn pauses with the question popup (Continue / Stop / custom text) before the
-  `Stopped: …` error is shown.
+  exhausted (level 4, no `recovery` on the event), the notice reads
+  `[meow] Model kept repeating itself — waiting for your answer` next to the question popup
+  (Continue / Stop / custom text). Choosing Stop, or dismissing the prompt, ends the turn with a
+  `Stopped: …` error (stream or tool wording depending on `stuckCategory`).
 - Feed items are updated **copy-on-write**; never mutate in place, or `memo()` stops working.
 - Images travel as data URLs inside `ImageAttachment`; only `image/*` is accepted.
 - The message queue shows `queued` badge rows supporting remove/edit via

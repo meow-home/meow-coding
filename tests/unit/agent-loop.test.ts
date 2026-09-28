@@ -1403,6 +1403,28 @@ describe('SessionRunner compact-on-reject', () => {
     expect(error?.message).toContain(OVERFLOW)
   })
 
+  it('keeps a pending after-calls anti-repetition retry across a context-overflow reject', async () => {
+    const repAfterCall = (n: number): LlmStreamPart[] => [
+      { kind: 'tool-call', toolCallId: `r-${n}`, toolName: 'read', toolInput: { file_path: `r${n}.ts` } },
+      ...Array.from({ length: 200 }, (): LlmStreamPart => ({ kind: 'reasoning', text: 'counselor' })),
+      { kind: 'finish' }
+    ]
+    const h = makeOverflowHarness({ maxSteps: 6, tools: new Map([['read', stubTool('read')]]) })
+    h.seed()
+    h.llm.queue = [
+      repAfterCall(1),
+      repAfterCall(2),
+      [{ kind: 'error', error: OVERFLOW, retryable: false }],
+      textParts('summary'),
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 60))
+    expect(doneEvent(h.events).reason).toBe('complete')
+    expect(h.llm.calls).toHaveLength(5)
+    expect(h.llm.calls[4].antiRepetition).toBe(true)
+  })
+
   it('does not burn a step on the retry after a compact', async () => {
     const h = makeOverflowHarness({
       maxSteps: 2,
@@ -2079,6 +2101,9 @@ describe('SessionRunner stream repetition guard', () => {
     const assistant = h.items.find(i => i.kind === 'message' && i.message.role === 'assistant')
     expect(assistant?.kind === 'message' && assistant.message.text.startsWith('Here is the plan. ')).toBe(true)
     expect(assistant?.kind === 'message' && assistant.message.text.length).toBeLessThan(60)
+    const discarded = h.events.filter(e => e.type === 'step-discarded')
+    expect(discarded).toHaveLength(4)
+    expect(discarded[3]).not.toHaveProperty('recovery')
   })
 
   it('aborts the underlying provider stream when it cuts a loop', async () => {
@@ -2159,6 +2184,19 @@ describe('SessionRunner response cuts', () => {
     expect(h.events.filter(e => e.type === 'tool-start')).toHaveLength(32)
     expect(userTexts(h.items)).toEqual([])
     expect(doneEvent(h.events).reason).toBe('complete')
+  })
+
+  it('never ends a turn on consecutive tool-flood cuts', async () => {
+    const h = makeHarness({ tools: new Map([['read', stubTool('read')]]), maxSteps: 10 })
+    const floodStep = (step: number): LlmStreamPart[] => [
+      ...Array.from({ length: 40 }, (_, i): LlmStreamPart => ({ kind: 'tool-call', toolCallId: `s${step}-${i}`, toolName: 'read', toolInput: { file_path: `s${step}f${i}.ts` } })),
+      { kind: 'finish' }
+    ]
+    h.llm.queue = [floodStep(1), floodStep(2), floodStep(3), floodStep(4), textParts('done')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 150))
+    expect(doneEvent(h.events).reason).toBe('complete')
+    expect(h.llm.calls.length).toBe(5)
   })
 
   it('cuts call → text → call and drops the hallucinated tail', async () => {
@@ -2432,6 +2470,22 @@ describe('SessionRunner stop and steering around recovery', () => {
     expect(hasRecoveryNote(h.llm.calls[1])).toBe(false)
     expect(h.events.filter(e => e.type === 'step-start').map(e => e.type === 'step-start' && e.step)).toEqual([1, 1])
   })
+
+  it('resets the recovery ladder when a steer is promoted', async () => {
+    let takes = 0
+    const h = makeHarness({
+      takeSteers: () => (++takes === 4 ? [{ id: 's1', text: 'new direction' }] : [])
+    })
+    h.llm.queue = [
+      repeatingStream('reasoning'), repeatingStream('reasoning'), repeatingStream('reasoning'),
+      repeatingStream('reasoning'), textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 150))
+    const discarded = h.events.filter(e => e.type === 'step-discarded')
+    expect(discarded.map(e => e.type === 'step-discarded' && e.recovery?.level)).toEqual([1, 2, 3, 1])
+    expect(doneEvent(h.events).reason).toBe('complete')
+  })
 })
 
 describe('SessionRunner recovery pause', () => {
@@ -2488,6 +2542,7 @@ describe('SessionRunner recovery pause', () => {
     h.runner.run(controller.signal)
     await new Promise(r => setTimeout(r, 100))
     expect(doneEvent(h.events).reason).toBe('stopped')
+    expect(h.events.filter(e => e.type === 'done')).toHaveLength(1)
   })
 
   it('pauses a persisting tool loop too, and Continue restarts the ladder', async () => {
