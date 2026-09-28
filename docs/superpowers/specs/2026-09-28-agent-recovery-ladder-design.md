@@ -162,8 +162,10 @@ Responses:
   recoveryCount}` as today.
 - Run aborted while waiting → `done{reason:'stopped'}`.
 
-Subagents and turns without a user (delegated sessions, external API) do not pause: level 4 ends
-the turn with `done{reason:'stuck'}`, and the parent handles it as today.
+Only top-level sessions pause (`LoopDeps.pauseOnStuck`, set by `MeowAgentManager`); delegated
+sessions are top-level sessions and already block on permission prompts the same way. Subagents
+run by the `task` tool do not pause: level 4 ends the subagent turn with `done{reason:'stuck'}`,
+and the parent handles it as today.
 
 ### 5.5 Logging
 
@@ -171,7 +173,7 @@ Each hit and each pause response logs one `console.warn` line from the main proc
 `userData/logs/YYYY-MM-DD-log.txt`):
 
 ```
-[meow] recovery agent=<id> model=<provider/model> hit=repetition|tool-loop channel=text|reasoning|- level=<1-4> step=<n> tail="<last 160 chars, whitespace collapsed>"
+[meow] recovery agent=<id> model=<model id> hit=repetition|tool-loop channel=text|reasoning|- level=<1-4> step=<n> tail="<last 160 chars, whitespace collapsed>"
 [meow] recovery agent=<id> pause=continue|custom|stop
 ```
 
