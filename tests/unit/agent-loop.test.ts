@@ -3,8 +3,8 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { formatToolError, MAX_STOP_BLOCKS, SessionRunner } from '../../src/main/agent/loop'
-import { CLEARED_OUTPUT } from '../../src/main/agent/compact'
+import { formatToolError, LOW_GAIN_COMPACT, MAX_STOP_BLOCKS, NOTHING_TO_COMPACT, SessionRunner } from '../../src/main/agent/loop'
+import { CLEARED_OUTPUT, COMPACTION_MARKER, COMPACTION_SYSTEM } from '../../src/main/agent/compact'
 import type { LoopDeps } from '../../src/main/agent/loop'
 import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/agent/llm'
 import type { ToolDefinition, ToolRunResult } from '../../src/main/agent/tools/types'
@@ -2558,5 +2558,174 @@ describe('SessionRunner recovery pause', () => {
     expect(ask).toHaveBeenCalledTimes(1)
     expect(doneEvent(h.events).reason).toBe('complete')
     expect(h.llm.calls[12].antiRepetition).toBeUndefined()
+  })
+})
+
+describe('SessionRunner progress-based and manual compaction', () => {
+  class RoutingLlm implements LlmClient {
+    prompts: string[] = []
+    stepCalls = 0
+    constructor(
+      private summary: (n: number) => string,
+      private step: (n: number) => LlmStreamPart[]
+    ) {}
+    async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
+      if (opts.system === COMPACTION_SYSTEM) {
+        this.prompts.push(JSON.stringify(opts.messages))
+        yield { kind: 'text', text: this.summary(this.prompts.length) }
+        yield { kind: 'finish' }
+        return
+      }
+      this.stepCalls++
+      for (const p of this.step(this.stepCalls)) yield p
+    }
+  }
+
+  function longTurn(steps: number, outputChars: number): TranscriptItem[] {
+    const out: TranscriptItem[] = [{ kind: 'message', message: { id: 'u1', role: 'user', text: 'build the feature', createdAt: 1 } }]
+    for (let i = 0; i < steps; i++) {
+      out.push({ kind: 'message', message: { id: `a${i}`, role: 'assistant', text: `step ${i}`, createdAt: 1 } })
+      out.push({ kind: 'tool', tool: { id: `t${i}`, tool: 'read', input: { n: i }, permission: 'allowed', output: 'x'.repeat(outputChars) } })
+    }
+    return out
+  }
+
+  const texts = (items: TranscriptItem[]) => items.flatMap(i => (i.kind === 'message' ? [i.message.text] : []))
+
+  // One shared transcript for reads, appends and replacements, like the real store.
+  // Each read returns ~1150 tokens; the counter keeps results distinct so the
+  // tool-loop detector (same call + result 3×) never trips.
+  function harness(llm: RoutingLlm, seed: TranscriptItem[], overrides: Partial<LoopDeps> = {}) {
+    let items = seed
+    let reads = 0
+    const h = makeHarness({
+      llm,
+      maxContextTokens: 2000,
+      compaction: { auto: true, buffer: 200, keepTokens: 300, tailTurns: 2, toolOutputMaxChars: 100000 },
+      maxSteps: 0,
+      tools: new Map([['read', stubTool('read', async () => ({ output: `${++reads} ${'y'.repeat(4000)}` }))]]),
+      getItems: () => items,
+      replaceItems: (next) => { items = next },
+      appendMessage: (m: ChatMessage) => { items.push({ kind: 'message', message: m }) },
+      appendTool: (t: ToolCallData) => { items.push({ kind: 'tool', tool: t }) },
+      ...overrides
+    })
+    return { ...h, current: () => items }
+  }
+
+  const readCall = (n: number): LlmStreamPart[] => [
+    { kind: 'tool-call', toolCallId: `c${n}`, toolName: 'read', toolInput: { file_path: `f${n}.ts` } },
+    { kind: 'finish' }
+  ]
+
+  it('summarizes inside a single long turn and keeps the request verbatim', async () => {
+    const llm = new RoutingLlm(() => 'summary of early steps', () => textParts('done'))
+    const h = harness(llm, longTurn(8, 1200))
+    await h.runner.run()
+    const items = h.current()
+    expect(texts(items).slice(0, 3)).toEqual([COMPACTION_MARKER, 'summary of early steps', 'build the feature'])
+    expect(items[3].kind === 'message' && items[3].message.role).toBe('assistant')
+    expect(llm.prompts).toHaveLength(1)
+    expect(doneEvent(h.events).reason).toBe('complete')
+  })
+
+  it('keeps compacting in one run while each compaction makes progress', async () => {
+    const llm = new RoutingLlm(n => `summary ${n}`, n => (n < 8 ? readCall(n) : textParts('done')))
+    const h = harness(llm, [{ kind: 'message', message: { id: 'u1', role: 'user', text: 'go', createdAt: 1 } }])
+    await h.runner.run()
+    expect(llm.prompts.length).toBeGreaterThan(2)
+    expect(doneEvent(h.events).reason).toBe('complete')
+  })
+
+  it('stops calling the summarizer once a compaction barely shrinks the context', async () => {
+    const llm = new RoutingLlm(() => 'z'.repeat(7000), n => (n === 1 ? readCall(1) : textParts('done')))
+    const h = harness(llm, longTurn(3, 2800), {
+      tools: new Map([['read', stubTool('read', async () => ({ output: 'ok' }))]])
+    })
+    await h.runner.run()
+    expect(llm.prompts).toHaveLength(1)
+    expect(doneEvent(h.events).reason).toBe('complete')
+  })
+
+  it('honors a mid-run /compact at the next step, below the threshold, with focus', async () => {
+    const ref: { runner?: SessionRunner } = {}
+    const llm = new RoutingLlm(() => 'manual summary', n => (n === 1 ? readCall(1) : textParts('done')))
+    const h = harness(llm, longTurn(3, 200), {
+      tools: new Map([['read', stubTool('read', async () => { ref.runner?.requestCompact('keep auth'); return { output: 'ok' } })]])
+    })
+    ref.runner = h.runner
+    await h.runner.run()
+    expect(llm.prompts).toHaveLength(1)
+    expect(llm.prompts[0]).toContain('<focus>\\nkeep auth\\n</focus>')
+    expect(texts(h.current())[0]).toBe(COMPACTION_MARKER)
+  })
+
+  it('drops a mid-run /compact request that the run never reached', async () => {
+    // step-start is emitted after the step's compaction check (loop.ts), so a
+    // request made there on the final step has no boundary left in this run.
+    const ref: { runner?: SessionRunner } = {}
+    const llm = new RoutingLlm(() => 's', () => textParts('done'))
+    const h = harness(llm, longTurn(3, 200), {
+      onEvent: (e) => { if (e.type === 'step-start') ref.runner?.requestCompact() }
+    })
+    ref.runner = h.runner
+    await h.runner.run()
+    ref.runner = undefined
+    await h.runner.run()
+    expect(llm.prompts).toHaveLength(0)
+  })
+
+  it('compacts on demand while idle even with auto-compaction off', async () => {
+    const llm = new RoutingLlm(() => 'idle summary', () => textParts('done'))
+    const h = harness(llm, longTurn(3, 200), {
+      compaction: { auto: false, buffer: 200, keepTokens: 300, tailTurns: 2, toolOutputMaxChars: 100000 }
+    })
+    const outcome = await h.runner.compactNow('keep tests')
+    expect(outcome.kind).toBe('summarized')
+    expect(texts(h.current()).slice(0, 3)).toEqual([COMPACTION_MARKER, 'idle summary', 'build the feature'])
+    expect(llm.prompts[0]).toContain('keep tests')
+    expect(h.events.map(e => e.type)).toEqual(expect.arrayContaining(['compaction-start', 'compacted']))
+  })
+
+  it('reports that there is nothing to compact without calling the model', async () => {
+    const llm = new RoutingLlm(() => 's', () => textParts('done'))
+    const h = harness(llm, [{ kind: 'message', message: { id: 'u1', role: 'user', text: 'hi', createdAt: 1 } }])
+    const outcome = await h.runner.compactNow()
+    expect(outcome.kind).toBe('nothing')
+    expect(llm.prompts).toHaveLength(0)
+    expect(h.events).toContainEqual({ type: 'notice', agentId: 'a1', text: NOTHING_TO_COMPACT })
+  })
+
+  it('tells the user when a manual compaction saved little context', async () => {
+    const llm = new RoutingLlm(() => 'z'.repeat(7000), () => textParts('done'))
+    const h = harness(llm, longTurn(3, 2800))
+    const outcome = await h.runner.compactNow()
+    expect(outcome.kind).toBe('summarized')
+    expect(h.events).toContainEqual({ type: 'notice', agentId: 'a1', text: LOW_GAIN_COMPACT })
+  })
+
+  it('emits compaction-failed when an idle compaction is aborted', async () => {
+    const controller = new AbortController()
+    const llm: LlmClient = {
+      async *stream(): AsyncGenerator<LlmStreamPart> {
+        controller.abort()
+        yield { kind: 'finish' }
+      }
+    }
+    const h = harness(new RoutingLlm(() => '', () => []), longTurn(3, 200), { llm })
+    const outcome = await h.runner.compactNow(undefined, controller.signal)
+    expect(outcome.kind).toBe('aborted')
+    expect(h.events.map(e => e.type)).toContain('compaction-failed')
+    expect(texts(h.current())[0]).toBe('build the feature')
+  })
+
+  it('does not compact again on the next run because of stale provider usage', async () => {
+    const usage = { input: 5000, output: 10, total: 5010 }
+    const llm = new RoutingLlm(() => 'summary', () => [{ kind: 'text', text: 'ok' }, { kind: 'finish', tokens: usage }])
+    const h = harness(llm, longTurn(3, 200))
+    await h.runner.run()
+    await h.runner.compactNow()
+    await h.runner.run()
+    expect(llm.prompts).toHaveLength(1)
   })
 })

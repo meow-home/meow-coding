@@ -8,7 +8,7 @@ import { toLlmMessages } from './message'
 import type { ToLlmOptions, TranscriptItem } from './message'
 import type { ToolContext, ToolDefinition } from './tools/types'
 import type { PermissionDecision } from './permission'
-import { selectHeadTail, serializeItems, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, hardTruncate, usableContextTokens, fitHeadToBudget, resolveCompactionSettings } from './compact'
+import { planCompaction, serializeItems, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, hardTruncate, usableContextTokens, fitHeadToBudget, resolveCompactionSettings } from './compact'
 import { instructionFilesForFile } from './instructions'
 import { gitFreshnessReminder } from './env'
 import { isMemoryPath } from './memory'
@@ -116,7 +116,19 @@ export interface LoopDeps {
 
 const DEFAULT_MAX_STEPS = 0
 const DEFAULT_KEEP_FULL_TURNS = 2
-const MAX_COMPACT_PER_RUN = 2
+// Cost guard only: MIN_COMPACTION_GAIN is what normally stops repeated compaction.
+const MAX_COMPACT_PER_RUN = 10
+const MAX_OVERFLOW_RETRIES = 2
+const MIN_COMPACTION_GAIN = 0.2
+export const NOTHING_TO_COMPACT = '[meow] Nothing to compact yet.'
+export const LOW_GAIN_COMPACT = '[meow] Compaction saved little context — the recent steps are most of it.'
+
+export type CompactOutcome =
+  | { kind: 'summarized'; gain: number }
+  | { kind: 'truncated' }
+  | { kind: 'nothing' }
+  | { kind: 'failed' }
+  | { kind: 'aborted' }
 const MAX_STEPS_PROMPT = 'Final step: wrap up and provide your final answer now. Tool calls are disabled.'
 const MAX_LENGTH_RESUMES = 3
 const RECOVERY_PAUSE_QUESTION = 'The model keeps repeating itself and could not recover on its own. Continue this turn?'
@@ -177,9 +189,14 @@ export class SessionRunner {
   // Compaction knobs resolved once per run from the model's context window
   // (auto knobs filled by ratio; overrides pass through).
   private compaction!: ResolvedCompaction
-  // Số lần đã tự sửa reject context-overflow trong một run — cùng giới hạn với
-  // compact để một prompt thật sự vượt trần emit lỗi thay vì loop.
+  // Số lần đã tự sửa reject context-overflow trong một run — bounded by
+  // MAX_OVERFLOW_RETRIES so a prompt truly over the limit emits an error instead of looping.
   private rejectRetriesThisRun = 0
+  // Set when an automatic compaction shrank the context by less than
+  // MIN_COMPACTION_GAIN; later automatic compactions in the run only truncate.
+  private compactionStalled = false
+  // A /compact that arrived mid-run, honored at the next step boundary.
+  private manualCompact: { focus?: string } | undefined
   // Truncation resumes in one run (not reset between tool steps); caps the cost
   // keeps hitting the output limit.
   private lengthResumesThisRun = 0
@@ -209,11 +226,38 @@ export class SessionRunner {
   }
 
   async run(signal?: AbortSignal): Promise<void> {
+    try {
+      await this.runSteps(signal)
+    } finally {
+      this.manualCompact = undefined
+    }
+  }
+
+  /** /compact during a run: compact at the next step boundary, threshold or not. */
+  requestCompact(focus?: string): void {
+    this.manualCompact = { focus }
+  }
+
+  /** /compact while idle: resolves the settings the way run() does, then compacts now. */
+  async compactNow(focus?: string, signal?: AbortSignal): Promise<CompactOutcome> {
+    this.compaction = resolveCompactionSettings(
+      this.deps.compaction ?? { auto: false, tailTurns: 2 },
+      this.deps.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
+      this.deps.maxOutputTokens ?? 0
+    )
+    this.hooks = this.deps.hooks?.()
+    const outcome = await this.compact(signal, { focus })
+    if (outcome.kind === 'aborted') this.deps.onEvent({ type: 'compaction-failed', agentId: this.deps.agentId })
+    return outcome
+  }
+
+  private async runSteps(signal?: AbortSignal): Promise<void> {
     const { agentId } = this.deps
     const system = typeof this.deps.system === 'function' ? this.deps.system() : this.deps.system
     let steps = 0
     let pending: StepAdjust | undefined
     this.compactedThisRun = 0
+    this.compactionStalled = false
     this.rejectRetriesThisRun = 0
     this.lengthResumesThisRun = 0
     this.recovery = recoveryPolicy()
@@ -804,6 +848,12 @@ export class SessionRunner {
   // LLM compaction that summarizes the older head and keeps the recent tail
   // verbatim.
   async compactIfOverThreshold(signal?: AbortSignal): Promise<void> {
+    const manual = this.manualCompact
+    if (manual) {
+      this.manualCompact = undefined
+      await this.compact(signal, manual)
+      return
+    }
     const compaction = this.compaction
     const { maxContextTokens, replaceItems } = this.deps
     if (!compaction?.auto || !maxContextTokens || maxContextTokens <= 0 || !replaceItems) return
@@ -841,11 +891,10 @@ export class SessionRunner {
     await this.compact(signal)
   }
 
-  // Phần thân compaction thật, dùng chung cho cả ngưỡng lẫn force-compact.
-  private async compact(signal?: AbortSignal): Promise<void> {
+  private async compact(signal?: AbortSignal, manual?: { focus?: string }): Promise<CompactOutcome> {
     const compaction = this.compaction
-    const { replaceItems } = this.deps
-    if (!compaction?.auto || !replaceItems) return
+    const { replaceItems, agentId } = this.deps
+    if (!compaction || !replaceItems || (!manual && !compaction.auto)) return { kind: 'nothing' }
     const usable = this.compactionTarget(
       this.deps.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
       compaction.buffer,
@@ -854,29 +903,43 @@ export class SessionRunner {
     const items = this.deps.getItems()
     const opts = this.toLlmOpts()
     const measure = (its: TranscriptItem[]) => estimateUsage(toLlmMessages(its, opts))
-    const shrink = () => {
+    const replace = (next: TranscriptItem[]) => {
+      replaceItems(next)
+      // Provider usage described the transcript just replaced.
+      this.lastTokens = undefined
+    }
+    const shrink = (): CompactOutcome => {
       const truncated = hardTruncate(items, usable, measure)
-      if (truncated !== items) replaceItems(truncated)
+      if (truncated === items) return { kind: 'nothing' }
+      replace(truncated)
+      return { kind: 'truncated' }
     }
 
-    const { head, tail } = selectHeadTail(items, compaction.keepTokens, compaction.tailTurns)
-    if (head.length === 0 || this.compactedThisRun >= MAX_COMPACT_PER_RUN) {
-      shrink()
-      return
+    const plan = planCompaction(items, compaction.keepTokens, compaction.tailTurns)
+    if (!plan) {
+      const outcome = shrink()
+      if (manual && outcome.kind === 'nothing') this.deps.onEvent({ type: 'notice', agentId, text: NOTHING_TO_COMPACT })
+      return outcome
     }
+    if (!manual && (this.compactionStalled || this.compactedThisRun >= MAX_COMPACT_PER_RUN)) return shrink()
+
     const previousSummary = this.findPreviousSummary(items)
-    const summarizable = fitHeadToBudget(head, usable, compaction.toolOutputMaxChars)
-    const prompt = buildCompactionPrompt(previousSummary, serializeItems(summarizable, compaction.toolOutputMaxChars))
-    await this.hooks?.runPreCompact('auto')
-    this.deps.onEvent({ type: 'compaction-start', agentId: this.deps.agentId })
+    const summarizable = fitHeadToBudget(plan.head, usable, compaction.toolOutputMaxChars)
+    const prompt = buildCompactionPrompt(
+      previousSummary,
+      serializeItems(summarizable, compaction.toolOutputMaxChars),
+      manual?.focus
+    )
+    await this.hooks?.runPreCompact(manual ? 'manual' : 'auto')
+    this.deps.onEvent({ type: 'compaction-start', agentId })
     const summary = await compactTranscript({ llm: this.deps.llm, model: this.deps.model, prompt, signal })
-    if (signal?.aborted) return
+    if (signal?.aborted) return { kind: 'aborted' }
     if (!summary) {
-      this.deps.onEvent({ type: 'compaction-failed', agentId: this.deps.agentId })
+      this.deps.onEvent({ type: 'compaction-failed', agentId })
       shrink()
-      return
+      return { kind: 'failed' }
     }
-    this.compactedThisRun++
+    if (!manual) this.compactedThisRun++
 
     const now = Date.now()
     const markerItem: TranscriptItem = {
@@ -887,14 +950,24 @@ export class SessionRunner {
       kind: 'message',
       message: { id: randomUUID(), role: 'assistant', text: summary, createdAt: now }
     }
-    replaceItems([markerItem, summaryItem, ...tail])
-    this.deps.onEvent({ type: 'compacted', agentId: this.deps.agentId, summary })
+    const before = measure(items)
+    let next: TranscriptItem[] = [markerItem, summaryItem, ...plan.keep]
+    // Still over after summarizing: truncate now, or the next step compacts again.
+    if (measure(next) >= usable) next = hardTruncate(next, usable, measure)
+    replace(next)
+    this.deps.onEvent({ type: 'compacted', agentId, summary })
+
+    const gain = before > 0 ? (before - measure(next)) / before : 0
+    if (gain >= MIN_COMPACTION_GAIN) this.compactionStalled = false
+    else if (manual) this.deps.onEvent({ type: 'notice', agentId, text: LOW_GAIN_COMPACT })
+    else this.compactionStalled = true
+    return { kind: 'summarized', gain }
   }
 
   /**
    * Một reject của provider có thể tự sửa thay vì giết cả turn:
    * context overflow → force-compact transcript rồi retry step. Chặn bởi
-   * MAX_COMPACT_PER_RUN để prompt thật sự quá trần emit lỗi. Caller quản lý
+   * MAX_OVERFLOW_RETRIES để prompt thật sự quá trần emit lỗi. Caller quản lý
    * `steps--` trước `continue` để retry không tốn step.
    */
   private async tryRecoverFromReject(
@@ -903,7 +976,7 @@ export class SessionRunner {
     signal?: AbortSignal
   ): Promise<boolean> {
     if (signal?.aborted) return false
-    if (this.rejectRetriesThisRun >= MAX_COMPACT_PER_RUN) return false
+    if (this.rejectRetriesThisRun >= MAX_OVERFLOW_RETRIES) return false
     if (!classifyContextOverflowError(message)) return false
     this.rejectRetriesThisRun++
     // Trần context thật ≤ cỡ prompt bị reject (hoặc con số provider đích danh).
