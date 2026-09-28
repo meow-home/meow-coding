@@ -2433,3 +2433,75 @@ describe('SessionRunner stop and steering around recovery', () => {
     expect(h.events.filter(e => e.type === 'step-start').map(e => e.type === 'step-start' && e.step)).toEqual([1, 1])
   })
 })
+
+describe('SessionRunner recovery pause', () => {
+  const fourLoops = () => Array.from({ length: 4 }, () => repeatingStream('reasoning'))
+
+  it('asks the user after the automatic levels and continues on Continue', async () => {
+    const ask = vi.fn(async () => ({ allow: true, text: 'Continue' }))
+    const h = makeHarness({ ask, pauseOnStuck: true })
+    h.llm.queue = [...fourLoops(), textParts('done')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 100))
+
+    expect(ask).toHaveBeenCalledTimes(1)
+    const prompt = h.events.find(e => e.type === 'prompt-request')
+    expect(prompt?.type === 'prompt-request' && prompt.kind).toBe('question')
+    expect(prompt?.type === 'prompt-request' && prompt.options?.map(o => o.label)).toEqual(['Continue', 'Stop'])
+    expect(doneEvent(h.events).reason).toBe('complete')
+    expect(h.llm.calls.length).toBe(5)
+    expect(hasRecoveryNote(h.llm.calls[4])).toBe(true)
+    expect(h.llm.calls[4].antiRepetition).toBeUndefined()
+  })
+
+  it('turns a custom answer into a real user message', async () => {
+    const ask = vi.fn(async () => ({ allow: true, text: 'only write file A' }))
+    const h = makeHarness({ ask, pauseOnStuck: true })
+    h.llm.queue = [...fourLoops(), textParts('done')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 100))
+
+    expect(userTexts(h.items)).toEqual(['only write file A'])
+    expect(h.events.some(e => e.type === 'user-message')).toBe(true)
+    expect(doneEvent(h.events).reason).toBe('complete')
+    expect(hasRecoveryNote(h.llm.calls[4])).toBe(false)
+  })
+
+  it('ends stuck when the user chooses Stop or dismisses the prompt', async () => {
+    for (const resp of [{ allow: true, text: 'Stop' }, null]) {
+      const h = makeHarness({ ask: vi.fn(async () => resp), pauseOnStuck: true })
+      h.llm.queue = fourLoops()
+      h.runner.run()
+      await new Promise(r => setTimeout(r, 100))
+      const done = doneEvent(h.events)
+      expect(done.reason).toBe('stuck')
+      expect(done.stuckCategory).toBe('stream')
+      expect(h.llm.calls.length).toBe(4)
+    }
+  })
+
+  it('ends stopped when the run is aborted while waiting', async () => {
+    const controller = new AbortController()
+    const ask = vi.fn(async () => { controller.abort(); return null })
+    const h = makeHarness({ ask, pauseOnStuck: true })
+    h.llm.queue = fourLoops()
+    h.runner.run(controller.signal)
+    await new Promise(r => setTimeout(r, 100))
+    expect(doneEvent(h.events).reason).toBe('stopped')
+  })
+
+  it('pauses a persisting tool loop too, and Continue restarts the ladder', async () => {
+    const ask = vi.fn(async () => ({ allow: true, text: 'Continue' }))
+    const h = makeHarness({ ask, pauseOnStuck: true, tools: new Map([['read', stubTool('read')]]), maxSteps: 40 })
+    const sameRead = (i: number): LlmStreamPart[] => [
+      { kind: 'tool-call', toolCallId: `tc-${i}`, toolName: 'read', toolInput: { file_path: 'a.ts' } },
+      { kind: 'finish' }
+    ]
+    h.llm.queue = [...Array.from({ length: 12 }, (_, i) => sameRead(i)), textParts('done')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 200))
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(doneEvent(h.events).reason).toBe('complete')
+    expect(h.llm.calls[12].antiRepetition).toBeUndefined()
+  })
+})

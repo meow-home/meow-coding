@@ -64,6 +64,11 @@ export interface LoopDeps {
   tools: Map<string, ToolDefinition>
   decidePermission: (toolName: string, input?: Record<string, unknown>) => PermissionDecision
   ask: (promptId: string, tool: string | undefined, info: PendingPromptInfo) => Promise<PromptResponse | null>
+  /**
+   * Top-level sessions pause and ask the user once automatic recovery is
+   * exhausted; subagents (unset) end the turn as 'stuck' for their parent.
+   */
+  pauseOnStuck?: boolean
   maxSteps?: number
   maxContextTokens?: number
   /**
@@ -114,6 +119,9 @@ const DEFAULT_KEEP_FULL_TURNS = 2
 const MAX_COMPACT_PER_RUN = 2
 const MAX_STEPS_PROMPT = 'Final step: wrap up and provide your final answer now. Tool calls are disabled.'
 const MAX_LENGTH_RESUMES = 3
+const RECOVERY_PAUSE_QUESTION = 'The model keeps repeating itself and could not recover on its own. Continue this turn?'
+const RECOVERY_CONTINUE = 'Continue'
+const RECOVERY_STOP = 'Stop'
 // A Stop hook that never lets go would loop the turn forever; past this many
 // consecutive blocks the turn ends regardless.
 export const MAX_STOP_BLOCKS = 8
@@ -398,16 +406,27 @@ export class SessionRunner {
           ...(level <= RECOVERY_AUTO_LEVELS ? { recovery: { level: level as 1 | 2 | 3, of: RECOVERY_AUTO_LEVELS as 3 } } : {})
         })
         if (level > RECOVERY_AUTO_LEVELS) {
-          const text = verdict.channel === 'text' ? textBuffer.slice(0, verdict.keepChars) : textBuffer
-          const reasoning = verdict.channel === 'reasoning' ? reasoningBuffer.slice(0, verdict.keepChars) : reasoningBuffer
-          if (text || reasoning) {
-            this.deps.appendMessage({ id: randomUUID(), role: 'assistant', text, reasoning: reasoning || undefined, tokens, createdAt: Date.now() })
+          const outcome = await this.pauseForRecovery(signal)
+          if (outcome === 'stop') {
+            const text = verdict.channel === 'text' ? textBuffer.slice(0, verdict.keepChars) : textBuffer
+            const reasoning = verdict.channel === 'reasoning' ? reasoningBuffer.slice(0, verdict.keepChars) : reasoningBuffer
+            if (text || reasoning) {
+              this.deps.appendMessage({ id: randomUUID(), role: 'assistant', text, reasoning: reasoning || undefined, tokens, createdAt: Date.now() })
+            }
+            this.deps.onEvent(signal?.aborted
+              ? { type: 'done', agentId, reason: 'stopped' }
+              : {
+                  type: 'done', agentId, reason: 'stuck', stuckCategory: 'stream',
+                  recoveryCount: this.recoveryHitsThisRun, tokens, cost: this.deps.computeCost?.(runUsage)
+                })
+            return
           }
-          this.deps.onEvent({
-            type: 'done', agentId, reason: 'stuck', stuckCategory: 'stream',
-            recoveryCount: this.recoveryHitsThisRun, tokens, cost: this.deps.computeCost?.(runUsage)
-          })
-          return
+          if (outcome === 'custom') {
+            steps = 0
+            continue
+          }
+          pending = { rerun: true, note: true, antiRepetition: false }
+          continue
         }
         if (level === 3) await this.forceCompact(signal)
         pending = { rerun: true, note: true, antiRepetition: level >= 2 }
@@ -465,16 +484,23 @@ export class SessionRunner {
           tripped ? tripped.tool : verdict.kind === 'repetition' && verdict.channel === 'reasoning' ? reasoningBuffer : textBuffer
         )
         if (level > RECOVERY_AUTO_LEVELS) {
-          this.deps.onEvent({
-            type: 'done', agentId, reason: 'stuck',
-            stuckCategory: hit === 'tool-loop' ? 'tool' : 'stream',
-            ...(tripped ? { stuckTool: tripped.tool } : {}),
-            recoveryCount: this.recoveryHitsThisRun, tokens, cost: this.deps.computeCost?.(runUsage)
-          })
-          return
+          const outcome = await this.pauseForRecovery(signal)
+          if (outcome === 'stop') {
+            this.deps.onEvent(signal?.aborted
+              ? { type: 'done', agentId, reason: 'stopped' }
+              : {
+                  type: 'done', agentId, reason: 'stuck',
+                  stuckCategory: hit === 'tool-loop' ? 'tool' : 'stream',
+                  ...(tripped ? { stuckTool: tripped.tool } : {}),
+                  recoveryCount: this.recoveryHitsThisRun, tokens, cost: this.deps.computeCost?.(runUsage)
+                })
+            return
+          }
+          if (outcome === 'custom') steps = 0
+        } else {
+          if (level === 3) await this.forceCompact(signal)
+          if (level >= 2) pending = { rerun: false, note: false, antiRepetition: true }
         }
-        if (level === 3) await this.forceCompact(signal)
-        if (level >= 2) pending = { rerun: false, note: false, antiRepetition: true }
       } else if (!cut) {
         this.recovery.onCleanStep()
       }
@@ -576,6 +602,33 @@ export class SessionRunner {
   private logRecovery(hit: RecoveryHit, channel: 'text' | 'reasoning' | undefined, level: RecoveryLevel, step: number, tail: string): void {
     const clean = tail.replace(/\s+/g, ' ').slice(-160).replace(/"/g, "'")
     console.warn(`[meow] recovery agent=${this.deps.agentId} model=${this.deps.model} hit=${hit} channel=${channel ?? '-'} level=${level} step=${step} tail="${clean}"`)
+  }
+
+  // Level 4: automatic recovery is exhausted. Top-level sessions pause and ask
+  // the user (pauseOnStuck); subagents (unset) fall straight through to 'stop'
+  // so the turn ends stuck for their parent, same as before this task.
+  private async pauseForRecovery(signal?: AbortSignal): Promise<'continue' | 'custom' | 'stop'> {
+    if (!this.deps.pauseOnStuck || signal?.aborted) return 'stop'
+    const { agentId } = this.deps
+    const promptId = randomUUID()
+    const options = [{ label: RECOVERY_CONTINUE }, { label: RECOVERY_STOP }]
+    this.deps.onEvent({ type: 'prompt-request', agentId, promptId, kind: 'question', question: RECOVERY_PAUSE_QUESTION, options, custom: true })
+    const resp = await this.deps.ask(promptId, undefined, { promptId, kind: 'question', question: RECOVERY_PAUSE_QUESTION, options, custom: true })
+    const answer = resp?.text?.trim() ?? ''
+    if (signal?.aborted || !answer || answer === RECOVERY_STOP) {
+      console.warn(`[meow] recovery agent=${agentId} pause=stop`)
+      return 'stop'
+    }
+    this.recovery.reset()
+    if (answer === RECOVERY_CONTINUE) {
+      console.warn(`[meow] recovery agent=${agentId} pause=continue`)
+      return 'continue'
+    }
+    console.warn(`[meow] recovery agent=${agentId} pause=custom`)
+    const msg: ChatMessage = { id: randomUUID(), role: 'user', text: answer, displayText: answer, createdAt: Date.now() }
+    this.deps.appendMessage(msg)
+    this.deps.onEvent({ type: 'user-message', agentId, message: msg })
+    return 'custom'
   }
 
   // Runs one decided call and fills in its result. Appending is left to

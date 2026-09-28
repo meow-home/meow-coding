@@ -1657,6 +1657,7 @@ ${content}` : content
         input
       ),
       ask: (promptId, tool, info) => this.awaitPrompt(agent.id, promptId, tool, info),
+      pauseOnStuck: true,
       maxSteps: cfg.maxSteps,
       maxContextTokens: contextTokens,
       maxOutputTokens: outputReserve,
