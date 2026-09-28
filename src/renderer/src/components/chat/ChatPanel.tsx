@@ -799,6 +799,15 @@ if (e.type === 'usage') {
   const send = useCallback((text: string, images?: ImageAttachment[]) => {
     const trimmed = text.trim()
     if (!trimmed && (!images || images.length === 0)) return
+    const isDraft = agentId === DRAFT_SESSION_ID && Boolean(onSendDraftMessage)
+    const m = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(trimmed)
+    const command = m ? commands.find(c => c.name === m[1]) : undefined
+    // A system command (/new, /compact) emits no user-message/done pair, so an
+    // optimistic row and running state would never be cleared.
+    if (!isDraft && m && command?.type === 'system') {
+      void window.api.runCommand(agentId, m[1], m[2] ?? '', images)
+      return
+    }
     // When a turn is already running the message is queued in main; the
     // user message row appears only once the queue drains and the turn starts.
     if (!running) {
@@ -809,11 +818,10 @@ if (e.type === 'usage') {
       }])
       setRunning(true)
     }
-    if (agentId === DRAFT_SESSION_ID && onSendDraftMessage) {
+    if (isDraft && onSendDraftMessage) {
       onSendDraftMessage({ text: trimmed, images })
     } else {
-      const m = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(trimmed)
-      if (m && commands.some(c => c.name === m[1])) {
+      if (m && command) {
         void window.api.runCommand(agentId, m[1], m[2] ?? '', images)
       } else {
         void window.api.sendChat(agentId, trimmed, images)
