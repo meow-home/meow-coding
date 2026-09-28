@@ -413,7 +413,6 @@ export class SessionRunner {
         pending = { rerun: true, note: true, antiRepetition: level >= 2 }
         continue
       }
-      this.recovery.onCleanStep()
 
       // Any other verdict cuts the response but keeps the calls already
       // announced: each must get a result.
@@ -449,19 +448,35 @@ export class SessionRunner {
         await runWithConcurrency(batch.map(d => () => this.runCall(d, signal)))
         for (const d of batch) {
           const verdictForCall = this.finishCall(d.call, cut && d.call === lastCall ? cut : undefined)
-          if (verdictForCall) {
-            tripped = verdictForCall
-            this.recoveryHitsThisRun++
-          }
+          if (verdictForCall) tripped = verdictForCall
         }
       }
 
-      if (tripped && this.recoveryHitsThisRun > 2) {
-        this.deps.onEvent({
-          type: 'done', agentId, reason: 'stuck', stuckCategory: 'tool', stuckTool: tripped.tool,
-          recoveryCount: this.recoveryHitsThisRun, tokens, cost: this.deps.computeCost?.(runUsage)
-        })
-        return
+      // Several trips in one response are one stumble: the ladder moves once per step.
+      const hit: RecoveryHit | undefined = tripped ? 'tool-loop' : verdict.kind === 'repetition' ? 'repetition' : undefined
+      if (hit) {
+        const level = this.recovery.onHit(hit)
+        this.recoveryHitsThisRun++
+        this.logRecovery(
+          hit,
+          verdict.kind === 'repetition' ? verdict.channel : undefined,
+          level,
+          steps,
+          tripped ? tripped.tool : verdict.kind === 'repetition' && verdict.channel === 'reasoning' ? reasoningBuffer : textBuffer
+        )
+        if (level > RECOVERY_AUTO_LEVELS) {
+          this.deps.onEvent({
+            type: 'done', agentId, reason: 'stuck',
+            stuckCategory: hit === 'tool-loop' ? 'tool' : 'stream',
+            ...(tripped ? { stuckTool: tripped.tool } : {}),
+            recoveryCount: this.recoveryHitsThisRun, tokens, cost: this.deps.computeCost?.(runUsage)
+          })
+          return
+        }
+        if (level === 3) await this.forceCompact(signal)
+        if (level >= 2) pending = { rerun: false, note: false, antiRepetition: true }
+      } else if (!cut) {
+        this.recovery.onCleanStep()
       }
 
       if (calls.length === 0) {

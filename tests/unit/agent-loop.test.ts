@@ -2229,16 +2229,28 @@ describe('SessionRunner response cuts', () => {
     expect(h.llm.calls.length).toBe(6)
   })
 
-  it('ends as stuck/stream after three consecutive cut steps', async () => {
+  it('never ends a turn on consecutive cuts', async () => {
     const h = makeHarness({ tools: new Map([['read', stubTool('read')]]), maxSteps: 10 })
-    h.llm.queue = [interleavedStep(1), interleavedStep(2), interleavedStep(3), textParts('done')]
+    h.llm.queue = [interleavedStep(1), interleavedStep(2), interleavedStep(3), interleavedStep(4), textParts('done')]
     h.runner.run()
     await new Promise(r => setTimeout(r, 80))
-    const done = doneEvent(h.events)
-    expect(done.reason).toBe('stuck')
-    expect(done.stuckCategory).toBe('stream')
-    expect(done.recoveryCount).toBe(3)
-    expect(h.llm.calls.length).toBe(3)
+    expect(doneEvent(h.events).reason).toBe('complete')
+    expect(h.llm.calls.length).toBe(5)
+    expect(h.llm.calls.every(c => c.antiRepetition === undefined)).toBe(true)
+  })
+
+  it('does not count a cut step as clean for the recovery window', async () => {
+    const h = makeHarness({ tools: new Map([['read', stubTool('read')]]), maxSteps: 20 })
+    h.llm.queue = [
+      repeatingStream('reasoning'),
+      interleavedStep(1), interleavedStep(2), interleavedStep(3),
+      repeatingStream('reasoning'),
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 100))
+    expect(doneEvent(h.events).reason).toBe('complete')
+    expect(h.events.flatMap(e => (e.type === 'step-discarded' ? [e.recovery?.level] : []))).toEqual([1, 2])
   })
 
   it('never executes an invalid tool call and reports why', async () => {
@@ -2275,31 +2287,55 @@ describe('SessionRunner tool loops', () => {
     expect(doneEvent(h.events).reason).toBe('complete')
   })
 
-  it('ends as stuck/tool when the loop survives two notes', async () => {
-    const h = makeHarness({ tools: new Map([['read', stubTool('read')]]), maxSteps: 20 })
+  it('climbs the ladder on a persisting tool loop and ends stuck/tool when it cannot pause', async () => {
+    const h = makeHarness({ tools: new Map([['read', stubTool('read')]]), maxSteps: 30 })
+    const spy = vi.spyOn(h.runner as unknown as { forceCompact: () => Promise<void> }, 'forceCompact')
     h.llm.queue = Array.from({ length: 20 }, (_, i) => sameRead(i))
     h.runner.run()
-    await new Promise(r => setTimeout(r, 100))
+    await new Promise(r => setTimeout(r, 150))
     const done = doneEvent(h.events)
     expect(done.reason).toBe('stuck')
     expect(done.stuckCategory).toBe('tool')
     expect(done.stuckTool).toBe('read')
-    expect(h.llm.calls.length).toBe(9)
+    expect(done.recoveryCount).toBe(4)
+    // Trips on steps 3, 6, 9, 12: level 2 → anti-repetition on step 7, level 3 → compact before step 10.
+    expect(h.llm.calls.length).toBe(12)
+    expect(h.llm.calls[3].antiRepetition).toBeUndefined()
+    expect(h.llm.calls[6].antiRepetition).toBe(true)
+    expect(h.llm.calls[9].antiRepetition).toBe(true)
+    expect(spy).toHaveBeenCalledTimes(1)
   })
 
-  it('counts every tool-loop trip in one response', async () => {
+  it('advances the ladder once for several trips in one response', async () => {
     const h = makeHarness({ tools: new Map([['read', stubTool('read')]]), maxSteps: 10 })
-    h.llm.queue = [[
-      ...Array.from({ length: 9 }, (_, i): LlmStreamPart => ({ kind: 'tool-call', toolCallId: `tc-${i}`, toolName: 'read', toolInput: { file_path: 'a.ts' } })),
-      { kind: 'finish' }
-    ]]
+    h.llm.queue = [
+      [
+        ...Array.from({ length: 9 }, (_, i): LlmStreamPart => ({ kind: 'tool-call', toolCallId: `tc-${i}`, toolName: 'read', toolInput: { file_path: 'a.ts' } })),
+        { kind: 'finish' }
+      ],
+      textParts('done')
+    ]
     h.runner.run()
     await new Promise(r => setTimeout(r, 60))
-    const done = doneEvent(h.events)
-    expect(done.reason).toBe('stuck')
-    expect(done.stuckCategory).toBe('tool')
-    expect(done.recoveryCount).toBe(3)
-    expect(h.llm.calls.length).toBe(1)
+    expect(doneEvent(h.events).reason).toBe('complete')
+    expect(h.llm.calls.length).toBe(2)
+    expect(h.llm.calls[1].antiRepetition).toBeUndefined()
+  })
+
+  it('applies anti-repetition to the step after a second repetition following calls', async () => {
+    const h = makeHarness({ tools: new Map([['read', stubTool('read')]]), maxSteps: 10 })
+    const repAfterCall = (n: number): LlmStreamPart[] => [
+      { kind: 'tool-call', toolCallId: `r-${n}`, toolName: 'read', toolInput: { file_path: `r${n}.ts` } },
+      ...Array.from({ length: 200 }, (): LlmStreamPart => ({ kind: 'reasoning', text: 'counselor' })),
+      { kind: 'finish' }
+    ]
+    h.llm.queue = [repAfterCall(1), repAfterCall(2), textParts('done')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 80))
+    expect(doneEvent(h.events).reason).toBe('complete')
+    expect(h.llm.calls[1].antiRepetition).toBeUndefined()
+    expect(h.llm.calls[2].antiRepetition).toBe(true)
+    expect(toolItems(h.items).map(t => t.id)).toEqual(['r-1', 'r-2'])
   })
 
   it('does not flag varied tool calls as a loop', async () => {

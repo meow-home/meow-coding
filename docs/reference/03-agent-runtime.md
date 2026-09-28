@@ -159,13 +159,15 @@ loop:
     level 1-3 → emit step-discarded{recovery:{level,of:3}}, re-run the step with an ephemeral recoveryNote()
                 (level 2+ also sets antiRepetition; level 3 force-compacts first); transcript untouched
     level 4   → emit step-discarded (no recovery field), persist the clean prefix, done{stuck, stuckCategory:'stream'}
-  a step that clears the repetition check calls this.recovery.onCleanStep() (3 clean steps in a row reset the ladder)
   tool-flood / interleaved / repetition after calls → cut: keep text before the first call and the accepted calls
+  (a cut step is not a clean step; onCleanStep() only runs when the step is neither a hit nor a cut)
   append the assistant message
   decide hooks + permission for every call (up front, concurrently)
   run calls in model-order batches (concurrencySafe + allow together, ≤ 10 in flight; others alone)
   append each result in model order; a tool-loop verdict or the cut adds a [meow] note to that result
-  tool-loop trips past 2 this run (transitional, pending full ladder wiring) → done{stuck, stuckCategory:'tool'}
+  a tool-loop trip, or a repetition surviving alongside calls, climbs the same ladder (several trips in
+  one response move it once): level 2 sets antiRepetition on the next step, level 3 force-compacts first,
+  past level 3 → done{stuck, stuckCategory: 'tool'|'stream'}
   if no tool call:
     if length/max_tokens and resumes < MAX_LENGTH_RESUMES → append continuation nudge (user msg), continue
     emit done{reason: isLastStep ? 'max-steps' : classifyFinish(finishReason)}; return   ← a text-only answer on the last (tool-less) step is still max-steps
@@ -191,13 +193,17 @@ Notable details:
   levels 1-3 re-run the step (an ephemeral `<system-reminder>` `recoveryNote()` user message, never
   written to the transcript; level 2+ also adds `antiRepetition`; level 3 force-compacts first), past
   level 3 the turn ends `stuck`/`stream`; 3 clean steps in a row (`onCleanStep()`) reset the ladder to
-  0, so stumbles far apart in a long turn never add up. Every other cut keeps the accepted calls and
-  notes the cut on the last result. The tool-loop detector compares completed call + result
-  fingerprints, so test/edit/test progress is not flagged; idle `bash_output` polling gets a
-  "wait" note, other repeats a "change course" note. The loop never adds a synthetic user message
-  for a tool-loop note; that recovery text is a `<system-reminder>[meow]` note on a tool result.
-  Tool-loop trips past 2 per run end the turn `stuck`/`tool` (transitional counter, pending the same
-  ladder wiring as repetition).
+  0, so stumbles far apart in a long turn never add up. Every other cut (`tool-flood`/`interleaved`, or
+  a repetition alongside calls) keeps the accepted calls, notes the cut on the last result, and never
+  ends the turn by itself — a cut step is also not a clean step, so it does not reset the ladder either.
+  The tool-loop detector compares completed call + result fingerprints, so test/edit/test progress is
+  not flagged; idle `bash_output` polling gets a "wait" note, other repeats a "change course" note. The
+  loop never adds a synthetic user message for a tool-loop note; that recovery text is a
+  `<system-reminder>[meow]` note on a tool result. A tool-loop trip, and a repetition that survives
+  alongside calls, climb the same recovery ladder as a no-call repetition (several trips in one
+  response move it once, per step): level 2 sets `antiRepetition` on the next step, level 3
+  force-compacts first, and past level 3 the turn ends `stuck`/`tool` (or `stuck`/`stream` for a
+  repetition) with `stuckTool` set when a tool tripped it.
 
 ### Constants
 
