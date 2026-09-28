@@ -22,8 +22,10 @@ import type { ToolLoopDetector, ToolLoopVerdict } from './repetition'
 import { createResponseGuard, MAX_TOOL_CALLS_PER_RESPONSE } from './response-guard'
 import type { GuardVerdict } from './response-guard'
 import { runWithConcurrency, scheduleBatches } from './tool-scheduler'
-import { attachNote, cutNote, toolLoopNote } from './harness-note'
+import { attachNote, cutNote, recoveryNote, toolLoopNote } from './harness-note'
 import type { CutReason } from './harness-note'
+import { RECOVERY_AUTO_LEVELS, recoveryPolicy } from './recovery-policy'
+import type { RecoveryHit, RecoveryLevel, RecoveryPolicy } from './recovery-policy'
 import type { TruncationStore } from './truncation'
 import type { SnapshotStore } from './snapshot'
 import type { HooksRunner } from './hooks'
@@ -118,9 +120,13 @@ export const MAX_STOP_BLOCKS = 8
 const CONTINUE_TRUNCATED_PROMPT =
   '<system-reminder>\nYour previous answer was cut off at the output token limit. ' +
   'Continue from where you stopped, without repeating what you already wrote.\n</system-reminder>'
-// Recoveries of every kind (repetition retry, response cut, tool-loop note) per
-// run; past this many the turn ends as 'stuck'.
-const MAX_LOOP_BREAKS = 2
+
+interface StepAdjust {
+  /** Re-run the same step without consuming a step. */
+  rerun: boolean
+  note: boolean
+  antiRepetition: boolean
+}
 
 function classifyFinish(reason: string | undefined): 'complete' | 'length' | 'refusal' {
   if (reason === 'length' || reason === 'max_tokens') return 'length'
@@ -169,11 +175,9 @@ export class SessionRunner {
   // Truncation resumes in one run (not reset between tool steps); caps the cost
   // keeps hitting the output limit.
   private lengthResumesThisRun = 0
-  // Recoveries in this run; past MAX_LOOP_BREAKS the turn ends as 'stuck'.
-  private loopBreaksThisRun = 0
-  // Response cuts in a row; a clean step resets it, so occasional cuts on steps
-  // that still made progress never add up to 'stuck'.
-  private consecutiveCutsThisRun = 0
+  // Sliding-window recovery ladder for repetition and tool loops (see recovery-policy.ts).
+  private recovery: RecoveryPolicy = recoveryPolicy()
+  private recoveryHitsThisRun = 0
   // Provider-reported usage of the last LLM call; overflow detection trusts it
   // over the transcript char estimate because it includes the system prompt and
   // tool definitions (see maybeCompact).
@@ -200,14 +204,12 @@ export class SessionRunner {
     const { agentId } = this.deps
     const system = typeof this.deps.system === 'function' ? this.deps.system() : this.deps.system
     let steps = 0
-    // A step discarded for repetition is re-run once with anti-repetition
-    // sampling; the retry does not consume a step.
-    let retryStep = false
+    let pending: StepAdjust | undefined
     this.compactedThisRun = 0
     this.rejectRetriesThisRun = 0
     this.lengthResumesThisRun = 0
-    this.loopBreaksThisRun = 0
-    this.consecutiveCutsThisRun = 0
+    this.recovery = recoveryPolicy()
+    this.recoveryHitsThisRun = 0
     this.stopBlocksThisRun = 0
     this.toolLoop = toolLoopDetector()
     this.hooks = this.deps.hooks?.()
@@ -241,17 +243,17 @@ export class SessionRunner {
         // Fresh step budget for the continued work, like opencode's
         // currentStep reset after promoting steers.
         steps = 0
-        retryStep = false
+        pending = undefined
         continue
       }
-      const antiRepetition = retryStep
-      retryStep = false
-      if (!antiRepetition) steps++
+      const adjust = pending
+      pending = undefined
+      if (!adjust?.rerun) steps++
       const isLastStep = this.maxSteps > 0 && steps >= this.maxSteps
 
       await this.compactIfOverThreshold(signal)
 
-      const llmMessages = this.buildMessages(isLastStep)
+      const llmMessages = this.buildMessages(isLastStep, adjust?.note === true)
       let textBuffer = ''
       let reasoningBuffer = ''
       let tokens: MessageTokens | undefined
@@ -291,7 +293,7 @@ export class SessionRunner {
           signal: stepSignal,
           maxOutputTokens: this.deps.maxOutputTokensWire,
           variantOptions: this.deps.variantOptions,
-          ...(antiRepetition ? { antiRepetition: true } : {})
+          ...(adjust?.antiRepetition ? { antiRepetition: true } : {})
         })
         for await (const part of stream) {
           if (stepSignal.aborted) {
@@ -344,7 +346,7 @@ export class SessionRunner {
           } else if (part.kind === 'error') {
             if (await this.tryRecoverFromReject(llmMessages, part.error, signal)) {
               // A retried step was never counted; keep retrying it instead.
-              if (antiRepetition) retryStep = true
+              if (adjust?.rerun) pending = adjust
               else steps--
               recover = true
               break
@@ -357,7 +359,7 @@ export class SessionRunner {
       } catch (err) {
         const message = formatLlmError(err)
         if (await this.tryRecoverFromReject(llmMessages, message, signal)) {
-          if (antiRepetition) retryStep = true
+          if (adjust?.rerun) pending = adjust
           else steps--
           stepController.abort()
           signal?.removeEventListener('abort', onRunAbort)
@@ -387,8 +389,15 @@ export class SessionRunner {
       if (verdict.kind !== 'ok') stepController.abort()
 
       if (verdict.kind === 'repetition' && calls.length === 0) {
-        this.loopBreaksThisRun++
-        if (antiRepetition || this.loopBreaksThisRun > MAX_LOOP_BREAKS) {
+        const level = this.recovery.onHit('repetition')
+        this.recoveryHitsThisRun++
+        this.logRecovery('repetition', verdict.channel, level, steps, verdict.channel === 'text' ? textBuffer : reasoningBuffer)
+        // The looped output never reaches the transcript; the UI drops its bubble.
+        this.deps.onEvent({
+          type: 'step-discarded', agentId, reason: 'repetition',
+          ...(level <= RECOVERY_AUTO_LEVELS ? { recovery: { level: level as 1 | 2 | 3, of: RECOVERY_AUTO_LEVELS as 3 } } : {})
+        })
+        if (level > RECOVERY_AUTO_LEVELS) {
           const text = verdict.channel === 'text' ? textBuffer.slice(0, verdict.keepChars) : textBuffer
           const reasoning = verdict.channel === 'reasoning' ? reasoningBuffer.slice(0, verdict.keepChars) : reasoningBuffer
           if (text || reasoning) {
@@ -396,20 +405,19 @@ export class SessionRunner {
           }
           this.deps.onEvent({
             type: 'done', agentId, reason: 'stuck', stuckCategory: 'stream',
-            recoveryCount: this.loopBreaksThisRun, tokens, cost: this.deps.computeCost?.(runUsage)
+            recoveryCount: this.recoveryHitsThisRun, tokens, cost: this.deps.computeCost?.(runUsage)
           })
           return
         }
-        // The looped output never reaches the transcript; the UI drops its bubble.
-        this.deps.onEvent({ type: 'step-discarded', agentId, reason: 'repetition' })
-        retryStep = true
+        if (level === 3) await this.forceCompact(signal)
+        pending = { rerun: true, note: true, antiRepetition: level >= 2 }
         continue
       }
+      this.recovery.onCleanStep()
 
       // Any other verdict cuts the response but keeps the calls already
       // announced: each must get a result.
       const cut: CutReason | undefined = verdict.kind === 'ok' ? undefined : verdict.kind
-      this.consecutiveCutsThisRun = cut ? this.consecutiveCutsThisRun + 1 : 0
       if (cut) {
         let keepText = guard.textBeforeFirstCall()
         if (verdict.kind === 'repetition') {
@@ -443,22 +451,15 @@ export class SessionRunner {
           const verdictForCall = this.finishCall(d.call, cut && d.call === lastCall ? cut : undefined)
           if (verdictForCall) {
             tripped = verdictForCall
-            this.loopBreaksThisRun++
+            this.recoveryHitsThisRun++
           }
         }
       }
 
-      if (tripped && this.loopBreaksThisRun > MAX_LOOP_BREAKS) {
+      if (tripped && this.recoveryHitsThisRun > 2) {
         this.deps.onEvent({
           type: 'done', agentId, reason: 'stuck', stuckCategory: 'tool', stuckTool: tripped.tool,
-          recoveryCount: this.loopBreaksThisRun, tokens, cost: this.deps.computeCost?.(runUsage)
-        })
-        return
-      }
-      if (cut && this.consecutiveCutsThisRun > MAX_LOOP_BREAKS) {
-        this.deps.onEvent({
-          type: 'done', agentId, reason: 'stuck', stuckCategory: 'stream',
-          recoveryCount: this.consecutiveCutsThisRun, tokens, cost: this.deps.computeCost?.(runUsage)
+          recoveryCount: this.recoveryHitsThisRun, tokens, cost: this.deps.computeCost?.(runUsage)
         })
         return
       }
@@ -555,6 +556,11 @@ export class SessionRunner {
     this.deps.appendTool(call)
     this.deps.onEvent({ type: 'tool-result', agentId: this.deps.agentId, call })
     return tripped
+  }
+
+  private logRecovery(hit: RecoveryHit, channel: 'text' | 'reasoning' | undefined, level: RecoveryLevel, step: number, tail: string): void {
+    const clean = tail.replace(/\s+/g, ' ').slice(-160).replace(/"/g, "'")
+    console.warn(`[meow] recovery agent=${this.deps.agentId} model=${this.deps.model} hit=${hit} channel=${channel ?? '-'} level=${level} step=${step} tail="${clean}"`)
   }
 
   // Runs one decided call and fills in its result. Appending is left to
@@ -865,8 +871,10 @@ export class SessionRunner {
     return undefined
   }
 
-  private buildMessages(isLastStep = false): ReturnType<typeof toLlmMessages> {
+  private buildMessages(isLastStep = false, withRecoveryNote = false): ReturnType<typeof toLlmMessages> {
     const messages = toLlmMessages(this.deps.getItems(), this.toLlmOpts())
-    return isLastStep ? [...messages, { role: 'user', content: MAX_STEPS_PROMPT }] : messages
+    if (withRecoveryNote) messages.push({ role: 'user', content: recoveryNote() })
+    if (isLastStep) messages.push({ role: 'user', content: MAX_STEPS_PROMPT })
+    return messages
   }
 }

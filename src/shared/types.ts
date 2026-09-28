@@ -251,7 +251,7 @@ export type ChatEvent =
   | { type: 'text-delta'; agentId: string; delta: string }
   | { type: 'reasoning-delta'; agentId: string; delta: string }
   | { type: 'step-start'; agentId: string; step: number }
-  | { type: 'step-discarded'; agentId: string; reason: 'repetition' }
+  | { type: 'step-discarded'; agentId: string; reason: 'repetition'; recovery?: { level: 1 | 2 | 3; of: 3 } }
   | { type: 'tool-start'; agentId: string; call: ToolCallData }
   | { type: 'tool-result'; agentId: string; call: ToolCallData }
   | { type: 'prompt-request'; agentId: string; promptId: string

@@ -51,8 +51,8 @@ hostname ends with `opencode.ai`. The Zen/Go gateway routes requests by session 
 matches the bare model id against built-in publisher presets (qwen, qwen-coder, glm, kimi,
 kimi-thinking, minimax, deepseek, gpt-oss, gemma, nemotron) and the optional `meow.json` `sampling`
 overrides (patterns as in permission rules; override fields win). An unmatched model gets no
-sampling parameters. When a step is retried after a repetition cut, the runner sets
-`antiRepetition` and a matched model also gets `frequencyPenalty` ≥ 0.5 for that retry only.
+sampling parameters. When a step is re-run after a repetition cut at recovery level 2 or 3, the
+runner sets `antiRepetition` and a matched model also gets `frequencyPenalty` ≥ 0.5 for that re-run only.
 Anthropic and Google always keep their provider defaults.
 
 **Invalid tool calls.** A `tool-call` part the SDK marks `invalid` (unknown tool or arguments

@@ -1345,7 +1345,7 @@ describe('SessionRunner compact-on-reject', () => {
     expect(h.llm.calls[2]?.tools.length).toBeGreaterThan(0)
   })
 
-  it('keeps the anti-repetition retry across a context-overflow recovery', async () => {
+  it('keeps the recovery re-run across a context-overflow recovery', async () => {
     const h = makeOverflowHarness({ tools: new Map([['read', stubTool('read')]]) })
     h.seed()
     h.llm.queue = [
@@ -1358,8 +1358,8 @@ describe('SessionRunner compact-on-reject', () => {
     await new Promise(r => setTimeout(r, 40))
     expect(doneEvent(h.events).reason).toBe('complete')
     expect(h.llm.calls).toHaveLength(4)
-    expect(h.llm.calls[1].antiRepetition).toBe(true)
-    expect(h.llm.calls[3].antiRepetition).toBe(true)
+    expect(hasRecoveryNote(h.llm.calls[1])).toBe(true)
+    expect(hasRecoveryNote(h.llm.calls[3])).toBe(true)
     expect(h.events.filter(e => e.type === 'step-start').map(e => e.type === 'step-start' && e.step)).toEqual([1, 1, 1])
   })
 
@@ -1986,8 +1986,19 @@ const userTexts = (items: TranscriptItem[]) =>
   items.filter((i): i is { kind: 'message'; message: ChatMessage } => i.kind === 'message' && i.message.role === 'user').map(i => i.message.text)
 const doneEvent = (events: ChatEvent[]) => events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
 
+const hasRecoveryNote = (opts: LlmStreamOptions) =>
+  JSON.stringify(opts.messages[opts.messages.length - 1] ?? null).includes('started repeating itself and was discarded')
+
+function loopingReasoning(): LlmStreamPart[] {
+  return [
+    { kind: 'reasoning', text: 'I will write the mockup file now.\n\n' },
+    ...Array.from({ length: 30 }, (): LlmStreamPart => ({ kind: 'reasoning', text: 'Let me write.\n\nWriting.\n\nOK.\n\n' })),
+    { kind: 'finish' as const }
+  ]
+}
+
 describe('SessionRunner stream repetition guard', () => {
-  it('discards a repeating stream and retries the step once with anti-repetition sampling', async () => {
+  it('discards a repeating stream and re-runs the step with an ephemeral recovery note', async () => {
     const h = makeHarness()
     h.llm.queue = [repeatingStream('reasoning'), textParts('final answer')]
     h.runner.run()
@@ -1995,24 +2006,76 @@ describe('SessionRunner stream repetition guard', () => {
 
     expect(doneEvent(h.events).reason).toBe('complete')
     expect(h.llm.calls.length).toBe(2)
-    expect(h.llm.calls[0].antiRepetition).toBeUndefined()
-    expect(h.llm.calls[1].antiRepetition).toBe(true)
-    expect(h.events.some(e => e.type === 'step-discarded' && e.reason === 'repetition')).toBe(true)
-    // No synthetic user message and no looped text in the transcript.
+    expect(h.llm.calls[1].antiRepetition).toBeUndefined()
+    expect(hasRecoveryNote(h.llm.calls[0])).toBe(false)
+    expect(hasRecoveryNote(h.llm.calls[1])).toBe(true)
+    expect(h.events.some(e => e.type === 'step-discarded' && e.recovery?.level === 1)).toBe(true)
     expect(userTexts(h.items)).toEqual([])
     expect(JSON.stringify(h.items)).not.toContain('counselorcounselor')
+    expect(JSON.stringify(h.items)).not.toContain('started repeating itself')
   })
 
-  it('ends as stuck/stream when the retry repeats too, keeping the clean prefix', async () => {
+  it('recovers the reasoning loop seen in the field instead of stopping', async () => {
     const h = makeHarness()
-    h.llm.queue = [repeatingStream('text', 'Here is the plan. '), repeatingStream('text', 'Here is the plan. ')]
+    h.llm.queue = [loopingReasoning(), loopingReasoning(), textParts('done')]
     h.runner.run()
-    await new Promise(r => setTimeout(r, 40))
+    await new Promise(r => setTimeout(r, 60))
+
+    expect(doneEvent(h.events).reason).toBe('complete')
+    expect(h.llm.calls.length).toBe(3)
+    expect(hasRecoveryNote(h.llm.calls[1])).toBe(true)
+    expect(hasRecoveryNote(h.llm.calls[2])).toBe(true)
+    expect(h.llm.calls[1].antiRepetition).toBeUndefined()
+    expect(h.llm.calls[2].antiRepetition).toBe(true)
+    expect(JSON.stringify(h.llm.calls[2].messages)).not.toContain('Writing.')
+    expect(userTexts(h.items)).toEqual([])
+  })
+
+  it('force-compacts on the third hit in a row', async () => {
+    const h = makeHarness()
+    const spy = vi.spyOn(h.runner as unknown as { forceCompact: () => Promise<void> }, 'forceCompact')
+    h.llm.queue = [repeatingStream('reasoning'), repeatingStream('reasoning'), repeatingStream('reasoning'), textParts('done')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 80))
+
+    expect(doneEvent(h.events).reason).toBe('complete')
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(h.llm.calls[3].antiRepetition).toBe(true)
+    expect(h.events.flatMap(e => (e.type === 'step-discarded' ? [e.recovery?.level] : []))).toEqual([1, 2, 3])
+  })
+
+  it('does not stop on stumbles separated by clean steps', async () => {
+    const h = makeHarness({ tools: new Map([['read', stubTool('read')]]), maxSteps: 30 })
+    const clean = (n: number): LlmStreamPart[] => [
+      { kind: 'tool-call', toolCallId: `c-${n}`, toolName: 'read', toolInput: { file_path: `f${n}.ts` } },
+      { kind: 'finish' }
+    ]
+    h.llm.queue = [
+      repeatingStream('reasoning'), clean(1), clean(2), clean(3),
+      repeatingStream('reasoning'), clean(4), clean(5), clean(6),
+      repeatingStream('reasoning'), clean(7), clean(8), clean(9),
+      repeatingStream('reasoning'), textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 150))
+
+    expect(doneEvent(h.events).reason).toBe('complete')
+    expect(h.llm.calls.every(c => c.antiRepetition === undefined)).toBe(true)
+    expect(h.events.flatMap(e => (e.type === 'step-discarded' ? [e.recovery?.level] : []))).toEqual([1, 1, 1, 1])
+  })
+
+  it('ends as stuck/stream past the last level when it cannot pause, keeping the clean prefix', async () => {
+    const h = makeHarness()
+    h.llm.queue = Array.from({ length: 4 }, () => repeatingStream('text', 'Here is the plan. '))
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 80))
 
     const done = doneEvent(h.events)
     expect(done.reason).toBe('stuck')
     expect(done.stuckCategory).toBe('stream')
-    expect(h.llm.calls.length).toBe(2)
+    expect(done.recoveryCount).toBe(4)
+    expect(h.llm.calls.length).toBe(4)
+    expect(h.ask).not.toHaveBeenCalled()
     const assistant = h.items.find(i => i.kind === 'message' && i.message.role === 'assistant')
     expect(assistant?.kind === 'message' && assistant.message.text.startsWith('Here is the plan. ')).toBe(true)
     expect(assistant?.kind === 'message' && assistant.message.text.length).toBeLessThan(60)
@@ -2330,6 +2393,7 @@ describe('SessionRunner stop and steering around recovery', () => {
     await new Promise(r => setTimeout(r, 40))
     expect(h.llm.calls).toHaveLength(2)
     expect(h.llm.calls[1].antiRepetition).toBeUndefined()
+    expect(hasRecoveryNote(h.llm.calls[1])).toBe(false)
     expect(h.events.filter(e => e.type === 'step-start').map(e => e.type === 'step-start' && e.step)).toEqual([1, 1])
   })
 })

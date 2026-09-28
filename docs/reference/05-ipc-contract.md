@@ -216,7 +216,7 @@ The full agent-behavior stream. Every variant carries `agentId`.
 | `text-delta` | `delta: string` | Streamed assistant text |
 | `reasoning-delta` | `delta: string` | Streamed reasoning text |
 | `step-start` | `step: number` | A model request is about to start (display-only; the UI opens a new bubble for the step) |
-| `step-discarded` | `reason: 'repetition'` | The step's streamed output was dropped by the repetition guard and the step is retried (display-only) |
+| `step-discarded` | `reason: 'repetition'; recovery?: { level: 1\|2\|3; of: 3 }` | The step's streamed output was dropped by the repetition guard and the step is re-run; `recovery` is present for automatic levels 1-3 (display-only) |
 | `tool-start` | `call: ToolCallData` | A tool call was requested (`permission: 'pending'`) |
 | `tool-result` | `call: ToolCallData` | The tool finished; `output` / `error` / final `permission` are set |
 | `prompt-request` | `promptId`, `kind: 'permission' \| 'question'`, `call?`, `question?`, `options?`, `multiple?`, `custom?`, `taskId?`, `subagentType?` | The agent is blocked awaiting the user; answer with `respondPrompt` |

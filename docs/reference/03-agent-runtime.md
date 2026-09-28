@@ -143,28 +143,29 @@ loop:
   steers = takeSteers()
   if steers.length > 0  → append each as a user message, emit user-message,
                           reset steps = 0, continue        ← steering
-  steps++ (not on a repetition retry)
+  steps++ (not on a recovery re-run)
   isLastStep = maxSteps > 0 && steps >= maxSteps   (maxSteps 0 = unlimited)
   await compactIfOverThreshold(signal)
-  llmMessages = toLlmMessages(items, opts)  (+ MAX_STEPS_PROMPT when isLastStep)
+  llmMessages = toLlmMessages(items, opts)  (+ recoveryNote() on a recovery re-run, + MAX_STEPS_PROMPT when isLastStep)
   emit step-start{step}
   guard = createResponseGuard()
-  stream = llm.stream({ ..., antiRepetition only on a repetition retry })
+  stream = llm.stream({ ..., antiRepetition only from recovery level 2+ })
   for each part (every text/reasoning/tool-call part goes through the guard first):
     text / reasoning → append to buffer, emit delta
     tool-call        → accepted: record ToolCallData (SDK-invalid → denied with an error), emit tool-start
     guard verdict ≠ ok → abort the step's stream
     finish / error   → as before (error: compact-on-reject retry)
-  repetition with no calls:
-    first time  → emit step-discarded, retry the step with antiRepetition (transcript untouched)
-    on the retry, or past MAX_LOOP_BREAKS → persist the clean prefix, done{stuck, stuckCategory:'stream'}
+  repetition with no calls → this.recovery.onHit('repetition') climbs the ladder (recovery-policy.ts):
+    level 1-3 → emit step-discarded{recovery:{level,of:3}}, re-run the step with an ephemeral recoveryNote()
+                (level 2+ also sets antiRepetition; level 3 force-compacts first); transcript untouched
+    level 4   → emit step-discarded (no recovery field), persist the clean prefix, done{stuck, stuckCategory:'stream'}
+  a step that clears the repetition check calls this.recovery.onCleanStep() (3 clean steps in a row reset the ladder)
   tool-flood / interleaved / repetition after calls → cut: keep text before the first call and the accepted calls
   append the assistant message
   decide hooks + permission for every call (up front, concurrently)
   run calls in model-order batches (concurrencySafe + allow together, ≤ 10 in flight; others alone)
   append each result in model order; a tool-loop verdict or the cut adds a [meow] note to that result
-  tool-loop trips past MAX_LOOP_BREAKS per run → done{stuck, stuckCategory:'tool'}
-  cuts past MAX_LOOP_BREAKS in a row (a clean step resets the count) → done{stuck, stuckCategory:'stream'}
+  tool-loop trips past 2 this run (transitional, pending full ladder wiring) → done{stuck, stuckCategory:'tool'}
   if no tool call:
     if length/max_tokens and resumes < MAX_LENGTH_RESUMES → append continuation nudge (user msg), continue
     emit done{reason: isLastStep ? 'max-steps' : classifyFinish(finishReason)}; return   ← a text-only answer on the last (tool-less) step is still max-steps
@@ -186,15 +187,17 @@ Notable details:
   response guard (`response-guard.ts`) cuts a response at 32 tool calls (`tool-flood`), at a
   call → text → call pattern (`interleaved`, a model inventing results it never received), or at a
   character-level tandem repeat (`repetition`, `repeatDetector`). A repetition with no calls is
-  discarded and retried once with `antiRepetition`; every other cut keeps the accepted calls and
+  discarded and climbs the sliding-window recovery ladder (`recovery-policy.ts`, `RecoveryPolicy`):
+  levels 1-3 re-run the step (an ephemeral `<system-reminder>` `recoveryNote()` user message, never
+  written to the transcript; level 2+ also adds `antiRepetition`; level 3 force-compacts first), past
+  level 3 the turn ends `stuck`/`stream`; 3 clean steps in a row (`onCleanStep()`) reset the ladder to
+  0, so stumbles far apart in a long turn never add up. Every other cut keeps the accepted calls and
   notes the cut on the last result. The tool-loop detector compares completed call + result
   fingerprints, so test/edit/test progress is not flagged; idle `bash_output` polling gets a
   "wait" note, other repeats a "change course" note. The loop never adds a synthetic user message
-  for recovery; all recovery text is a `<system-reminder>[meow]` note on a tool result. Repetition
-  retries and tool-loop trips share `MAX_LOOP_BREAKS` (2) per run, then the turn ends `stuck`. Cuts
-  count separately and only in a row (`consecutiveCutsThisRun`, reset by any step without a cut), so
-  occasional cuts on steps that still progress never end the turn; past `MAX_LOOP_BREAKS`
-  consecutive cuts it ends `stuck`/`stream`.
+  for a tool-loop note; that recovery text is a `<system-reminder>[meow]` note on a tool result.
+  Tool-loop trips past 2 per run end the turn `stuck`/`tool` (transitional counter, pending the same
+  ladder wiring as repetition).
 
 ### Constants
 
@@ -209,7 +212,8 @@ Notable details:
 | `MAX_QUEUE` | 5 | `meow-agent-manager.ts` |
 | `MAX_TOOL_CALLS_PER_RESPONSE` | 32 | `response-guard.ts` |
 | `MAX_TOOL_CONCURRENCY` | 10 | `tool-scheduler.ts` |
-| `MAX_LOOP_BREAKS` | 2 | `loop.ts` |
+| `RECOVERY_RESET_STEPS` | 3 | `recovery-policy.ts` |
+| `RECOVERY_AUTO_LEVELS` | 3 | `recovery-policy.ts` |
 
 ## 3.5 Tool execution (`SessionRunner.runCall`)
 
