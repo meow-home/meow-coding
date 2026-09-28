@@ -76,16 +76,20 @@ but moves a lot of `loop.ts` code and risks the existing loop tests for no funct
   threshold, and clears it. The turn continues.
 - **Idle**:
   - No API key → the same `[meow] No provider/API key configured…` error as a send.
-  - Claim `running` and register an `AbortController` in `controllers`, so Stop cancels the compaction
-    and prompts sent meanwhile are queued. No `turn-started` is emitted: this is not a turn.
+  - Claim `running` (and `compacting`, so the idle auto-compactor skips it) and register an
+    `AbortController` in `controllers`, so `stop()` (sidebar Stop, remote) cancels the compaction and
+    prompts sent meanwhile are queued. No `turn-started` is emitted: this is not a turn, so the
+    composer keeps its Send button.
   - Call `runner.compactNow(instructions, signal)`, which resolves the compaction settings the same way
     `run()` does and runs the shared compaction body.
   - Release `running`/`controllers` and drain the queue.
 - Manual compaction runs even when `compaction.auto` is `false`.
 - `PreCompact` hooks run with trigger `'manual'` (already supported by `HooksRunner`).
 - Feed: reuses `compaction-start` / `compacted` / `compaction-failed`. No user bubble is created.
-- Nothing to summarize (empty transcript, or one step only) → a `notice`
+- Nothing to summarize (empty transcript, or one step only) and nothing to truncate → a `notice`
   `[meow] Nothing to compact yet.` and no LLM call.
+- Notices travel as a new `ChatEvent` `{ type: 'notice'; agentId; text }`, rendered by `ChatPanel` as
+  the existing feed-only `notice` row (never persisted).
 
 ### 4.3 Focus instructions
 
@@ -108,13 +112,16 @@ New pure function in `compact.ts`:
 splitWithinTurn(items, keepTokens): { head: TranscriptItem[]; request: TranscriptItem; recent: TranscriptItem[] } | null
 ```
 
-- Used by `compact()` when `selectHeadTail` returns an empty head.
-- Takes the oldest turn in the tail and splits it into **steps**: a step starts at an assistant message
+- Used by `compact()` (through `planCompaction`) when `selectHeadTail` returns an empty head.
+  `selectHeadTail` already moves an older oversized turn into the head (its tail must fit
+  `keepTokens`), so an empty head means the **last** turn is the one to split.
+- Takes the last turn and splits it into **steps**: a step starts at an assistant message
   and runs through the tool items that follow it. The loop always persists an assistant message before a
   tool batch, so every tool item belongs to a step. Splitting only at step starts matters because
   `toLlmMessages` drops a tool item with no preceding assistant message.
-- Keeps the most recent steps verbatim up to `keepTokens` (at least one), and returns the older steps as
-  `head`, the turn's user message as `request`, and the kept steps (plus any later turns) as `recent`.
+- Keeps the most recent steps verbatim up to `keepTokens` (at least one), and returns everything
+  before them as `head` (earlier turns with compaction pairs stripped, then the turn's older steps),
+  the turn's user message as `request`, and the kept steps as `recent`.
 - Returns `null` when the turn has fewer than two steps.
 
 Resulting transcript:
