@@ -467,7 +467,7 @@ the auto-compact threshold to zero.
 |---|---|---|
 | `anthropic` | `@ai-sdk/anthropic` | Adds `cacheControl: ephemeral` at the top level (caches the system prompt) plus message-level cache breakpoints |
 | `google` | `@ai-sdk/google` | — |
-| anything else | `@ai-sdk/openai-compatible` | `baseURL` defaults to `https://api.openai.com/v1`; DeepSeek endpoints get `includeUsage: true` and a custom usage converter for `prompt_cache_hit_tokens` |
+| anything else | `@ai-sdk/openai-compatible` | `baseURL` defaults to `https://api.openai.com/v1`; always `includeUsage: true` (streamed usage); DeepSeek endpoints also get a custom usage converter for `prompt_cache_hit_tokens` |
 
 **Anthropic cache breakpoints** (`withCacheBreakpoints`): the end of the stable prefix and the last
 message are tagged. For a compacted transcript the break is placed *after the summary*, not on the

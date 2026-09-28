@@ -253,7 +253,7 @@ describe('createOpenAICompatibleLlm', () => {
     const opts = createOpenAICompatibleMock.mock.calls[0][0]
     expect(opts.baseURL).toBe('http://localhost:11434/v1')
     expect(opts.apiKey).toBe('k')
-    expect(opts.includeUsage).toBeUndefined()
+    expect(opts.includeUsage).toBe(true)
   })
 
   it('yields a readable error instead of streaming with a non-ASCII API key', async () => {
@@ -297,12 +297,14 @@ describe('DeepSeek usage capture', () => {
     expect(opts.includeUsage).toBe(true)
   })
 
-  it('does not enable stream usage for other OpenAI-compatible endpoints', async () => {
+  it('requests stream usage for other OpenAI-compatible endpoints without the DeepSeek converter', async () => {
     streamTextMock.mockReturnValue({
       fullStream: fakeFullStream([{ type: 'finish', finishReason: 'stop' }])
     })
-    await streamOnce(createLlm('ollama', 'k', 'http://localhost:11434/v1'))
-    expect(createOpenAICompatibleMock.mock.calls[0][0].includeUsage).toBeUndefined()
+    await streamOnce(createLlm('ollama-cloud', 'k', 'https://ollama.com/v1'))
+    const opts = createOpenAICompatibleMock.mock.calls[0][0]
+    expect(opts.includeUsage).toBe(true)
+    expect(opts.convertUsage).toBeUndefined()
   })
 
   it('sends an x-opencode-session header for the opencode-go endpoint (Bug 2)', async () => {

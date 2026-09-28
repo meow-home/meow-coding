@@ -207,9 +207,12 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string, re
       baseURL: baseUrl ?? 'https://api.openai.com/v1',
       apiKey,
       ...(isOpencode ? { headers: { 'x-opencode-session': opencodeSession! } } : {}),
-      ...(isDeepSeek
-        ? { includeUsage: true, convertUsage: (usage: unknown) => convertDeepSeekUsage(usage) }
-        : {})
+      // Without stream_options.include_usage most OpenAI-compatible servers
+      // (Ollama /v1, vLLM, gateways) stream no usage chunk at all: every step
+      // records 0 tokens, the context readout stays blank and compaction falls
+      // back to a transcript estimate that misses the system prompt and tools.
+      includeUsage: true,
+      ...(isDeepSeek ? { convertUsage: (usage: unknown) => convertDeepSeekUsage(usage) } : {})
     }).chatModel(modelId)
   }
 

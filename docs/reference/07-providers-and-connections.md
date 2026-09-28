@@ -36,9 +36,13 @@ Two independent ways to reach a model:
 | `google` | `@ai-sdk/google` |
 | anything else | `@ai-sdk/openai-compatible` with `baseURL` (default `https://api.openai.com/v1`) |
 
+Every OpenAI-compatible client is created with `includeUsage: true`: most servers (Ollama `/v1`,
+vLLM, gateways) only stream a usage chunk when `stream_options.include_usage` is sent, and without it
+every step records 0 tokens — the context readout stays blank and compaction can only use the
+transcript estimate.
+
 **DeepSeek handling** is triggered when the provider id is `deepseek`, `providerType === 'deepseek'`,
-or the base URL hostname ends with `deepseek.com`. It enables `includeUsage: true` (DeepSeek only
-reports streamed usage when `stream_options.include_usage` is sent) and a custom `convertUsage` that
+or the base URL hostname ends with `deepseek.com`. It adds a custom `convertUsage` that
 reads cache hits from `prompt_cache_hit_tokens` rather than OpenAI's
 `prompt_tokens_details.cached_tokens`. Reasoning is echoed back as `reasoning_content` only for assistant messages after the last user message (the current tool loop, where thinking-mode tool use requires it); earlier turns are replayed without reasoning (`agent/message.ts`).
 
