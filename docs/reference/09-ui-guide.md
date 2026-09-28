@@ -161,6 +161,10 @@ Chat conventions:
 
 - **Transient status lines** (compaction, retry) live only in feed state — never written to the
   transcript, so they vanish on reload. That is deliberate.
+- **Recovery notice.** `step-discarded` with a `recovery` level shows a transient
+  `[meow] Model started repeating itself — recovering (n/3)` notice; once automatic recovery is
+  exhausted the turn pauses with the question popup (Continue / Stop / custom text) before the
+  `Stopped: …` error is shown.
 - Feed items are updated **copy-on-write**; never mutate in place, or `memo()` stops working.
 - Images travel as data URLs inside `ImageAttachment`; only `image/*` is accepted.
 - The message queue shows `queued` badge rows supporting remove/edit via

@@ -700,14 +700,12 @@ if (e.type === 'usage') {
           text: 'The model declined to answer.'
         }])
       } else if (e.reason === 'stuck') {
-        const detail = e.stuckCategory === 'tool'
-          ? ` The repeated tool was ${e.stuckTool ?? 'unknown'}.`
-          : e.stuckCategory === 'stream' ? ' Its output kept degenerating (repeating itself or running past its tool calls).' : ''
-        setItems(prev => [...prev, {
-          kind: 'error',
-          id: 'stuck-' + Date.now(),
-          text: 'The model could not make progress and the turn was stopped.' + detail + ' Try rewording your request or sending a new message.'
-        }])
+        const text = e.stuckCategory === 'stream'
+          ? 'Stopped: the model kept repeating itself after automatic recovery.'
+          : e.stuckCategory === 'tool'
+            ? `Stopped: the model kept repeating the ${e.stuckTool ?? 'same'} tool after automatic recovery.`
+            : 'The model could not make progress and the turn was stopped. Try rewording your request or sending a new message.'
+        setItems(prev => [...prev, { kind: 'error', id: 'stuck-' + Date.now(), text }])
       }
       return
     }
@@ -752,7 +750,13 @@ if (e.type === 'usage') {
       noticeIdRef.current = id
       setItems(prev => [
         ...prev.filter(i => !(i.kind === 'message' && drop.has(i.id))),
-        { kind: 'notice', id, text: 'Model output started repeating — retrying…' }
+        {
+          kind: 'notice',
+          id,
+          text: e.recovery
+            ? `[meow] Model started repeating itself — recovering (${e.recovery.level}/${e.recovery.of})`
+            : 'Model output started repeating — retrying…'
+        }
       ])
       return
     }
