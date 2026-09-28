@@ -208,7 +208,7 @@ This includes any feature, architecture, or system change described above.
 | Orphan processes after quit | `PtyManager.stop` / `killProcess`, and the `bash` tool's `killAfterGrace` |
 | Provider 400 about tool messages | Turn overlap — `runTurn`'s await of `turnPromises` |
 | Provider rejects `max_tokens` | `reduceBudgetForMaxTokensError` + `learned-limits.json` |
-| Context overflow loops | `MAX_COMPACT_PER_RUN`, `tryRecoverFromReject`, `hardTruncate` |
+| Context overflow loops | `MAX_OVERFLOW_RETRIES`, `MIN_COMPACTION_GAIN` stall flag, `tryRecoverFromReject`, `hardTruncate` |
 | Session never compacts | `compaction.auto`, the resolved limit (`getContextInfo`), `usableContextTokens` |
 | Costs look wrong | `agent/usage.ts` prices, and whether cache read/write are being counted |
 | Settings save hangs | `reload()` reconnecting MCP servers (up to 60s each) — provider connect deliberately does not await it |

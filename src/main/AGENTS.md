@@ -23,6 +23,13 @@ handlers and the app lifecycle.
   Tracks draft session model preferences (`DRAFT_SESSION_ID`) and resolves default models for unmaterialized sessions (`defaultSessionModel()`: last used model, else the default provider — also used for sessions created by external delegation);
   `suggestFiles` for a draft session (`DRAFT_SESSION_ID`) falls back to the active project path, so `@`-file
   completion works before the session exists.
+  `compactSession(agentId, focus)` backs `/compact`: mid-turn it calls `runner.requestCompact`; idle it
+  claims `running` + `compacting` and a controller (so sends queue and `stop()` aborts), runs
+  `runner.compactNow`, then drains the queue. It refuses a `/compact` while one is already in flight
+  (including the idle auto-compactor, which sets `compacting`), emitting a `notice`
+  `[meow] Compaction already in progress.` and returning; its `finally` releases `running`/the
+  controller only when the controller is still its own (so a `stop()` followed by a new turn is not
+  clobbered).
   Bridges background shells to the renderer for the Processes overlay: owns a `procSubscriptions` set and, on
   construction, forwards a shell's `data`/`exit` only while it is subscribed (`backgroundProcsList(agentId)`,
   `monitorsList(agentId)`, `killBackgroundProc(id)`, `subscribeBackgroundProc(id)` returning backlog+status,

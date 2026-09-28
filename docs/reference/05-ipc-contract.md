@@ -227,6 +227,7 @@ The full agent-behavior stream. Every variant carries `agentId`.
 | `compaction-start` | — | Compaction began (transient UI line only) |
 | `compacted` | `summary: string` | Compaction succeeded; the transcript was replaced |
 | `compaction-failed` | — | The summarization call failed; hard truncation was used |
+| `notice` | `text: string` | Feed-only notice (e.g. `/compact` had nothing to do); never persisted |
 | `retry` | `attempt`, `maxAttempts`, `delayMs` | An LLM request will be retried (transient UI line only) |
 | `subagent-event` | `taskId`, `parentTaskId?`, `sub: 'start' \| 'delta' \| 'tool' \| 'done'`, `subagentType?`, `text?`, `tool?`, `reasoning?`, `background?`, `result?`, `state?` | Subagent progress |
 | `session-created` | — | A new session was created (e.g. by `/new`) |

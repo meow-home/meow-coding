@@ -70,8 +70,9 @@ export function resolveCompactionSettings(
  * Last-resort shrink used when LLM compaction cannot help: the head is empty,
  * the per-run compaction budget is spent, or the summary call failed. Without
  * it the request goes out over the limit and the provider rejects the whole
- * turn. Clears every tool output first, then drops the oldest turns, always
- * keeping the final turn even when that alone exceeds the target.
+ * turn. Clears every tool output first, then drops the oldest turns; if the
+ * final turn alone is still oversized, drops its oldest steps instead of
+ * dropping it, always keeping its request and last step.
  */
 export function hardTruncate(
   items: TranscriptItem[],

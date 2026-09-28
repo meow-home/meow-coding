@@ -225,7 +225,9 @@ Notable details:
 | `DEFAULT_MAX_STEPS` (loop fallback) | 50 | `loop.ts` |
 | `DEFAULT_MAX_STEPS` (config default, what is actually passed) | 100 | `config.ts` |
 | `DEFAULT_SUBAGENT_MAX_STEPS` | 30 | `config.ts` |
-| `MAX_COMPACT_PER_RUN` | 2 | `loop.ts` |
+| `MAX_COMPACT_PER_RUN` (cost guard) | 10 | `loop.ts` |
+| `MAX_OVERFLOW_RETRIES` | 2 | `loop.ts` |
+| `MIN_COMPACTION_GAIN` | 0.2 | `loop.ts` |
 | `MAX_LENGTH_RESUMES` | 3 | `loop.ts` |
 | `DEFAULT_KEEP_FULL_TURNS` | 2 | `loop.ts` |
 | `MAX_QUEUE` | 5 | `meow-agent-manager.ts` |
@@ -384,16 +386,23 @@ lags behind tool outputs appended after the last response — hence the `max`.
    - Any previous compaction pair is stripped from the head and its summary is passed separately as
      `<previous-summary>` so it is updated rather than re-summarized.
    - `fitHeadToBudget` drops the oldest turns until the summary prompt itself fits the window.
+   - When that head is empty (one long turn), `splitWithinTurn` summarizes the older steps of the last
+     turn instead: the result is `[marker, summary, original request, recent steps…]`, cut only at
+     step starts so no tool result loses its assistant message.
    - `compactTranscript` runs a tool-less LLM call with `COMPACTION_SYSTEM` and a fixed markdown
      template (Objective / Important Details / Work State {Completed, Active, Blocked} / Next Move /
      Relevant Files).
    - On success the transcript is replaced with `[marker user message, summary assistant message,
      ...tail]` and `compacted` is emitted. The marker text is the constant
      `COMPACTION_MARKER = 'What did we do so far?'`.
+   - If the result is still over the target it is hard-truncated in the same call. A compaction that
+     shrinks the context by less than `MIN_COMPACTION_GAIN` (20%) marks the run stalled: later
+     automatic compactions in that run only truncate. `MAX_COMPACT_PER_RUN` (10) is a cost guard.
+     `lastTokens` is cleared on every replacement so stale provider usage cannot re-trigger compaction.
    - On failure `compaction-failed` is emitted and the ladder falls through to step 2.
-2. **Hard truncate** (`hardTruncate`) — last resort when the head is empty, the per-run compaction
-   budget (`MAX_COMPACT_PER_RUN = 2`) is spent, or the summary call failed: clear every tool output,
-   then drop the oldest turns, always keeping the final turn even if it alone exceeds the target.
+2. **Hard truncate** (`hardTruncate`) — last resort when the head is empty, the run is stalled or the
+   cost guard is spent, or the summary call failed: clear every tool output, then drop the oldest
+   turns, then the oldest steps of the final turn, always keeping its request and last step.
 
 ### Self-healing on provider rejection
 
@@ -404,7 +413,7 @@ If the provider rejects the request with a context-overflow error
    `onContextOverflow` → `LearnedLimitsStore.recordContextOverflow`.
 2. Runs `forceCompact` (the ladder, ignoring the threshold).
 3. Returns `true`, and the loop retries the same step without consuming a step
-   (`steps--`). Bounded by `MAX_COMPACT_PER_RUN` so a genuinely oversized prompt surfaces an error
+   (`steps--`). Bounded by `MAX_OVERFLOW_RETRIES` (2) so a genuinely oversized prompt surfaces an error
    instead of looping.
 
 ### Idle compaction
@@ -413,6 +422,17 @@ If the provider rejects the request with a context-overflow error
 not running and not already compacting, with at least 60s since its last attempt, it compares the
 last reported usage against the threshold and calls `runner.compactIfOverThreshold()`. Without this,
 a session parked over its limit would only compact when the user sent the next message.
+
+### Manual compaction (`/compact`)
+
+`/compact [focus]` is a system command. Mid-turn, `requestCompact` makes the next step boundary
+compact regardless of the threshold. Idle, the manager claims the running slot (prompts queue,
+`stop()` aborts, `compaction-failed` is emitted on abort) and calls `compactNow`. Manual compaction
+runs even with auto-compaction off, ignores the stall flag and cost guard, passes the focus text to
+the summary prompt as a `<focus>` block, runs `PreCompact` hooks with trigger `manual`, and emits a
+`notice` when there is nothing to compact or the gain is below 20%. A `/compact` while one is already
+in flight (including the idle auto-compactor) is refused with a `notice`
+`[meow] Compaction already in progress.`.
 
 ### Tool-output caps (two different mechanisms)
 
@@ -604,6 +624,7 @@ Built-ins:
 | `/init` | prompt | Create or improve the project's `AGENTS.md` |
 | `/review` | prompt | Review uncommitted changes read-only |
 | `/new` | **system** | Creates a new session and emits `session-created` — never reaches the LLM |
+| `/compact [focus]` | **system** | Summarizes older context now (next step boundary if a turn is running); never creates a user message |
 | `/frontend-design` | prompt | Invokes the `frontend-design` skill with `$ARGUMENTS` |
 | `/<skill-name>` ×15 | prompt | Invokes the corresponding Superpowers skill: `brainstorming`, `diagnosing-superpowers`, `dispatching-parallel-agents`, `executing-plans`, `finishing-a-development-branch`, `receiving-code-review`, `requesting-code-review`, `subagent-driven-development`, `systematic-debugging`, `test-driven-development`, `using-git-worktrees`, `using-superpowers`, `verification-before-completion`, `writing-plans`, `writing-skills` |
 

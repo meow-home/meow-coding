@@ -1,6 +1,6 @@
 # Manual `/compact` and Progress-Based Compaction — Design
 
-Date: 2026-09-28 · Status: pending review
+Date: 2026-09-28 · Status: implemented
 Builds on: `c758dd7` (streamed usage for every OpenAI-compatible provider).
 
 ## 1. Problem and evidence
