@@ -91,6 +91,24 @@ export function hardTruncate(
     out = cleared.slice(starts[i])
     if (measure(out) <= targetTokens) break
   }
+  return measure(out) <= targetTokens ? out : dropOldestSteps(out, targetTokens, measure)
+}
+
+function dropOldestSteps(
+  items: TranscriptItem[],
+  targetTokens: number,
+  measure: (items: TranscriptItem[]) => number
+): TranscriptItem[] {
+  const all = turns(items)
+  const last = all[all.length - 1]
+  if (!last) return items
+  const prefix = items.slice(0, last.start + 1)
+  const steps = stepStarts(items, last.start + 1, items.length)
+  let out = items
+  for (let i = 1; i < steps.length; i++) {
+    out = [...prefix, ...items.slice(steps[i])]
+    if (measure(out) <= targetTokens) break
+  }
   return out
 }
 
@@ -156,6 +174,58 @@ export function selectHeadTail(
     }
   }
   return { head: stripCompactionPairs(items.slice(0, tailStart)), tail: items.slice(tailStart) }
+}
+
+// A step is an assistant message plus the tool items after it. toLlmMessages
+// drops a tool item with no assistant message before it, so a transcript may
+// only be cut at a step start.
+function stepStarts(items: TranscriptItem[], from: number, to: number): number[] {
+  const out: number[] = []
+  for (let i = from; i < to; i++) {
+    const item = items[i]
+    if (item.kind === 'message' && item.message.role === 'assistant') out.push(i)
+  }
+  return out
+}
+
+export interface TurnSplit {
+  head: TranscriptItem[]
+  request: TranscriptItem
+  recent: TranscriptItem[]
+}
+
+/**
+ * Splits the last turn when turn-level compaction has nothing to summarize
+ * (one long autonomous turn). The turn's request stays verbatim; its older
+ * steps join the head, the newest steps that fit keepTokens stay (at least one).
+ */
+export function splitWithinTurn(items: TranscriptItem[], keepTokens: number): TurnSplit | null {
+  const all = turns(items)
+  const last = all[all.length - 1]
+  if (!last) return null
+  const steps = stepStarts(items, last.start + 1, last.end)
+  if (steps.length < 2) return null
+  let keepFrom = steps[steps.length - 1]
+  for (let i = steps.length - 2; i >= 1; i--) {
+    if (estimateUsage(items.slice(steps[i], last.end)) > keepTokens) break
+    keepFrom = steps[i]
+  }
+  return {
+    head: [...stripCompactionPairs(items.slice(0, last.start)), ...items.slice(last.start + 1, keepFrom)],
+    request: items[last.start],
+    recent: items.slice(keepFrom)
+  }
+}
+
+export function planCompaction(
+  items: TranscriptItem[],
+  keepTokens: number,
+  tailTurns: number
+): { head: TranscriptItem[]; keep: TranscriptItem[] } | null {
+  const { head, tail } = selectHeadTail(items, keepTokens, tailTurns)
+  if (head.length > 0) return { head, keep: tail }
+  const split = splitWithinTurn(items, keepTokens)
+  return split ? { head: split.head, keep: [split.request, ...split.recent] } : null
 }
 
 function serializeItem(item: TranscriptItem, toolOutputMaxChars: number): string | null {
@@ -251,12 +321,16 @@ Rules:
 - Preserve exact file paths, symbols, commands, error strings, URLs, and identifiers when known.
 - Do not mention the summary process or that context was compacted.`
 
-export function buildCompactionPrompt(previousSummary: string | undefined, headText: string): string {
+export function buildCompactionPrompt(previousSummary: string | undefined, headText: string, focus?: string): string {
+  const focusText = focus?.trim()
   return [
     previousSummary
       ? `Update the anchored summary below using the conversation history above.\nPreserve still-true details, remove stale details, and merge in the new facts.\n<previous-summary>\n${previousSummary}\n</previous-summary>`
       : 'Create a new anchored summary from the conversation history.',
     SUMMARY_TEMPLATE,
+    ...(focusText
+      ? [`<focus>\n${focusText}\n</focus>\nThe user asked to keep the details above in particular; preserve them in the summary.`]
+      : []),
     headText
   ].join('\n\n')
 }
