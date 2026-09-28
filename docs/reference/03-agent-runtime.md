@@ -421,8 +421,12 @@ If the provider rejects the request with a context-overflow error
 
 `MeowAgentManager` runs a 20-second timer (`maybeCompactIdle`). For each registered agent that is
 not running and not already compacting, with at least 60s since its last attempt, it compares the
-last reported usage against the threshold and calls `runner.compactIfOverThreshold()`. Without this,
-a session parked over its limit would only compact when the user sent the next message.
+last reported usage against the threshold and calls `runner.compactIdle()`. The running/compacting
+check is repeated after the limits lookup (an `await`), so a turn or `/compact` that started meanwhile
+is skipped. `compactIdle` resets the per-run stall flag and cost-guard counter first, so a run that
+ended stalled or capped cannot turn the idle compaction into a summary-less truncation, resolves the
+compaction settings and hooks if the session has not run yet, then runs the usual threshold check.
+Without this, a session parked over its limit would only compact when the user sent the next message.
 
 ### Manual compaction (`/compact`)
 

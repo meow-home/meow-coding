@@ -240,15 +240,28 @@ export class SessionRunner {
 
   /** /compact while idle: resolves the settings the way run() does, then compacts now. */
   async compactNow(focus?: string, signal?: AbortSignal): Promise<CompactOutcome> {
-    this.compaction = resolveCompactionSettings(
-      this.deps.compaction ?? { auto: false, tailTurns: 2 },
-      this.deps.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
-      this.deps.maxOutputTokens ?? 0
-    )
+    this.compaction = this.resolveCompaction()
     this.hooks = this.deps.hooks?.()
     const outcome = await this.compact(signal, { focus })
     if (outcome.kind === 'aborted') this.deps.onEvent({ type: 'compaction-failed', agentId: this.deps.agentId })
     return outcome
+  }
+
+  /** Automatic compaction outside a run: starts from fresh per-run flags, then checks the threshold. */
+  async compactIdle(signal?: AbortSignal): Promise<void> {
+    this.compactedThisRun = 0
+    this.compactionStalled = false
+    this.compaction ??= this.resolveCompaction()
+    this.hooks ??= this.deps.hooks?.()
+    await this.compactIfOverThreshold(signal)
+  }
+
+  private resolveCompaction(): ResolvedCompaction {
+    return resolveCompactionSettings(
+      this.deps.compaction ?? { auto: false, tailTurns: 2 },
+      this.deps.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
+      this.deps.maxOutputTokens ?? 0
+    )
   }
 
   private async runSteps(signal?: AbortSignal): Promise<void> {
@@ -265,11 +278,7 @@ export class SessionRunner {
     this.stopBlocksThisRun = 0
     this.toolLoop = toolLoopDetector()
     this.hooks = this.deps.hooks?.()
-    this.compaction = resolveCompactionSettings(
-      this.deps.compaction ?? { auto: false, tailTurns: 2 },
-      this.deps.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
-      this.deps.maxOutputTokens ?? 0
-    )
+    this.compaction = this.resolveCompaction()
     const runUsage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 }
     this.turnContext = signal?.aborted ? '' : await this.snapshotTurnContext()
     this.runContext = this.deps.runContext?.()

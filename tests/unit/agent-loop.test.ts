@@ -2667,6 +2667,22 @@ describe('SessionRunner progress-based and manual compaction', () => {
     expect(doneEvent(h.events).reason).toBe('complete')
   })
 
+  it('summarizes again in an idle compaction after a run that ended stalled', async () => {
+    const llm = new RoutingLlm(n => (n === 1 ? 'z'.repeat(7000) : 'idle summary'), n => (n === 1 ? readCall(1) : textParts('done')))
+    const h = harness(llm, longTurn(3, 2800), {
+      tools: new Map([['read', stubTool('read', async () => ({ output: 'ok' }))]])
+    })
+    await h.runner.run()
+    expect(llm.prompts).toHaveLength(1)
+    h.current().push(
+      { kind: 'message', message: { id: 'u2', role: 'user', text: 'next task', createdAt: 1 } },
+      { kind: 'message', message: { id: 'a9', role: 'assistant', text: 'working', createdAt: 1 } },
+      { kind: 'tool', tool: { id: 't9', tool: 'read', input: { n: 9 }, permission: 'allowed', output: 'w'.repeat(4000) } }
+    )
+    await h.runner.compactIdle()
+    expect(llm.prompts).toHaveLength(2)
+    expect(texts(h.current()).slice(0, 2)).toEqual([COMPACTION_MARKER, 'idle summary'])
+  })
   it('honors a mid-run /compact at the next step, below the threshold, with focus', async () => {
     const ref: { runner?: SessionRunner } = {}
     const llm = new RoutingLlm(() => 'manual summary', n => (n === 1 ? readCall(1) : textParts('done')))
