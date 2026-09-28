@@ -62,6 +62,8 @@ import type { NotificationService } from './notification-service'
 import type { Vault } from './vault'
 import { HooksExecutor, loadProjectHooks, mergeHooksConfig } from './agent/hooks'
 
+const NO_API_KEY_MESSAGE = '[meow] No provider/API key configured. Open Settings, add a provider (id + API key + models) and try again.'
+
 const TURN_END_REASONS: ReadonlySet<string> = new Set<TurnEndReason>(['max-steps', 'stuck', 'length', 'refusal'])
 
 function isTurnEndReason(reason: string | undefined): reason is TurnEndReason {
@@ -802,7 +804,7 @@ ${content}` : content
     if (!config?.apiKey) {
       this.running.delete(agentId)
       this.activeRuns.delete(agentId)
-      run.error = '[meow] No provider/API key configured. Open Settings, add a provider (id + API key + models) and try again.'
+      run.error = NO_API_KEY_MESSAGE
       return
     }
 
@@ -1262,6 +1264,8 @@ ${content}` : content
       if (command.name === 'new') {
         this.newSession(agentId)
         this.emit({ type: 'session-created', agentId })
+      } else if (command.name === 'compact') {
+        await this.compactSession(agentId, args.trim())
       }
       return
     }
@@ -1269,6 +1273,39 @@ ${content}` : content
     // Keep the raw "/cmd …" input for the UI; the LLM receives the resolved prompt.
     const displayText = args.trim() ? `/${command.name} ${args.trim()}` : `/${command.name}`
     await this.send(agentId, text, images, displayText)
+  }
+
+  // /compact: mid-turn it is honored at the next step boundary; idle it claims
+  // the running slot so prompts sent meanwhile queue behind it and stop() aborts it.
+  async compactSession(agentId: string, focus: string): Promise<void> {
+    const agent = this.agents.get(agentId)
+    if (!agent) return
+    let runner = this.runners.get(agentId)
+    if (!runner) {
+      await this.register(agent)
+      runner = this.runners.get(agentId)
+    }
+    if (!runner) return
+    if (this.running.has(agentId)) {
+      runner.requestCompact(focus || undefined)
+      return
+    }
+    if (!this.resolved.get(agentId)?.apiKey) {
+      this.emit({ type: 'error', agentId, message: NO_API_KEY_MESSAGE })
+      return
+    }
+    const controller = new AbortController()
+    this.running.add(agentId)
+    this.compacting.add(agentId)
+    this.controllers.set(agentId, controller)
+    try {
+      await runner.compactNow(focus || undefined, controller.signal)
+    } finally {
+      this.running.delete(agentId)
+      this.compacting.delete(agentId)
+      if (this.controllers.get(agentId) === controller) this.controllers.delete(agentId)
+    }
+    await this.drainQueue(agentId)
   }
 
   getStats(): StatsSummary {

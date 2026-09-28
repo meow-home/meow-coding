@@ -36,6 +36,14 @@ export const NEW_COMMAND: Command = {
   builtIn: true
 }
 
+export const COMPACT_COMMAND: Command = {
+  name: 'compact',
+  description: 'Summarize older context to free up space',
+  template: '',
+  type: 'system',
+  builtIn: true
+}
+
 // Superpowers slash commands. Embedded built-ins: each dispatches the current request to the
 // matching Superpowers skill so the agent follows that workflow explicitly.
 const SUPERPOWERS: Array<{ name: string; context: string }> = [
@@ -156,7 +164,7 @@ export async function resolveCommand(
 
 export class CommandStore {
   private builtin = new Map<string, Command>(
-    [INIT_COMMAND, REVIEW_COMMAND, NEW_COMMAND, FRONTEND_DESIGN_COMMAND, ...SUPERPOWERS_COMMANDS].map(c => [c.name, c])
+    [INIT_COMMAND, REVIEW_COMMAND, NEW_COMMAND, COMPACT_COMMAND, FRONTEND_DESIGN_COMMAND, ...SUPERPOWERS_COMMANDS].map(c => [c.name, c])
   )
 
   constructor(private userCommandsFile: string) {}

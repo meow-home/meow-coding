@@ -633,6 +633,10 @@ if (e.type === 'usage') {
       setSessionTokens(e.sessionTokens)
       return
     }
+    if (e.type === 'notice') {
+      setItems(prev => [...prev, { kind: 'notice', id: 'n-' + Date.now(), text: e.text }])
+      return
+    }
     if (e.type === 'compaction-start') {
       setItems(prev => [...prev, { kind: 'compaction', id: 'c-' + Date.now(), running: true }])
       return

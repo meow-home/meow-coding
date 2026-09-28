@@ -18,6 +18,8 @@ import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/
 import { DRAFT_SESSION_ID, type AgentConfig, type ChatEvent, type PromptResponse } from '../../src/shared/types'
 import type { ToolDefinition } from '../../src/main/agent/tools/types'
 import type { Vault } from '../../src/main/vault'
+import { COMPACTION_MARKER } from '../../src/main/agent/compact'
+import type { SessionRunner } from '../../src/main/agent/loop'
 
 /** In-memory Vault stand-in so provider tests can exercise keyRef storage. */
 class FakeVault implements Vault {
@@ -1358,6 +1360,93 @@ describe('MeowAgentManager', () => {
     expect(events.some(e => e.type === 'session-created')).toBe(true)
     expect(createLlm).not.toHaveBeenCalled()
     expect(events.some(e => e.type === 'done')).toBe(false)
+  })
+
+  function runnerOf(manager: MeowAgentManager, agentId: string): SessionRunner {
+    return (manager as unknown as { runners: Map<string, SessionRunner> }).runners.get(agentId)!
+  }
+
+  it('lists /compact as a built-in system command', async () => {
+    const { manager } = await makeManager()
+    const compact = manager.listCommands('/proj').find(c => c.name === 'compact')
+    expect(compact?.type).toBe('system')
+  })
+
+  it('runs /compact while idle: summarizes with focus, no turn, no user bubble', async () => {
+    const { manager, events, llmMessages } = await makeManager()
+    await manager.send('a1', 'one')
+    await manager.send('a1', 'two')
+    await manager.send('a1', 'three')
+    events.length = 0
+    await manager.runCommand('a1', 'compact', 'keep the plan')
+    const types = events.map(e => e.type)
+    expect(types).toEqual(expect.arrayContaining(['compaction-start', 'compacted']))
+    expect(types).not.toContain('turn-started')
+    expect(types).not.toContain('user-message')
+    expect(manager.isRunning('a1')).toBe(false)
+    expect(manager.listMessages('a1')[0]?.text).toBe(COMPACTION_MARKER)
+    expect(JSON.stringify(llmMessages[llmMessages.length - 1])).toContain('keep the plan')
+  })
+
+  it('queues a prompt sent during an idle /compact and runs it afterwards', async () => {
+    const { manager, events } = await makeManager()
+    const gate = deferred<void>()
+    const spy = vi.spyOn(runnerOf(manager, 'a1'), 'compactNow').mockImplementation(async () => {
+      await gate.promise
+      return { kind: 'nothing' }
+    })
+    const p = manager.runCommand('a1', 'compact', '')
+    await new Promise(r => setTimeout(r, 10))
+    expect(manager.isRunning('a1')).toBe(true)
+    await manager.send('a1', 'while compacting')
+    expect(manager.listQueued('a1').map(q => q.text)).toContain('while compacting')
+    gate.resolve()
+    await p
+    expect(spy).toHaveBeenCalledWith(undefined, expect.any(AbortSignal))
+    expect(events.some(e => e.type === 'user-message' && e.message.text.includes('while compacting'))).toBe(true)
+    expect(manager.isRunning('a1')).toBe(false)
+  })
+
+  it('stop() aborts an idle /compact', async () => {
+    const { manager } = await makeManager()
+    let seen: AbortSignal | undefined
+    vi.spyOn(runnerOf(manager, 'a1'), 'compactNow').mockImplementation(async (_focus, signal) => {
+      seen = signal
+      await new Promise<void>(resolve => signal?.addEventListener('abort', () => resolve(), { once: true }))
+      return { kind: 'aborted' }
+    })
+    const p = manager.runCommand('a1', 'compact', '')
+    await new Promise(r => setTimeout(r, 10))
+    manager.stop('a1')
+    await p
+    expect(seen?.aborted).toBe(true)
+    expect(manager.isRunning('a1')).toBe(false)
+  })
+
+  it('defers /compact to the next step when a turn is running', async () => {
+    const { manager, events } = await makeManager({ hangUntilAbort: true })
+    const spy = vi.spyOn(runnerOf(manager, 'a1'), 'requestCompact')
+    const run = manager.send('a1', 'first')
+    await new Promise<void>(resolve => {
+      const t = setInterval(() => {
+        if (events.some(e => e.type === 'turn-started')) { clearInterval(t); resolve() }
+      }, 5)
+    })
+    await manager.runCommand('a1', 'compact', 'focus text')
+    expect(spy).toHaveBeenCalledWith('focus text')
+    manager.stop('a1')
+    await run
+  })
+
+  it('reports a missing API key instead of compacting', async () => {
+    const cfgDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-nokey-'))
+    const configPath = path.join(cfgDir, 'meow.json')
+    writeFileSync(configPath, JSON.stringify({ provider: { test: { models: ['test-model'] } }, model: 'test' }))
+    const { manager, events } = await makeManager({ configPath })
+    await manager.runCommand('a1', 'compact', '')
+    const error = events.find(e => e.type === 'error') as Extract<ChatEvent, { type: 'error' }> | undefined
+    expect(error?.message).toContain('No provider/API key configured')
+    expect(manager.isRunning('a1')).toBe(false)
   })
 
   it('reports cost in the done event and accumulates session usage', async () => {
