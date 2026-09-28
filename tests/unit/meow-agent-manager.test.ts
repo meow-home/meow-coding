@@ -1449,6 +1449,47 @@ describe('MeowAgentManager', () => {
     expect(manager.isRunning('a1')).toBe(false)
   })
 
+  it('stop() during an idle /compact does not clobber a newer turn', async () => {
+    const { manager } = await makeManager({ hangUntilAbort: true })
+    const gate = deferred<void>()
+    vi.spyOn(runnerOf(manager, 'a1'), 'compactNow').mockImplementation(async (_focus, signal) => {
+      await new Promise<void>(resolve => signal?.addEventListener('abort', () => resolve(), { once: true }))
+      await gate.promise
+      return { kind: 'aborted' }
+    })
+    const p = manager.runCommand('a1', 'compact', '')
+    await new Promise(r => setTimeout(r, 10))
+    expect(manager.isRunning('a1')).toBe(true)
+    manager.stop('a1')
+    const run = manager.send('a1', 'second')
+    await new Promise(r => setTimeout(r, 10))
+    expect(manager.isRunning('a1')).toBe(true)
+    // Let the aborted compaction's finally run only after the new turn has claimed the slot.
+    gate.resolve()
+    await p
+    expect(manager.isRunning('a1')).toBe(true)
+    manager.stop('a1')
+    await run
+  })
+
+  it('rejects a second /compact while one is already in flight', async () => {
+    const { manager, events } = await makeManager()
+    const gate = deferred<void>()
+    const compactNowSpy = vi.spyOn(runnerOf(manager, 'a1'), 'compactNow').mockImplementation(async () => {
+      await gate.promise
+      return { kind: 'nothing' }
+    })
+    const requestCompactSpy = vi.spyOn(runnerOf(manager, 'a1'), 'requestCompact')
+    const p = manager.runCommand('a1', 'compact', 'first')
+    await new Promise(r => setTimeout(r, 10))
+    await manager.runCommand('a1', 'compact', 'second')
+    expect(requestCompactSpy).not.toHaveBeenCalled()
+    expect(events.some(e => e.type === 'notice' && e.text === '[meow] Compaction already in progress.')).toBe(true)
+    expect(compactNowSpy).toHaveBeenCalledTimes(1)
+    gate.resolve()
+    await p
+  })
+
   it('reports cost in the done event and accumulates session usage', async () => {
     const { manager, events, store } = await makeManager({
       partsQueue: [[{ kind: 'text', text: 'hi' }, { kind: 'finish', tokens: { input: 1000, output: 500, total: 1500 } }]]

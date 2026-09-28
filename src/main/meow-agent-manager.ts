@@ -63,6 +63,7 @@ import type { Vault } from './vault'
 import { HooksExecutor, loadProjectHooks, mergeHooksConfig } from './agent/hooks'
 
 const NO_API_KEY_MESSAGE = '[meow] No provider/API key configured. Open Settings, add a provider (id + API key + models) and try again.'
+const COMPACTION_IN_PROGRESS = '[meow] Compaction already in progress.'
 
 const TURN_END_REASONS: ReadonlySet<string> = new Set<TurnEndReason>(['max-steps', 'stuck', 'length', 'refusal'])
 
@@ -1286,6 +1287,10 @@ ${content}` : content
       runner = this.runners.get(agentId)
     }
     if (!runner) return
+    if (this.compacting.has(agentId)) {
+      this.emit({ type: 'notice', agentId, text: COMPACTION_IN_PROGRESS })
+      return
+    }
     if (this.running.has(agentId)) {
       runner.requestCompact(focus || undefined)
       return
@@ -1301,9 +1306,15 @@ ${content}` : content
     try {
       await runner.compactNow(focus || undefined, controller.signal)
     } finally {
-      this.running.delete(agentId)
       this.compacting.delete(agentId)
-      if (this.controllers.get(agentId) === controller) this.controllers.delete(agentId)
+      // Only release the running slot / controller if they are still ours: stop()
+      // may have already cleared them, or a newer turn may have since claimed them
+      // (send() saw running=false the moment stop() cleared it) — clobbering either
+      // would report isRunning() false while that newer turn is genuinely running.
+      if (this.controllers.get(agentId) === controller) {
+        this.controllers.delete(agentId)
+        this.running.delete(agentId)
+      }
     }
     await this.drainQueue(agentId)
   }
