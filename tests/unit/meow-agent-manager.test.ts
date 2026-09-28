@@ -1507,6 +1507,46 @@ describe('MeowAgentManager', () => {
     manager.stop('a1')
     await run
   })
+  describe('idle auto-compaction', () => {
+    type IdleInternals = {
+      maybeCompactIdle(): Promise<void>
+      lastUsageByAgent: Map<string, unknown>
+      limitsService: { resolveLimits(...args: unknown[]): Promise<unknown> }
+      running: Set<string>
+    }
+
+    async function idleSetup() {
+      const { manager } = await makeManager()
+      const internals = manager as unknown as IdleInternals
+      internals.lastUsageByAgent.set('a1', { input: 200000, output: 0, total: 200000 })
+      const gate = deferred<void>()
+      vi.spyOn(internals.limitsService, 'resolveLimits').mockImplementation(async () => {
+        await gate.promise
+        return { context: 128000, output: 32000 }
+      })
+      const compactIdle = vi.spyOn(runnerOf(manager, 'a1'), 'compactIdle').mockResolvedValue(undefined)
+      return { internals, gate, compactIdle }
+    }
+
+    it('compacts an idle session over the threshold', async () => {
+      const { internals, gate, compactIdle } = await idleSetup()
+      const p = internals.maybeCompactIdle()
+      gate.resolve()
+      await p
+      expect(compactIdle).toHaveBeenCalledTimes(1)
+    })
+
+    it('skips the session when it became busy while its limits resolved', async () => {
+      const { internals, gate, compactIdle } = await idleSetup()
+      const p = internals.maybeCompactIdle()
+      await new Promise(r => setTimeout(r, 10))
+      internals.running.add('a1')
+      gate.resolve()
+      await p
+      expect(compactIdle).not.toHaveBeenCalled()
+      internals.running.delete('a1')
+    })
+  })
   it('rejects a second /compact while one is already in flight', async () => {
     const { manager, events } = await makeManager()
     const gate = deferred<void>()

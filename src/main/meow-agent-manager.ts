@@ -1426,12 +1426,13 @@ ${content}` : content
       if (usedTokens < usableContextTokens(limit, compaction.buffer, outputTokens)) continue
       const runner = this.runners.get(agentId)
       if (!runner) continue
+      if (this.running.has(agentId) || this.compacting.has(agentId)) continue
       this.compacting.add(agentId)
       this.lastCompactionAt.set(agentId, now)
       try {
-        await runner.compactIfOverThreshold()
+        await runner.compactIdle()
       } catch {
-        /* compactIfOverThreshold never throws; safety net only */
+        /* compactIdle never throws; safety net only */
       } finally {
         this.compacting.delete(agentId)
       }
