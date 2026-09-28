@@ -71,6 +71,7 @@ async function makeManager(opts: StubLlmOptions & {
   tools?: ToolDefinition[]
   prices?: Record<string, { input?: number; output?: number }>
   onPromptStateChange?: (agentId: string, pending: boolean) => void
+  onAgentAvailable?: (agentId: string) => void
   onUserMessage?: (agentId: string, message: { text: string; displayText?: string }) => void
   notify?: { notify: (opts: { title: string; body: string; agentId?: string; onActivate?: () => void }) => void }
   notifications?: { needsInput?: boolean; onDone?: boolean }
@@ -155,6 +156,7 @@ async function makeManager(opts: StubLlmOptions & {
     prices: opts.prices ?? { 'test/test-model': { input: 1, output: 2 } },
     connections,
     onPromptStateChange: opts.onPromptStateChange,
+    onAgentAvailable: opts.onAgentAvailable,
     onUserMessage: opts.onUserMessage as never,
     notify: opts.notify as never,
     notifications: opts.notifications as never,
@@ -1472,6 +1474,39 @@ describe('MeowAgentManager', () => {
     await run
   })
 
+  it('signals availability once an idle /compact releases the slot', async () => {
+    const availableWhileRunning: boolean[] = []
+    const ref: { manager?: MeowAgentManager } = {}
+    const onAgentAvailable = vi.fn((agentId: string) => { availableWhileRunning.push(ref.manager!.isRunning(agentId)) })
+    const { manager } = await makeManager({ onAgentAvailable })
+    ref.manager = manager
+    vi.spyOn(runnerOf(manager, 'a1'), 'compactNow').mockResolvedValue({ kind: 'nothing' })
+    await manager.runCommand('a1', 'compact', '')
+    expect(onAgentAvailable).toHaveBeenCalledTimes(1)
+    expect(onAgentAvailable).toHaveBeenCalledWith('a1')
+    expect(availableWhileRunning).toEqual([false])
+  })
+
+  it('does not signal availability when a newer turn owns the slot after stop()', async () => {
+    const onAgentAvailable = vi.fn()
+    const { manager } = await makeManager({ hangUntilAbort: true, onAgentAvailable })
+    const gate = deferred<void>()
+    vi.spyOn(runnerOf(manager, 'a1'), 'compactNow').mockImplementation(async (_focus, signal) => {
+      await new Promise<void>(resolve => signal?.addEventListener('abort', () => resolve(), { once: true }))
+      await gate.promise
+      return { kind: 'aborted' }
+    })
+    const p = manager.runCommand('a1', 'compact', '')
+    await new Promise(r => setTimeout(r, 10))
+    manager.stop('a1')
+    const run = manager.send('a1', 'second')
+    await new Promise(r => setTimeout(r, 10))
+    gate.resolve()
+    await p
+    expect(onAgentAvailable).not.toHaveBeenCalled()
+    manager.stop('a1')
+    await run
+  })
   it('rejects a second /compact while one is already in flight', async () => {
     const { manager, events } = await makeManager()
     const gate = deferred<void>()

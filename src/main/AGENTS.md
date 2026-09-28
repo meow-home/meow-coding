@@ -10,7 +10,7 @@ handlers and the app lifecycle.
   Composes the delegation runtime: owns the `SessionDelegationStore` (`userData/delegations.json`) +
   `SessionDelegationService`, passes the narrow `delegation` adapter (create/peers) into `MeowAgentManager`,
   starts the service on ready, suspends+flushes on quit, drives `notifyAgentAvailable` on each turn
-  done/error, and handles agent/project removal.
+  done/error and on the manager's `onAgentAvailable` (idle `/compact` end), and handles agent/project removal.
   The main window logs `render-process-gone` (reason/exitCode), `unresponsive` and `responsive` to the
   system log — a dead renderer paints the near-black window background and freezes interaction, so these
   events are the only way to capture that failure (a crashed renderer cannot log for itself).
@@ -29,7 +29,8 @@ handlers and the app lifecycle.
   (including the idle auto-compactor, which sets `compacting`), emitting a `notice`
   `[meow] Compaction already in progress.` and returning; its `finally` releases `running`/the
   controller only when the controller is still its own (so a `stop()` followed by a new turn is not
-  clobbered).
+  clobbered). When it ends with the slot free it calls the `onAgentAvailable` dep (wired in `index.ts`
+  to `delegationService.notifyAgentAvailable`), since an idle compaction emits no `done`/`error`.
   Bridges background shells to the renderer for the Processes overlay: owns a `procSubscriptions` set and, on
   construction, forwards a shell's `data`/`exit` only while it is subscribed (`backgroundProcsList(agentId)`,
   `monitorsList(agentId)`, `killBackgroundProc(id)`, `subscribeBackgroundProc(id)` returning backlog+status,

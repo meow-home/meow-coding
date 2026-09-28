@@ -433,7 +433,9 @@ runs even with auto-compaction off, ignores the stall flag and cost guard, passe
 the summary prompt as a `<focus>` block, runs `PreCompact` hooks with trigger `manual`, and emits a
 `notice` when there is nothing to compact or the gain is below 20%. A `/compact` while one is already
 in flight (including the idle auto-compactor) is refused with a `notice`
-`[meow] Compaction already in progress.`.
+`[meow] Compaction already in progress.`. An idle compaction emits no `done`/`error`, so when it ends
+with the slot free the manager calls its `onAgentAvailable` dep, which `index.ts` wires to
+`delegationService.notifyAgentAvailable` so a delegation parked on the busy session resumes.
 
 ### Tool-output caps (two different mechanisms)
 

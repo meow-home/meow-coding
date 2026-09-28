@@ -99,6 +99,8 @@ export interface MeowAgentManagerDeps {
   onActivateAgent?: (agentId: string) => void
   /** Fired when an agent starts (pending=true) or stops (pending=false) waiting on user input. */
   onPromptStateChange?: (agentId: string, pending: boolean) => void
+  /** Fired when an idle /compact ends and leaves the running slot free. */
+  onAgentAvailable?: (agentId: string) => void
   onBackgroundChange?: (agentId: string, background: boolean) => void
   onBackgroundProcData?: (e: { id: string; chunk: string }) => void
   onBackgroundProcExit?: (e: { id: string; exitCode: number | null }) => void
@@ -1316,6 +1318,8 @@ ${content}` : content
         this.running.delete(agentId)
       }
     }
+    // Idle compaction emits no done/error, which is what normally wakes parked delegations.
+    if (!this.running.has(agentId)) this.deps.onAgentAvailable?.(agentId)
     await this.drainQueue(agentId)
   }
 

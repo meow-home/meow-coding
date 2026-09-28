@@ -209,6 +209,7 @@ export class MainApp {
         })
       }
     },
+    onAgentAvailable: (agentId) => this.delegationService.notifyAgentAvailable(agentId),
     onBackgroundChange: (agentId, background) => {
       win?.webContents.send(Channels.EventAgentBackground, { agentId, background })
     },
