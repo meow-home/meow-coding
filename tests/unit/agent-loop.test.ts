@@ -2660,10 +2660,14 @@ describe('SessionRunner progress-based and manual compaction', () => {
   it('stops calling the summarizer once a compaction barely shrinks the context', async () => {
     const llm = new RoutingLlm(() => 'z'.repeat(7000), n => (n === 1 ? readCall(1) : textParts('done')))
     const h = harness(llm, longTurn(3, 2800), {
-      tools: new Map([['read', stubTool('read', async () => ({ output: 'ok' }))]])
+      tools: new Map([['read', stubTool('read', async () => ({ output: 'w'.repeat(4000) }))]])
     })
     await h.runner.run()
     expect(llm.prompts).toHaveLength(1)
+    // The read result pushed the next step boundary over the threshold; the stalled run truncates it.
+    expect(h.events.some(e => e.type === 'tool-result')).toBe(true)
+    expect(h.current().some(i => i.kind === 'tool' && i.tool.output?.includes('wwww'))).toBe(false)
+    expect(h.events.filter(e => e.type === 'compacted')).toHaveLength(1)
     expect(doneEvent(h.events).reason).toBe('complete')
   })
 
