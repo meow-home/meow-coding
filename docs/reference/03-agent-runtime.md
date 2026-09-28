@@ -386,7 +386,8 @@ lags behind tool outputs appended after the last response — hence the `max`.
    - Any previous compaction pair is stripped from the head and its summary is passed separately as
      `<previous-summary>` so it is updated rather than re-summarized.
    - `fitHeadToBudget` drops the oldest turns until the summary prompt itself fits the window.
-   - When that head is empty (one long turn), `splitWithinTurn` summarizes the older steps of the last
+   - When the kept tail exceeds `keepTokens` (one long last turn, with or without earlier turns) or the
+     head is empty, `splitWithinTurn` summarizes the earlier turns plus the older steps of the last
      turn instead: the result is `[marker, summary, original request, recent steps…]`, cut only at
      step starts so no tool result loses its assistant message.
    - `compactTranscript` runs a tool-less LLM call with `COMPACTION_SYSTEM` and a fixed markdown

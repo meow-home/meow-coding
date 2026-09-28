@@ -2629,6 +2629,26 @@ describe('SessionRunner progress-based and manual compaction', () => {
     expect(doneEvent(h.events).reason).toBe('complete')
   })
 
+  it('splits a long last turn that follows a small earlier turn and keeps compacting', async () => {
+    const llm = new RoutingLlm(n => `summary ${n}`, n => (n <= 3 ? readCall(n) : textParts('done')))
+    const seed: TranscriptItem[] = [
+      { kind: 'message', message: { id: 'u0', role: 'user', text: 'hi', createdAt: 1 } },
+      { kind: 'message', message: { id: 'h0', role: 'assistant', text: 'hello', createdAt: 1 } },
+      ...longTurn(7, 800),
+      { kind: 'message', message: { id: 'a7', role: 'assistant', text: 'step 7', createdAt: 1 } },
+      { kind: 'tool', tool: { id: 't7', tool: 'read', input: { n: 7 }, permission: 'allowed', output: 'x'.repeat(2000) } }
+    ]
+    const h = harness(llm, seed)
+    await h.runner.run()
+    expect(llm.prompts[0]).toContain('hello')
+    expect(llm.prompts[0]).toContain('step 0')
+    expect(llm.prompts.length).toBeGreaterThanOrEqual(2)
+    const items = h.current()
+    expect(texts(items).slice(0, 3)).toEqual([COMPACTION_MARKER, `summary ${llm.prompts.length}`, 'build the feature'])
+    expect(texts(items)).not.toContain('step 0')
+    expect(items.some(i => i.kind === 'tool' && i.tool.output === CLEARED_OUTPUT)).toBe(false)
+    expect(doneEvent(h.events).reason).toBe('complete')
+  })
   it('keeps compacting in one run while each compaction makes progress', async () => {
     const llm = new RoutingLlm(n => `summary ${n}`, n => (n < 8 ? readCall(n) : textParts('done')))
     const h = harness(llm, [{ kind: 'message', message: { id: 'u1', role: 'user', text: 'go', createdAt: 1 } }])

@@ -338,6 +338,15 @@ describe('planCompaction', () => {
     expect(texts(plan.keep)).toEqual(['build it', 's2'])
   })
 
+  it('splits the long last turn even when a small earlier turn exists', () => {
+    const steps = Array.from({ length: 10 }, (_, i) => step(`s${i}`, 'x'.repeat(4000))).flat()
+    const items = [msg('user', 'hi'), msg('assistant', 'hello'), msg('user', 'build it'), ...steps]
+    const plan = planCompaction(items, 300, 2)!
+    expect(texts(plan.head)).toEqual(['hi', 'hello', 's0', 's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8'])
+    expect(plan.keep[0]).toBe(items[2])
+    expect(texts(plan.keep)).toEqual(['build it', 's9'])
+  })
+
   it('returns null when nothing can be summarized', () => {
     expect(planCompaction([msg('user', 'q'), ...step('s1', 'x')], 0, 2)).toBeNull()
     expect(planCompaction([], 0, 2)).toBeNull()

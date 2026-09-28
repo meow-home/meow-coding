@@ -112,9 +112,10 @@ New pure function in `compact.ts`:
 splitWithinTurn(items, keepTokens): { head: TranscriptItem[]; request: TranscriptItem; recent: TranscriptItem[] } | null
 ```
 
-- Used by `compact()` (through `planCompaction`) when `selectHeadTail` returns an empty head.
-  `selectHeadTail` already moves an older oversized turn into the head (its tail must fit
-  `keepTokens`), so an empty head means the **last** turn is the one to split.
+- Used by `compact()` (through `planCompaction`) when the tail `selectHeadTail` keeps exceeds
+  `keepTokens`, or when its head is empty. `selectHeadTail` always keeps the last turn, so a tail
+  over `keepTokens` is that single oversized last turn — even when a small earlier turn forms a
+  non-empty head. When `splitWithinTurn` returns `null`, a non-empty head still gives the turn-level plan.
 - Takes the last turn and splits it into **steps**: a step starts at an assistant message
   and runs through the tool items that follow it. The loop always persists an assistant message before a
   tool batch, so every tool item belongs to a step. Splitting only at step starts matters because

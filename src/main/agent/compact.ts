@@ -196,8 +196,8 @@ export interface TurnSplit {
 }
 
 /**
- * Splits the last turn when turn-level compaction has nothing to summarize
- * (one long autonomous turn). The turn's request stays verbatim; its older
+ * Splits the last turn when the tail kept by turn-level compaction is over
+ * keepTokens (one long autonomous turn). The turn's request stays verbatim; its older
  * steps join the head, the newest steps that fit keepTokens stay (at least one).
  */
 export function splitWithinTurn(items: TranscriptItem[], keepTokens: number): TurnSplit | null {
@@ -224,9 +224,9 @@ export function planCompaction(
   tailTurns: number
 ): { head: TranscriptItem[]; keep: TranscriptItem[] } | null {
   const { head, tail } = selectHeadTail(items, keepTokens, tailTurns)
-  if (head.length > 0) return { head, keep: tail }
-  const split = splitWithinTurn(items, keepTokens)
-  return split ? { head: split.head, keep: [split.request, ...split.recent] } : null
+  const split = head.length === 0 || estimateUsage(tail) > keepTokens ? splitWithinTurn(items, keepTokens) : null
+  if (split) return { head: split.head, keep: [split.request, ...split.recent] }
+  return head.length > 0 ? { head, keep: tail } : null
 }
 
 function serializeItem(item: TranscriptItem, toolOutputMaxChars: number): string | null {
