@@ -108,7 +108,7 @@ and the tsconfigs.
 | File | Role |
 |---|---|
 | `window-chrome.ts` | `getWindowChromeOptions(platform)` (frameless/hidden title bar on Windows & Linux) and `applyTitleBarTheme` to recolor the Windows overlay live. |
-| `updater.ts` | electron-updater wrapper emitting `UpdaterStatusEvent`; refuses to run for portable/AppImage/unpackaged builds. |
+| `updater.ts` | electron-updater wrapper emitting `UpdaterStatusEvent`; background download + silent install on quit; refuses to run for portable/AppImage/unpackaged builds. |
 
 ## 2.4 The native agent package (`src/main/agent`)
 

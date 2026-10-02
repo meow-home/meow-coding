@@ -36,7 +36,8 @@ export default function UpdatesTab() {
               {version && <span className="context-tag">v{version}</span>}
             </div>
             <p className="context-card-desc">
-              Meow checks GitHub Releases on startup to keep your installation up to date.
+              Meow checks GitHub Releases on startup and downloads new versions in the background.
+              The update installs silently when you quit — restart now to apply it sooner.
             </p>
           </div>
         </div>
@@ -77,7 +78,9 @@ export default function UpdatesTab() {
                 <ArrowUpCircle size={20} style={{ color: '#3b82f6', flexShrink: 0 }} />
                 <div className="updates-status-text">
                   <span className="updates-status-title">Version v{status.version} is available</span>
-                  <span className="updates-status-desc">A new version of Meow is ready to install.</span>
+                  <span className="updates-status-desc">
+                    Downloading in the background — it installs when you quit Meow.
+                  </span>
                 </div>
               </div>
               <button
@@ -110,7 +113,9 @@ export default function UpdatesTab() {
                 <Sparkles size={20} style={{ color: '#22c55e', flexShrink: 0 }} />
                 <div className="updates-status-text">
                   <span className="updates-status-title">Download complete</span>
-                  <span className="updates-status-desc">Restart Meow now to apply the update.</span>
+                  <span className="updates-status-desc">
+                    Installs silently when you quit Meow — or restart now to apply it.
+                  </span>
                 </div>
               </div>
               <button

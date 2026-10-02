@@ -22,7 +22,7 @@ The React UI layer (renderer process). Everything the user sees: the sessions of
 | `PopupTitleBar.tsx` | Popup window chrome for the FileViewer/GitViewer BrowserWindows: drag region + (Linux) custom min/max/close, mirroring the main TitleBar so popups match the app theme. |
 | `EmptyState.tsx` | Shown when no pane is open (workspace vs. no-workspace hint). |
 | `BackgroundPanel.tsx` | Lists background agents; open/stop/delete them (delete shows a confirm dialog). |
-| `UpdateDialog.tsx` | Auto-update status + install prompt. |
+| `UpdateDialog.tsx` | Auto-update status + install prompt. Only a manual check opens it (a background download stays out of the way); during a background download it is dismissible and hides the install button. |
 | `BrowserDialog.tsx` | Chrome bridge status + extension approval UI: white background cards, Lucide icons, status pill indicators, an Allow/Deny card for a pending extension, a trusted-extension list with revoke, and quick setup navigation. |
 | `InstallGuideDialog.tsx` | Extension install steps for browser bridge: redesigned with numbered step cards (1-4), Lucide icons, copyable unpacked extension directory path box, and local security notice banner. |
 | `files/FilesOverlay.tsx` | In-app Files explorer (pane `⋮` → Files), docked on the right of the pane area by default (drag its left edge to resize, 320–900px, default 420px) or expanded over the whole pane area via maximize/restore: filter + tree on the left, open-file tabs on the right, header menu (Refresh, Collapse all, Close all tabs, Copy path, Reveal in Folder, Open in VS Code), close; `Esc` and project switch close it. |

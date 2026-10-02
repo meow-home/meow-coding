@@ -30,10 +30,12 @@ export default function UpdateDialog({ status, onClose, onInstall }: Props) {
 
   const actionsNode = (
     <>
-      <button className="btn" onClick={onClose} disabled={downloading}>Later</button>
-      <button className="btn primary" onClick={onInstall} disabled={downloading}>
-        {ready ? 'Restart now' : 'Update & Restart'}
-      </button>
+      <button className="btn" onClick={onClose}>Later</button>
+      {!downloading && (
+        <button className="btn primary" onClick={onInstall}>
+          {ready ? 'Restart now' : 'Update & Restart'}
+        </button>
+      )}
     </>
   )
 
@@ -44,8 +46,6 @@ export default function UpdateDialog({ status, onClose, onInstall }: Props) {
       actions={actionsNode}
       size="lg"
       className="update-dialog"
-      closeOnBackdropClick={!downloading}
-      closeOnEscape={!downloading}
     >
       {version && (
         <p className="update-version">
@@ -62,7 +62,9 @@ export default function UpdateDialog({ status, onClose, onInstall }: Props) {
           <div className="update-progress-track">
             <div className="update-progress-fill" style={{ width: `${status.percent}%` }} />
           </div>
-          <div className="update-progress-label">{status.percent}%</div>
+          <div className="update-progress-label">
+            {status.percent}% — downloading in the background, it installs when you quit.
+          </div>
         </>
       )}
     </BaseModal>

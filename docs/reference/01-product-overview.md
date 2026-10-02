@@ -93,7 +93,7 @@ straight to the code.
 | Themes | VSCode Light+ / Studio Dark palettes, CSS-variable driven, persisted in `localStorage` (`meow.theme`), inherited by popup windows | `styles.css`, `theme.ts` |
 | Tray | Closing the window hides to tray so agents keep running; real quit via tray Exit / Cmd+Q | `tray-manager.ts` |
 | Single instance | A second launch focuses the existing window instead of starting a duplicate bridge/agents | `app.requestSingleInstanceLock()` in `index.ts` |
-| Auto-update | electron-updater; manual and startup checks; background download then a click-to-install notification | `updater.ts`, `UpdateDialog.tsx` |
+| Auto-update | electron-updater; manual and startup checks; background download and a silent install on quit (a notification offers an immediate restart) | `updater.ts`, `UpdateDialog.tsx` |
 
 ## 1.4 Domain glossary
 

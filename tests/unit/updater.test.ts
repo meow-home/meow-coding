@@ -178,23 +178,27 @@ describe('Updater', () => {
     expect(events).toEqual([{ type: 'error', message: 'boom' }])
   })
 
+  it('enables background download and install-on-quit', () => {
+    makeUpdater()
+    expect(mockAutoUpdater.autoDownload).toBe(true)
+    expect(mockAutoUpdater.autoInstallOnAppQuit).toBe(true)
+  })
+
   it('install before download starts the download instead of quitting', () => {
     const { updater } = makeUpdater()
     updater.install()
     expect(mockAutoUpdater.downloadUpdate).toHaveBeenCalledTimes(1)
     expect(mockAutoUpdater.quitAndInstall).not.toHaveBeenCalled()
-    expect(mockAutoUpdater.autoDownload).toBe(false)
-    expect(mockAutoUpdater.autoInstallOnAppQuit).toBe(false)
   })
 
-  it('install after update-downloaded quits and installs', async () => {
+  it('install after update-downloaded quits and installs silently, then relaunches', async () => {
     const { updater } = makeUpdater()
     // Simulate a finished download before the user clicks restart.
     const emit = listeners.get('update-downloaded')!
     emit({ version: '2.1.0', downloadedFile: '/tmp/update' })
     updater.install()
     expect(mockAutoUpdater.downloadUpdate).not.toHaveBeenCalled()
-    expect(mockAutoUpdater.quitAndInstall).toHaveBeenCalledTimes(1)
+    expect(mockAutoUpdater.quitAndInstall).toHaveBeenCalledWith(true, true)
   })
 
   it('a failed download rejects and surfaces as an error', async () => {
@@ -204,6 +208,48 @@ describe('Updater', () => {
     await vi.waitFor(() => {
       expect(events).toContainEqual({ type: 'error', message: 'disk full' })
     })
+  })
+
+  it('does not re-announce a version that is already downloaded', async () => {
+    const { events, updater } = makeUpdater()
+    mockAutoUpdater.checkForUpdates.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: '2.1.0', releaseDate: '2026-08-18T00:00:00.000Z' }
+    })
+    await updater.check(true)
+    expect(events.filter(e => e.type === 'update-available')).toHaveLength(1)
+
+    // The background download finished; a later check for the same version
+    // must stay silent instead of re-notifying the user — including the
+    // `update-downloaded` re-fire from the cached installer.
+    listeners.get('update-downloaded')!({ version: '2.1.0', downloadedFile: '/tmp/update' })
+    events.length = 0
+    await updater.check(true)
+    listeners.get('update-downloaded')!({ version: '2.1.0', downloadedFile: '/tmp/update' })
+    expect(events).toEqual([{ type: 'checking' }])
+  })
+
+  it('announces a different version after one was already downloaded', async () => {
+    const { events, updater } = makeUpdater()
+    listeners.get('update-downloaded')!({ version: '2.1.0', downloadedFile: '/tmp/update' })
+    expect(events).toEqual([{ type: 'downloaded', version: '2.1.0' }])
+
+    events.length = 0
+    mockAutoUpdater.checkForUpdates.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: '2.2.0', releaseDate: '2026-08-20T00:00:00.000Z' }
+    })
+    await updater.check(true)
+    expect(events).toEqual([
+      { type: 'checking' },
+      {
+        type: 'update-available',
+        version: '2.2.0',
+        currentVersion: '1.0.0',
+        releaseNotes: undefined,
+        releaseDate: '2026-08-20T00:00:00.000Z'
+      }
+    ])
   })
 
   it('ignores a second check while one is in flight', async () => {

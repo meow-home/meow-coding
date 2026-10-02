@@ -351,10 +351,11 @@ export class MainApp {
         win?.webContents.send(Channels.EventUpdaterStatus, e)
         if (e.type === 'downloaded') {
           // Download finished in the background — let the user know even with
-          // the dialog closed; clicking installs and restarts.
+          // the dialog closed. The update installs silently on quit; clicking
+          // restarts now to apply it immediately.
           const n = new Notification({
             title: 'Meow Coding',
-            body: `[meow] v${e.version} has been downloaded. Click to install and restart.`
+            body: `[meow] v${e.version} is ready and will install when you quit. Click to restart now.`
           })
           n.on('click', () => this.updater.install())
           n.show()

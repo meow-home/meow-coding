@@ -27,19 +27,27 @@ function releaseNotesText(notes: UpdateInfo['releaseNotes']): string | undefined
 export class Updater {
   private checking = false
   private downloaded = false
+  private downloadedVersion: string | null = null
 
   constructor(
     private readonly onStatus: (e: UpdaterStatusEvent) => void,
     private readonly env: UpdaterEnv
   ) {
-    autoUpdater.autoDownload = false
-    autoUpdater.autoInstallOnAppQuit = false
+    // Background updates: the download starts as soon as a newer version is
+    // found, and the installer runs silently on app quit. The user is only
+    // asked to restart early (notification / dialog), never to run a setup UI.
+    autoUpdater.autoDownload = true
+    autoUpdater.autoInstallOnAppQuit = true
     autoUpdater.on('download-progress', (progress) => {
       this.onStatus({ type: 'download-progress', percent: Math.round(progress.percent) })
     })
     autoUpdater.on('update-downloaded', (info) => {
+      // A repeat check validates the cached installer and re-fires this event;
+      // only a newly downloaded version may notify the user again.
+      const alreadyPending = this.downloaded && this.downloadedVersion === info.version
       this.downloaded = true
-      this.onStatus({ type: 'downloaded', version: info.version })
+      this.downloadedVersion = info.version
+      if (!alreadyPending) this.onStatus({ type: 'downloaded', version: info.version })
     })
     autoUpdater.on('error', (err: Error, message?: string) => {
       this.onStatus({ type: 'error', message: message ?? err.message })
@@ -58,8 +66,6 @@ export class Updater {
     }
     if (this.checking) return
     this.checking = true
-    // A fresh check may find a newer version than the one already downloaded.
-    this.downloaded = false
     try {
       if (manual) this.onStatus({ type: 'checking' })
       const result = await autoUpdater.checkForUpdates()
@@ -69,6 +75,10 @@ export class Updater {
         this.onStatus({ type: 'up-to-date', currentVersion })
         return
       }
+      // With autoDownload the download starts inside checkForUpdates. A repeat
+      // check for the same version must not re-announce it (and re-notify) as
+      // available — electron-updater skips the duplicate download itself.
+      if (this.downloaded && this.downloadedVersion === info.version) return
       this.onStatus({
         type: 'update-available',
         version: info.version,
@@ -85,7 +95,8 @@ export class Updater {
 
   install(): void {
     if (this.downloaded) {
-      autoUpdater.quitAndInstall()
+      // Silent install: no NSIS wizard, and relaunch the app afterwards.
+      autoUpdater.quitAndInstall(true, true)
       return
     }
     void autoUpdater.downloadUpdate().catch((err) => {

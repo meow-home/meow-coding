@@ -222,14 +222,18 @@ Otherwise it installs/imports the `TrustedSigning` PowerShell module (pinned `0.
 
 `src/main/updater.ts` wraps `electron-updater` against the GitHub `publish` target.
 
-- `autoDownload = false`, `autoInstallOnAppQuit = false` — the user decides.
+- Background updates: `autoDownload = true` (the download starts as soon as a newer version is found)
+  and `autoInstallOnAppQuit = true` (the installer runs silently when the app quits — no setup UI).
+  `install()` calls `quitAndInstall(true, true)`, so a manual restart is also a silent install that
+  relaunches the app.
 - **Unsupported** (reported as `not-supported`, only surfaced on a manual check) when the app is not
   packaged, is a Windows **portable** build (`PORTABLE_EXECUTABLE_FILE`), or is a Linux **AppImage**
   (`APPIMAGE`).
 - Status is pushed as `UpdaterStatusEvent`: `checking`, `update-available`, `up-to-date`,
   `download-progress`, `downloaded`, `error`, `not-supported`.
 - The startup check runs 1.5s after ready and only for packaged builds. When a download completes,
-  main shows a native notification — clicking it installs and restarts.
+  main shows a native notification: the update installs on quit, and clicking the notification
+  restarts immediately to apply it.
 
 ## 10.9 Release checklist
 

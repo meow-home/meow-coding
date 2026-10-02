@@ -470,10 +470,12 @@ export default function App() {
     const offUpdater = window.api.onUpdaterStatus((e) => {
       setUpdateStatus(e)
       setUpdateChecking(e.type === 'checking')
-      // Download runs in the background even when the popup is closed — when
-      // it finishes, bring the dialog back so the user can restart now or
-      // defer to later.
-      if (e.type === 'update-available' || e.type === 'downloaded') setUpdateDialogOpen(true)
+      // Only a manual check opens the dialog (the user is waiting for the
+      // answer). A background download stays out of the way: the update
+      // installs on quit, and the native notification offers a restart.
+      if ((e.type === 'update-available' || e.type === 'downloaded') && manualCheckRef.current) {
+        setUpdateDialogOpen(true)
+      }
       if (e.type === 'error' || e.type === 'not-supported') setUpdateDialogOpen(false)
       // Only surface "up to date" when the user asked for a manual check —
       // the automatic check on startup must not pop a dialog.

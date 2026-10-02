@@ -101,9 +101,12 @@ expanded one is a direct child of `.main` so its absolute insets resolve against
 covers the chat pane. Nesting the expanded panel inside the grid container would confine it to the
 docked column (the container is `position: relative` for its resizer).
 
-Update-dialog policy: `update-available` and `downloaded` open the dialog; `error` and
-`not-supported` close it; `up-to-date` only opens a dialog when the check was **manual**
-(`manualCheckRef`), so the automatic startup check never pops anything.
+Update-dialog policy: `update-available` and `downloaded` open the dialog **only for a manual check**
+(`manualCheckRef`); `error` and `not-supported` close it; `up-to-date` only opens a dialog when the
+check was manual, so the automatic startup check never pops anything. The download itself is
+automatic (no click needed) and the install is silent on quit — the dialog's "Update & Restart" /
+"Restart now" only brings that moment forward, and while a background download is running the dialog
+is dismissible (no install button, "Later" only).
 
 ## 9.4 Component inventory
 
