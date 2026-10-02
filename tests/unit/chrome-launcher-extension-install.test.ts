@@ -46,4 +46,16 @@ describe('ensureExtensionInstalled', () => {
 
     expect(existsSync(path.join(target, 'manifest.json'))).toBe(true)
   })
+
+  it('throws when the target cannot be created, which the startup call site guards so a read-only userData cannot kill app startup', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'meow-ext-blocked-'))
+    const source = path.join(root, 'source')
+    mkdirSync(source, { recursive: true })
+    writeFileSync(path.join(source, 'manifest.json'), JSON.stringify({ version: '1.0.0' }))
+    // A regular file where the target directory should go: mkdirSync fails with ENOTDIR.
+    const blocked = path.join(root, 'blocked')
+    writeFileSync(blocked, 'not a directory')
+
+    expect(() => ensureExtensionInstalled(source, path.join(blocked, 'nested'))).toThrow()
+  })
 })

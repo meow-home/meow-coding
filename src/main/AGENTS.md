@@ -18,6 +18,11 @@ handlers and the app lifecycle.
   quit, forwards external delegation changes to its long-poll waiters, and pushes `workspace:changed`
   when the facade adds a project or session. After the API and the delegation service have started it
   calls `externalFacade.resumeQueued()` so queued external tasks from a previous run start.
+  Every best-effort step in the app-ready chain is guarded (`delegations.load()`, `ensureExtensionInstalled`,
+  the v0.37 reset, `migrateUnlimitedSteps`): a locked/read-only `userData` must not reject the ready chain,
+  which would skip `registerIpcHandlers`/`createWindow` and launch to a windowless app. `delegations.load()`
+  needs `try/catch` rather than `.catch()` — it reads the file synchronously, so a bad path throws before a
+  promise exists.
 - `meow-agent-manager.ts` — `MeowAgentManager`: orchestrates the agent chat loop, sessions, commands,
   permissions, subagents, MCP/user tools, stats, settings. The only place that orchestrates the native agent.
   Tracks draft session model preferences (`DRAFT_SESSION_ID`) and resolves default models for unmaterialized sessions (`defaultSessionModel()`: last used model, else the default provider — also used for sessions created by external delegation);

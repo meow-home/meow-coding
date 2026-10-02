@@ -1050,7 +1050,16 @@ app.whenReady().then(async () => {
   await mainApp.connections.init().catch(err => {
     console.error('[meow] connections init failed:', err)
   })
-  await mainApp.delegations.load()
+  // Best-effort: a locked or read-only userData must not reject the ready chain —
+  // that would skip registerIpcHandlers/createWindow and launch to nothing. Losing
+  // the delegation records for one launch is recoverable; a dead window is not.
+  // try/catch, not .catch(): load() reads the file synchronously, so a bad path
+  // throws before any promise exists.
+  try {
+    await mainApp.delegations.load()
+  } catch (err) {
+    mainApp.systemLogger.log('ERROR', 'main', `delegations load failed: ${err instanceof Error ? err.message : String(err)}`)
+  }
   const delegationsStarted = mainApp.delegationService.start()
   void mainApp.externalApi.start()
     .catch(err => console.error('[meow] external API:', err))
@@ -1060,7 +1069,14 @@ app.whenReady().then(async () => {
   const extSource = app.isPackaged
     ? path.join(process.resourcesPath, 'browser-extension')
     : path.join(app.getAppPath(), 'out', 'browser-extension')
-  ensureExtensionInstalled(extSource, path.join(app.getPath('userData'), 'browser-extension'))
+  try {
+    ensureExtensionInstalled(extSource, path.join(app.getPath('userData'), 'browser-extension'))
+  } catch (err) {
+    // Best-effort asset sync, same reasoning as the migrations below: a locked or
+    // read-only userData must not reject the ready chain. The extension simply
+    // stays at its previous copy and is re-synced on the next launch.
+    mainApp.systemLogger.log('ERROR', 'main', `extension install failed: ${err instanceof Error ? err.message : String(err)}`)
+  }
   // v0.37 model switch: one-time reset to a single native session per project.
   // Runs before any workspace activation (which is what first loads the session
   // store), so deleting the file cannot be undone by a debounced in-memory flush.

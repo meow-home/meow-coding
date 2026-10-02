@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createJsonStore } from '../../src/main/json-store'
@@ -44,6 +44,14 @@ describe('SessionDelegationStore', () => {
     const d = make().get('d2')
     expect(d?.status).toBe('queued')
     expect(d?.task).toBe('d2')
+  })
+
+  it('throws synchronously when the records file cannot be read, which is why the startup call site wraps load() in try/catch', () => {
+    // A directory where the file should be: readFileSync fails with EISDIR.
+    mkdirSync(file, { recursive: true })
+    // Synchronous, not a rejected promise — load() reads the file before it
+    // returns, so a `.catch()` at the call site would never see this.
+    expect(() => make().load()).toThrow()
   })
 
   it('enforces allowed transitions and ignores disallowed ones', () => {
