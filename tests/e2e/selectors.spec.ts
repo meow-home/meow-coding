@@ -251,11 +251,17 @@ test('model picker ticks sit at the right edge like the other selectors', async 
         e => e.firstElementChild?.classList.contains('menu-item-label') ?? false
       )
       expect(labelFirst).toBe(true)
-      const { tickRight, rowRight } = await activeRow.evaluate(e => ({
+      const { tickRight, rowRight, padX, root } = await activeRow.evaluate(e => ({
         tickRight: e.lastElementChild!.getBoundingClientRect().right,
-        rowRight: e.getBoundingClientRect().right
+        rowRight: e.getBoundingClientRect().right,
+        padX: parseFloat(getComputedStyle(e).paddingRight),
+        root: parseFloat(getComputedStyle(document.documentElement).fontSize)
       }))
-      expect(Math.round(rowRight - tickRight)).toBe(10)
+      // The tick sits flush against the row's own padding edge, which is rem-derived
+      // (`--menu-item-pad-x`), so assert against the live value instead of the 10px
+      // that only holds at the 12px root the CSS defaults to.
+      expect(padX).toBeCloseTo(0.833333 * root, 0)
+      expect(rowRight - tickRight).toBeCloseTo(padX, 0)
       await expect(activeRow.locator('.menu-item-check svg')).toHaveCount(1)
     } finally {
       await app.close()

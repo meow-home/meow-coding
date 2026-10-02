@@ -45,6 +45,11 @@ async function openFromPaneMenu(window: Page, label: 'Files' | 'Processes'): Pro
   await window.locator('button.menu-item').filter({ hasText: new RegExp(`^${label}$`) }).click()
 }
 
+/** The live root font-size: every rem-derived metric scales with it. */
+function rootFontSize(window: Page): Promise<number> {
+  return window.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize))
+}
+
 function rectOf(window: Page, selector: string) {
   return window.evaluate(sel => {
     const el = document.querySelector(sel)
@@ -84,9 +89,12 @@ test('expanding a panel covers the pane area, not just the docked column', async
     expect(offsetParentClass).toContain('main')
 
     // Expanded fills the pane area within its 0.333333rem gap on every edge, so it
-    // covers the chat pane instead of the docked column.
-    expect(full!.x).toBeCloseTo(main!.x + 4, 0)
-    expect(full!.w).toBeCloseTo(main!.w - 8, 0)
+    // covers the chat pane instead of the docked column. The gap is rem-derived, so
+    // derive the expected inset from the live root font-size rather than hardcoding
+    // 4px (which only holds at the 12px root the CSS defaults to).
+    const rem = await rootFontSize(window)
+    expect(full!.x).toBeCloseTo(main!.x + 0.333333 * rem, 0)
+    expect(full!.w).toBeCloseTo(main!.w - 2 * 0.333333 * rem, 0)
     expect(full!.w).toBeGreaterThan(docked!.w + 400)
     expect(full!.w).toBeGreaterThan(chat!.w)
 
@@ -119,8 +127,9 @@ test('expanding the Processes panel covers the pane area too', async () => {
 
     const main = await rectOf(window, '.main')
     const full = await rectOf(window, '.processes-overlay.full')
-    expect(full!.x).toBeCloseTo(main!.x + 4, 0)
-    expect(full!.w).toBeCloseTo(main!.w - 8, 0)
+    const rem = await rootFontSize(window)
+    expect(full!.x).toBeCloseTo(main!.x + 0.333333 * rem, 0)
+    expect(full!.w).toBeCloseTo(main!.w - 2 * 0.333333 * rem, 0)
   } finally {
     await app.close()
     rmSync(userData, { recursive: true, force: true })

@@ -128,6 +128,11 @@ function lineHeight(field: Locator): Promise<number> {
   return field.evaluate(el => parseFloat(getComputedStyle(el).lineHeight))
 }
 
+/** The live root font-size in px: every rem-derived metric scales with it. */
+function rootFontSize(window: Page): Promise<number> {
+  return window.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize))
+}
+
 test('the composer card is one line tall, with the send button inside its right edge', async () => {
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
   const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
@@ -151,11 +156,17 @@ test('the composer card is one line tall, with the send button inside its right 
       const sendBox = (await send.boundingBox())!
       expect(Math.round(cardBox.height)).toBe(await oneLineCardHeight(card))
 
-      // Inside the frame, at its right edge, inset by the card's own padding.
-      const padRight = await card.evaluate(el => parseFloat(getComputedStyle(el).paddingRight))
-      expect(Math.round(cardBox.x + cardBox.width - (sendBox.x + sendBox.width))).toBe(Math.round(padRight))
-      expect(Math.round(sendBox.width)).toBe(24)
-      expect(Math.round(sendBox.height)).toBe(24)
+      // Inside the frame, at its right edge, inset by the card's padding *and* its
+      // border (the box is border-box, so the content edge sits one border further in).
+      const inset = await card.evaluate(el => {
+        const cs = getComputedStyle(el)
+        return parseFloat(cs.paddingRight) + parseFloat(cs.borderRightWidth)
+      })
+      expect(cardBox.x + cardBox.width - (sendBox.x + sendBox.width)).toBeCloseTo(inset, 0)
+      // The button is 2rem square, so it scales with the user-configurable root.
+      const rem = await rootFontSize(window)
+      expect(sendBox.width).toBeCloseTo(2 * rem, 0)
+      expect(sendBox.height).toBeCloseTo(2 * rem, 0)
 
       // Centred on the single text line at rest.
       const lineCenter = await card.locator('.chat-input-field').evaluate(el => {
@@ -189,11 +200,13 @@ test('the input grows with the text, caps at eight lines and shrinks back', asyn
 
       const rest = await oneLineCardHeight(card)
       const lh = await lineHeight(field)
-      expect(Math.round((await card.boundingBox())!.height)).toBe(rest)
+      // Compare unrounded: `rest` is a fractional sum, so rounding it before adding
+      // whole line-heights drifts by a pixel once the root font-size is not 12px.
+      expect((await card.boundingBox())!.height).toBeCloseTo(rest, 0)
 
       // Every line the field takes must be a line the card gains.
       await field.fill('one\ntwo\nthree\nfour\nfive')
-      await expect.poll(async () => Math.round((await card.boundingBox())!.height)).toBe(rest + 4 * lh)
+      await expect.poll(async () => (await card.boundingBox())!.height).toBeCloseTo(rest + 4 * lh, 0)
 
       // Past the cap the field scrolls instead of growing: 8 lines is the most it
       // shows, so the card tops out 7 line-heights above rest, and the cap is
@@ -203,9 +216,9 @@ test('the input grows with the text, caps at eight lines and shrinks back', asyn
         return parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)
       })
       const maxHeight = await field.evaluate(el => parseFloat(getComputedStyle(el).maxHeight))
-      expect(Math.round(maxHeight)).toBe(Math.round(padY + 8 * lh))
+      expect(maxHeight).toBeCloseTo(padY + 8 * lh, 0)
       await field.fill(Array.from({ length: 20 }, (_, i) => `line ${i}`).join('\n'))
-      await expect.poll(async () => Math.round((await card.boundingBox())!.height)).toBe(rest + 7 * lh)
+      await expect.poll(async () => (await card.boundingBox())!.height).toBeCloseTo(rest + 7 * lh, 0)
       const scrolled = await field.evaluate(el => {
         const t = el as HTMLTextAreaElement
         return t.scrollHeight > t.clientHeight
@@ -215,7 +228,7 @@ test('the input grows with the text, caps at eight lines and shrinks back', asyn
       // And shrinking is as important as growing: an emptied field must give the
       // space back, or the card stays permanently tall.
       await field.fill('')
-      await expect.poll(async () => Math.round((await card.boundingBox())!.height)).toBe(rest)
+      await expect.poll(async () => (await card.boundingBox())!.height).toBeCloseTo(rest, 0)
     } finally {
       await app.close()
     }

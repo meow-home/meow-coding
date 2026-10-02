@@ -97,6 +97,11 @@ async function launch(userData: string): Promise<{ app: ElectronApplication; win
   return { app, window }
 }
 
+/** The live root font-size: every rem-derived metric scales with it. */
+function rootFontSize(window: Page): Promise<number> {
+  return window.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize))
+}
+
 // Expands the (single) seeded project's session list, then opens its panes by
 // selecting the first session. Asserts the pane container rather than
 // `.chat-panel`, which matches once per session.
@@ -293,14 +298,21 @@ test('sidebar icon buttons are 24x24 squares with a 3px radius', async () => {
       // Project row: the "+" (new session) and the "..." (project menu). Both are
       // revealed on hover; boundingBox() ignores opacity, but hovering keeps the
       // measurement on the state the user actually sees.
+      // `.icon-btn` is 2rem square with a 0.25rem radius; both scale with the
+      // user-configurable root font-size, so derive them instead of hardcoding the
+      // 24px/3px that only hold at the 12px root the CSS defaults to.
+      const rem = await rootFontSize(window)
+      const side = 2 * rem
+      const radius = 0.25 * rem
+
       await window.locator('.project-row').hover()
       for (const name of ['new session E2E Project', 'menu E2E Project']) {
         const btn = window.getByRole('button', { name, exact: true })
         const box = await btn.boundingBox()
         expect(box).not.toBeNull()
-        expect(Math.round(box!.width)).toBe(24)
-        expect(Math.round(box!.height)).toBe(24)
-        await expect(btn).toHaveCSS('border-radius', '3px')
+        expect(box!.width).toBeCloseTo(side, 0)
+        expect(box!.height).toBeCloseTo(side, 0)
+        await expect(btn).toHaveCSS('border-radius', `${radius}px`)
       }
 
       // Session row: the per-row "..." menu button.
@@ -309,9 +321,9 @@ test('sidebar icon buttons are 24x24 squares with a 3px radius', async () => {
       const sessionMenu = row.getByRole('button', { name: 'Session menu', exact: true })
       const box = await sessionMenu.boundingBox()
       expect(box).not.toBeNull()
-      expect(Math.round(box!.width)).toBe(24)
-      expect(Math.round(box!.height)).toBe(24)
-      await expect(sessionMenu).toHaveCSS('border-radius', '3px')
+      expect(box!.width).toBeCloseTo(side, 0)
+      expect(box!.height).toBeCloseTo(side, 0)
+      await expect(sessionMenu).toHaveCSS('border-radius', `${radius}px`)
     } finally {
       await app.close()
     }
@@ -347,10 +359,11 @@ test('the pane header is the dot and the name, sharing the sidebar icon button',
       // lucide 1.33 renders MoreVertical as `lucide-ellipsis-vertical` (the
       // component was renamed upstream, the export kept its old name as an alias).
       await expect(paneMenu.locator('svg')).toHaveClass(/lucide-ellipsis-vertical/)
+      const rem = await rootFontSize(window)
       const paneBox = (await paneMenu.boundingBox())!
-      expect(Math.round(paneBox.width)).toBe(24)
-      expect(Math.round(paneBox.height)).toBe(24)
-      await expect(paneMenu).toHaveCSS('border-radius', '3px')
+      expect(paneBox.width).toBeCloseTo(2 * rem, 0)
+      expect(paneBox.height).toBeCloseTo(2 * rem, 0)
+      await expect(paneMenu).toHaveCSS('border-radius', `${0.25 * rem}px`)
 
       // Not "a button that looks the same as the project row's" — the same
       // class, so the two cannot drift apart again.
