@@ -33,6 +33,7 @@ in `src/main/index.ts`).
 | `.sessions-model-reset` | `fresh-start.ts` (boot block in `index.ts`) | timestamp text | Flag for the one-time **destructive** v0.37 model switch (every project reset to one native session, `sessions.json` deleted). Written only after the reset succeeds, so an absent flag means the migration is retried on the next launch |
 | `snapshots.json` | `agent/snapshot.ts` | `SnapshotTurn[]` | `{ agentId, ts, before: {path: content}, after: {path: content} }`, max 50 turns |
 | `permissions.json` | `agent/saved-permissions.ts` | `SavedPermission[]` | "Always allow" decisions per (project, tool) |
+| `browser-trusted.json` | `browser/trusted-store.ts` | `TrustedExtension[]` | Approved Chrome extension ids (`{ id, version?, approvedAt }`) — the browser bridge allowlist; see [08 — Browser bridge](08-integrations.md#83-chrome-browser-bridge) |
 | `learned-limits.json` | `agent/learned-limits.ts` | `LearnedLimitEntry[]` | Debounced 500ms; keyed `baseUrl\|model`; values only ever tighten |
 | `commands.json` | `agent/commands.ts` `CommandStore` | `Command[]` | User slash commands |
 | `models.json` | `models-catalog.ts` | object | Cached models.dev catalog (falls back to the bundled `models-snapshot.json`) |
@@ -399,7 +400,7 @@ inherit the main window's theme automatically.
 
 | Endpoint | Direction | Purpose |
 |---|---|---|
-| `127.0.0.1:3927` (HTTP + WS) | app listens | Browser bridge. `GET /api/status` returns `{port, status}`; the WS endpoint speaks the pairing/command protocol |
+| `127.0.0.1:3927` (HTTP + WS) | app listens | Browser bridge. `GET /api/status` returns `{port, status}`; the WS endpoint speaks the hello/command protocol |
 | `127.0.0.1:<ephemeral base + i>` | app listens (via sidecar) | One OpenAI-compatible proxy port per Codex account |
 | `localhost:1455` / `localhost:1457`, path `/auth/callback` | app listens temporarily | Codex OAuth redirect — these exact ports are registered with `auth.openai.com`; a random port is rejected |
 | `1305` | dev only | electron-vite renderer dev server (`strictPort: true`) |

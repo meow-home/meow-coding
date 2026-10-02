@@ -149,7 +149,10 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | Key | Channel | Method |
 |---|---|---|
 | `BrowserGetStatus` | `browser:get-status` | `getBrowserStatus(): BrowserStatusInfo` |
-| `BrowserPair` | `browser:pair` | `pairBrowser(): PairingInfo` |
+| `BrowserApproveExtension` | `browser:approve-extension` | `approveBrowserExtension(extensionId): BrowserStatusInfo` |
+| `BrowserDenyExtension` | `browser:deny-extension` | `denyBrowserExtension(extensionId): BrowserStatusInfo` |
+| `BrowserRevokeExtension` | `browser:revoke-extension` | `revokeBrowserExtension(extensionId): BrowserStatusInfo` |
+| `BrowserGetTrustedExtensions` | `browser:get-trusted-extensions` | `getBrowserTrustedExtensions(): TrustedExtension[]` |
 | `BrowserOpenInstallGuide` | `browser:open-install-guide` | `openBrowserInstallGuide()` |
 | `BrowserOpenExtensionFolder` | `browser:open-extension-folder` | `openBrowserExtensionFolder()` |
 | `BrowserOpenChromeExtensions` | `browser:open-chrome-extensions` | `openBrowserChromeExtensions()` |

@@ -113,7 +113,7 @@ handlers and the app lifecycle.
 - `updater.ts` — electron-updater wrapper, emits `UpdaterStatusEvent`.
 - `window-chrome.ts` — `getWindowChromeOptions`: hides the title-bar on Windows/Linux; `applyTitleBarTheme` re-colors the Windows overlay (min/max/close) live when the app theme toggles dark/light. The OS draws those buttons, so `TITLE_BAR_COLORS` is their only color source and must equal the renderer's title bar surface (`.title-bar-right` → `var(--bg)`); `tests/unit/window-chrome.test.ts` parses `styles.css` and fails if the two drift apart.
 - `vault.ts` — encrypted secret store (safeStorage) for provider API keys.
-- `browser/` — BrowserBridge (local WS server + pairing) + Chrome launcher + snapshot format.
+- `browser/` — BrowserBridge (local WS server + extension approval) + trusted-extension store + Chrome launcher + snapshot format.
 - `external-api/` — loopback API + CLI for delegation from Claude Code; see its AGENTS.md.
 
 ## Conventions

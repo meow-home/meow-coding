@@ -15,7 +15,7 @@ House rules, process, and the traps that have already bitten someone in this rep
 | **Secrets live only in the vault** | Settings, indexes and IPC payloads carry `keyRef`s or masked values |
 | **Do not modify `@lydell/node-pty` source** | It ships prebuilds; rebuild with `npx @electron/rebuild -f -w @lydell/node-pty` instead |
 | **Do not break `buildSpawnCommand`** | Windows ConPTY cannot launch `.cmd` shims directly (see [11.5](#115-windows-specific-traps)) |
-| **Browser bridge binds `127.0.0.1` only and requires a pairing code** | It drives the user's *real* Chrome profile |
+| **Browser bridge binds `127.0.0.1` only and requires an approved extension id** | It drives the user's *real* Chrome profile; the `Origin` check is what makes the id trustworthy |
 | **One `AGENTS.md` per module, updated before commit** | See [11.3](#113-documentation-sync-rule) |
 
 ## 11.2 Style conventions

@@ -96,14 +96,14 @@ BrowserBridge (main)                    Meow Browser Bridge (Chrome MV3 extensio
 
 | Direction | Message | Purpose |
 |---|---|---|
-| ext → bridge | `{ type: 'pair', code }` | Redeem the pairing code |
-| bridge → ext | `{ type: 'pair_result', ok, error? }` | Result |
+| ext → bridge | `{ type: 'hello', extensionId, version? }` | Announce the extension id on connect |
+| bridge → ext | `{ type: 'hello_result', ok, paired, pending?, error? }` | Trusted (silent pair), pending approval, or rejected |
 | bridge → ext | `{ type: 'cmd', id, name, params }` | Execute a command |
 | ext → bridge | `{ type: 'result', id, ok, data? \| error }` | Command result |
 | ext → bridge | `{ type: 'event', name, data }` | `console`, `network`, `domChanged`, `tabUpdated`, `status` |
 | ext ↔ bridge | `ping` / `pong` | Keepalive |
 
-`BrowserStatus` ∈ `idle` | `listening` | `paired` | `disconnected` | `error`.
+`BrowserStatus` ∈ `idle` | `listening` | `pending` | `paired` | `disconnected` | `error`.
 
 `GET http://127.0.0.1:3927/api/status` returns `{ port, status }` (CORS-open) so the extension popup
 can discover the bridge.
@@ -111,10 +111,15 @@ can discover the bridge.
 ### Bridge behavior
 
 - **Loopback only** (`127.0.0.1`), preferred port `3927`.
-- Exactly **one** extension socket at a time; a new connection closes the previous one.
-- Pairing code: 6 digits, TTL 5 minutes. The **TTL bounds only the initial pairing** — once
-  `sessionPaired` is set, a reconnect with the same code silently re-pairs, because MV3 service
-  workers get suspended while idle and drop the WebSocket.
+- Exactly **one** trusted extension socket at a time; a trusted id reconnecting replaces the previous
+  socket, while an unknown connection is rejected without touching the paired one.
+- Trust is an **extension-id allowlist** (`userData/browser-trusted.json`) plus an `Origin` check: a
+  `hello` is accepted only when the handshake `Origin` equals `chrome-extension://<claimed id>`, so a
+  web page or local process cannot impersonate an approved id. A trusted id pairs silently on every
+  reconnect (MV3 service workers get suspended while idle and drop the WebSocket); an unknown id parks
+  the socket in `pending` for 2 minutes until the renderer approves or denies it.
+- A connection that is not the trusted socket has its `result` / `event` / `ping` messages ignored, and
+  a paired socket is never evicted by an unknown connection.
 - Commands time out after **30s**; every pending command is rejected with
   `browser bridge closed` on shutdown.
 - Result post-processing:
@@ -137,7 +142,7 @@ Manifest V3, name **Meow Browser Bridge**.
 | `host_permissions` | `<all_urls>` |
 | `background` | `background.js` (service worker) — the WS client and command dispatcher |
 | `content_scripts` | `content.js` on `<all_urls>` at `document_idle` |
-| `action` | `popup.html` — pairing UI and status |
+| `action` | `popup.html` — bridge port and connection status |
 
 Other sources: `ax-snapshot.ts` (accessibility-tree snapshot producing `role "name" [ref]` lines) and
 `debug-session.ts` (Chrome debugger attach for console/network capture).
@@ -156,7 +161,8 @@ This runs automatically via `predev` / `prebuild` / `predist*`.
 3. `openChrome()` launches the resolved Chrome executable at `chrome://extensions`, or falls back to
    `shell.openExternal`.
 4. `openExtensionFolder()` reveals `userData/browser-extension` so the user can "Load unpacked".
-5. The user enters the 6-digit code in the extension popup.
+5. The extension announces its id; the app asks once ("Extension `<id>` wants to connect") and the
+   user clicks **Allow**. Later connections from that id are silent.
 
 **Design constraint:** the bridge runs on the user's real Chrome profile. Do **not** add a
 per-project profile.

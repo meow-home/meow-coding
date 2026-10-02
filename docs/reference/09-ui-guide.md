@@ -134,7 +134,7 @@ Update-dialog policy: `update-available` and `downloaded` open the dialog; `erro
 
 ### Dialogs
 
-`AddProjectDialog`, `UpdateDialog`, `BrowserDialog` (bridge pairing + status),
+`AddProjectDialog`, `UpdateDialog`, `BrowserDialog` (bridge status + extension approval),
 `InstallGuideDialog` (extension install steps).
 
 ### Chat (`components/chat/`)

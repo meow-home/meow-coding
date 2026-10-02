@@ -116,7 +116,7 @@ straight to the code.
 | **Command** | A slash command: a prompt template with `$1..$N`, `$ARGUMENTS`, and backtick-shell interpolation. `type: 'system'` commands act on app state instead of prompting the LLM. |
 | **Artifact** | A file an agent created or edited during a session, tracked per project for the right-panel Artifacts list. |
 | **Connection / account** | An OAuth-authenticated provider account (currently Codex/ChatGPT) managed under `userData/connections`. |
-| **Bridge** | The loopback WebSocket server that pairs the app with the Meow Chrome extension. |
+| **Bridge** | The loopback WebSocket server that connects the app to the approved Meow Chrome extension. |
 | **Vault** | The `safeStorage`-encrypted secret store; settings and indexes reference secrets by `keyRef`, never by value. |
 
 ## 1.5 Design lineage and credits

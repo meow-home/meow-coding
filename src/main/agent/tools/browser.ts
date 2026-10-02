@@ -28,7 +28,7 @@ export function createBrowserTools(
       name: 'browser_start',
       description:
         'Ensure the Chrome bridge is connected. If not paired, opens Chrome, shows install steps, ' +
-        'and waits for the user to pair the extension. Returns the bridge status.',
+        'and waits for the user to approve the extension in Meow. Returns the bridge status.',
       schema: z.object({}),
       async run(): Promise<ToolRunResult> {
         const status = bridge.getStatus()
@@ -38,7 +38,7 @@ export function createBrowserTools(
         await launcher.openChrome()
         await launcher.showInstallGuide()
         const paired = await bridge.waitForPaired(60_000)
-        if (!paired) return { error: 'browser not paired after 60s — check the pairing code in the extension popup' }
+        if (!paired) return { error: 'browser not paired after 60s — approve the extension in Meow → Browser Bridge' }
         return { output: `browser paired (port ${bridge.getStatus().port})` }
       }
     },

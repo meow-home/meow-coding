@@ -263,7 +263,7 @@ see [08 — Browser bridge](08-integrations.md#83-chrome-browser-bridge).
 
 | Tool | Input | Behavior |
 |---|---|---|
-| `browser_start` | `{}` | Ensure the bridge is connected. If unpaired, opens Chrome, shows install steps, and waits for pairing. Returns bridge status. |
+| `browser_start` | `{}` | Ensure the bridge is connected. If unpaired, opens Chrome, shows install steps, and waits for the user to approve the extension in Meow. Returns bridge status. |
 | `browser_navigate` | `{ url, ... }` | Opens the URL in a **new background tab** of an existing window, grouped under "Meow". Never hijacks an existing tab. Returns a `tabId`. |
 | `browser_open_tab` | `{ url, ... }` | Same, and never opens a new Chrome window unless none are open; does not focus Chrome. |
 | `browser_click` | `{ ref? , selector?, x?, y? }` | Click by snapshot ref (preferred), CSS selector, or viewport coordinates. |
