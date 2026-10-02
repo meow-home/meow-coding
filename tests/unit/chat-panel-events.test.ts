@@ -475,3 +475,62 @@ describe('ChatPanel live event reconciliation', () => {
     expect(container.querySelector('.chat-error-card')).toBeNull()
   })
 })
+
+describe('ChatPanel reasoning across a tool call', () => {
+  // A step streams its reasoning, then announces a tool call. The tool-start
+  // arrives while the reasoning deltas are still sitting in the rAF buffer, so
+  // the bubble must be flushed BEFORE the tool row is appended — otherwise the
+  // rest of the reasoning lands in a second bubble after the tool, and one
+  // thought reads as two (the second one cut).
+  it('keeps one thought when a tool-start interrupts the reasoning stream', async () => {
+    let resolveTranscript!: (page: TranscriptPage) => void
+    const transcript = new Promise<TranscriptPage>(resolve => { resolveTranscript = resolve })
+    let onEvent: ((event: ChatEvent) => void) | undefined
+    const api = new Proxy({}, {
+      get: (_target, key) => {
+        if (key === 'listChatTranscript') return () => transcript
+        if (key === 'onChatEvent') return (listener: (event: ChatEvent) => void) => { onEvent = listener; return () => {} }
+        if (key === 'getAgentVariants' || key === 'getChatTodos' || key === 'listCommands' || key === 'listModels') {
+          return async () => []
+        }
+        if (key === 'getContextInfo') return async () => ({ limit: 128000, compactThreshold: 100000, sessionCost: 0 })
+        if (key === 'isChatRunning') return async () => true
+        if (key === 'getPendingPrompt') return async () => null
+        return async () => undefined
+      }
+    }) as Window['api']
+    Object.defineProperty(window, 'api', { configurable: true, value: api })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => { root?.render(createElement(ChatPanel, { agentId: 'agent-1', cwd: 'C:\repo' })) })
+    await act(async () => { resolveTranscript({ items: [], hasMore: false }); await transcript })
+
+    act(() => onEvent?.({ type: 'step-start', agentId: 'agent-1', step: 1 }))
+    act(() => onEvent?.({ type: 'reasoning-delta', agentId: 'agent-1', delta: 'Let me check the file. ' }))
+    // Let the animation frame fire, so the first half is committed as a bubble.
+    await act(async () => { await new Promise(r => setTimeout(r, 50)) })
+    // The tool call arrives, then the rest of the SAME thought keeps streaming.
+    act(() => onEvent?.({
+      type: 'tool-start', agentId: 'agent-1',
+      call: { id: 'tool-1', tool: 'bash', input: { command: 'cat x' }, permission: 'pending' }
+    }))
+    act(() => onEvent?.({ type: 'reasoning-delta', agentId: 'agent-1', delta: 'Now I will edit it.' }))
+
+    await act(async () => { await new Promise(r => setTimeout(r, 50)) })
+
+    const notes = container.querySelectorAll('.chat-reasoning')
+    expect(notes).toHaveLength(1)
+    expect(notes[0].textContent).toContain('Let me check the file.')
+    expect(notes[0].textContent).toContain('Now I will edit it.')
+
+    // The whole thought stays above the tool it announced.
+    const feed = container.querySelector('.chat-feed-content')!
+    const order = [...feed.children].map(el => el.className)
+    const noteAt = order.findIndex(c => c.includes('chat-msg'))
+    const toolAt = order.findIndex(c => c.includes('tool-cluster'))
+    expect(noteAt).toBeGreaterThanOrEqual(0)
+    expect(toolAt).toBeGreaterThan(noteAt)
+  })
+})

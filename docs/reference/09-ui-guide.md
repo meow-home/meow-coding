@@ -180,7 +180,11 @@ Chat conventions:
 - **Tool-call clustering.** Every `tool` item renders inside a `.tool-cluster` group at render time
   (see `ToolCluster.tsx`) — even a lone tool call gets a 1-tool cluster with the same chrome.
   Reasoning (`<details class="chat-reasoning">`) and assistant text with actual content break the
-  run, so they stay as their own bubbles. The thinking note is a **margin note**, not a card: no
+  run, so they stay as their own bubbles. A step's deltas are pinned to the bubble that step opened
+  (`stepBubbleIdRef`), and a `tool-start` flushes the pending rAF buffer before appending its row —
+  a step streams reasoning, announces a tool call, then keeps streaming, so without both the tool row
+  lands mid-thought and the rest of the SAME thought opens a second bubble after it (one thought
+  reading as two, the second one cut). The thinking note is a **margin note**, not a card: no
   box, no fill — just a `--hairline-strong` rule down its left edge, a `Thought` label, a mono word
   count, and a caret. It is an aside about the answer, so it must not compete with the two surfaces
   that *are* cards (the tool cluster and the error card); the rule is what ties it to the assistant

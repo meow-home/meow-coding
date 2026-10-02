@@ -298,6 +298,11 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const newBubbleRef = useRef(false)
   // Bubbles opened since the last step-start, dropped on step-discarded.
   const stepBubbleIdsRef = useRef<string[]>([])
+  // The bubble this step's deltas belong to, once one has been opened. A step
+  // streams reasoning, announces a tool call, then keeps streaming — the tool
+  // row lands in between, so "append to the last row" would split one thought
+  // across two bubbles. Targeting the step's own bubble keeps it whole.
+  const stepBubbleIdRef = useRef<string | null>(null)
   // Unique ids even when two bubbles open in the same millisecond.
   const bubbleSeqRef = useRef(0)
   const noticeIdRef = useRef<string | null>(null)
@@ -510,8 +515,21 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     const forceNew = newBubbleRef.current
     newBubbleRef.current = false
     const newId = `a-${Date.now()}-${++bubbleSeqRef.current}`
+    const targetId = stepBubbleIdRef.current
     setItems(prev => {
       const next = [...prev]
+      const target = targetId ? next.findIndex(i => i.kind === 'message' && i.id === targetId) : -1
+      if (target >= 0) {
+        const row = next[target]
+        if (row.kind === 'message') {
+          next[target] = {
+            ...row,
+            text: text ? appendStreamDelta(row.text, text) : row.text,
+            reasoning: reasoning ? appendStreamDelta(row.reasoning ?? '', reasoning) : row.reasoning
+          }
+        }
+        return next
+      }
       const last = next[next.length - 1]
       if (!forceNew && last && last.kind === 'message' && last.role === 'assistant') {
         next[next.length - 1] = {
@@ -524,7 +542,10 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
       }
       return next
     })
-    if (forceNew) stepBubbleIdsRef.current.push(newId)
+    if (forceNew) {
+      stepBubbleIdsRef.current.push(newId)
+      stepBubbleIdRef.current = newId
+    }
   }, [setItems])
 
   useEffect(() => () => {
@@ -760,12 +781,14 @@ if (e.type === 'usage') {
       flushDeltas()
       newBubbleRef.current = true
       stepBubbleIdsRef.current = []
+      stepBubbleIdRef.current = null
       return
     }
     if (e.type === 'step-discarded') {
       flushDeltas()
       const drop = new Set(stepBubbleIdsRef.current)
       stepBubbleIdsRef.current = []
+      stepBubbleIdRef.current = null
       const id = 'n-' + Date.now()
       noticeIdRef.current = id
       setItems(prev => [
@@ -795,6 +818,12 @@ if (e.type === 'usage') {
       return
     }
     clearRetry()
+    // Commit any buffered reasoning/text BEFORE the tool row. A tool call is
+    // announced mid-stream, so without this flush the first half of the thought
+    // is committed as a bubble, the tool row lands, and the rest of the SAME
+    // thought opens a second bubble after it — one thought reads as two, the
+    // second one cut. Flushing first keeps the thought whole and above its tool.
+    flushDeltas()
     setItems(prev => {
       const next = [...prev]
       if (e.type === 'tool-start') {
