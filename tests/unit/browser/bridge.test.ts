@@ -417,6 +417,89 @@ describe('BrowserBridge extension approval', () => {
     expect(await done).toEqual({ ok: false, error: 'browser extension disconnected' })
   })
 
+  it('clears the pending approval when the pending extension disconnects', async () => {
+    const b = newBridge({ trusted: new TrustedExtensionStore() })
+    const port = await b.start()
+
+    const ws = await connectWithOrigin(port, EXT_ORIGIN)
+    hello(ws)
+    await nextMsg(ws)
+    expect(b.getStatus().status).toBe('pending')
+
+    ws.close()
+    await closed(ws)
+    await new Promise(r => setTimeout(r, 20))
+
+    expect(b.getStatus().status).toBe('listening')
+    expect(b.getStatus().pendingExtension).toBeUndefined()
+  })
+
+  it('notifies status listeners when a second unknown extension replaces the first', async () => {
+    const b = newBridge({ trusted: new TrustedExtensionStore() })
+    const port = await b.start()
+    const seen: (string | undefined)[] = []
+    const off = b.onStatusChange(info => seen.push(info.pendingExtension?.extensionId))
+
+    const first = await connectWithOrigin(port, EXT_ORIGIN)
+    hello(first)
+    await nextMsg(first)
+
+    const secondId = 'ponmlkjihgfedcbaponmlkjihgfedcba'
+    const second = await connectWithOrigin(port, `chrome-extension://${secondId}`)
+    hello(second, secondId)
+    await nextMsg(second)
+
+    expect(seen).toContain(secondId)
+    off()
+    first.close()
+    second.close()
+  })
+
+  it('closes the pending socket when a trusted extension pairs', async () => {
+    const trusted = new TrustedExtensionStore()
+    trusted.approve(EXT_ID)
+    const b = newBridge({ trusted })
+    const port = await b.start()
+
+    const otherId = 'ponmlkjihgfedcbaponmlkjihgfedcba'
+    const pendingWs = await connectWithOrigin(port, `chrome-extension://${otherId}`)
+    hello(pendingWs, otherId)
+    await nextMsg(pendingWs)
+
+    const pairedWs = await connectWithOrigin(port, EXT_ORIGIN)
+    hello(pairedWs)
+    await nextMsg(pairedWs)
+
+    await closed(pendingWs)
+    expect(pendingWs.readyState).toBe(WebSocket.CLOSED)
+    pairedWs.close()
+  })
+
+  it('revokeExtension rejects in-flight commands instead of letting them time out', async () => {
+    const b = newTrustedBridge()
+    const port = await b.start()
+    const ws = await connectTrusted(port)
+
+    const done = b.execute('read')
+    await nextMsg(ws)
+    b.revokeExtension(EXT_ID)
+
+    expect(await done).toEqual({ ok: false, error: 'browser extension disconnected' })
+  })
+
+  it('replacing a paired socket rejects its in-flight commands', async () => {
+    const b = newTrustedBridge()
+    const port = await b.start()
+    const first = await connectTrusted(port)
+
+    const done = b.execute('read')
+    await nextMsg(first)
+    const second = await connectTrusted(port)
+
+    expect(await done).toEqual({ ok: false, error: 'browser extension disconnected' })
+    second.close()
+  })
+
   it('notifies status listeners with the pending extension', async () => {
     const b = newBridge({ trusted: new TrustedExtensionStore() })
     const port = await b.start()

@@ -23,7 +23,7 @@ vocabulary is "session".
 - `src/shared` — shared types + IPC contract. **DO NOT** import Node/Electron here.
 - `src/browser-extension` — Chrome MV3 extension (built separately with esbuild → `out/browser-extension`,
   copy to `userData/browser-extension/` to Load unpacked on a real Chrome profile).
-- `src/main/browser` — BrowserBridge (local WS server + pairing code) + Chrome launcher/install guide.
+- `src/main/browser` — BrowserBridge (local WS server + extension approval) + Chrome launcher/install guide.
 
 Alias `@shared` → `src/shared` (configured in electron.vite.config.ts, vitest.config.ts, tsconfig).
 
@@ -62,7 +62,7 @@ Alias `@shared` → `src/shared` (configured in electron.vite.config.ts, vitest.
 - Do not add unnecessary comments; only comment when explaining a complex decision (e.g. Windows shim, tree-kill).
 - Git commits: **do not** add a `Co-Authored-By` trailer to commit messages.
 - Agent exits must be handled: kill the entire process tree (`tree-kill`), no orphan processes.
-- Browser bridge: only bind `127.0.0.1` (do not expose to the network), pairing code required before accepting
+- Browser bridge: only bind `127.0.0.1` (do not expose to the network), an approved extension id required before accepting
   commands; runs on the user's **real** Chrome profile — do not create a separate profile per project.
 - Custom subagent roles live in `.meow/agents/*.md` (project) or `userData/agents/*.md` (user);
   frontmatter takes `name`, `description`, `tools`, `model`, `deny`, `ask`. There is no `allow` key —

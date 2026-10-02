@@ -116,9 +116,10 @@ export default function InstallGuideDialog({ guide, onClose }: Props) {
           <div className="browser-guide-step">
             <div className="browser-step-num">4</div>
             <div className="browser-step-content">
-              <span className="browser-step-title">Pair Extension</span>
+              <span className="browser-step-title">Approve Extension</span>
               <span className="browser-step-desc">
-                Open the Browser Bridge popup in Meow, click <strong>Generate Pairing Code</strong>, and enter the code into the Meow extension popup in Chrome.
+                Open the Browser Bridge dialog in Meow. When the extension connects it asks once —
+                click <strong>Allow</strong>. Later connections from that extension are trusted automatically.
               </span>
             </div>
           </div>
@@ -128,7 +129,7 @@ export default function InstallGuideDialog({ guide, onClose }: Props) {
         <div className="browser-info-banner">
           <ShieldCheck size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
           <span>
-            The extension only connects to Meow on this machine (<code>127.0.0.1</code>) and requires a pairing code for local security.
+            The extension only connects to Meow on this machine (<code>127.0.0.1</code>) and must be approved in Meow before it can drive Chrome.
           </span>
         </div>
       </div>

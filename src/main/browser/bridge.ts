@@ -188,8 +188,9 @@ export class BrowserBridge {
   }
 
   private handleConnection(ws: WebSocket, req: IncomingMessage): void {
-    // this.socket is assigned only after a hello passes the origin check, so an
-    // unknown connection can never evict the extension that is currently paired.
+    // A socket becomes this.socket only after its hello passes the origin check, so an
+    // unknown connection can never evict the extension that is currently paired. The
+    // pending socket is tracked separately so its disconnect clears the approval.
     const origin = req.headers.origin
     if (this.status === 'idle' || this.status === 'disconnected') this.setStatus('listening')
 
@@ -211,20 +212,27 @@ export class BrowserBridge {
     })
 
     ws.on('close', () => {
-      if (this.socket !== ws) return
-      const wasPaired = this.pairedExtensionId !== null
-      this.socket = null
-      this.pairedExtensionId = null
-      this.clearPending()
-      this.rejectPendingCommands('browser extension disconnected')
-      this.setStatus(wasPaired ? 'disconnected' : 'listening')
+      if (this.socket === ws) {
+        const wasPaired = this.pairedExtensionId !== null
+        this.socket = null
+        this.pairedExtensionId = null
+        this.clearPending()
+        this.rejectPendingCommands('browser extension disconnected')
+        this.setStatus(wasPaired ? 'disconnected' : 'listening')
+        return
+      }
+      if (this.pendingSocket === ws) {
+        this.clearPending()
+        if (this.status === 'pending') this.setStatus(this.pairedExtensionId ? 'paired' : 'listening')
+      }
     })
     ws.on('error', () => ws.close())
   }
 
   private handleHello(ws: WebSocket, origin: string | undefined, msg: HelloMessage): void {
-    // The claimed id is only trustworthy when the handshake Origin matches it: a web
-    // page or a local process can send any id, but cannot forge a chrome-extension:// origin.
+    // The claimed id is only trustworthy when the handshake Origin matches it: a web page
+    // can send any id but cannot forge a chrome-extension:// origin. A local process can
+    // forge the header, but it could already read the pairing code this replaced.
     if (!msg.extensionId || origin !== `chrome-extension://${msg.extensionId}`) {
       ws.send(JSON.stringify({
         type: 'hello_result', ok: false, paired: false, error: 'origin mismatch'
@@ -237,7 +245,10 @@ export class BrowserBridge {
     }
     if (this.trusted.has(msg.extensionId)) {
       this.clearPending()
-      if (this.socket && this.socket !== ws && this.socket.readyState === WebSocket.OPEN) this.socket.close()
+      if (this.socket && this.socket !== ws) {
+        this.socket.close()
+        this.rejectPendingCommands('browser extension disconnected')
+      }
       this.socket = ws
       this.pairedExtensionId = msg.extensionId
       this.setStatus('paired')
@@ -262,13 +273,12 @@ export class BrowserBridge {
     if (this.pendingTimer) clearTimeout(this.pendingTimer)
     this.pendingTimer = setTimeout(() => {
       this.pendingTimer = null
+      // clearPending closes the socket; detach first so its close handler does not
+      // overwrite the status we are about to set.
       const socket = this.pendingSocket
-      this.clearPending()
-      // Detach before closing so the socket's own close handler does not overwrite
-      // the status we are about to set (and never touch a paired socket).
       if (this.socket === socket) this.socket = null
+      this.clearPending()
       if (this.status === 'pending') this.setStatus(this.pairedExtensionId ? 'paired' : 'listening')
-      socket?.close()
     }, this.deps.pendingTtlMs ?? DEFAULT_PENDING_TTL_MS)
   }
 
@@ -277,20 +287,32 @@ export class BrowserBridge {
       clearTimeout(this.pendingTimer)
       this.pendingTimer = null
     }
+    const socket = this.pendingSocket
     this.pendingExtension = null
     this.pendingSocket = null
+    // Never leave an unapproved socket open: the extension would sit on
+    // "Waiting for approval" with no timer left to expire it.
+    if (socket && socket.readyState === WebSocket.OPEN) socket.close()
   }
 
   approveExtension(extensionId: string): BrowserStatusInfo {
     if (this.pendingExtension?.extensionId !== extensionId) return this.getStatus()
     const socket = this.pendingSocket
+    // Detach before approving: clearPending closes whatever socket it still holds,
+    // and this one is about to become the paired socket.
+    this.pendingSocket = null
     this.trusted.approve(extensionId, this.pendingExtension.version)
-    this.clearPending()
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: 'hello_result', ok: true, paired: true } satisfies HelloResultMessage))
+      this.clearPending()
       this.socket = socket
       this.pairedExtensionId = extensionId
       this.setStatus('paired')
+    } else {
+      // The extension vanished between the request and the decision: the id is
+      // trusted now, but there is no socket to pair, so do not stay 'pending'.
+      this.clearPending()
+      if (this.status === 'pending') this.setStatus(this.pairedExtensionId ? 'paired' : 'listening')
     }
     return this.getStatus()
   }
@@ -298,19 +320,19 @@ export class BrowserBridge {
   denyExtension(extensionId: string): BrowserStatusInfo {
     if (this.pendingExtension?.extensionId !== extensionId) return this.getStatus()
     const socket = this.pendingSocket
-    this.clearPending()
     if (this.socket === socket) this.socket = null
+    this.clearPending()
     if (this.status === 'pending') this.setStatus(this.pairedExtensionId ? 'paired' : 'listening')
-    socket?.close()
     return this.getStatus()
   }
 
   revokeExtension(extensionId: string): BrowserStatusInfo {
     this.trusted.revoke(extensionId)
     if (this.pairedExtensionId === extensionId) {
+      this.pairedExtensionId = null
       this.socket?.close()
       this.socket = null
-      this.pairedExtensionId = null
+      this.rejectPendingCommands('browser extension disconnected')
       this.setStatus('listening')
     }
     return this.getStatus()
@@ -389,8 +411,11 @@ export class BrowserBridge {
   }
 
   private setStatus(status: BrowserStatus): void {
-    if (this.status === status) return
     this.status = status
+    this.emitStatus()
+  }
+
+  private emitStatus(): void {
     const info = this.getStatus()
     for (const cb of this.statusListeners) cb(info)
   }

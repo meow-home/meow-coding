@@ -204,5 +204,5 @@ npm run build && npm run e2e # Playwright smoke test
   snapshots.
 - Bundled skill assets (Anthropic skills) are Apache-2.0 and ship with their original license files
   under `resources/skills/`.
-- The browser bridge binds `127.0.0.1` only and requires a pairing code before accepting commands;
+- The browser bridge binds `127.0.0.1` only and requires an approved extension id before accepting commands;
   the remote-control relay stores nothing and never interprets payloads.

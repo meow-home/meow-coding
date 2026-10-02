@@ -88,7 +88,7 @@ cookies — instead of a throwaway automation profile.
 ```
 BrowserBridge (main)                    Meow Browser Bridge (Chrome MV3 extension)
   HTTP+WS on 127.0.0.1:3927   ◀────────▶  background service worker
-  6-digit pairing code                    + content script (<all_urls>)
+  extension-id allowlist + Origin check   + content script (<all_urls>)
   pending command map                     + debugger API for console/network
 ```
 
@@ -115,7 +115,8 @@ can discover the bridge.
   socket, while an unknown connection is rejected without touching the paired one.
 - Trust is an **extension-id allowlist** (`userData/browser-trusted.json`) plus an `Origin` check: a
   `hello` is accepted only when the handshake `Origin` equals `chrome-extension://<claimed id>`, so a
-  web page or local process cannot impersonate an approved id. A trusted id pairs silently on every
+  web page cannot impersonate an approved id. A local process can forge the header, but it could
+  already read the pairing code from the same machine — the gate is against the browser, not the OS. A trusted id pairs silently on every
   reconnect (MV3 service workers get suspended while idle and drop the WebSocket); an unknown id parks
   the socket in `pending` for 2 minutes until the renderer approves or denies it.
 - A connection that is not the trusted socket has its `result` / `event` / `ping` messages ignored, and
