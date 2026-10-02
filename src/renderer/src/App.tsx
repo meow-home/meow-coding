@@ -460,6 +460,9 @@ export default function App() {
     })
     const offBrowser = window.api.onBrowserStatus((info) => {
       setBrowser(info)
+      // browser_start may be blocked on this approval while the user is elsewhere
+      // in the app, so surface the decision instead of waiting for a click.
+      if (info.pendingExtension) setBrowserDialogOpen(true)
     })
     const offInstallGuide = window.api.onBrowserOpenInstallGuide((e) => {
       setInstallGuide(e)

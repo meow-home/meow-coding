@@ -9,7 +9,8 @@ import {
   Tag,
   CheckCircle2,
   RefreshCw,
-  Radio
+  Radio,
+  ShieldAlert
 } from 'lucide-react'
 import type { AgentState, GitStatus } from '@shared/types'
 import type { BrowserStatusInfo } from '@shared/browser-types'
@@ -41,7 +42,8 @@ export default function StatusBar({
   }, [])
 
   const paired = Boolean(browser?.paired)
-  const waiting = !paired && (browser?.status === 'listening' || browser?.status === 'idle')
+  const pending = Boolean(browser?.pendingExtension)
+  const waiting = !paired && !pending && (browser?.status === 'listening' || browser?.status === 'idle')
 
   return (
     <footer className="status-bar">
@@ -107,16 +109,24 @@ export default function StatusBar({
         </div>
 
         <button
-          className={`sb-item sb-button sb-browser ${paired ? 'paired' : waiting ? 'waiting' : 'offline'}`}
+          className={`sb-item sb-button sb-browser ${paired ? 'paired' : pending || waiting ? 'waiting' : 'offline'}`}
           onClick={onBrowserClick}
-          title="Open Browser Bridge status and pairing"
+          title="Open Browser Bridge status and extension approval"
         >
           <Globe size={13} className="sb-icon" />
           <span className="sb-label sb-mono">
-            {paired ? `browser: paired` : waiting ? `browser: waiting` : `browser: off`}
+            {paired
+              ? `browser: paired`
+              : pending
+                ? `browser: approval needed`
+                : waiting
+                  ? `browser: waiting`
+                  : `browser: off`}
           </span>
           {paired ? (
             <CheckCircle2 size={12} className="sb-status-icon ok" />
+          ) : pending ? (
+            <ShieldAlert size={12} className="sb-status-icon waiting" />
           ) : waiting ? (
             <RefreshCw size={12} className="sb-status-icon spin waiting" />
           ) : (

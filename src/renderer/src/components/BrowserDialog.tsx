@@ -1,18 +1,19 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   Globe,
   ShieldCheck,
+  ShieldAlert,
   CheckCircle2,
   RefreshCw,
   Radio,
   Compass,
-  Key,
   ExternalLink,
   FolderOpen,
-  Copy,
-  Check
+  Trash2,
+  Check,
+  X
 } from 'lucide-react'
-import type { BrowserStatusInfo, PairingInfo } from '@shared/browser-types'
+import type { BrowserStatusInfo, TrustedExtension } from '@shared/browser-types'
 import BaseModal from './common/BaseModal'
 
 interface Props {
@@ -21,27 +22,42 @@ interface Props {
 }
 
 export default function BrowserDialog({ status, onClose }: Props) {
-  const [pairing, setPairing] = useState<PairingInfo | null>(null)
-  const [copiedCode, setCopiedCode] = useState(false)
+  const [trusted, setTrusted] = useState<TrustedExtension[]>([])
+  const [busy, setBusy] = useState(false)
 
-  const pair = async () => {
-    const info = await window.api.pairBrowser()
-    setPairing(info)
-    setCopiedCode(false)
-  }
+  const refreshTrusted = useCallback(async () => {
+    setTrusted(await window.api.getBrowserTrustedExtensions())
+  }, [])
 
-  const handleCopyCode = async (code: string) => {
+  useEffect(() => {
+    void refreshTrusted()
+  }, [refreshTrusted])
+
+  const pending = status?.pendingExtension
+  const waiting = !status?.paired && !pending && (status?.status === 'listening' || status?.status === 'idle')
+  const pillClass = status?.paired ? 'paired' : pending || waiting ? 'waiting' : 'idle'
+
+  const decide = async (approve: boolean) => {
+    if (!pending) return
+    setBusy(true)
     try {
-      await navigator.clipboard.writeText(code)
-      setCopiedCode(true)
-      setTimeout(() => setCopiedCode(false), 2000)
-    } catch {
-      // ignore fallback
+      if (approve) await window.api.approveBrowserExtension(pending.extensionId)
+      else await window.api.denyBrowserExtension(pending.extensionId)
+      await refreshTrusted()
+    } finally {
+      setBusy(false)
     }
   }
 
-  const waiting = !status?.paired && (status?.status === 'listening' || status?.status === 'idle')
-  const pillClass = status?.paired ? 'paired' : waiting ? 'waiting' : 'idle'
+  const revoke = async (extensionId: string) => {
+    setBusy(true)
+    try {
+      await window.api.revokeBrowserExtension(extensionId)
+      await refreshTrusted()
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const titleNode = (
     <div className="browser-modal-header">
@@ -53,6 +69,11 @@ export default function BrowserDialog({ status, onClose }: Props) {
             <>
               <CheckCircle2 size={12} />
               Paired {status.port ? `(Port ${status.port})` : ''}
+            </>
+          ) : pending ? (
+            <>
+              <ShieldAlert size={12} />
+              Approval needed
             </>
           ) : waiting ? (
             <>
@@ -71,14 +92,42 @@ export default function BrowserDialog({ status, onClose }: Props) {
   )
 
   return (
-    <BaseModal
-      title={titleNode}
-      onClose={onClose}
-      size="lg"
-      className="browser-dialog"
-    >
+    <BaseModal title={titleNode} onClose={onClose} size="lg" className="browser-dialog">
       <div className="browser-dialog-body">
-        {status?.paired ? (
+        {pending ? (
+          <div className="browser-card">
+            <div className="browser-card-head">
+              <div className="context-icon-badge">
+                <ShieldAlert size={18} style={{ color: '#eab308' }} />
+              </div>
+              <div className="context-title-group">
+                <h4 className="context-card-title">Extension wants to connect</h4>
+                <p className="context-card-desc">
+                  Approve it once — later connections from this extension id are trusted automatically.
+                </p>
+              </div>
+            </div>
+            <div className="browser-card-body">
+              <div className="browser-extension-id">
+                <span className="updates-status-desc">Extension ID</span>
+                <span className="browser-extension-id-value">{pending.extensionId}</span>
+                {pending.version && (
+                  <span className="updates-status-desc">Version {pending.version}</span>
+                )}
+              </div>
+              <div className="row">
+                <button className="btn primary" disabled={busy} onClick={() => void decide(true)}>
+                  <Check size={14} />
+                  Allow
+                </button>
+                <button className="btn" disabled={busy} onClick={() => void decide(false)}>
+                  <X size={14} />
+                  Deny
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : status?.paired ? (
           <div className="browser-card">
             <div className="browser-card-head">
               <div className="context-icon-badge">
@@ -103,11 +152,7 @@ export default function BrowserDialog({ status, onClose }: Props) {
                   </div>
                 </div>
               </div>
-              <div className="row" style={{ marginTop: '0.25rem' }}>
-                <button className="btn" onClick={pair}>
-                  <Key size={14} />
-                  New Pairing Code
-                </button>
+              <div className="row">
                 <button className="btn" onClick={() => void window.api.openBrowserExtensionFolder()}>
                   <FolderOpen size={14} />
                   Extension Folder
@@ -116,85 +161,65 @@ export default function BrowserDialog({ status, onClose }: Props) {
             </div>
           </div>
         ) : (
-          <>
-            {/* Setup Card */}
-            <div className="browser-card">
-              <div className="browser-card-head">
-                <div className="context-icon-badge">
-                  <Compass size={18} />
-                </div>
-                <div className="context-title-group">
-                  <h4 className="context-card-title">Extension Setup</h4>
-                  <p className="context-card-desc">
-                    Install the Meow extension in Chrome, then authorize it with a pairing code.
-                  </p>
-                </div>
+          <div className="browser-card">
+            <div className="browser-card-head">
+              <div className="context-icon-badge">
+                <Compass size={18} />
               </div>
-              <div className="browser-card-body">
-                <div className="row">
-                  <button
-                    className="btn primary"
-                    onClick={() => void window.api.openBrowserInstallGuide()}
-                  >
-                    <ExternalLink size={14} />
-                    Open Install Guide
-                  </button>
-                  <button
-                    className="btn"
-                    onClick={() => void window.api.openBrowserExtensionFolder()}
-                  >
-                    <FolderOpen size={14} />
-                    Extension Folder
-                  </button>
-                </div>
+              <div className="context-title-group">
+                <h4 className="context-card-title">Extension Setup</h4>
+                <p className="context-card-desc">
+                  Install the Meow extension in Chrome. It asks for approval here the first time it connects.
+                </p>
               </div>
             </div>
+            <div className="browser-card-body">
+              <div className="row">
+                <button
+                  className="btn primary"
+                  onClick={() => void window.api.openBrowserInstallGuide()}
+                >
+                  <ExternalLink size={14} />
+                  Open Install Guide
+                </button>
+                <button className="btn" onClick={() => void window.api.openBrowserExtensionFolder()}>
+                  <FolderOpen size={14} />
+                  Extension Folder
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
-            {/* Pairing Card */}
-            <div className="browser-card">
-              <div className="browser-card-head">
-                <div className="context-icon-badge">
-                  <Key size={18} />
-                </div>
-                <div className="context-title-group">
-                  <h4 className="context-card-title">Pairing Passcode</h4>
-                  <p className="context-card-desc">
-                    Generate a one-time 6-digit code to authorize the Chrome extension.
-                  </p>
-                </div>
+        {trusted.length > 0 && (
+          <div className="browser-card">
+            <div className="browser-card-head">
+              <div className="context-icon-badge">
+                <ShieldCheck size={18} />
               </div>
-              <div className="browser-card-body">
-                {pairing ? (
-                  <div className="browser-pairing-box">
-                    <span className="updates-status-desc" style={{ marginBottom: '0.25rem' }}>
-                      Enter this code in the Meow extension popup in Chrome:
-                    </span>
-                    <div className="browser-code-row">
-                      <span className="browser-code-display">{pairing.code}</span>
-                      <button
-                        className="btn icon-btn"
-                        style={{ width: '2.25rem', height: '2.25rem' }}
-                        title="Copy pairing code"
-                        onClick={() => void handleCopyCode(pairing.code)}
-                      >
-                        {copiedCode ? <Check size={16} style={{ color: '#22c55e' }} /> : <Copy size={16} />}
-                      </button>
-                    </div>
-                    <span className="updates-status-desc" style={{ marginTop: '0.25rem' }}>
-                      Expires at {new Date(pairing.expiresAt).toLocaleTimeString()}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="row">
-                    <button className="btn primary" onClick={pair}>
-                      <Key size={14} />
-                      Generate Pairing Code
-                    </button>
-                  </div>
-                )}
+              <div className="context-title-group">
+                <h4 className="context-card-title">Trusted extensions</h4>
+                <p className="context-card-desc">
+                  These extension ids connect without asking. Revoking disconnects one immediately.
+                </p>
               </div>
             </div>
-          </>
+            <div className="browser-card-body">
+              {trusted.map(entry => (
+                <div className="browser-trusted-row" key={entry.id}>
+                  <span className="browser-extension-id-value">{entry.id}</span>
+                  <button
+                    className="btn icon-btn"
+                    title="Revoke"
+                    disabled={busy}
+                    onClick={() => void revoke(entry.id)}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </BaseModal>
