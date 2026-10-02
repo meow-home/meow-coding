@@ -228,6 +228,25 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     }
   }, [editTarget])
 
+  // Leaving edit mode without saving (the queued message was removed, or it
+  // drained into a turn) must not leave its text sitting in the composer: the
+  // field is uncontrolled, so a later Enter would submit it as a brand-new
+  // message. Only the text loaded for that edit is dropped — anything the user
+  // typed after it stays.
+  const loadedEditTextRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (editTarget) {
+      loadedEditTextRef.current = editTarget.text
+      return
+    }
+    const loaded = loadedEditTextRef.current
+    loadedEditTextRef.current = null
+    const field = fieldRef.current
+    if (loaded === null || !field || field.value !== loaded) return
+    field.value = ''
+    setHasText(false)
+  }, [editTarget])
+
   const applyCommand = useCallback((cmd: Command) => {
     if (fieldRef.current) fieldRef.current.value = `/${cmd.name} `
     setHasText(true)

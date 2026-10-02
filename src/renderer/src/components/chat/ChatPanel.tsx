@@ -617,6 +617,12 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
       const prev = queueRef.current
       queueRef.current = e.queue
       setQueue(e.queue)
+      // A queued message the user is editing can leave the queue without being
+      // sent — removed, or drained into a turn. Keeping its id as editTarget
+      // would make the next Enter call editQueued() on a message that is no
+      // longer there: the composer clears and nothing is sent, which reads as
+      // "my message disappeared".
+      setEditTarget(cur => (cur && !e.queue.some(q => q.id === cur.id) ? null : cur))
       const started = prev.find(p => !e.queue.some(q => q.id === p.id))
       if (started) {
         const optimisticId = 'u-' + started.id

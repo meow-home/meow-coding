@@ -406,6 +406,109 @@ test('editing a queued message while running swaps stop for a save button', asyn
   }
 })
 
+// A queued message can leave the queue without being sent — removed, or drained
+// into its own turn. If the composer stayed in edit mode for it, the next Enter
+// called editQueued() on a message that no longer existed: the field cleared and
+// nothing was sent, so the message looked like it had vanished.
+test('removing a queued message being edited leaves the composer clean and sends the next message', async () => {
+  const { server, port, firstCall, release } = await startGatedMockLlm({ content: 'held answer', usage: USAGE })
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    seedWorkspaces(userData, project)
+    seedMeowConfig(userData, port)
+    const { app, window } = await launch(userData)
+    try {
+      await openProject(window)
+      const card = window.locator('.chat-input')
+      const field = card.locator('.chat-input-field')
+
+      await field.fill('first turn')
+      await field.press('Enter')
+      await firstCall
+
+      await field.fill('queued text')
+      await field.press('Enter')
+      await expect(window.locator('.chat-queue-item')).toHaveCount(1)
+
+      // Load the queued message into the composer, then remove it from the queue.
+      await window.locator('.chat-queue-text').click()
+      await expect(field).toHaveValue('queued text')
+      await window.locator('.chat-queue-remove').click()
+      await expect(window.locator('.chat-queue-item')).toHaveCount(0)
+
+      // Edit mode ended with the removal: the composer is empty again and the
+      // slot is Stop (the turn is still in flight), not Save edit.
+      await expect(field).toHaveValue('')
+      await expect(card.locator('.chat-input-stop')).toBeVisible()
+
+      release()
+      await expect(card.locator('.chat-input-send')).toBeVisible()
+
+      // The next message must actually go out.
+      await field.fill('after the edit')
+      await field.press('Enter')
+      await expect(window.locator('.chat-msg.user').last()).toContainText('after the edit')
+      await expect(field).toHaveValue('')
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+    server.close()
+  }
+})
+
+test('a queued message being edited that drains into a turn does not swallow the next send', async () => {
+  const { server, port, firstCall, release } = await startGatedMockLlm({ content: 'held answer', usage: USAGE })
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    seedWorkspaces(userData, project)
+    seedMeowConfig(userData, port)
+    const { app, window } = await launch(userData)
+    try {
+      await openProject(window)
+      const card = window.locator('.chat-input')
+      const field = card.locator('.chat-input-field')
+
+      await field.fill('first turn')
+      await field.press('Enter')
+      await firstCall
+
+      await field.fill('queued text')
+      await field.press('Enter')
+      await expect(window.locator('.chat-queue-item')).toHaveCount(1)
+
+      // Edit the queued message, then let the turn end so the queue drains while
+      // the composer is still in edit mode for that message.
+      await window.locator('.chat-queue-text').click()
+      await expect(field).toHaveValue('queued text')
+      release()
+
+      // The drained message starts its own turn; edit mode must end with it and
+      // the composer must be clean.
+      await expect(window.locator('.chat-msg.user').last()).toContainText('queued text')
+      await expect(card.locator('.chat-input-stop')).toBeVisible()
+      await expect(field).toHaveValue('')
+
+      // The next message reaches main (queued behind the running turn) instead
+      // of being swallowed by the stale edit target.
+      await field.fill('after the drain')
+      await field.press('Enter')
+      await expect(window.locator('.chat-queue-text')).toHaveText('after the drain')
+      await expect(field).toHaveValue('')
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+    server.close()
+  }
+})
+
 test('stop ends the turn and brings the send button back', async () => {
   const { server, port, firstCall } = await startGatedMockLlm({ content: 'held answer', usage: USAGE })
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
