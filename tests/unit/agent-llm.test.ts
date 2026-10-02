@@ -517,6 +517,13 @@ describe('sampling and invalid tool calls', () => {
     expect(call).not.toHaveProperty('frequencyPenalty')
   })
 
+  it('hands the SDK a repair hook so malformed arguments can be fixed before validation', async () => {
+    streamTextMock.mockReturnValue(finishOnly())
+    await drain(createLlm('ollama-cloud', 'k'), { model: 'deepseek-v4.1-flash' })
+    const call = streamTextMock.mock.calls[0][0] as Record<string, unknown>
+    expect(typeof call.experimental_repairToolCall).toBe('function')
+  })
+
   it('marks an SDK-invalid tool call with its reason', async () => {
     streamTextMock.mockReturnValue({
       fullStream: fakeFullStream([

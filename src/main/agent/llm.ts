@@ -5,6 +5,7 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { ModelMessage } from 'ai'
 import type { MessageTokens } from '../../shared/types'
 import { normalizeToolInput, toToolDefinition } from './message'
+import { repairToolCall } from './tool-input-repair'
 import { COMPACTION_MARKER } from './compact'
 import type { ToolDefinition } from './tools/types'
 import { resolveSampling } from './sampling'
@@ -251,6 +252,11 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string, re
       system: opts.system,
       messages: withCacheBreakpoints(opts.messages, provider),
       tools,
+      // Open models (DeepSeek, MiniMax, …) stream malformed `function.arguments`
+      // often enough that a call fails validation and the model has to retry.
+      // Repair the raw arguments before the SDK validates them — after that the
+      // call is already marked invalid and the loop never runs it.
+      experimental_repairToolCall: repairToolCall,
       abortSignal: opts.signal,
       ...(opts.maxOutputTokens !== undefined ? { maxOutputTokens: opts.maxOutputTokens } : {}),
       ...samplingParams,

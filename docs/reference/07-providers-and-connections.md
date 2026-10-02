@@ -60,6 +60,23 @@ itself for a no-call repetition, or on the next step for a tool-loop trip or a r
 alongside calls — and a matched model also gets `frequencyPenalty` ≥ 0.5 for that step only. Anthropic
 and Google always keep their provider defaults.
 
+**Tool argument repair** (`agent/tool-input-repair.ts`) runs as the `streamText`
+`experimental_repairToolCall` hook, i.e. *before* the SDK validates the arguments. Open models
+(DeepSeek, MiniMax, …) stream malformed `function.arguments` often enough that a call fails
+validation and the model has to retry; two shapes are repaired:
+
+- a field that should be an array arrives as a JSON-encoded string with the model still writing
+  into it — `{"header":"…","options":"[{…}], \"question\": \"…\"}"}` — so `options` is unwrapped
+  and the swallowed `question` is hoisted back to the top level;
+- several argument objects concatenated into one call — `{"name":"a"}{"name":"b"}` — which is not
+  valid JSON at all and used to lose the whole input.
+
+A field the tool's JSON schema declares as an array but that arrived as a scalar is wrapped in a
+one-element array. An already-valid call is returned untouched (`null`), and a repair that still
+fails validation falls back to the invalid-call path below. The per-tool normalizers
+(`normalizeOptions` in `question.ts`, the `todos` guard in `todowrite.ts`) only run after
+validation, so they never see these shapes — the repair hook is the only place that can help.
+
 **Invalid tool calls.** A `tool-call` part the SDK marks `invalid` (unknown tool or arguments
 failing the schema) is passed on with `invalid: true` and `invalidReason`. The loop records it
 with an error and never executes it.
