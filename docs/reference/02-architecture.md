@@ -204,10 +204,9 @@ the modal from closing.
 1. Bail out if this is a secondary instance (single-instance lock).
 2. `truncationCleanup()` — drop truncation files older than 7 days.
 3. Start the `BrowserBridge` on `127.0.0.1:3927` and subscribe status → renderer.
-5. `ConnectionsManager.init()` — if Codex accounts exist, start the cliproxy sidecar and refresh tokens.
-6. `ensureExtensionInstalled()` — copy the built Chrome extension into `userData/browser-extension`.
-7. Delete leftover `userData/traces` from older versions (the trace feature was removed).
-8. One-time **destructive** v0.37 model switch (`fresh-start.ts`): every project is reset to exactly one
+4. `ConnectionsManager.init()` — if Codex accounts exist, start the cliproxy sidecar and refresh tokens.
+5. `ensureExtensionInstalled()` — copy the built Chrome extension into `userData/browser-extension`.
+6. One-time **destructive** v0.37 model switch (`fresh-start.ts`): every project is reset to exactly one
    fresh native session in `workspaces.json`, `userData/sessions.json` is deleted, and then the flag file
    `userData/.sessions-model-reset` is written. Wrapped in `try/catch` — a locked/read-only `userData`
    logs the failure and skips the migration, and because the flag is written only on success it is retried
@@ -215,8 +214,8 @@ the modal from closing.
    Then `sessionFiles.migrateLegacy()`, and the one-time unlimited-steps switch (`migrateUnlimitedSteps`):
    `maxSteps: 100` / `subagentMaxSteps: 30` in `meow.json` (the old defaults, written on every settings
    save) become `0`, then `userData/.max-steps-unlimited` is written. Same flag-after-success `try/catch`.
-9. `registerIpcHandlers()`, `createWindow()`, `TrayManager.create()`.
-10. After 1.5s, an automatic update check (packaged builds only).
+7. `registerIpcHandlers()`, `createWindow()`, `TrayManager.create()`.
+8. After 1.5s, an automatic update check (packaged builds only).
 
 ## 2.9 Shutdown sequence (`before-quit`)
 

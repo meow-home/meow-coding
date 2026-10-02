@@ -662,12 +662,7 @@ The UI shows the raw `/cmd args` (as `displayText`) while the LLM receives the r
 `setMode` rebuilds the runner **even while a turn is running** — the in-flight runner keeps its own
 reference, but the next turn must see the new mode.
 
-## 3.15 Trace
-
-The trace feature was removed. Its only remnant is the startup cleanup of a legacy `userData/traces`
-directory (see [02 — startup sequence](02-architecture.md#28-startup-sequence-appwhenready)).
-
-## 3.16 Harness prompt, environment, and memory
+## 3.15 Harness prompt, environment, and memory
 
 - **Static/dynamic split:** static content (identity, project instructions, memory rules, skills, mode, precedence) goes into the system prompt via `buildSystemPrompt` (provider-cached); dynamic content (env snapshot + memory index) goes into `<system-reminder>` messages via `buildTurnReminder`, recomputed per run.
 - **Precedence:** `AGENTS.md`/`CLAUDE.md` > memory > skills > base `systemPrompt`.
@@ -675,7 +670,7 @@ directory (see [02 — startup sequence](02-architecture.md#28-startup-sequence-
 - **Memory:** per-project `<cwd>/.meow/memory/`, gitignored. `MEMORY.md` index (≤ 200 lines) shown at turn start; the agent `read`s a fact file when relevant. Fact files have frontmatter (`name`, `description`, `metadata.type`) and `[[name]]` links; the agent writes them with the existing `write`/`edit` tools (no new tool). The index is data, not instructions. Toggle: `agents.<name>.memory: false` disables memory.
 - **Reminder injection:** turn start (once per run, via `toLlmOptions.turnContext`, never written to the session store); tool results — `read` attaches nearby instructions (existing), `git` and git-like `bash` append a freshness reminder, `write`/`edit` into the memory dir append a MEMORY.md sync reminder.
 
-## 3.17 Hooks
+## 3.16 Hooks
 
 Hooks are user-supplied policy that runs **outside the context window**: the agent spawns a
 subprocess (or calls an MCP tool / HTTP endpoint / a tool-less model call), and only a bounded

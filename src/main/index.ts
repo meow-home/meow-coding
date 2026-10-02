@@ -1061,8 +1061,6 @@ app.whenReady().then(async () => {
     ? path.join(process.resourcesPath, 'browser-extension')
     : path.join(app.getAppPath(), 'out', 'browser-extension')
   ensureExtensionInstalled(extSource, path.join(app.getPath('userData'), 'browser-extension'))
-  // The trace feature was removed; purge any leftover trace data from old versions.
-  rmSync(path.join(app.getPath('userData'), 'traces'), { recursive: true, force: true })
   // v0.37 model switch: one-time reset to a single native session per project.
   // Runs before any workspace activation (which is what first loads the session
   // store), so deleting the file cannot be undone by a debounced in-memory flush.

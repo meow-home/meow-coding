@@ -18,5 +18,6 @@
 
 ## 🧹 Internal & Docs
 - Removed the unfinished mobile remote-control feature (relay server, pairing, `RemoteTab`, IPC channels) — it was never shipped and the mobile client does not exist.
+- Removed the last remnant of the retired trace feature — the startup purge of a legacy `userData/traces` directory — along with its reference docs and design specs.
 - Default app font size is now 13px, with 12px kept as the `Small` preset.
 - New `countWords` helper and a `reasoning.ts` module; updated chat, renderer and settings `AGENTS.md` files plus the UI reference page.
