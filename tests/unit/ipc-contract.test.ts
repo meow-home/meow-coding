@@ -29,7 +29,9 @@ describe('IPC contract', () => {
       'getPendingPrompt',
       'listPromptStates', 'onPromptState', 'onActivateAgent',
       'minimizeWindow', 'toggleMaximizeWindow', 'closeWindow', 'isWindowMaximized', 'setTitleBarTheme', 'onWindowMaximizedChange',
-      'getBrowserStatus', 'pairBrowser', 'openBrowserInstallGuide', 'openBrowserExtensionFolder', 'openBrowserChromeExtensions',
+      'getBrowserStatus', 'pairBrowser',
+      'approveBrowserExtension', 'denyBrowserExtension', 'revokeBrowserExtension', 'getBrowserTrustedExtensions',
+      'openBrowserInstallGuide', 'openBrowserExtensionFolder', 'openBrowserChromeExtensions',
       'getBrowserConsoleLogs', 'getBrowserNetworkLogs', 'onBrowserStatus', 'onBrowserOpenInstallGuide',
       'getExternalApiStatus', 'setExternalApiEnabled', 'regenerateExternalApiToken', 'installClaudeSkill', 'copyExternalApiToken', 'onExternalApiStatus',
       'onWorkspaceChanged'
@@ -116,6 +118,10 @@ describe('IPC contract', () => {
       getMcpStatus: async () => [],
       getBrowserStatus: async () => ({ status: 'idle', port: 0, paired: false }),
       pairBrowser: async () => ({ code: '000000', expiresAt: 0 }),
+      approveBrowserExtension: async () => ({ status: 'paired', port: 0, paired: true }),
+      denyBrowserExtension: async () => ({ status: 'listening', port: 0, paired: false }),
+      revokeBrowserExtension: async () => ({ status: 'listening', port: 0, paired: false }),
+      getBrowserTrustedExtensions: async () => [],
       openBrowserInstallGuide: async () => {},
       openBrowserExtensionFolder: async () => {},
       openBrowserChromeExtensions: async () => {},
@@ -226,6 +232,10 @@ describe('IPC contract', () => {
     expect(Channels.EventWindowMaximizedChange).toBe('window:maximized-change')
     expect(Channels.BrowserGetStatus).toBe('browser:get-status')
     expect(Channels.BrowserPair).toBe('browser:pair')
+    expect(Channels.BrowserApproveExtension).toBe('browser:approve-extension')
+    expect(Channels.BrowserDenyExtension).toBe('browser:deny-extension')
+    expect(Channels.BrowserRevokeExtension).toBe('browser:revoke-extension')
+    expect(Channels.BrowserGetTrustedExtensions).toBe('browser:get-trusted-extensions')
     expect(Channels.BrowserOpenInstallGuide).toBe('browser:open-install-guide')
     expect(Channels.BrowserOpenExtensionFolder).toBe('browser:open-extension-folder')
     expect(Channels.BrowserOpenChromeExtensions).toBe('browser:open-chrome-extensions')

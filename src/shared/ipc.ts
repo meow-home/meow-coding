@@ -6,7 +6,7 @@ import type {
   StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts,
   UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from './types'
-import type { BrowserStatusInfo, PairingInfo } from './browser-types'
+import type { BrowserStatusInfo, PairingInfo, TrustedExtension } from './browser-types'
 import type { ExternalApiStatus } from './external-api-types'
 
 export const Channels = {
@@ -118,6 +118,10 @@ export const Channels = {
   EventAgentConfig: 'agent:config-changed',
   BrowserGetStatus: 'browser:get-status',
   BrowserPair: 'browser:pair',
+  BrowserApproveExtension: 'browser:approve-extension',
+  BrowserDenyExtension: 'browser:deny-extension',
+  BrowserRevokeExtension: 'browser:revoke-extension',
+  BrowserGetTrustedExtensions: 'browser:get-trusted-extensions',
   BrowserOpenInstallGuide: 'browser:open-install-guide',
   BrowserOpenExtensionFolder: 'browser:open-extension-folder',
   BrowserOpenChromeExtensions: 'browser:open-chrome-extensions',
@@ -297,6 +301,10 @@ export interface AgentApi {
   onChatEvent(cb: (e: ChatEvent) => void): () => void
   getBrowserStatus(): Promise<BrowserStatusInfo>
   pairBrowser(): Promise<PairingInfo>
+  approveBrowserExtension(extensionId: string): Promise<BrowserStatusInfo>
+  denyBrowserExtension(extensionId: string): Promise<BrowserStatusInfo>
+  revokeBrowserExtension(extensionId: string): Promise<BrowserStatusInfo>
+  getBrowserTrustedExtensions(): Promise<TrustedExtension[]>
   openBrowserInstallGuide(): Promise<void>
   openBrowserExtensionFolder(): Promise<void>
   openBrowserChromeExtensions(): Promise<void>

@@ -51,6 +51,8 @@ import { E2EConnectionFixtures } from './connections/e2e-fixtures'
 import { TrayManager } from './tray-manager'
 import { BrowserBridge } from './browser/bridge'
 import { createChromeLauncher, ensureExtensionInstalled } from './browser/chrome-launcher'
+import { TrustedExtensionStore } from './browser/trusted-store'
+import type { TrustedExtension } from '../shared/browser-types'
 import { ExternalApiConfigFile } from './external-api/config-file'
 import { ExternalApiManager } from './external-api/manager'
 import { ExternalDelegationFacade } from './external-api/facade'
@@ -128,7 +130,10 @@ export class MainApp {
     : path.join(app.getAppPath(), 'resources', 'skills')
   browserBridge = new BrowserBridge({
     screenshotDir: path.join(app.getPath('userData'), 'browser-screenshots'),
-    snapshotDir: path.join(app.getPath('userData'), 'browser-snapshots')
+    snapshotDir: path.join(app.getPath('userData'), 'browser-snapshots'),
+    trusted: new TrustedExtensionStore(
+      createJsonStore<TrustedExtension>(path.join(app.getPath('userData'), 'browser-trusted.json'))
+    )
   })
   browserLauncher = createChromeLauncher({
     getWindow: () => win,
@@ -1025,6 +1030,10 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.WindowSetTheme, (e, theme: 'dark' | 'light') => applyTitleBarTheme(BrowserWindow.fromWebContents(e.sender), theme))
   ipcMain.handle(Channels.BrowserGetStatus, () => mainApp.browserBridge.getStatus())
   ipcMain.handle(Channels.BrowserPair, () => mainApp.browserBridge.pair())
+  ipcMain.handle(Channels.BrowserApproveExtension, (_e, extensionId: string) => mainApp.browserBridge.approveExtension(extensionId))
+  ipcMain.handle(Channels.BrowserDenyExtension, (_e, extensionId: string) => mainApp.browserBridge.denyExtension(extensionId))
+  ipcMain.handle(Channels.BrowserRevokeExtension, (_e, extensionId: string) => mainApp.browserBridge.revokeExtension(extensionId))
+  ipcMain.handle(Channels.BrowserGetTrustedExtensions, () => mainApp.browserBridge.getTrustedExtensions())
   ipcMain.handle(Channels.BrowserOpenInstallGuide, () => mainApp.browserLauncher.showInstallGuide())
   ipcMain.handle(Channels.BrowserOpenExtensionFolder, () => mainApp.browserLauncher.openExtensionFolder())
   ipcMain.handle(Channels.BrowserOpenChromeExtensions, () => mainApp.browserLauncher.openChrome())
