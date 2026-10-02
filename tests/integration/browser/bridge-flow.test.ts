@@ -1,12 +1,16 @@
 import { describe, expect, it, afterEach } from 'vitest'
 import WebSocket from 'ws'
 import { BrowserBridge } from '../../../src/main/browser/bridge'
+import { TrustedExtensionStore } from '../../../src/main/browser/trusted-store'
 import type { BridgeToExtension } from '../../../src/shared/browser-types'
+
+const EXT_ID = 'abcdefghijklmnopabcdefghijklmnop'
+const EXT_ORIGIN = `chrome-extension://${EXT_ID}`
 
 const bridges: BrowserBridge[] = []
 
 function newBridge(): BrowserBridge {
-  const b = new BrowserBridge({ preferredPort: 0 })
+  const b = new BrowserBridge({ preferredPort: 0, trusted: new TrustedExtensionStore() })
   bridges.push(b)
   return b
 }
@@ -20,22 +24,22 @@ interface FakeExtension {
   close(): Promise<void>
 }
 
-// Mô phỏng extension: pair rồi tự trả lời từng command theo map name → result.
-async function fakeExtension(port: number, code: string, handlers: Record<string, (params: Record<string, unknown>) => unknown>): Promise<FakeExtension> {
-  const ws = new WebSocket(`ws://127.0.0.1:${port}`)
+// Mô phỏng extension: hello → chờ user duyệt → tự trả lời từng command theo map name → result.
+async function fakeExtension(port: number, handlers: Record<string, (params: Record<string, unknown>) => unknown>): Promise<FakeExtension> {
+  const ws = new WebSocket(`ws://127.0.0.1:${port}`, { origin: EXT_ORIGIN })
   await new Promise<void>((resolve, reject) => {
     ws.once('open', () => resolve())
     ws.once('error', reject)
   })
-  ws.send(JSON.stringify({ type: 'pair', code }))
+  ws.send(JSON.stringify({ type: 'hello', extensionId: EXT_ID, version: '0.3.4' }))
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => {
       ws.off('message', onMsg)
-      reject(new Error('pair timeout'))
+      reject(new Error('hello timeout'))
     }, 2000)
     const onMsg = (raw: WebSocket.RawData) => {
       const msg = JSON.parse(String(raw)) as BridgeToExtension
-      if (msg.type === 'pair_result' && msg.ok) {
+      if (msg.type === 'hello_result' && msg.ok) {
         clearTimeout(timer)
         ws.off('message', onMsg)
         resolve()
@@ -71,14 +75,16 @@ describe('BrowserBridge full flow (fake extension)', () => {
   it('executes navigate/read/screenshot through a paired extension and captures events', async () => {
     const b = newBridge()
     const port = await b.start()
-    const { code } = b.pair()
 
-    const ext = await fakeExtension(port, code, {
+    const ext = await fakeExtension(port, {
       navigate: (p) => ({ url: p.url, ok: true }),
       read: () => ({ url: 'https://example.com', title: 'Example', text: 'hello', elements: [] }),
       screenshot: () => ({ base64: Buffer.from('img').toString('base64') })
     })
 
+    expect(b.getStatus().status).toBe('pending')
+    b.approveExtension(EXT_ID)
+    await new Promise(r => setTimeout(r, 50))
     expect(b.getStatus().paired).toBe(true)
 
     const nav = await b.execute('navigate', { url: 'https://example.com' })
@@ -105,15 +111,18 @@ describe('BrowserBridge full flow (fake extension)', () => {
   it('reconnects: pairing again after a close re-enables commands', async () => {
     const b = newBridge()
     const port = await b.start()
-    const { code } = b.pair()
 
-    const ext1 = await fakeExtension(port, code, { listTabs: () => ({ tabs: [1] }) })
+    const ext1 = await fakeExtension(port, { listTabs: () => ({ tabs: [1] }) })
+    b.approveExtension(EXT_ID)
+    await new Promise(r => setTimeout(r, 50))
     expect(b.getStatus().paired).toBe(true)
     await ext1.close()
     await new Promise(r => setTimeout(r, 50))
     expect(b.getStatus().paired).toBe(false)
 
-    const ext2 = await fakeExtension(port, code, { listTabs: () => ({ tabs: [2] }) })
+    // Đã được duyệt trước đó → lần kết nối sau pair im lặng, không hỏi lại
+    const ext2 = await fakeExtension(port, { listTabs: () => ({ tabs: [2] }) })
+    await new Promise(r => setTimeout(r, 50))
     expect(b.getStatus().paired).toBe(true)
     const r = await b.execute('listTabs')
     expect(r).toMatchObject({ ok: true, data: { tabs: [2] } })
