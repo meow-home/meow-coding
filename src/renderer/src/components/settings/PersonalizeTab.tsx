@@ -5,7 +5,8 @@ import { applyTheme, getTheme, THEME_STORAGE_KEY, type Theme } from '../../theme
 
 const PRESETS = [
   { label: 'Compact', size: 10 },
-  { label: 'Default', size: 12 },
+  { label: 'Small', size: 12 },
+  { label: 'Default', size: 13 },
   { label: 'Medium', size: 14 },
   { label: 'Large', size: 16 },
   { label: 'Extra Large', size: 18 },

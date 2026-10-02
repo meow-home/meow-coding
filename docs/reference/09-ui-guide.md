@@ -220,7 +220,7 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
 
 `src/renderer/src/styles.css` — one file, CSS variables only.
 
-- Root font size 15px; sizes `--fs-xs` 12px … `--fs-lg` 18px.
+- Root font size 13px; sizes `--fs-xs` 10px … `--fs-lg` 16px.
 - Fonts: `--font-ui` (Segoe UI Variable / system-ui) for all UI text (including tool call headers, chat feed metadata, subagent status badges, prompt option marks, and context popover counts), reserving `--font-mono`
   (JetBrains Mono / Nerd Font) exclusively for code, scripts, outputs, logs, and diffs. `--font-display` aliases
   `--font-ui`: the display fonts were never loaded via `@font-face` (CSP is `'self'` only) and
@@ -323,7 +323,7 @@ string edits fail. Edit them with a script (e.g. python) if the edit tool cannot
   in light mode). The bar itself paints `var(--bg)` — the same surface as that overlay strip (see [11.5](11-conventions-and-pitfalls.md) for the subpixel seam behind this).
 - `watchTheme()` listens for `storage` events, which fire across same-origin windows — this is how
   the Git viewer and File viewer popups re-theme when the main window toggles.
-- App-wide font size persists in `localStorage` under `meow.fontSize` (default 14, range 8–40px,
+- App-wide font size persists in `localStorage` under `meow.fontSize` (default 13, range 8–40px,
   integer). `applyFontSize()` in `font.ts` sets `font-size` on `<html>`/`<body>`; `watchFontSize()`
   re-applies on `storage` events across same-origin popups. The control lives in the
   Settings → Personalize tab.

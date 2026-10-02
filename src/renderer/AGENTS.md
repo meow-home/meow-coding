@@ -35,7 +35,7 @@ React renderer (no direct Node/Electron access).
   renderer — including the Git viewer and FileViewer popup windows (separate BrowserWindows) — so
   they inherit the theme from the main window automatically.
 - `src/font.ts` — shared font-size helpers: `applyFontSize` (set `font-size` on `<html>`/`<body>`,
-  default 14, range 8-40px) and `watchFontSize` (re-apply
+  default 13, range 8-40px) and `watchFontSize` (re-apply
   on `storage` events). `main.tsx` calls both for EVERY renderer (main window + Git viewer +
   FileViewer popups) so they inherit the persisted font size.
 - `src/session-guard.ts` — pure `isLastSession(projectPath, sessionId, runtimes, workspaces)`: whether

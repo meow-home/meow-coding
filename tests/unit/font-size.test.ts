@@ -5,7 +5,7 @@ import {
 
 describe('font-size helpers', () => {
   it('defaults size constants', () => {
-    expect(DEFAULT_FONT_SIZE).toBe(12)
+    expect(DEFAULT_FONT_SIZE).toBe(13)
     expect(MIN_FONT_SIZE).toBe(8)
     expect(MAX_FONT_SIZE).toBe(40)
   })
