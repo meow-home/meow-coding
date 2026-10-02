@@ -10,7 +10,6 @@ const ALARM_NAME = 'meow-bridge-keepalive'
 
 interface StoredState {
   port?: number
-  code?: string
   connected?: boolean
 }
 
@@ -18,7 +17,7 @@ let ws: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let reconnectDelay = 1000
 let paired = false
-let pendingCode: string | null = null
+let pendingApproval = false
 
 const GROUP_TITLE = 'Meow'
 const GROUP_COLOR = 'blue' as chrome.tabGroups.ColorEnum
@@ -48,7 +47,12 @@ async function loadState(): Promise<StoredState> {
 }
 
 function broadcastStatus(): void {
-  void chrome.runtime.sendMessage({ kind: 'status', paired, connected: ws?.readyState === WebSocket.OPEN }).catch(() => {})
+  void chrome.runtime.sendMessage({
+    kind: 'status',
+    paired,
+    pending: pendingApproval,
+    connected: ws?.readyState === WebSocket.OPEN
+  }).catch(() => {})
 }
 
 function sendHeartbeat(): void {
@@ -89,7 +93,6 @@ function connect(): void {
   })
   void (async () => {
     const port = await detectPort()
-    const state = await loadState()
     let socket: WebSocket
     try {
       socket = new WebSocket(`ws://127.0.0.1:${port}`)
@@ -102,26 +105,31 @@ function connect(): void {
       return
     }
     ws = socket
-    const code = pendingCode ?? state.code ?? null
     socket.onopen = () => {
       if (ws !== socket) return
       paired = false
+      pendingApproval = false
       broadcastStatus()
-      if (code) socket.send(JSON.stringify({ type: 'pair', code } satisfies ExtensionToBridge))
+      socket.send(JSON.stringify({
+        type: 'hello',
+        extensionId: chrome.runtime.id,
+        version: chrome.runtime.getManifest().version
+      } satisfies ExtensionToBridge))
     }
     socket.onmessage = (ev) => {
       const msg = JSON.parse(String(ev.data)) as BridgeToExtension
-      if (msg.type === 'pair_result') {
+      if (msg.type === 'hello_result') {
         if (ws !== socket) return
-        paired = msg.ok
-        if (msg.ok) {
-          pendingCode = null
+        paired = msg.paired
+        pendingApproval = Boolean(msg.pending)
+        if (msg.paired) {
           saveState({ connected: true })
           reconnectDelay = 1000
-        } else {
+        } else if (!msg.ok) {
           saveState({ connected: false })
           snapshot = null
           void debugSession.close()
+          socket.close()
         }
         broadcastStatus()
         return
@@ -134,6 +142,7 @@ function connect(): void {
     socket.onclose = () => {
       if (ws !== socket) return
       paired = false
+      pendingApproval = false
       saveState({ connected: false })
       broadcastStatus()
       ws = null
@@ -497,19 +506,14 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg?.kind === 'pair') {
-    pendingCode = String(msg.code)
-    saveState({ code: pendingCode })
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'pair', code: pendingCode } satisfies ExtensionToBridge))
-    } else {
-      connect()
-    }
+  if (msg?.kind === 'reconnect') {
+    if (ws) ws.close()
+    else connect()
     sendResponse({ ok: true })
     return false
   }
   if (msg?.kind === 'status') {
-    sendResponse({ paired, connected: ws?.readyState === WebSocket.OPEN })
+    sendResponse({ paired, pending: pendingApproval, connected: ws?.readyState === WebSocket.OPEN })
     return false
   }
   if (msg?.kind === 'event') {
@@ -523,9 +527,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 })
 
 chrome.runtime.onInstalled.addListener(() => {
-  void loadState().then(s => {
-    if (s.code) connect()
-  })
+  connect()
 })
 
 chrome.tabs.onRemoved.addListener((tabId) => {

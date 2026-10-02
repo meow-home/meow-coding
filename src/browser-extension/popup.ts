@@ -6,12 +6,15 @@ function $(id: string): HTMLElement {
 }
 
 function refreshStatus(): void {
-  void chrome.runtime.sendMessage({ kind: 'status' }).then((res: { paired?: boolean; connected?: boolean }) => {
+  void chrome.runtime.sendMessage({ kind: 'status' }).then((res: { paired?: boolean; pending?: boolean; connected?: boolean }) => {
     const dot = $('dot')
     const text = $('statusText')
     if (res?.paired) {
       dot.className = 'dot green'
       text.textContent = 'Paired & connected'
+    } else if (res?.pending) {
+      dot.className = 'dot amber'
+      text.textContent = 'Waiting for approval in Meow'
     } else if (res?.connected) {
       dot.className = 'dot amber'
       text.textContent = 'Connected (not paired)'
@@ -41,19 +44,17 @@ async function detect(): Promise<void> {
   }
 }
 
-void chrome.storage.local.get(STORAGE_KEY).then((res: Record<string, { port?: number; code?: string } | undefined>) => {
+void chrome.storage.local.get(STORAGE_KEY).then((res: Record<string, { port?: number } | undefined>) => {
   const cur = res[STORAGE_KEY]
   if (cur?.port) ($('port') as HTMLInputElement).value = String(cur.port)
-  if (cur?.code) ($('code') as HTMLInputElement).value = cur.code
   refreshStatus()
 })
 
 $('detectBtn').addEventListener('click', () => void detect())
 $('saveBtn').addEventListener('click', () => {
   const port = Number(($('port') as HTMLInputElement).value) || DEFAULT_PORT
-  const code = ($('code') as HTMLInputElement).value.trim()
-  void chrome.storage.local.set({ [STORAGE_KEY]: { port, code } }).then(() => {
-    void chrome.runtime.sendMessage({ kind: 'pair', code }).then(() => {
+  void chrome.storage.local.set({ [STORAGE_KEY]: { port } }).then(() => {
+    void chrome.runtime.sendMessage({ kind: 'reconnect' }).then(() => {
       $('hint').textContent = 'Saved. Connecting...'
       setTimeout(refreshStatus, 800)
     })
