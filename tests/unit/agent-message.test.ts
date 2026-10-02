@@ -60,6 +60,18 @@ describe('toLlmMessages', () => {
     expect(toLlmMessages(items)).toHaveLength(1)
   })
 
+  it('skips persisted error items instead of sending them to the model', () => {
+    const items = [
+      { kind: 'message' as const, message: msg('user', 'hi') },
+      { kind: 'message' as const, message: msg('assistant', 'partial answer') },
+      { kind: 'error' as const, error: { id: 'e1', message: 'API Error: 500', createdAt: 2, retryable: true } },
+      { kind: 'message' as const, message: msg('user', 'continue') }
+    ]
+    const llm = toLlmMessages(items)
+    expect(llm).toHaveLength(3)
+    expect(llm.map(m => m.role)).toEqual(['user', 'assistant', 'user'])
+  })
+
   it('attaches tool calls to the preceding assistant message and emits tool results after it', () => {
     const items = [
       { kind: 'message' as const, message: msg('user', 'list files') },

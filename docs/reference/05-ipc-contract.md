@@ -111,6 +111,7 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `ChatStop` | `chat:stop` | `stopChat(agentId)` → `stopAndDrain` (aborts the turn, keeps the queue, starts the next queued message) |
 | `ChatRunCommand` | `chat:run-command` | `runCommand(agentId, name, args)` |
 | `ChatUndo` / `ChatRedo` | `chat:undo` / `chat:redo` | `undoChat` / `redoChat` → `boolean` |
+| `ChatRetry` | `chat:retry` | `retryChat(agentId, errorId)` — drops the persisted error item and resumes the turn with a continuation instruction |
 | `ChatListMessages` | `chat:list-messages` | `listChatMessages(agentId): ChatMessage[]` |
 | `ChatListTranscript` | `chat:list-transcript` | `listChatTranscript(agentId): ChatTranscriptItem[]` |
 | `ChatGetTodos` | `chat:get-todos` | `getChatTodos(agentId): TodoItem[]` |
@@ -232,10 +233,13 @@ The full agent-behavior stream. Every variant carries `agentId`.
 | `subagent-event` | `taskId`, `parentTaskId?`, `sub: 'start' \| 'delta' \| 'tool' \| 'done'`, `subagentType?`, `text?`, `tool?`, `reasoning?`, `background?`, `result?`, `state?` | Subagent progress |
 | `session-created` | — | A new session was created (e.g. by `/new`) |
 | `done` | `reason: string`, `tokens?`, `cost?` | Turn finished. `reason` ∈ `complete` \| `stopped` \| `max-steps` \| `length` \| `refusal` \| `stuck`; `stuck` carries `stuckCategory` (`stream` \| `tool`), `stuckTool?`, `recoveryCount?` — reported only once the recovery ladder is exhausted and the user chose Stop or dismissed the prompt (or for a subagent, which does not pause) |
-| `error` | `message: string` | Turn aborted with an error |
+| `error` | `message: string`, `errorId?`, `retryable?` | Turn aborted with an error. The error is persisted as an `error` transcript item; `errorId` identifies it and `retryable` gates the Retry button |
+| `error-removed` | `errorId` | A persisted error item was dropped (its retry started) |
 
 **Transient events** (`compaction-start`, `compaction-failed`, `retry`) exist only in renderer feed
 state — they are never written to the transcript, so they disappear on reload. That is intentional.
+An `error` event is the exception: it is persisted (see `06-data-and-storage.md`), so its card
+survives a reload.
 
 ## 5.5 Key data types
 
@@ -255,6 +259,8 @@ interface WorkspaceRuntime { workspace: Workspace; agents: AgentState[]; git: Gi
 interface ChatMessage { id; role: 'user'|'assistant'; text; displayText?; reasoning?; tokens?; images?; createdAt }
 interface ToolCallData { id; tool; input; output?; error?; permission: 'pending'|'allowed'|'denied' }
 type ChatTranscriptItem = { kind:'message'; message: ChatMessage } | { kind:'tool'; tool: ToolCallData }
+                        | { kind:'error'; error: ChatErrorItem }
+interface ChatErrorItem { id; message; createdAt; retryable }
 
 interface MessageTokens { input; output; total; reasoning?; cacheRead?; cacheWrite? }
 interface ContextInfo   { limit: number|null; compactThreshold: number|null; sessionCost: number }

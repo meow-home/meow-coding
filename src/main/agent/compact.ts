@@ -235,6 +235,8 @@ function serializeItem(item: TranscriptItem, toolOutputMaxChars: number): string
     const reasoning = item.message.reasoning ? `\n[Assistant reasoning]: ${item.message.reasoning}` : ''
     return `[Assistant]: ${item.message.text}${reasoning}`
   }
+  // A persisted error item is UI state, not conversation — never summarized.
+  if (item.kind === 'error') return null
   const call = item.tool
   const input = JSON.stringify(call.input ?? {})
   if (call.error) return `[Assistant tool call]: ${call.tool}(${input})\n[Tool error]: ${call.error}`

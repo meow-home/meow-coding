@@ -991,6 +991,8 @@ export function registerIpcHandlers(): void {
     mainApp.meowAgent.runCommand(agentId, name, args, images))
   ipcMain.handle(Channels.ChatUndo, (_e, agentId: string) => mainApp.meowAgent.undo(agentId))
   ipcMain.handle(Channels.ChatRedo, (_e, agentId: string) => mainApp.meowAgent.redo(agentId))
+  ipcMain.handle(Channels.ChatRetry, (_e, agentId: string, errorId: string) =>
+    mainApp.meowAgent.retryTurn(agentId, errorId))
   ipcMain.handle(Channels.ChatListMessages, (_e, agentId: string) => mainApp.meowAgent.listMessages(agentId))
   ipcMain.handle(Channels.ChatListTranscript, (_e, agentId: string, opts?: TranscriptWindowOpts) =>
     mainApp.meowAgent.listTranscriptWindow(agentId, opts))

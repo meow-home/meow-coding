@@ -224,9 +224,23 @@ export interface ToolCallData {
   metadata?: Record<string, unknown>
 }
 
+/**
+ * A turn that ended in an error, persisted so the feed keeps the error card
+ * (and its Retry button) across a reload. Never sent to the model — see
+ * `toLlmMessages` in `src/main/agent/message.ts`.
+ */
+export interface ChatErrorItem {
+  id: string
+  message: string
+  createdAt: number
+  /** Whether the failed turn can be resumed with the Retry button. */
+  retryable: boolean
+}
+
 export type ChatTranscriptItem =
   | { kind: 'message'; message: ChatMessage }
   | { kind: 'tool'; tool: ToolCallData }
+  | { kind: 'error'; error: ChatErrorItem }
 
 export interface TranscriptWindowOpts {
   limit?: number
@@ -260,7 +274,8 @@ export type ChatEvent =
       taskId?: string; subagentType?: string }
   | { type: 'turn-started'; agentId: string }
   | { type: 'done'; agentId: string; reason: string; tokens?: TokenUsage; cost?: number; stuckCategory?: 'stream' | 'tool' | 'monitor'; stuckTool?: string; recoveryCount?: number }
-  | { type: 'error'; agentId: string; message: string }
+  | { type: 'error'; agentId: string; message: string; errorId?: string; retryable?: boolean }
+  | { type: 'error-removed'; agentId: string; errorId: string }
   | { type: 'compaction-start'; agentId: string }
   | { type: 'compacted'; agentId: string; summary: string }
   | { type: 'compaction-failed'; agentId: string }

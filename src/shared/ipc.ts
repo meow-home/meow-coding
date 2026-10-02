@@ -75,6 +75,7 @@ export const Channels = {
   ChatRunCommand: 'chat:run-command',
   ChatUndo: 'chat:undo',
   ChatRedo: 'chat:redo',
+  ChatRetry: 'chat:retry',
   ChatListMessages: 'chat:list-messages',
   ChatListTranscript: 'chat:list-transcript',
   ChatGetTodos: 'chat:get-todos',
@@ -268,6 +269,7 @@ export interface AgentApi {
   runCommand(agentId: string, name: string, args: string, images?: ImageAttachment[]): Promise<void>
   undoChat(agentId: string): Promise<boolean>
   redoChat(agentId: string): Promise<boolean>
+  retryChat(agentId: string, errorId: string): Promise<void>
   listChatMessages(agentId: string): Promise<ChatMessage[]>
   listChatTranscript(agentId: string, opts?: TranscriptWindowOpts): Promise<TranscriptWindow>
   getChatTodos(agentId: string): Promise<TodoItem[]>

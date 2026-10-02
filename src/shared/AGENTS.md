@@ -3,7 +3,7 @@
 Shared contract between main / preload / renderer.
 
 - `types.ts` — pure data models (Workspace, AgentConfig, AgentState, GitStatus, LogLevel, LogSource,
-  BackgroundProcInfo, MonitorInfo, ...).
+  BackgroundProcInfo, MonitorInfo, ChatErrorItem, ...).
   JSON-serializable only: **no** classes, no functions, no Node/Electron imports.
 - `log-helpers.ts` — pure helpers `formatLogArg`/`safeJson`/`formatConsoleArgs` dùng cho system logger (main + renderer). `formatConsoleArgs` interpolates printf-style `%s`/`%d`/`%o`/`%c` console arguments (React/devtools log `console.error('%s', message, stack)`), so renderer log lines carry the real message + stack instead of literal `%s`.
 - `ipc.ts` — `Channels` (all channel strings) + `AgentApi` (API interface) + event payload types

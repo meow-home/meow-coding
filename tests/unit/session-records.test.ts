@@ -70,4 +70,18 @@ describe('session-records round trip', () => {
   it('returns null when there is no meta record', () => {
     expect(parseSessionJsonl('{"type":"title","ts":1,"title":"x"}\n')).toBeNull()
   })
+
+  it('round-trips a persisted error item in transcript order', () => {
+    const s = sample()
+    s.items.splice(2, 0, {
+      kind: 'error',
+      error: { id: 'e1', message: 'API Error: 500', createdAt: 2, retryable: true }
+    })
+    const back = parseSessionJsonl(serializeSessionJsonl(s))!
+    expect(back.items).toEqual(s.items)
+    expect(back.items[2]).toEqual({
+      kind: 'error',
+      error: { id: 'e1', message: 'API Error: 500', createdAt: 2, retryable: true }
+    })
+  })
 })

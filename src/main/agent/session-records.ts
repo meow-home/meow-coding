@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import type { ChatMessage, ToolCallData, TodoItem, UsageSummary } from '../../shared/types'
+import type { ChatErrorItem, ChatMessage, ToolCallData, TodoItem, UsageSummary } from '../../shared/types'
 import type { StoredSession } from './session'
 
 export type SessionRecord =
   | { type: 'meta'; v: 1; sessionId: string; agentId: string; projectPath: string; title: string; createdAt: number }
   | { type: 'message'; uuid: string; parentUuid: string | null; ts: number; message: ChatMessage }
   | { type: 'tool'; uuid: string; parentUuid: string | null; ts: number; tool: ToolCallData }
+  | { type: 'error'; uuid: string; parentUuid: string | null; ts: number; error: ChatErrorItem }
   | { type: 'title'; ts: number; title: string }
   | { type: 'todos'; ts: number; todos: TodoItem[] }
   | { type: 'usage'; ts: number; usage: UsageSummary }
@@ -19,8 +20,10 @@ export function sessionToRecords(s: StoredSession): SessionRecord[] {
     const uuid = randomUUID()
     if (item.kind === 'message') {
       records.push({ type: 'message', uuid, parentUuid: parent, ts: item.message.createdAt, message: item.message })
-    } else {
+    } else if (item.kind === 'tool') {
       records.push({ type: 'tool', uuid, parentUuid: parent, ts: s.updatedAt, tool: item.tool })
+    } else {
+      records.push({ type: 'error', uuid, parentUuid: parent, ts: item.error.createdAt, error: item.error })
     }
     parent = uuid
   }
@@ -57,6 +60,7 @@ export function parseSessionJsonl(text: string): StoredSession | null {
       case 'meta': meta = rec; break
       case 'message': items.push({ kind: 'message', message: rec.message }); if (rec.ts > lastTs) lastTs = rec.ts; break
       case 'tool': items.push({ kind: 'tool', tool: rec.tool }); if (rec.ts > lastTs) lastTs = rec.ts; break
+      case 'error': items.push({ kind: 'error', error: rec.error }); if (rec.ts > lastTs) lastTs = rec.ts; break
       case 'title': title = rec.title; if (rec.ts > lastTs) lastTs = rec.ts; break
       case 'todos': todos = Array.isArray(rec.todos) ? rec.todos : []; if (rec.ts > lastTs) lastTs = rec.ts; break
       // A corrupt `todos` record (string/object instead of array) from a

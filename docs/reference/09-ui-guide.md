@@ -161,6 +161,12 @@ Chat conventions:
 
 - **Transient status lines** (compaction, retry) live only in feed state — never written to the
   transcript, so they vanish on reload. That is deliberate.
+- **Error card.** A failed turn is the exception: it is persisted as an `error` transcript item and
+  rendered as `.chat-error-card` (red left rule, title, message, Copy). When the error is retryable
+  the card also shows a **Retry** button (`.chat-error-retry`) that calls
+  `window.api.retryChat(agentId, errorId)`; main drops the item and resumes the turn with a
+  continuation instruction, so the card disappears via the `error-removed` event. Non-retryable
+  errors (hook block, missing API key) show no Retry button.
 - **Recovery notice.** `step-discarded` with a `recovery` level shows a transient
   `[meow] Model started repeating itself — recovering (n/3)` notice; once automatic recovery is
   exhausted (level 4, no `recovery` on the event), the notice reads
@@ -181,7 +187,7 @@ Chat conventions:
   bubble it belongs to. The count is words, not tokens — the renderer has no tokenizer, and a
   guessed `≈N tokens` would contradict the real number in the context readout. It stays visible
   when the note opens (a header that reflows on toggle reads as a glitch) and a mono `Show` hint
-  fades in on hover/focus only. Empty assistant messages (no text / reasoning / images)
+  fades in on hover/focus only, so the collapsed feed stays quiet. Empty assistant messages (no text / reasoning / images)
   are dropped entirely from the rendered feed — the agent's loop persists these between tool
   batches (`if (textBuffer || calls.length > 0 || reasoningBuffer)` in
   `src/main/agent/loop.ts`), and without that drop the stored transcript would scatter otherwise-

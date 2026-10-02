@@ -365,4 +365,113 @@ describe('ChatPanel live event reconciliation', () => {
     // The empty assistant messages are dropped entirely from the rendered feed.
     expect(container.querySelectorAll('.chat-msg.assistant')).toHaveLength(0)
   })
+
+  it('renders a persisted error as a card with a Retry button that calls retryChat', async () => {
+    let resolveTranscript!: (page: TranscriptPage) => void
+    const transcript = new Promise<TranscriptPage>(resolve => { resolveTranscript = resolve })
+    const retryChat = vi.fn(async () => {})
+    const api = new Proxy({}, {
+      get: (_target, key) => {
+        if (key === 'listChatTranscript') return () => transcript
+        if (key === 'onChatEvent') return () => () => {}
+        if (key === 'retryChat') return retryChat
+        if (key === 'getAgentVariants' || key === 'getChatTodos' || key === 'listCommands' || key === 'listModels') {
+          return async () => []
+        }
+        if (key === 'getContextInfo') return async () => ({ limit: 128000, compactThreshold: 100000, sessionCost: 0 })
+        if (key === 'isChatRunning') return async () => false
+        if (key === 'getPendingPrompt') return async () => null
+        return async () => undefined
+      }
+    }) as Window['api']
+    Object.defineProperty(window, 'api', { configurable: true, value: api })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(createElement(ChatPanel, { agentId: 'agent-1', cwd: 'C:\\repo' }))
+      resolveTranscript({
+        items: [
+          { kind: 'message', message: { id: 'm1', role: 'assistant', text: 'partial answer', createdAt: 1 } },
+          { kind: 'error', error: { id: 'e1', message: 'API Error: 500', createdAt: 2, retryable: true } }
+        ],
+        hasMore: false
+      })
+      await transcript
+    })
+
+    const card = container.querySelector('.chat-error-card')
+    expect(card).not.toBeNull()
+    expect(card!.textContent).toContain('API Error: 500')
+    const retry = card!.querySelector('.chat-error-retry') as HTMLButtonElement
+    expect(retry).not.toBeNull()
+    await act(async () => { retry.click() })
+    expect(retryChat).toHaveBeenCalledWith('agent-1', 'e1')
+  })
+
+  it('hides the Retry button on a non-retryable error card', async () => {
+    let resolveTranscript!: (page: TranscriptPage) => void
+    const transcript = new Promise<TranscriptPage>(resolve => { resolveTranscript = resolve })
+    const api = new Proxy({}, {
+      get: (_target, key) => {
+        if (key === 'listChatTranscript') return () => transcript
+        if (key === 'onChatEvent') return () => () => {}
+        if (key === 'getAgentVariants' || key === 'getChatTodos' || key === 'listCommands' || key === 'listModels') {
+          return async () => []
+        }
+        if (key === 'getContextInfo') return async () => ({ limit: 128000, compactThreshold: 100000, sessionCost: 0 })
+        if (key === 'isChatRunning') return async () => false
+        if (key === 'getPendingPrompt') return async () => null
+        return async () => undefined
+      }
+    }) as Window['api']
+    Object.defineProperty(window, 'api', { configurable: true, value: api })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(createElement(ChatPanel, { agentId: 'agent-1', cwd: 'C:\\repo' }))
+      resolveTranscript({
+        items: [{ kind: 'error', error: { id: 'e2', message: '[hook] prompt blocked', createdAt: 1, retryable: false } }],
+        hasMore: false
+      })
+      await transcript
+    })
+
+    expect(container.querySelector('.chat-error-card')).not.toBeNull()
+    expect(container.querySelector('.chat-error-retry')).toBeNull()
+  })
+
+  it('removes the error card when the error-removed event arrives', async () => {
+    let resolveTranscript!: (page: TranscriptPage) => void
+    const transcript = new Promise<TranscriptPage>(resolve => { resolveTranscript = resolve })
+    let onEvent: ((event: ChatEvent) => void) | undefined
+    const api = new Proxy({}, {
+      get: (_target, key) => {
+        if (key === 'listChatTranscript') return () => transcript
+        if (key === 'onChatEvent') return (listener: (event: ChatEvent) => void) => { onEvent = listener; return () => {} }
+        if (key === 'getAgentVariants' || key === 'getChatTodos' || key === 'listCommands' || key === 'listModels') {
+          return async () => []
+        }
+        if (key === 'getContextInfo') return async () => ({ limit: 128000, compactThreshold: 100000, sessionCost: 0 })
+        if (key === 'isChatRunning') return async () => false
+        if (key === 'getPendingPrompt') return async () => null
+        return async () => undefined
+      }
+    }) as Window['api']
+    Object.defineProperty(window, 'api', { configurable: true, value: api })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => { root?.render(createElement(ChatPanel, { agentId: 'agent-1', cwd: 'C:\\repo' })) })
+    act(() => onEvent?.({ type: 'error', agentId: 'agent-1', message: 'API Error: 500', errorId: 'e9', retryable: true }))
+    await act(async () => { resolveTranscript({ items: [], hasMore: false }); await transcript })
+    expect(container.querySelector('.chat-error-card')).not.toBeNull()
+
+    act(() => onEvent?.({ type: 'error-removed', agentId: 'agent-1', errorId: 'e9' }))
+    expect(container.querySelector('.chat-error-card')).toBeNull()
+  })
 })

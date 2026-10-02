@@ -344,6 +344,58 @@ describe('MeowAgentManager', () => {
     expect(manager.isRunning('a1')).toBe(false)
   })
 
+  it('persists a turn error to the transcript and marks it retryable', async () => {
+    const { manager, events } = await makeManager({
+      partsQueue: [
+        [{ kind: 'text', text: 'partial answer' }, { kind: 'error', error: 'API Error: 500' }]
+      ]
+    })
+    await manager.send('a1', 'do the thing')
+    const errorEvent = events.find(e => e.type === 'error') as Extract<ChatEvent, { type: 'error' }> | undefined
+    expect(errorEvent?.message).toContain('API Error: 500')
+    expect(errorEvent?.retryable).toBe(true)
+    const errorItem = manager.listTranscript('a1').find(i => i.kind === 'error')
+    expect(errorItem && errorItem.kind === 'error' ? errorItem.error.message : '').toContain('API Error: 500')
+    expect(errorItem && errorItem.kind === 'error' ? errorItem.error.id : '').toBe(errorEvent?.errorId)
+  })
+
+  it('retryTurn drops the error card and resumes the turn with a continuation prompt', async () => {
+    const { manager, events, llmMessages } = await makeManager({
+      partsQueue: [
+        [{ kind: 'text', text: 'partial answer' }, { kind: 'error', error: 'API Error: 500' }],
+        [{ kind: 'text', text: 'finished' }, { kind: 'finish' }]
+      ]
+    })
+    await manager.send('a1', 'do the thing')
+    const errorEvent = events.find(e => e.type === 'error') as Extract<ChatEvent, { type: 'error' }>
+    expect(manager.listTranscript('a1').some(i => i.kind === 'error')).toBe(true)
+
+    await manager.retryTurn('a1', errorEvent.errorId!)
+
+    expect(manager.listTranscript('a1').some(i => i.kind === 'error')).toBe(false)
+    expect(events.some(e => e.type === 'error-removed' && e.errorId === errorEvent.errorId)).toBe(true)
+    // The retry instruction is a system-reminder, so it never renders as a user bubble.
+    const lastTurn = llmMessages[llmMessages.length - 1]
+    const lastUser = [...lastTurn].reverse().find(m => m.role === 'user')
+    expect(String(lastUser?.content)).toContain('<system-reminder>')
+    expect(String(lastUser?.content)).toContain('Continue')
+    // The retry instruction is persisted like CONTINUE_TRUNCATED_PROMPT, but it
+    // starts with <system-reminder> so the renderer never shows it as a bubble.
+    const userTexts = manager.listMessages('a1').filter(m => m.role === 'user').map(m => m.text)
+    expect(userTexts).toHaveLength(2)
+    expect(userTexts[1].startsWith('<system-reminder>')).toBe(true)
+  })
+
+  it('retryTurn is a no-op while a turn is already running', async () => {
+    const { manager, events } = await makeManager({ hangUntilAbort: true })
+    const sendPromise = manager.send('a1', 'first')
+    await new Promise(r => setTimeout(r, 20))
+    await manager.retryTurn('a1', 'missing')
+    expect(events.some(e => e.type === 'error-removed')).toBe(false)
+    manager.stop('a1')
+    await sendPromise
+  })
+
   it('queues messages sent while a turn is running and drains them serially', async () => {
     const { manager, events } = await makeManager({
       partsQueue: [

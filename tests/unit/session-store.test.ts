@@ -247,6 +247,18 @@ describe('transcriptWindow', () => {
     expect(w.hasMore).toBe(false)
   })
 
+  it('matches beforeId against error items too', () => {
+    const store = makeStore(dir)
+    const s = store.create('agent1', '/p')
+    store.appendMessage(s.id, msg('m0'))
+    store.appendError(s.id, { id: 'e1', message: 'boom', createdAt: Date.now(), retryable: true })
+    store.appendMessage(s.id, msg('m2'))
+    const w = store.transcriptWindow(s.id, { beforeId: 'e1', limit: 2 })
+    expect(w.items).toHaveLength(2)
+    expect(w.items[1].kind === 'error' && w.items[1].error.id).toBe('e1')
+    expect(w.hasMore).toBe(false)
+  })
+
   it('unknown beforeId falls back to the tail window', () => {
     const store = makeStore(dir)
     const s = store.create('agent1', '/p')
@@ -254,6 +266,17 @@ describe('transcriptWindow', () => {
     const w = store.transcriptWindow(s.id, { beforeId: 'nope', limit: 3 })
     expect(w.items.map(it => it.message.id)).toEqual(['m3', 'm4', 'm5'])
     expect(w.hasMore).toBe(true)
+  })
+
+  it('appends an error item and removes it by id', () => {
+    const store = makeStore(dir)
+    const s = store.create('agent1', '/p')
+    store.appendMessage(s.id, msg('m0'))
+    store.appendError(s.id, { id: 'e1', message: 'boom', createdAt: Date.now(), retryable: true })
+    expect(store.transcript(s.id).map(i => i.kind)).toEqual(['message', 'error'])
+    expect(store.removeError(s.id, 'e1')).toBe(true)
+    expect(store.transcript(s.id).map(i => i.kind)).toEqual(['message'])
+    expect(store.removeError(s.id, 'e1')).toBe(false)
   })
 
   it('shorter transcript returns everything with hasMore=false; empty returns empty', () => {

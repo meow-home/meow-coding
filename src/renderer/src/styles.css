@@ -1213,23 +1213,43 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .chat-thumb:hover { border-color: var(--accent); }
 .chat-lightbox { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.8); cursor: zoom-out; }
 .chat-lightbox img { max-width: 90vw; max-height: 90vh; border-radius: var(--radius-lg); }
-.chat-error {
-  color: var(--red);
-  padding: 0.333333rem 0;
-  display: flex;
-  align-items: flex-start;
-  gap: 0.666667rem;
-}
-.chat-error-text { flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; }
 .chat-error-copy {
   flex: 0 0 auto;
   background: transparent;
-  border-color: transparent;
+  border-color: var(--hairline);
   color: var(--text-dim);
   padding: 0.083333rem 0.5rem;
   font-size: var(--fs-sm);
 }
 .chat-error-copy:hover { background: var(--bg-hover); border-color: var(--accent-dim); color: var(--text-strong); }
+
+/* Error card: a failed turn is persisted as a transcript item, so this card
+   (and its Retry button) survives a reload. Raised surface + red left rule so
+   it reads as an event, not as chat text. */
+.chat-error-card {
+  display: flex; gap: 0.666667rem;
+  padding: 0.833333rem 1rem;
+  background: var(--bg-raised);
+  border: 0.083333rem solid var(--hairline);
+  border-left: 0.166667rem solid var(--red);
+  border-radius: var(--radius-lg);
+  content-visibility: auto; contain-intrinsic-size: auto 6.666667rem;
+}
+.chat-error-card-icon { flex: 0 0 auto; color: var(--red); margin-top: 0.083333rem; }
+.chat-error-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.chat-error-card-title {
+  font-family: var(--font-display); font-weight: var(--fw-semibold);
+  font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--red);
+}
+.chat-error-card-text {
+  font-family: var(--font-mono); font-size: var(--fs-sm); line-height: 1.5;
+  color: var(--text-dim); white-space: pre-wrap; word-break: break-word;
+  max-height: 11rem; overflow: auto; user-select: text;
+}
+.chat-error-card-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+.chat-error-retry { display: inline-flex; align-items: center; gap: 0.333333rem; }
+.chat-error-retry:disabled { opacity: 0.5; cursor: default; }
 
 /* Chat pane error boundary: contains a render failure to the pane instead of
    letting React unmount the whole app (which left a black, unresponsive

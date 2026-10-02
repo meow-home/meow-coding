@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ChevronRight, Copy } from 'lucide-react'
+import { AlertCircle, Check, ChevronDown, ChevronRight, Copy, RotateCw } from 'lucide-react'
 import type { AgentMode, ChatDelegationMeta, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ImageAttachment, QuestionOption, QueuedMessage, TodoItem, ToolCallData } from '@shared/types'
 import { DRAFT_SESSION_ID } from '@shared/types'
 import { isExternalPeer } from '@shared/external-api-types'
@@ -24,7 +24,7 @@ type FeedItem =
   | { kind: 'message'; id: string; role: ChatMessage['role']; text: string; reasoning?: string; images?: ImageAttachment[]; delegation?: ChatDelegationMeta }
   | { kind: 'tool'; id: string; call: ToolCallData }
   | { kind: 'cluster'; id: string; calls: ToolCallData[] }
-  | { kind: 'error'; id: string; text: string }
+  | { kind: 'error'; id: string; text: string; retryable?: boolean }
   | { kind: 'compaction'; id: string; running?: boolean; failed?: boolean }
   | { kind: 'retry'; id: string; attempt: number; maxAttempts: number; delayMs: number; unbounded?: boolean }
   | { kind: 'notice'; id: string; text: string }
@@ -33,13 +33,15 @@ type FeedItem =
 // Transcript items (message/tool from the windowed IPC read) share a common
 // shape with the row-level FeedItem so paging and live events merge cleanly.
 function toFeedItem(it: ChatTranscriptItem): FeedItem {
-  return it.kind === 'message'
-    ? {
-        kind: 'message', id: it.message.id, role: it.message.role,
-        text: it.message.displayText ?? it.message.text,
-        reasoning: it.message.reasoning, images: it.message.images, delegation: it.message.delegation
-      }
-    : { kind: 'tool', id: it.tool.id, call: { ...it.tool } }
+  if (it.kind === 'message') {
+    return {
+      kind: 'message', id: it.message.id, role: it.message.role,
+      text: it.message.displayText ?? it.message.text,
+      reasoning: it.message.reasoning, images: it.message.images, delegation: it.message.delegation
+    }
+  }
+  if (it.kind === 'tool') return { kind: 'tool', id: it.tool.id, call: { ...it.tool } }
+  return { kind: 'error', id: it.error.id, text: it.error.message, retryable: it.error.retryable }
 }
 
 function feedItemKey(item: FeedItem): string {
@@ -689,6 +691,10 @@ if (e.type === 'usage') {
       ))
       return
     }
+    if (e.type === 'error-removed') {
+      setItems(prev => prev.filter(i => !(i.kind === 'error' && i.id === e.errorId)))
+      return
+    }
     if (e.type === 'done' || e.type === 'error') {
       clearRetry()
       clearNotice()
@@ -696,7 +702,11 @@ if (e.type === 'usage') {
       setRunning(false)
       setPendingPrompt(null)
       if (e.type === 'error') {
-        setItems(prev => [...prev, { kind: 'error', id: 'err-' + Date.now(), text: e.message }])
+        // The id comes from main (the persisted error item), so the card and a
+        // later error-removed event refer to the same row.
+        setItems(prev => [...prev, {
+          kind: 'error', id: e.errorId ?? 'err-' + Date.now(), text: e.message, retryable: e.retryable
+        }])
       } else if (e.reason === 'length') {
         setItems(prev => [...prev, {
           kind: 'error',
@@ -856,6 +866,12 @@ if (e.type === 'usage') {
       }
     })
   }, [agentId, loadTranscript, loadTodos])
+
+  // Retry on an error card: main drops the persisted error and resumes the turn
+  // with a continuation instruction; the card disappears via `error-removed`.
+  const handleRetry = useCallback((errorId: string) => {
+    void window.api.retryChat(agentId, errorId)
+  }, [agentId])
 
   const respond = useCallback((promptId: string, allow: boolean, text?: string, always = false) => {
     void window.api.respondPrompt(agentId, promptId, { allow, text, always })
@@ -1063,15 +1079,34 @@ if (e.type === 'usage') {
             )
           }
           return (
-            <div key={item.id} className="chat-error">
-              <div className="chat-error-text">{item.text}</div>
-              <button
-                className="btn small chat-error-copy"
-                onClick={() => void navigator.clipboard.writeText(item.text)}
-                title="Copy error text"
-              >
-                Copy
-              </button>
+            <div key={item.id} className="chat-error-card">
+              <div className="chat-error-card-icon" aria-hidden="true">
+                <AlertCircle size={16} />
+              </div>
+              <div className="chat-error-card-body">
+                <div className="chat-error-card-title">Something went wrong</div>
+                <div className="chat-error-card-text">{item.text}</div>
+                <div className="chat-error-card-actions">
+                  {item.retryable && (
+                    <button
+                      className="btn small chat-error-retry"
+                      onClick={() => handleRetry(item.id)}
+                      disabled={running}
+                      title="Ask the agent to continue from where it stopped"
+                    >
+                      <RotateCw size={13} aria-hidden="true" />
+                      Retry
+                    </button>
+                  )}
+                  <button
+                    className="btn small chat-error-copy"
+                    onClick={() => void navigator.clipboard.writeText(item.text)}
+                    title="Copy error text"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
             </div>
           )
         })}

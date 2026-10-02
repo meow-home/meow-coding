@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
-import type { ChatDelegationMeta, ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, NotificationsSettings, PendingPromptInfo, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts, UsageSummary } from '../shared/types'
+import type { ChatDelegationMeta, ChatErrorItem, ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, NotificationsSettings, PendingPromptInfo, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts, UsageSummary } from '../shared/types'
 import { DRAFT_SESSION_ID, type AgentConfig, type AgentMode, type ArtifactEntry, type CatalogProviderSummary, type Command, type ModelRef, type SubagentType } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, resolveApiKey, settingsToConfig, writeMeowConfig,
@@ -64,6 +64,13 @@ import { HooksExecutor, loadProjectHooks, mergeHooksConfig } from './agent/hooks
 
 const NO_API_KEY_MESSAGE = '[meow] No provider/API key configured. Open Settings, add a provider (id + API key + models) and try again.'
 const COMPACTION_IN_PROGRESS = '[meow] Compaction already in progress.'
+
+// Sent as the retry turn's prompt when the user clicks Retry on an error card.
+// A <system-reminder> so it never renders as a user bubble (the renderer drops
+// those), matching CONTINUE_TRUNCATED_PROMPT in agent/loop.ts.
+const RETRY_TURN_PROMPT =
+  '<system-reminder>\nThe previous turn failed with an error. Continue from where you stopped, ' +
+  'without repeating what you already wrote.\n</system-reminder>'
 
 const TURN_END_REASONS: ReadonlySet<string> = new Set<TurnEndReason>(['max-steps', 'stuck', 'length', 'refusal'])
 
@@ -715,7 +722,7 @@ export class MeowAgentManager {
       if (this.turnPromises.get(agentId) === turn) this.turnPromises.delete(agentId)
     }
     if (run.error) {
-      this.emit({ type: 'error', agentId, message: run.error })
+      this.emitError(agentId, run.error, true)
       return { runId, reason: 'failed', touchedFiles: [...run.touchedFiles], error: run.error }
     }
     // A turn the harness cut short (stuck, step cap, …) can end with no
@@ -778,7 +785,7 @@ export class MeowAgentManager {
       if (ups.block) {
         this.running.delete(agentId)
         this.activeRuns.delete(agentId)
-        this.emit({ type: 'error', agentId, message: `[hook] prompt blocked${ups.reason ? `: ${ups.reason}` : ''}` })
+        this.emitError(agentId, `[hook] prompt blocked${ups.reason ? `: ${ups.reason}` : ''}`, false)
         return
       }
       if (ups.additionalContext) injected += `${ups.additionalContext}
@@ -887,7 +894,8 @@ ${content}` : content
     const sessionId = this.activeSessionId(agentId)
     for (const item of items) {
       if (item.kind === 'message') this.deps.store.appendMessage(sessionId, item.message)
-      else this.deps.store.appendTool(sessionId, item.tool)
+      else if (item.kind === 'tool') this.deps.store.appendTool(sessionId, item.tool)
+      else this.deps.store.appendError(sessionId, item.error)
     }
     return true
   }
@@ -917,6 +925,22 @@ ${content}` : content
   // starts the next queued message (if any).
   async stopAndDrain(agentId: string): Promise<void> {
     this.stop(agentId)
+    await this.drainQueue(agentId)
+  }
+
+  /**
+   * Retry button on a persisted error card: drop the card and resume the turn
+   * as a new one carrying a continuation instruction. The failed turn's partial
+   * answer stays in the transcript, so the model continues from where it stopped
+   * (the same shape Claude Code / Codex use for an interrupted turn). A no-op
+   * while a turn is already running, or when the error is no longer present.
+   */
+  async retryTurn(agentId: string, errorId: string): Promise<void> {
+    if (!this.agents.has(agentId) || this.running.has(agentId)) return
+    const sessionId = this.activeSessionId(agentId)
+    if (!this.deps.store.removeError(sessionId, errorId)) return
+    this.emit({ type: 'error-removed', agentId, errorId })
+    await this.runTurn(agentId, RETRY_TURN_PROMPT, { displayText: 'Retry' })
     await this.drainQueue(agentId)
   }
 
@@ -1298,7 +1322,7 @@ ${content}` : content
       return
     }
     if (!this.resolved.get(agentId)?.apiKey) {
-      this.emit({ type: 'error', agentId, message: NO_API_KEY_MESSAGE })
+      this.emitError(agentId, NO_API_KEY_MESSAGE, false)
       return
     }
     const controller = new AbortController()
@@ -1724,7 +1748,12 @@ ${content}` : content
       truncation: this.deps.truncation,
       replaceItems: (items) => this.deps.store.replaceItems(this.runSessionId(agent.id), items),
       snapshots: this.deps.snapshots,
-      onEvent: (e) => this.emit(e),
+      // The runner's own error event (a stream/LLM failure that ended the turn)
+      // goes through emitError so it is persisted like every other turn error.
+      onEvent: (e) => {
+        if (e.type === 'error') this.emitError(agent.id, e.message, true)
+        else this.emit(e)
+      },
       onArtifact: (entry) => this.deps.onArtifact?.(entry),
       getItems: () => this.deps.store.get(this.runSessionId(agent.id))?.items ?? [],
       appendMessage: (msg) => this.deps.store.appendMessage(this.runSessionId(agent.id), msg),
@@ -1807,6 +1836,17 @@ ${content}` : content
 
   private nextTurn(agentId: string): number {
     return this.nextTurnFor(this.activeSessionId(agentId))
+  }
+
+  /**
+   * Persists a failed turn's error to the transcript (so the feed keeps its
+   * error card + Retry button across a reload) and emits the event carrying
+   * the stored id. The single choke point for every error that ends a turn.
+   */
+  private emitError(agentId: string, message: string, retryable: boolean): void {
+    const error: ChatErrorItem = { id: randomUUID(), message, createdAt: Date.now(), retryable }
+    this.deps.store.appendError(this.runSessionId(agentId), error)
+    this.emit({ type: 'error', agentId, message, errorId: error.id, retryable })
   }
 
   private emit(e: ChatEvent): void {

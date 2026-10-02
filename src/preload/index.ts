@@ -137,6 +137,7 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.ChatRunCommand, agentId, name, args, images),
   undoChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatUndo, agentId),
   redoChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatRedo, agentId),
+  retryChat: (agentId: string, errorId: string) => ipcRenderer.invoke(Channels.ChatRetry, agentId, errorId),
   listChatMessages: (agentId: string) => ipcRenderer.invoke(Channels.ChatListMessages, agentId),
   listChatTranscript: (agentId: string, opts?: TranscriptWindowOpts) =>
     ipcRenderer.invoke(Channels.ChatListTranscript, agentId, opts),

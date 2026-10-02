@@ -23,6 +23,10 @@ handlers and the app lifecycle.
   Tracks draft session model preferences (`DRAFT_SESSION_ID`) and resolves default models for unmaterialized sessions (`defaultSessionModel()`: last used model, else the default provider — also used for sessions created by external delegation);
   `suggestFiles` for a draft session (`DRAFT_SESSION_ID`) falls back to the active project path, so `@`-file
   completion works before the session exists.
+  Failed turns are persisted: `emitError(agentId, message, retryable)` appends an `error` transcript item
+  and emits the `error` `ChatEvent` with `errorId`/`retryable`; `retryTurn(agentId, errorId)` (the
+  `chat:retry` IPC) removes that item, emits `error-removed`, and starts a new turn with
+  `RETRY_TURN_PROMPT` (a hidden `<system-reminder>` continuation instruction).
   `compactSession(agentId, focus)` backs `/compact`: mid-turn it calls `runner.requestCompact`; idle it
   claims `running` + `compacting` and a controller (so sends queue and `stop()` aborts), runs
   `runner.compactNow`, then drains the queue. It refuses a `/compact` while one is already in flight

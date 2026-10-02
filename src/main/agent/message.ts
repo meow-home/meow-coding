@@ -136,7 +136,7 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
       } else {
         pendingAssistant = { text: item.message.text, calls: [], reasoning: index > lastUserIndex ? item.message.reasoning : undefined }
       }
-    } else {
+    } else if (item.kind === 'tool') {
       // A tool item must follow the assistant message that made the call. An
       // orphan tool item (e.g. an aborted tool appended after the next turn's
       // user message) would serialize as a "tool" message with no preceding
@@ -162,6 +162,8 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
         }]
       })
     }
+    // A persisted error item is UI state, not conversation: the model must
+    // never see it, so it is skipped entirely.
   }
   flush()
   return result

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ChatMessage, ChatTranscriptItem, SessionSummary, TodoItem, ToolCallData, TranscriptWindow, TranscriptWindowOpts, UsageSummary } from '../../shared/types'
+import type { ChatErrorItem, ChatMessage, ChatTranscriptItem, SessionSummary, TodoItem, ToolCallData, TranscriptWindow, TranscriptWindowOpts, UsageSummary } from '../../shared/types'
 import { SessionFileStore } from './session-file-store'
 
 export const DEFAULT_SESSION_TITLE = 'New session'
@@ -17,6 +17,13 @@ export interface StoredSession {
 }
 
 export type { SessionSummary }
+
+/** Stable id of a transcript item, whatever its kind. */
+export function itemId(item: ChatTranscriptItem): string {
+  if (item.kind === 'message') return item.message.id
+  if (item.kind === 'tool') return item.tool.id
+  return item.error.id
+}
 
 export function titleFrom(text: string): string {
   const cleanText = text
@@ -108,7 +115,7 @@ export class SessionStore {
     const items = this.store.get(id)?.items ?? []
     const limit = Math.max(1, opts?.limit ?? 50)
     if (!opts?.beforeId) return { items: items.slice(-limit), hasMore: items.length > limit }
-    const index = items.findIndex(it => (it.kind === 'message' ? it.message.id : it.tool.id) === opts.beforeId)
+    const index = items.findIndex(it => itemId(it) === opts.beforeId)
     if (index < 0) return { items: items.slice(-limit), hasMore: items.length > limit }
     const start = Math.max(0, index - limit + 1)
     return { items: items.slice(start, index + 1), hasMore: start > 0 }
@@ -197,6 +204,26 @@ export class SessionStore {
     s.updatedAt = this.nextUpdatedAt()
     this.store.append(id, [{ type: 'tool', uuid: randomUUID(), parentUuid: null, ts: s.updatedAt, tool }])
     this.store.reindex(s)
+  }
+
+  /** Persists a failed turn's error so the feed keeps its card across a reload. */
+  appendError(id: string, error: ChatErrorItem): void {
+    const s = this.store.get(id); if (!s) return
+    s.items.push({ kind: 'error', error })
+    s.updatedAt = this.nextUpdatedAt()
+    this.store.append(id, [{ type: 'error', uuid: randomUUID(), parentUuid: null, ts: error.createdAt, error }])
+    this.store.reindex(s)
+  }
+
+  /** Drops a persisted error item (its turn was retried). False when absent. */
+  removeError(id: string, errorId: string): boolean {
+    const s = this.store.get(id); if (!s) return false
+    const next = s.items.filter(it => !(it.kind === 'error' && it.error.id === errorId))
+    if (next.length === s.items.length) return false
+    s.items = next
+    s.updatedAt = this.nextUpdatedAt()
+    this.store.rewrite(s)
+    return true
   }
 
   setTitle(id: string, title: string): void {

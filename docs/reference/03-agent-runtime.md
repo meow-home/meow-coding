@@ -534,6 +534,14 @@ and then surface the error.
 chat shows a transient "Retrying…" line. That line lives only in renderer feed state — it is never
 written to the transcript.
 
+When retries are exhausted (or the turn fails for a non-retryable reason), the manager routes the
+error through `emitError(agentId, message, retryable)`: it appends a persisted `error` transcript
+item and emits the `error` `ChatEvent` carrying `errorId`/`retryable`. `retryTurn(agentId, errorId)`
+(the `chat:retry` IPC) removes that item, emits `error-removed`, and starts a new turn whose prompt is
+`RETRY_TURN_PROMPT` — a hidden `<system-reminder>` continuation instruction, the same pattern as
+`CONTINUE_TRUNCATED_PROMPT` in `loop.ts`. Error items are UI state: `toLlmMessages` and the compactor
+skip them, so they never reach the model.
+
 ### Budget reduction
 
 A non-retryable 400 can still be recoverable. When the catalog overstates a model's real output cap,
