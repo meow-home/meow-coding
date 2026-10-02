@@ -174,7 +174,14 @@ Chat conventions:
 - **Tool-call clustering.** Every `tool` item renders inside a `.tool-cluster` group at render time
   (see `ToolCluster.tsx`) — even a lone tool call gets a 1-tool cluster with the same chrome.
   Reasoning (`<details class="chat-reasoning">`) and assistant text with actual content break the
-  run, so they stay as their own bubbles. Empty assistant messages (no text / reasoning / images)
+  run, so they stay as their own bubbles. The thinking note is a **margin note**, not a card: no
+  box, no fill — just a `--hairline-strong` rule down its left edge, a `Thought` label, a mono word
+  count, and a caret. It is an aside about the answer, so it must not compete with the two surfaces
+  that *are* cards (the tool cluster and the error card); the rule is what ties it to the assistant
+  bubble it belongs to. The count is words, not tokens — the renderer has no tokenizer, and a
+  guessed `≈N tokens` would contradict the real number in the context readout. It stays visible
+  when the note opens (a header that reflows on toggle reads as a glitch) and a mono `Show` hint
+  fades in on hover/focus only. Empty assistant messages (no text / reasoning / images)
   are dropped entirely from the rendered feed — the agent's loop persists these between tool
   batches (`if (textBuffer || calls.length > 0 || reasoningBuffer)` in
   `src/main/agent/loop.ts`), and without that drop the stored transcript would scatter otherwise-
@@ -221,6 +228,11 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
 `src/renderer/src/styles.css` — one file, CSS variables only.
 
 - Root font size 13px; sizes `--fs-xs` 10px … `--fs-lg` 16px.
+- Two hairline weights: `--hairline` (the default 1px edge — card borders, separators) and
+  `--hairline-strong` (one step up, for rules that must read as a *deliberate* edge: the thinking
+  note's gutter rule, the tool-cluster count pills, `.theme-card-btn:hover`). A border drawn with an
+  undefined token silently computes to `0px`, so a rule that "doesn't show up" is usually a missing
+  variable rather than a specificity problem.
 - Fonts: `--font-ui` (Segoe UI Variable / system-ui) for all UI text (including tool call headers, chat feed metadata, subagent status badges, prompt option marks, and context popover counts), reserving `--font-mono`
   (JetBrains Mono / Nerd Font) exclusively for code, scripts, outputs, logs, and diffs. `--font-display` aliases
   `--font-ui`: the display fonts were never loaded via `@font-face` (CSP is `'self'` only) and

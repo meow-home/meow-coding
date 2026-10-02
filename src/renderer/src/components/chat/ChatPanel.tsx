@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, Copy } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Copy } from 'lucide-react'
 import type { AgentMode, ChatDelegationMeta, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ImageAttachment, QuestionOption, QueuedMessage, TodoItem, ToolCallData } from '@shared/types'
 import { DRAFT_SESSION_ID } from '@shared/types'
 import { isExternalPeer } from '@shared/external-api-types'
@@ -18,6 +18,7 @@ import VariantPicker from './VariantPicker'
 import ModePicker from './ModePicker'
 import ContextFooter from './ContextFooter'
 import SubagentOverlay, { SUBAGENT_DEFAULT_WIDTH, type SubagentOverlayItem } from './SubagentOverlay'
+import { countWords } from './reasoning'
 
 type FeedItem =
   | { kind: 'message'; id: string; role: ChatMessage['role']; text: string; reasoning?: string; images?: ImageAttachment[]; delegation?: ChatDelegationMeta }
@@ -152,7 +153,12 @@ const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, c
         <>
           {reasoning ? (
             <details className="chat-reasoning">
-              <summary>Thinking</summary>
+              <summary>
+                <ChevronRight className="chat-reasoning-caret" size={14} aria-hidden="true" />
+                <span className="chat-reasoning-label">Thought</span>
+                <span className="chat-reasoning-meta">{countWords(reasoning)} words</span>
+                <span className="chat-reasoning-hint">Show</span>
+              </summary>
               <div className="chat-reasoning-text">{reasoning}</div>
             </details>
           ) : null}

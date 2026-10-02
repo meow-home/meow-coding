@@ -92,6 +92,9 @@
   --menu-item-pad-x: 0.833333rem;
   --menu-icon: 1.333333rem;
   --hairline: rgba(255, 255, 255, 0.10);
+  /* One step up from --hairline: rules that must read as a deliberate
+     edge (the thinking note's gutter rule, count pills, card hovers). */
+  --hairline-strong: rgba(255, 255, 255, 0.16);
   --shadow-1: 0 0.083333rem 0.166667rem rgba(0, 0, 0, 0.4);
   --shadow-2: 0 0.333333rem 1.333333rem rgba(0, 0, 0, 0.45);
   --shadow-3: 0 1rem 3.333333rem rgba(0, 0, 0, 0.55);
@@ -148,6 +151,7 @@
 
   --shadow-1: 0 0.083333rem 0.166667rem rgba(0, 0, 0, 0.10);
   --hairline: rgba(0, 0, 0, 0.12);
+  --hairline-strong: rgba(0, 0, 0, 0.18);
 
   /* markdown — theme-aware tokens for content that renders over bg-bubble */
   --md-mention: #a05a00;
@@ -2806,11 +2810,60 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .mcp-tools { color: var(--text-dim); }
 .mcp-error { color: var(--red); font-size: var(--fs-base); padding: 0.5rem 0.666667rem; background: rgba(255, 95, 86, 0.08); border: 0.083333rem solid rgba(255, 95, 86, 0.2); border-radius: var(--radius-sm); word-break: break-word; }
 
-/* Reasoning (thinking) */
-.chat-reasoning { background: var(--bg-panel); border: 0.083333rem solid var(--hairline); border-radius: var(--radius); margin-bottom: 0.5rem; overflow: hidden; }
-.chat-reasoning summary { cursor: pointer; font-size: var(--fs-base); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); padding: 0.5rem 0.833333rem; user-select: none; font-family: var(--font-display); }
-.chat-reasoning summary:hover { color: var(--accent); }
-.chat-reasoning-text { white-space: pre-wrap; color: var(--text-dim); font-size: var(--fs-md); padding: 0 0.833333rem 0.666667rem; user-select: text; max-height: 16.666667rem; overflow-y: auto; }
+/* Reasoning (thinking) — a marginal note, not a card.
+   The thinking step is the agent's aside, so it is set as one: no surface, no
+   box, just a hairline rule in the gutter with the label and word count. The
+   rule is the only structural device and it encodes the aside's extent (it
+   spans the note, and nothing else in the feed draws one). */
+.chat-reasoning { margin: 0.083333rem 0 0.666667rem; }
+.chat-reasoning > summary {
+  display: flex; align-items: center; gap: 0.333333rem;
+  cursor: pointer; user-select: none;
+  padding: 0.166667rem 0 0.166667rem 0.666667rem;
+  border-left: 0.083333rem solid var(--hairline-strong);
+  font-family: var(--font-ui); font-size: var(--fs-sm);
+  color: var(--text-dim);
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.chat-reasoning > summary:hover { color: var(--text-strong); border-left-color: var(--accent-border); }
+.chat-reasoning > summary:focus-visible { outline: 0.083333rem solid var(--focus-ring); outline-offset: 0.083333rem; }
+/* Inherits the row colour so it brightens with the label on hover, and never
+   drops to --text-faint (2.6:1 on the light theme — an invisible affordance). */
+.chat-reasoning-caret { flex: 0 0 auto; transition: transform 120ms ease; }
+.chat-reasoning[open] .chat-reasoning-caret { transform: rotate(90deg); }
+.chat-reasoning-label { font-weight: var(--fw-medium); }
+/* The count is read, not decoration: it stays at --text-dim (the label's own
+   colour) and separates itself by face and size instead of by fading out. It
+   also stays put when the note opens — a header that reflows on toggle reads
+   as a glitch. */
+.chat-reasoning-meta {
+  font-family: var(--font-mono); font-size: var(--fs-xs);
+  color: var(--text-dim); font-variant-numeric: tabular-nums;
+}
+/* Affordance on demand: the row is a disclosure, but a permanent "Show" chip on
+   every message would be noise. It fades in on hover/focus and is gone once the
+   note is open (the caret already reads as "collapse"). Opacity, not display,
+   so revealing it never nudges the count sideways. */
+.chat-reasoning-hint {
+  padding-left: 0.333333rem;
+  font-family: var(--font-mono); font-size: var(--fs-xs);
+  color: var(--text-faint);
+  opacity: 0; transition: opacity 120ms ease;
+}
+.chat-reasoning > summary:hover .chat-reasoning-hint,
+.chat-reasoning > summary:focus-visible .chat-reasoning-hint { opacity: 1; }
+.chat-reasoning[open] .chat-reasoning-hint { display: none; }
+.chat-reasoning-text {
+  white-space: pre-wrap; user-select: text;
+  margin-top: 0.333333rem;
+  padding: 0 0 0 0.666667rem;
+  border-left: 0.083333rem solid var(--hairline-strong);
+  color: var(--text-dim); font-size: var(--fs-base); line-height: 1.55;
+  max-height: 16.666667rem; overflow-y: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-reasoning-caret, .chat-reasoning-hint { transition: none; }
+}
 
 /* Command menu */
 .command-menu {
