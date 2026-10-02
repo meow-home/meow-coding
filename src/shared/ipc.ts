@@ -6,7 +6,7 @@ import type {
   StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts,
   UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from './types'
-import type { BrowserStatusInfo, PairingInfo, TrustedExtension } from './browser-types'
+import type { BrowserStatusInfo, TrustedExtension } from './browser-types'
 import type { ExternalApiStatus } from './external-api-types'
 
 export const Channels = {
@@ -117,7 +117,6 @@ export const Channels = {
   EventBackgroundProcExit: 'procs:exit',
   EventAgentConfig: 'agent:config-changed',
   BrowserGetStatus: 'browser:get-status',
-  BrowserPair: 'browser:pair',
   BrowserApproveExtension: 'browser:approve-extension',
   BrowserDenyExtension: 'browser:deny-extension',
   BrowserRevokeExtension: 'browser:revoke-extension',
@@ -300,7 +299,6 @@ export interface AgentApi {
   onContextChanged(cb: (e: ContextChangedEvent) => void): () => void
   onChatEvent(cb: (e: ChatEvent) => void): () => void
   getBrowserStatus(): Promise<BrowserStatusInfo>
-  pairBrowser(): Promise<PairingInfo>
   approveBrowserExtension(extensionId: string): Promise<BrowserStatusInfo>
   denyBrowserExtension(extensionId: string): Promise<BrowserStatusInfo>
   revokeBrowserExtension(extensionId: string): Promise<BrowserStatusInfo>

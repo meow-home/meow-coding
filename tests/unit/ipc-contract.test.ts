@@ -29,7 +29,7 @@ describe('IPC contract', () => {
       'getPendingPrompt',
       'listPromptStates', 'onPromptState', 'onActivateAgent',
       'minimizeWindow', 'toggleMaximizeWindow', 'closeWindow', 'isWindowMaximized', 'setTitleBarTheme', 'onWindowMaximizedChange',
-      'getBrowserStatus', 'pairBrowser',
+      'getBrowserStatus',
       'approveBrowserExtension', 'denyBrowserExtension', 'revokeBrowserExtension', 'getBrowserTrustedExtensions',
       'openBrowserInstallGuide', 'openBrowserExtensionFolder', 'openBrowserChromeExtensions',
       'getBrowserConsoleLogs', 'getBrowserNetworkLogs', 'onBrowserStatus', 'onBrowserOpenInstallGuide',
@@ -117,7 +117,6 @@ describe('IPC contract', () => {
       saveSettings: async (s) => s,
       getMcpStatus: async () => [],
       getBrowserStatus: async () => ({ status: 'idle', port: 0, paired: false }),
-      pairBrowser: async () => ({ code: '000000', expiresAt: 0 }),
       approveBrowserExtension: async () => ({ status: 'paired', port: 0, paired: true }),
       denyBrowserExtension: async () => ({ status: 'listening', port: 0, paired: false }),
       revokeBrowserExtension: async () => ({ status: 'listening', port: 0, paired: false }),
@@ -231,7 +230,6 @@ describe('IPC contract', () => {
     expect(Channels.WindowSetTheme).toBe('window:set-theme')
     expect(Channels.EventWindowMaximizedChange).toBe('window:maximized-change')
     expect(Channels.BrowserGetStatus).toBe('browser:get-status')
-    expect(Channels.BrowserPair).toBe('browser:pair')
     expect(Channels.BrowserApproveExtension).toBe('browser:approve-extension')
     expect(Channels.BrowserDenyExtension).toBe('browser:deny-extension')
     expect(Channels.BrowserRevokeExtension).toBe('browser:revoke-extension')

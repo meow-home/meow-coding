@@ -1,11 +1,11 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http'
-import { randomInt, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { WebSocketServer, WebSocket } from 'ws'
 import type {
   BrowserCommandName, BrowserCommandResult, BrowserEvent, BrowserStatus, BrowserStatusInfo,
-  ExtensionToBridge, HelloMessage, HelloResultMessage, PairingInfo, PendingExtensionInfo, TrustedExtension
+  ExtensionToBridge, HelloMessage, HelloResultMessage, PendingExtensionInfo, TrustedExtension
 } from '../../shared/browser-types'
 import type { SnapshotNode } from '../../shared/browser-types'
 import { snapshotToText, countSnapshotNodes } from './snapshot-format'
@@ -16,7 +16,6 @@ export interface BridgeDeps {
   preferredPort?: number
   screenshotDir?: string
   snapshotDir?: string
-  codeTtlMs?: number
   maxLogEntries?: number
   createServer?: () => Server
   trusted?: TrustedExtensionStore
@@ -30,7 +29,6 @@ interface PendingCommand {
 
 const DEFAULT_HOST = '127.0.0.1'
 const DEFAULT_PORT = 3927
-const DEFAULT_CODE_TTL_MS = 5 * 60_000
 const DEFAULT_MAX_LOG = 200
 const DEFAULT_TIMEOUT_MS = 30_000
 const DEFAULT_PENDING_TTL_MS = 120_000
@@ -41,9 +39,6 @@ export class BrowserBridge {
   private socket: WebSocket | null = null
   private status: BrowserStatus = 'idle'
   private port = 0
-  private code = ''
-  private codeExpiresAt = 0
-  private sessionPaired = false
   private pending = new Map<string, PendingCommand>()
   private consoleLogs: unknown[] = []
   private networkLogs: unknown[] = []
@@ -58,30 +53,24 @@ export class BrowserBridge {
     this.trusted = deps.trusted ?? new TrustedExtensionStore()
   }
 
+  // `paired` tracks the trusted socket, not the UI status: an unknown extension
+  // waiting for approval must not make a working bridge look disconnected.
+  private get isPaired(): boolean {
+    return this.pairedExtensionId !== null && this.socket !== null && this.socket.readyState === WebSocket.OPEN
+  }
+
   getStatus(): BrowserStatusInfo {
-    const paired = this.status === 'paired'
+    const paired = this.isPaired
     return {
       status: this.status,
       port: this.port,
       paired,
-      ...(paired ? {} : { pairingCode: this.code, pairingExpiresAt: this.codeExpiresAt || undefined }),
       ...(this.pendingExtension ? { pendingExtension: this.pendingExtension } : {})
     }
   }
 
-  pair(): PairingInfo {
-    this.code = randomInt(0, 1_000_000).toString().padStart(6, '0')
-    this.codeExpiresAt = Date.now() + (this.deps.codeTtlMs ?? DEFAULT_CODE_TTL_MS)
-    this.sessionPaired = false
-    this.setStatus(this.socket ? 'listening' : 'idle')
-    return { code: this.code, expiresAt: this.codeExpiresAt }
-  }
-
   async start(): Promise<number> {
     if (this.server) return this.port
-    this.code = randomInt(0, 1_000_000).toString().padStart(6, '0')
-    this.codeExpiresAt = Date.now() + (this.deps.codeTtlMs ?? DEFAULT_CODE_TTL_MS)
-    this.sessionPaired = false
     const host = this.deps.host ?? DEFAULT_HOST
     const preferred = this.deps.preferredPort ?? DEFAULT_PORT
 
@@ -127,7 +116,7 @@ export class BrowserBridge {
     params?: Record<string, unknown>,
     timeoutMs = DEFAULT_TIMEOUT_MS
   ): Promise<BrowserCommandResult> {
-    if (this.status !== 'paired' || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
+    if (!this.isPaired || !this.socket) {
       return Promise.resolve({ ok: false, error: 'browser not connected — run browser_start first' })
     }
     const id = randomUUID()
@@ -142,14 +131,14 @@ export class BrowserBridge {
   }
 
   waitForPaired(timeoutMs: number): Promise<boolean> {
-    if (this.status === 'paired') return Promise.resolve(true)
+    if (this.isPaired) return Promise.resolve(true)
     return new Promise(resolve => {
       const timer = setTimeout(() => {
         off()
         resolve(false)
       }, timeoutMs)
       const off = this.onStatusChange(info => {
-        if (info.status === 'paired') {
+        if (info.paired) {
           clearTimeout(timer)
           off()
           resolve(true)
@@ -171,12 +160,16 @@ export class BrowserBridge {
     return () => this.statusListeners.delete(cb)
   }
 
-  async close(): Promise<void> {
+  private rejectPendingCommands(error: string): void {
     for (const { resolve, timer } of this.pending.values()) {
       clearTimeout(timer)
-      resolve({ ok: false, error: 'browser bridge closed' })
+      resolve({ ok: false, error })
     }
     this.pending.clear()
+  }
+
+  async close(): Promise<void> {
+    this.rejectPendingCommands('browser bridge closed')
     this.socket?.close()
     this.socket = null
     await new Promise<void>(resolve => {
@@ -189,19 +182,16 @@ export class BrowserBridge {
       this.server.close(() => resolve())
     })
     this.server = null
-    this.sessionPaired = false
     this.clearPending()
     this.pairedExtensionId = null
     this.setStatus('idle')
   }
 
   private handleConnection(ws: WebSocket, req: IncomingMessage): void {
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      this.socket.close()
-    }
-    this.socket = ws
+    // this.socket is assigned only after a hello passes the origin check, so an
+    // unknown connection can never evict the extension that is currently paired.
     const origin = req.headers.origin
-    this.setStatus(this.code && Date.now() < this.codeExpiresAt ? 'listening' : 'idle')
+    if (this.status === 'idle' || this.status === 'disconnected') this.setStatus('listening')
 
     ws.on('message', (raw) => {
       let msg: ExtensionToBridge
@@ -210,18 +200,24 @@ export class BrowserBridge {
       } catch {
         return
       }
-      if (msg.type === 'pair') this.handlePair(ws, msg.code)
-      else if (msg.type === 'hello') this.handleHello(ws, origin, msg)
-      else if (msg.type === 'result') this.handleResult(msg.id, msg)
+      if (msg.type === 'hello') {
+        this.handleHello(ws, origin, msg)
+        return
+      }
+      if (ws !== this.socket) return
+      if (msg.type === 'result') this.handleResult(msg.id, msg)
       else if (msg.type === 'event') this.handleEvent(msg.name, msg.data)
       else if (msg.type === 'ping') ws.send(JSON.stringify({ type: 'pong' }))
     })
 
     ws.on('close', () => {
-      if (this.socket === ws) {
-        this.socket = null
-        this.setStatus(this.code ? 'disconnected' : 'idle')
-      }
+      if (this.socket !== ws) return
+      const wasPaired = this.pairedExtensionId !== null
+      this.socket = null
+      this.pairedExtensionId = null
+      this.clearPending()
+      this.rejectPendingCommands('browser extension disconnected')
+      this.setStatus(wasPaired ? 'disconnected' : 'listening')
     })
     ws.on('error', () => ws.close())
   }
@@ -241,6 +237,8 @@ export class BrowserBridge {
     }
     if (this.trusted.has(msg.extensionId)) {
       this.clearPending()
+      if (this.socket && this.socket !== ws && this.socket.readyState === WebSocket.OPEN) this.socket.close()
+      this.socket = ws
       this.pairedExtensionId = msg.extensionId
       this.setStatus('paired')
       ws.send(JSON.stringify({ type: 'hello_result', ok: true, paired: true } satisfies HelloResultMessage))
@@ -320,21 +318,6 @@ export class BrowserBridge {
 
   getTrustedExtensions(): TrustedExtension[] {
     return this.trusted.list()
-  }
-
-  private handlePair(ws: WebSocket, code: string): void {
-    // Code-entry TTL only bounds the initial pairing; once paired the extension stays
-    // trusted for the app session so a reconnect can silently re-pair (MV3 SW suspension
-    // can drop the WS while idle).
-    const valid = code === this.code && (Date.now() < this.codeExpiresAt || this.sessionPaired)
-    if (ws !== this.socket) return
-    if (!valid) {
-      ws.send(JSON.stringify({ type: 'pair_result', ok: false, error: 'invalid pairing code' }))
-      return
-    }
-    this.sessionPaired = true
-    this.setStatus('paired')
-    ws.send(JSON.stringify({ type: 'pair_result', ok: true }))
   }
 
   private handleResult(id: string, msg: ExtensionToBridge & { type: 'result' }): void {

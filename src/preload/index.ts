@@ -175,7 +175,6 @@ const api: AgentApi = {
   onContextChanged: (cb: (e: ContextChangedEvent) => void) => subscribe(Channels.EventContextChanged, cb),
   onChatEvent: (cb: (e: ChatEvent) => void) => subscribe(Channels.EventChat, cb),
   getBrowserStatus: () => ipcRenderer.invoke(Channels.BrowserGetStatus),
-  pairBrowser: () => ipcRenderer.invoke(Channels.BrowserPair),
   approveBrowserExtension: (extensionId: string) => ipcRenderer.invoke(Channels.BrowserApproveExtension, extensionId),
   denyBrowserExtension: (extensionId: string) => ipcRenderer.invoke(Channels.BrowserDenyExtension, extensionId),
   revokeBrowserExtension: (extensionId: string) => ipcRenderer.invoke(Channels.BrowserRevokeExtension, extensionId),

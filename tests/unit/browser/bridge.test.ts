@@ -27,16 +27,21 @@ afterEach(async () => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true })
 })
 
-function connect(port: number): Promise<WebSocket> {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}`)
-    ws.once('open', () => resolve(ws))
-    ws.once('error', reject)
-  })
-}
-
 function nextMsg(ws: WebSocket): Promise<BridgeToExtension> {
   return new Promise(resolve => ws.once('message', raw => resolve(JSON.parse(String(raw)) as BridgeToExtension)))
+}
+
+function newTrustedBridge(deps: Record<string, unknown> = {}): BrowserBridge {
+  const trusted = new TrustedExtensionStore()
+  trusted.approve(EXT_ID)
+  return newBridge({ trusted, ...deps })
+}
+
+async function connectTrusted(port: number, extensionId = EXT_ID): Promise<WebSocket> {
+  const ws = await connectWithOrigin(port, `chrome-extension://${extensionId}`)
+  ws.send(JSON.stringify({ type: 'hello', extensionId }))
+  await nextMsg(ws)
+  return ws
 }
 
 describe('BrowserBridge', () => {
@@ -52,23 +57,6 @@ describe('BrowserBridge', () => {
     expect(body.port).toBe(port)
   })
 
-  it('pairs with the correct code and rejects a wrong one', async () => {
-    const b = newBridge()
-    const port = await b.start()
-    const ws = await connect(port)
-
-    const { code } = b.pair()
-    ws.send(JSON.stringify({ type: 'pair', code: '000000' }))
-    const bad = await nextMsg(ws)
-    expect(bad).toMatchObject({ type: 'pair_result', ok: false })
-
-    ws.send(JSON.stringify({ type: 'pair', code }))
-    const good = await nextMsg(ws)
-    expect(good).toMatchObject({ type: 'pair_result', ok: true })
-    expect(b.getStatus().status).toBe('paired')
-    expect(b.getStatus().paired).toBe(true)
-  })
-
   it('rejects execute when not paired', async () => {
     const b = newBridge()
     await b.start()
@@ -78,12 +66,9 @@ describe('BrowserBridge', () => {
   })
 
   it('routes a command to the extension and resolves the result', async () => {
-    const b = newBridge()
+    const b = newTrustedBridge()
     const port = await b.start()
-    const ws = await connect(port)
-    const { code } = b.pair()
-    ws.send(JSON.stringify({ type: 'pair', code }))
-    await nextMsg(ws)
+    const ws = await connectTrusted(port)
 
     const done = b.execute('listTabs')
     const cmd = await nextMsg(ws) as Extract<BridgeToExtension, { type: 'cmd' }>
@@ -95,12 +80,9 @@ describe('BrowserBridge', () => {
   })
 
   it('times out when the extension never replies', async () => {
-    const b = newBridge()
+    const b = newTrustedBridge()
     const port = await b.start()
-    const ws = await connect(port)
-    const { code } = b.pair()
-    ws.send(JSON.stringify({ type: 'pair', code }))
-    await nextMsg(ws)
+    const ws = await connectTrusted(port)
 
     const done = b.execute('read', undefined, 100)
     await nextMsg(ws) // consume cmd, don't reply
@@ -110,12 +92,9 @@ describe('BrowserBridge', () => {
   })
 
   it('buffers console and network events in ring buffers', async () => {
-    const b = newBridge()
+    const b = newTrustedBridge()
     const port = await b.start()
-    const ws = await connect(port)
-    const { code } = b.pair()
-    ws.send(JSON.stringify({ type: 'pair', code }))
-    await nextMsg(ws)
+    const ws = await connectTrusted(port)
 
     for (let i = 0; i < 5; i++) {
       ws.send(JSON.stringify({ type: 'event', name: 'console', data: { level: 'log', text: `msg ${i}` } }))
@@ -130,12 +109,9 @@ describe('BrowserBridge', () => {
 
   it('saves screenshots to the screenshot dir and returns the path', async () => {
     const dir = tmpDir()
-    const b = newBridge({ screenshotDir: dir })
+    const b = newTrustedBridge({ screenshotDir: dir })
     const port = await b.start()
-    const ws = await connect(port)
-    const { code } = b.pair()
-    ws.send(JSON.stringify({ type: 'pair', code }))
-    await nextMsg(ws)
+    const ws = await connectTrusted(port)
 
     const done = b.execute('screenshot')
     const cmd = await nextMsg(ws) as Extract<BridgeToExtension, { type: 'cmd' }>
@@ -148,13 +124,12 @@ describe('BrowserBridge', () => {
   })
 
   it('waitForPaired resolves once paired and rejects on timeout', async () => {
-    const b = newBridge()
+    const b = newTrustedBridge()
     const port = await b.start()
-    const ws = await connect(port)
+    const ws = await connectWithOrigin(port, EXT_ORIGIN)
 
     const waiter = b.waitForPaired(2000)
-    const { code } = b.pair()
-    ws.send(JSON.stringify({ type: 'pair', code }))
+    ws.send(JSON.stringify({ type: 'hello', extensionId: EXT_ID }))
     await nextMsg(ws)
     expect(await waiter).toBe(true)
 
@@ -163,51 +138,22 @@ describe('BrowserBridge', () => {
     expect(await b2.waitForPaired(100)).toBe(false)
   })
 
-  it('re-accepts a previously-paired extension after the code TTL has passed', async () => {
-    const b = newBridge({ codeTtlMs: 50 })
-    const port = await b.start()
-    const { code } = b.pair()
-    const ws1 = await connect(port)
-    ws1.send(JSON.stringify({ type: 'pair', code }))
-    expect(await nextMsg(ws1)).toMatchObject({ type: 'pair_result', ok: true })
-    ws1.close()
-    await new Promise(r => setTimeout(r, 80))
-    const ws2 = await connect(port)
-    ws2.send(JSON.stringify({ type: 'pair', code }))
-    expect(await nextMsg(ws2)).toMatchObject({ type: 'pair_result', ok: true })
-    expect(b.getStatus().paired).toBe(true)
-  })
-
-  it('requires the pairing code again after a new code is issued', async () => {
-    const b = newBridge({ codeTtlMs: 50 })
-    const port = await b.start()
-    const { code } = b.pair()
-    const ws1 = await connect(port)
-    ws1.send(JSON.stringify({ type: 'pair', code }))
-    expect(await nextMsg(ws1)).toMatchObject({ type: 'pair_result', ok: true })
-    const { code: newCode } = b.pair()
-    expect(newCode).not.toBe(code)
-    ws1.send(JSON.stringify({ type: 'pair', code }))
-    expect(await nextMsg(ws1)).toMatchObject({ type: 'pair_result', ok: false })
-  })
-
   it('replies pong to a heartbeat ping from the extension', async () => {
-    const b = newBridge()
+    const b = newTrustedBridge()
     const port = await b.start()
-    const ws = await connect(port)
+    const ws = await connectTrusted(port)
 
     ws.send(JSON.stringify({ type: 'ping' }))
     expect(await nextMsg(ws)).toMatchObject({ type: 'pong' })
   })
 
   it('notifies status listeners on pair', async () => {
-    const b = newBridge()
+    const b = newTrustedBridge()
     const port = await b.start()
     const seen: string[] = []
     const off = b.onStatusChange(info => seen.push(info.status))
-    const ws = await connect(port)
-    const { code } = b.pair()
-    ws.send(JSON.stringify({ type: 'pair', code }))
+    const ws = await connectWithOrigin(port, EXT_ORIGIN)
+    ws.send(JSON.stringify({ type: 'hello', extensionId: EXT_ID }))
     await nextMsg(ws)
     expect(seen).toContain('paired')
     off()
@@ -396,6 +342,79 @@ describe('BrowserBridge extension approval', () => {
     expect(await nextMsg(second)).toMatchObject({ type: 'hello_result', ok: true, paired: true })
     expect(b.getStatus().paired).toBe(true)
     second.close()
+  })
+
+  it('does not evict a paired extension when an unknown one connects', async () => {
+    const trusted = new TrustedExtensionStore()
+    trusted.approve(EXT_ID)
+    const b = newBridge({ trusted })
+    const port = await b.start()
+
+    const pairedWs = await connectWithOrigin(port, EXT_ORIGIN)
+    hello(pairedWs)
+    await nextMsg(pairedWs)
+    expect(b.getStatus().paired).toBe(true)
+
+    const otherId = 'ponmlkjihgfedcbaponmlkjihgfedcba'
+    const other = await connectWithOrigin(port, `chrome-extension://${otherId}`)
+    hello(other, otherId)
+    expect(await nextMsg(other)).toMatchObject({ type: 'hello_result', ok: true, paired: false, pending: true })
+
+    expect(b.getStatus().paired).toBe(true)
+    expect(pairedWs.readyState).toBe(WebSocket.OPEN)
+
+    // The paired extension still serves commands while the other one waits.
+    const done = b.execute('listTabs')
+    const cmd = await nextMsg(pairedWs) as Extract<BridgeToExtension, { type: 'cmd' }>
+    pairedWs.send(JSON.stringify({ type: 'result', id: cmd.id, ok: true, data: { tabs: [1] } }))
+    expect(await done).toEqual({ ok: true, data: { tabs: [1] } })
+
+    b.denyExtension(otherId)
+    await closed(other)
+    pairedWs.close()
+  })
+
+  it('ignores results from a socket that is not the paired one', async () => {
+    const trusted = new TrustedExtensionStore()
+    trusted.approve(EXT_ID)
+    const b = newBridge({ trusted })
+    const port = await b.start()
+
+    const pairedWs = await connectWithOrigin(port, EXT_ORIGIN)
+    hello(pairedWs)
+    await nextMsg(pairedWs)
+
+    const otherId = 'ponmlkjihgfedcbaponmlkjihgfedcba'
+    const other = await connectWithOrigin(port, `chrome-extension://${otherId}`)
+    hello(other, otherId)
+    await nextMsg(other)
+
+    const done = b.execute('listTabs', undefined, 200)
+    const cmd = await nextMsg(pairedWs) as Extract<BridgeToExtension, { type: 'cmd' }>
+    other.send(JSON.stringify({ type: 'result', id: cmd.id, ok: true, data: { tabs: 'stolen' } }))
+    pairedWs.send(JSON.stringify({ type: 'result', id: cmd.id, ok: true, data: { tabs: [1] } }))
+
+    expect(await done).toEqual({ ok: true, data: { tabs: [1] } })
+    b.denyExtension(otherId)
+    await closed(other)
+    pairedWs.close()
+  })
+
+  it('rejects in-flight commands when the paired socket closes', async () => {
+    const trusted = new TrustedExtensionStore()
+    trusted.approve(EXT_ID)
+    const b = newBridge({ trusted })
+    const port = await b.start()
+
+    const ws = await connectWithOrigin(port, EXT_ORIGIN)
+    hello(ws)
+    await nextMsg(ws)
+
+    const done = b.execute('read')
+    await nextMsg(ws) // consume cmd, never reply
+    ws.close()
+
+    expect(await done).toEqual({ ok: false, error: 'browser extension disconnected' })
   })
 
   it('notifies status listeners with the pending extension', async () => {

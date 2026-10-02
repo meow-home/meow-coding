@@ -1029,7 +1029,6 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.WindowIsMaximized, e => BrowserWindow.fromWebContents(e.sender)?.isMaximized() ?? false)
   ipcMain.handle(Channels.WindowSetTheme, (e, theme: 'dark' | 'light') => applyTitleBarTheme(BrowserWindow.fromWebContents(e.sender), theme))
   ipcMain.handle(Channels.BrowserGetStatus, () => mainApp.browserBridge.getStatus())
-  ipcMain.handle(Channels.BrowserPair, () => mainApp.browserBridge.pair())
   ipcMain.handle(Channels.BrowserApproveExtension, (_e, extensionId: string) => mainApp.browserBridge.approveExtension(extensionId))
   ipcMain.handle(Channels.BrowserDenyExtension, (_e, extensionId: string) => mainApp.browserBridge.denyExtension(extensionId))
   ipcMain.handle(Channels.BrowserRevokeExtension, (_e, extensionId: string) => mainApp.browserBridge.revokeExtension(extensionId))

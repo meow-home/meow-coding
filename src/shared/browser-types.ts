@@ -10,8 +10,6 @@ export interface BrowserStatusInfo {
   status: BrowserStatus
   port: number
   paired: boolean
-  pairingCode?: string
-  pairingExpiresAt?: number
   pendingExtension?: PendingExtensionInfo
 }
 
@@ -62,13 +60,6 @@ export interface BrowserEvent {
   data: unknown
 }
 
-export interface PairingInfo {
-  code: string
-  expiresAt: number
-}
-
-export interface PairMessage { type: 'pair'; code: string }
-export interface PairResultMessage { type: 'pair_result'; ok: boolean; error?: string }
 export interface HelloMessage { type: 'hello'; extensionId: string; version?: string }
 export interface HelloResultMessage {
   type: 'hello_result'
@@ -83,5 +74,5 @@ export interface CmdMessage extends BrowserCommand { type: 'cmd' }
 export type ResultMessage = { type: 'result'; id: string } & BrowserCommandResult
 export interface EventMessage extends BrowserEvent { type: 'event' }
 
-export type ExtensionToBridge = PairMessage | HelloMessage | ResultMessage | EventMessage | PingMessage
-export type BridgeToExtension = PairResultMessage | HelloResultMessage | CmdMessage | PongMessage
+export type ExtensionToBridge = HelloMessage | ResultMessage | EventMessage | PingMessage
+export type BridgeToExtension = HelloResultMessage | CmdMessage | PongMessage
