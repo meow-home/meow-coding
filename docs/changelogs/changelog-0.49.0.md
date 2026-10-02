@@ -12,14 +12,11 @@
 - The word count stays visible while the note is open, and a `Show` hint fades in on hover so a collapsed feed stays calm.
 - Fixed the caret, which was nearly invisible on the light theme.
 
-## 📱 Mobile Remote Control — Coming Soon
-- Developing WS relay, pairing code, and mobile chat sync.
-- Stay tuned — mobile companion app is in active development 🚧.
-
 ## 🐛 Bug Fixes
 - Chat: one thought no longer splits into two blocks when a tool call interrupts the reasoning stream — the second half used to land after the tool, cut off from the first.
 - UI: borders drawn with `--hairline-strong` now render; the token was referenced by five rules but never declared, so they silently computed to `0px` (the todo pill menu, the tool-cluster count pills, and card hover states).
 
 ## 🧹 Internal & Docs
+- Removed the unfinished mobile remote-control feature (relay server, pairing, `RemoteTab`, IPC channels) — it was never shipped and the mobile client does not exist.
 - Default app font size is now 13px, with 12px kept as the `Small` preset.
 - New `countWords` helper and a `reasoning.ts` module; updated chat, renderer and settings `AGENTS.md` files plus the UI reference page.

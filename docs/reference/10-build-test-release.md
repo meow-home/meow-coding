@@ -58,7 +58,6 @@ Output goes to `out/{main,preload,renderer}`; `package.json` `main` points at `.
 | `tsconfig.node.json` | `src/main`, `src/preload`, `src/shared`, `electron.vite.config.ts`, `electron-builder.ts` | `node` |
 | `tsconfig.web.json` | `src/renderer/src`, `src/shared` | (default) + `jsx: react-jsx` |
 | `tsconfig.extension.json` | `src/browser-extension`, `src/shared/browser-types.ts` | `chrome`, lib `ES2022` + `DOM` |
-| `server/tsconfig.json` | The relay | — |
 
 `@shared/*` → `./src/shared/*` is configured in the node and web projects, in
 `electron.vite.config.ts`, and in `vitest.config.ts`.
@@ -106,7 +105,7 @@ resolve them from `app.getAppPath()` — see `builtinSkillsDir`, the cliproxy `b
 ```
 tests/
   unit/          Vitest, node environment, one file per module (~100 files)
-  integration/   real PTY spawn, agent stream overlap, browser bridge flow, relay flow
+  integration/   real PTY spawn, agent stream overlap, browser bridge flow
   e2e/           Playwright against the built Electron app
   fixtures/      echo-agent.js (fake CLI), mock-lsp-server.js
 ```

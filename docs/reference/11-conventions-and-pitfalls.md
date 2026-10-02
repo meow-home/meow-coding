@@ -148,11 +148,8 @@ Defined in `docs/changelogs/changelog-format.md`. Summary:
 ### <Major feature name>
 - User-visible change, in English, focused on user value.
 
-## 📱 Mobile Remote Control — Coming Soon
-- What is being developed. End with "Stay tuned — … 🚧".
-
 ## 🐛 Bug Fixes
-- One fix per line, scoped ("Chat: …", "Remote: …").
+- One fix per line, scoped ("Chat: …", "UI: …").
 
 ## 🧹 Internal & Docs
 - Refactor, docs, specs, plans, chore.

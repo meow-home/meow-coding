@@ -144,7 +144,7 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 > `E2EConnectionFixtures` when `MEOW_E2E_MOCK_CONNECTIONS=1`, otherwise the real
 > `ConnectionsManager`. `disconnect` and `setActive` validate that `accountId` is a non-empty string.
 
-### Browser bridge & remote control
+### Browser bridge
 
 | Key | Channel | Method |
 |---|---|---|
@@ -154,11 +154,6 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `BrowserOpenExtensionFolder` | `browser:open-extension-folder` | `openBrowserExtensionFolder()` |
 | `BrowserOpenChromeExtensions` | `browser:open-chrome-extensions` | `openBrowserChromeExtensions()` |
 | `BrowserGetConsoleLogs` / `BrowserGetNetworkLogs` | `browser:get-*-logs` | `getBrowserConsoleLogs(limit?)` / `getBrowserNetworkLogs(limit?)` |
-| `RemoteGetStatus` | `remote:get-status` | `getRemoteStatus(): RemoteStatus` |
-| `RemoteSetEnabled` | `remote:set-enabled` | `setRemoteEnabled(enabled)` |
-| `RemoteSetRelayUrl` | `remote:set-relay-url` | `setRemoteRelayUrl(url)` |
-| `RemoteStartPairing` | `remote:start-pairing` | `startRemotePairing(): { code, expiresAt } \| null` |
-| `RemoteRevokeToken` | `remote:revoke-token` | `revokeRemoteToken()` |
 | `ExternalApiGetStatus` | `external-api:get-status` | `getExternalApiStatus(): ExternalApiStatus` |
 | `ExternalApiSetEnabled` | `external-api:set-enabled` | `setExternalApiEnabled(enabled): ExternalApiStatus` |
 | `ExternalApiRegenerateToken` | `external-api:regenerate-token` | `regenerateExternalApiToken(): ExternalApiStatus` |
@@ -195,7 +190,6 @@ captured in preload).
 | `EventArtifactsChanged` | `artifacts:changed` | `ArtifactsChangedEvent { projectPath, artifacts }` | `onArtifactsChanged` |
 | `EventBrowserStatus` | `browser:status` | `BrowserStatusInfo` | `onBrowserStatus` |
 | `EventBrowserOpenInstallGuide` | `browser:install-guide` | `BrowserInstallGuideEvent { extensionDir }` | `onBrowserOpenInstallGuide` |
-| `EventRemoteStatus` | `remote:status` | `RemoteStatus` | `onRemoteStatus` |
 | `EventPromptState` | `prompt:state-changed` | `PromptStateEvent { projectPath, agentId, pending }` — fires when an agent starts (`pending: true`) or stops (`pending: false`) waiting on user input | `onPromptState` |
 | `EventActivateAgent` | `agent:activate` | `ActivateAgentEvent { projectPath, agentId }` — sent when the user clicks an OS notification; the renderer opens that workspace and activates the agent's session | `onActivateAgent` |
 | `EventUpdaterStatus` | `updater:status` | `UpdaterStatusEvent` | `onUpdaterStatus` |

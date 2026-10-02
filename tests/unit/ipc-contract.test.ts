@@ -31,7 +31,6 @@ describe('IPC contract', () => {
       'minimizeWindow', 'toggleMaximizeWindow', 'closeWindow', 'isWindowMaximized', 'setTitleBarTheme', 'onWindowMaximizedChange',
       'getBrowserStatus', 'pairBrowser', 'openBrowserInstallGuide', 'openBrowserExtensionFolder', 'openBrowserChromeExtensions',
       'getBrowserConsoleLogs', 'getBrowserNetworkLogs', 'onBrowserStatus', 'onBrowserOpenInstallGuide',
-      'getRemoteStatus', 'setRemoteEnabled', 'setRemoteRelayUrl', 'startRemotePairing', 'revokeRemoteToken', 'onRemoteStatus',
       'getExternalApiStatus', 'setExternalApiEnabled', 'regenerateExternalApiToken', 'installClaudeSkill', 'copyExternalApiToken', 'onExternalApiStatus',
       'onWorkspaceChanged'
     ]
@@ -124,12 +123,6 @@ describe('IPC contract', () => {
       getBrowserNetworkLogs: async () => [],
       onBrowserStatus: () => () => {},
       onBrowserOpenInstallGuide: () => () => {},
-      getRemoteStatus: async () => ({ enabled: false, connected: false, paired: false, deviceId: '' }),
-      setRemoteEnabled: async () => {},
-      setRemoteRelayUrl: async () => {},
-      startRemotePairing: async () => null,
-      revokeRemoteToken: async () => {},
-      onRemoteStatus: () => () => {},
       getExternalApiStatus: async () => ({ enabled: false, listening: false, port: null, cliPath: null, configPath: '' }),
       setExternalApiEnabled: async () => ({ enabled: false, listening: false, port: null, cliPath: null, configPath: '' }),
       regenerateExternalApiToken: async () => ({ enabled: false, listening: false, port: null, cliPath: null, configPath: '' }),
@@ -240,12 +233,6 @@ describe('IPC contract', () => {
     expect(Channels.BrowserGetNetworkLogs).toBe('browser:get-network-logs')
     expect(Channels.EventBrowserStatus).toBe('browser:status')
     expect(Channels.EventBrowserOpenInstallGuide).toBe('browser:install-guide')
-    expect(Channels.RemoteGetStatus).toBe('remote:get-status')
-    expect(Channels.RemoteSetEnabled).toBe('remote:set-enabled')
-    expect(Channels.RemoteSetRelayUrl).toBe('remote:set-relay-url')
-    expect(Channels.RemoteStartPairing).toBe('remote:start-pairing')
-    expect(Channels.RemoteRevokeToken).toBe('remote:revoke-token')
-    expect(Channels.EventRemoteStatus).toBe('remote:status')
     expect(Channels.ProjectOpenFolder).toBe('project:open-folder')
     expect(Channels.SystemTerminalOpen).toBe('system-terminal:open')
     expect(Channels.GitOpenViewer).toBe('git:open-viewer')

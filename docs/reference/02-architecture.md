@@ -21,16 +21,15 @@ Meow Coding is three Electron processes plus two optional companions that connec
 │         │                                            │  ├ stores/services│ │
 │         │                                            │  ├ BrowserBridge  │ │
 │         │                                            │  ├ ConnectionsMgr │ │
-│         │                                            │  └ RemoteManager  │ │
 │         │                                            └───────────────────┘ │
 └─────────┼──────────────────────────────────────────────────┬───────┬───────┘
           │ (separate BrowserWindows: GitViewer, FileViewer)  │       │
-                                                    ws://127.0.0.1  wss://relay
-                                                             │       │
-                                          ┌──────────────────▼──┐ ┌──▼──────────┐
-                                          │ Chrome MV3 extension│ │ relay server│
-                                          │ (real user profile) │ │  (server/)  │
-                                          └─────────────────────┘ └─────────────┘
+                                                    ws://127.0.0.1
+                                                             │
+                                          ┌──────────────────▼──┐
+                                          │ Chrome MV3 extension│
+                                          │ (real user profile) │
+                                          └─────────────────────┘
 ```
 
 Security posture of the main window (`src/main/index.ts` `createWindow`):
@@ -89,7 +88,6 @@ and the tsconfigs.
 | `agent/commands.ts` `CommandStore` | `commands.json` | User slash commands (built-ins are in code). |
 | `connections/connection-store.ts` | `connections/index.json` | Metadata-only account index (never secrets). |
 | `vault.ts` | `connections/vault.json` | `safeStorage`-encrypted secrets keyed by ref. |
-| `remote/remote-settings.ts` | `remote.json` | Remote-control enabled flag, relay URL, device id, session token. |
 | `models-catalog.ts` | `models.json` + bundled `models-snapshot.json` | models.dev catalog cache with offline fallback. |
 | `artifact-store.ts` | in-memory only | Per-project artifact list, one entry per (path, agentId), newest first. |
 
@@ -175,7 +173,6 @@ renderer: ChatPanel send
              └ finally: snapshots.commitTurn(), clear running/controller, resolve pending prompts
    → MeowAgentManager.emit → MainApp.setOnEvent callback
         ├ maps 'turn-started'/'done'/'error' onto AgentState
-        ├ RemoteManager.handleAgentEvent(event)
         └ win.webContents.send(Channels.EventChat, event)
    → renderer: ChatPanel.onChatEvent → rAF-batched feed update
 ```
@@ -207,7 +204,6 @@ the modal from closing.
 1. Bail out if this is a secondary instance (single-instance lock).
 2. `truncationCleanup()` — drop truncation files older than 7 days.
 3. Start the `BrowserBridge` on `127.0.0.1:3927` and subscribe status → renderer.
-4. Subscribe remote status → renderer.
 5. `ConnectionsManager.init()` — if Codex accounts exist, start the cliproxy sidecar and refresh tokens.
 6. `ensureExtensionInstalled()` — copy the built Chrome extension into `userData/browser-extension`.
 7. Delete leftover `userData/traces` from older versions (the trace feature was removed).
@@ -232,7 +228,6 @@ stopGitPoll()
                                  flush sessions, close MCP, dispose LSP)
  → ConnectionsManager.dispose() (stop the cliproxy sidecar, remove its runtime dir)
  → BrowserBridge.close()
- → RemoteManager.dispose()
  → TrayManager.dispose()
  → PtyManager.stopAll()         (tree-kill every process tree)
  → app.exit(0)

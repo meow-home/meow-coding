@@ -36,7 +36,6 @@ in `src/main/index.ts`).
 | `learned-limits.json` | `agent/learned-limits.ts` | `LearnedLimitEntry[]` | Debounced 500ms; keyed `baseUrl\|model`; values only ever tighten |
 | `commands.json` | `agent/commands.ts` `CommandStore` | `Command[]` | User slash commands |
 | `models.json` | `models-catalog.ts` | object | Cached models.dev catalog (falls back to the bundled `models-snapshot.json`) |
-| `remote.json` | `remote/remote-settings.ts` | object | `{ enabled, relayUrl, deviceId, sessionToken? }` |
 | `external-api.json` | `external-api/config-file.ts` | object | `{ enabled, port, token, cliPath }` for the external-delegation loopback API; `token` is 32 random bytes (hex), created once and kept until `regenerateToken()`; `port` is `null` when not listening; mode `0600` on POSIX. See [08 — Integrations](08-integrations.md#86-external-delegation-claude-code--meow) |
 | `bin/meow-delegate.mjs` | `external-api/manager.ts` | file | The external-delegation CLI, copied from `resources/external-api/meow-delegate.mjs` on every app start |
 | `logs/<agentId>.log` | `log-manager.ts` | text | Raw PTY output, append-only |
@@ -395,7 +394,6 @@ inherit the main window's theme automatically.
 | `APPIMAGE` | `updater.ts` | Marks a Linux AppImage → auto-update disabled |
 | `OFFICECLI_SKIP_UPDATE` | `agent/tools/office.ts` | Always set to `1` when spawning OfficeCLI |
 | `CLIPROXY_PLATFORM` / `CLIPROXY_ARCH` | `electron-builder.ts` | Selects which prebuilt sidecar binary to package |
-| `PORT` | `server/index.ts` | Relay listen port (default 3928) |
 
 ## 6.8 Network endpoints and ports
 
@@ -404,7 +402,6 @@ inherit the main window's theme automatically.
 | `127.0.0.1:3927` (HTTP + WS) | app listens | Browser bridge. `GET /api/status` returns `{port, status}`; the WS endpoint speaks the pairing/command protocol |
 | `127.0.0.1:<ephemeral base + i>` | app listens (via sidecar) | One OpenAI-compatible proxy port per Codex account |
 | `localhost:1455` / `localhost:1457`, path `/auth/callback` | app listens temporarily | Codex OAuth redirect — these exact ports are registered with `auth.openai.com`; a random port is rejected |
-| `0.0.0.0:3928` | separate relay process | Remote-control relay (`server/`) |
 | `1305` | dev only | electron-vite renderer dev server (`strictPort: true`) |
 
 Everything the app itself listens on binds **loopback only**.

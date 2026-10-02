@@ -94,7 +94,6 @@ straight to the code.
 | Tray | Closing the window hides to tray so agents keep running; real quit via tray Exit / Cmd+Q | `tray-manager.ts` |
 | Single instance | A second launch focuses the existing window instead of starting a duplicate bridge/agents | `app.requestSingleInstanceLock()` in `index.ts` |
 | Auto-update | electron-updater; manual and startup checks; background download then a click-to-install notification | `updater.ts`, `UpdateDialog.tsx` |
-| Remote control | Desktop half of a mobile remote-control protocol over a self-hosted WebSocket relay with 6-digit pairing (mobile app not shipped yet) | `remote/`, `server/` |
 
 ## 1.4 Domain glossary
 
@@ -118,7 +117,6 @@ straight to the code.
 | **Artifact** | A file an agent created or edited during a session, tracked per project for the right-panel Artifacts list. |
 | **Connection / account** | An OAuth-authenticated provider account (currently Codex/ChatGPT) managed under `userData/connections`. |
 | **Bridge** | The loopback WebSocket server that pairs the app with the Meow Chrome extension. |
-| **Relay** | The self-hosted WebSocket server that routes messages between the desktop app and a (future) mobile client. |
 | **Vault** | The `safeStorage`-encrypted secret store; settings and indexes reference secrets by `keyRef`, never by value. |
 
 ## 1.5 Design lineage and credits

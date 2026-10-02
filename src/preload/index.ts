@@ -6,7 +6,6 @@ import type { ArtifactsChangedEvent } from '../shared/ipc'
 import type { ChatEvent, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, TranscriptWindowOpts, UpdaterStatusEvent } from '../shared/types'
 import type { ActivateAgentEvent, AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, GitStatusEvent, PromptStateEvent, WindowMaximizedChangeEvent, WorkspaceChangedEvent } from '../shared/ipc'
 import type { BrowserStatusInfo } from '../shared/browser-types'
-import type { RemoteStatus } from '../shared/remote-types'
 import type { ExternalApiStatus } from '../shared/external-api-types'
 
 function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
@@ -183,12 +182,6 @@ const api: AgentApi = {
   getBrowserConsoleLogs: (limit?: number) => ipcRenderer.invoke(Channels.BrowserGetConsoleLogs, limit),
   getBrowserNetworkLogs: (limit?: number) => ipcRenderer.invoke(Channels.BrowserGetNetworkLogs, limit),
   onBrowserStatus: (cb: (info: BrowserStatusInfo) => void) => subscribe(Channels.EventBrowserStatus, cb),
-  getRemoteStatus: () => ipcRenderer.invoke(Channels.RemoteGetStatus),
-  setRemoteEnabled: (enabled: boolean) => ipcRenderer.invoke(Channels.RemoteSetEnabled, enabled),
-  setRemoteRelayUrl: (url: string) => ipcRenderer.invoke(Channels.RemoteSetRelayUrl, url),
-  startRemotePairing: () => ipcRenderer.invoke(Channels.RemoteStartPairing),
-  revokeRemoteToken: () => ipcRenderer.invoke(Channels.RemoteRevokeToken),
-  onRemoteStatus: (cb: (s: RemoteStatus) => void) => subscribe(Channels.EventRemoteStatus, cb),
   getExternalApiStatus: () => ipcRenderer.invoke(Channels.ExternalApiGetStatus),
   setExternalApiEnabled: (enabled: boolean) => ipcRenderer.invoke(Channels.ExternalApiSetEnabled, enabled),
   regenerateExternalApiToken: () => ipcRenderer.invoke(Channels.ExternalApiRegenerateToken),

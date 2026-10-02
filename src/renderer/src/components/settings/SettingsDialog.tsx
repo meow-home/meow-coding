@@ -17,7 +17,6 @@ import PermissionsTab from './PermissionsTab'
 import McpTab from './McpTab'
 import ContextTab from './ContextTab'
 import CommandsTab from './CommandsTab'
-import RemoteTab from './RemoteTab'
 import ExternalTab from './ExternalTab'
 import UpdatesTab from './UpdatesTab'
 import ProvidersTab from './ProvidersTab'
@@ -29,7 +28,6 @@ export type TabId =
   | 'mcp'
   | 'context'
   | 'commands'
-  | 'remote'
   | 'external'
   | 'updates'
   | 'providers'
@@ -299,7 +297,6 @@ export default function SettingsDialog({ onClose, projectPath, initialTab = 'age
               />
             )}
             {tab === 'commands' && <CommandsTab projectPath={projectPath} />}
-            {tab === 'remote' && <RemoteTab />}
             {tab === 'external' && <ExternalTab />}
             {tab === 'updates' && <UpdatesTab />}
             {tab === 'personalize' && <PersonalizeTab />}

@@ -29,7 +29,7 @@ Version at the time of writing: **0.26.8**.
 | 05 | [IPC contract](05-ipc-contract.md) | Every IPC channel, every `AgentApi` method, every push event |
 | 06 | [Data & storage](06-data-and-storage.md) | Every file written to disk, its format, its lifecycle; `meow.json` reference |
 | 07 | [Providers, models & connections](07-providers-and-connections.md) | Provider config, models.dev catalog, variants, limits, Codex OAuth, the cliproxy sidecar, the secret vault |
-| 08 | [Integrations](08-integrations.md) | MCP, LSP, Chrome browser bridge + extension, OfficeCLI, remote-control relay |
+| 08 | [Integrations](08-integrations.md) | MCP, LSP, Chrome browser bridge + extension, OfficeCLI |
 | 09 | [UI guide](09-ui-guide.md) | Renderer structure, screens, components, theming, performance rules |
 | 10 | [Build, test & release](10-build-test-release.md) | Commands, configs, CI, packaging, code signing, platform quirks |
 | 11 | [Conventions & pitfalls](11-conventions-and-pitfalls.md) | House rules, the AGENTS.md sync rule, the Superpowers workflow, known traps |
@@ -57,13 +57,11 @@ src/main/                 Electron main process (the only place that spawns proc
     mcp/  lsp/            MCP client manager, LSP client manager
   browser/                Chrome bridge (local WS server + pairing) and Chrome launcher
   connections/            OAuth account management (Codex) + account-scoped local proxy
-  remote/                 Remote-control (mobile) relay client, pairing, command dispatch
   officecli/              OfficeCLI binary download/verify manager
 src/preload/              contextBridge → window.api (implements AgentApi)
 src/renderer/             React 19 UI
 src/shared/               Types + IPC contract (no Node/Electron imports allowed)
 src/browser-extension/    Chrome MV3 extension (built separately with esbuild)
-server/                   Optional self-hosted WebSocket relay for remote control
 sidecars/meow-cliproxy/   Go sidecar wrapping CLIProxyAPI for account-scoped Codex proxying
 resources/skills/         Bundled skills shipped with the app
 tests/                    unit / integration (Vitest) + e2e (Playwright)
@@ -79,5 +77,4 @@ docs/                     GitHub Pages landing page, changelogs, specs, plans, t
   behind nearly every feature, dated `YYYY-MM-DD-slug.md`. The best place to learn *why* something
   was built the way it was.
 - `docs/changelogs/` — per-version changelogs; `changelog-format.md` defines the format.
-- `docs/protocols/remote-control.md` — the mobile remote-control protocol and relay setup.
 - `docs/guides/` — operational guides (Windows code signing, Katalon setup).

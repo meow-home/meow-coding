@@ -51,9 +51,6 @@ import { E2EConnectionFixtures } from './connections/e2e-fixtures'
 import { TrayManager } from './tray-manager'
 import { BrowserBridge } from './browser/bridge'
 import { createChromeLauncher, ensureExtensionInstalled } from './browser/chrome-launcher'
-import { RemoteManager } from './remote/remote-manager'
-import { RemoteSettingsStore } from './remote/remote-settings'
-import { RemotePairing } from './remote/remote-pairing'
 import { ExternalApiConfigFile } from './external-api/config-file'
 import { ExternalApiManager } from './external-api/manager'
 import { ExternalDelegationFacade } from './external-api/facade'
@@ -288,18 +285,6 @@ export class MainApp {
     onStatus: (s) => win?.webContents.send(Channels.EventExternalApiStatus, s),
     log: (msg) => mainApp.systemLogger.log('ERROR', 'main', msg)
   })
-  remoteStore = new RemoteSettingsStore(
-    createJsonStore(path.join(app.getPath('userData'), 'remote.json'))
-  )
-  remote = new RemoteManager({
-    store: this.remoteStore,
-    pairing: new RemotePairing(),
-    context: {
-      meowAgent: this.meowAgent,
-      workspaceStore: this.workspaces,
-      isEnabled: () => this.remoteStore.load().enabled
-    }
-  })
 
   private states = new Map<string, AgentState>()
   private gitTimer: ReturnType<typeof setInterval> | null = null
@@ -354,7 +339,6 @@ export class MainApp {
       if (event.type === 'error') {
         mainApp.systemLogger.log('ERROR', 'agent', `agent ${event.agentId}: ${event.message}`)
       }
-      mainApp.remote?.handleAgentEvent(event)
       win?.webContents.send(Channels.EventChat, event)
     })
     this.updater = new Updater(
@@ -1046,11 +1030,6 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.BrowserOpenChromeExtensions, () => mainApp.browserLauncher.openChrome())
   ipcMain.handle(Channels.BrowserGetConsoleLogs, (_e, limit?: number) => mainApp.browserBridge.getConsoleLogs(limit))
   ipcMain.handle(Channels.BrowserGetNetworkLogs, (_e, limit?: number) => mainApp.browserBridge.getNetworkLogs(limit))
-  ipcMain.handle(Channels.RemoteGetStatus, () => mainApp.remote?.getStatus())
-  ipcMain.handle(Channels.RemoteSetEnabled, (_e, enabled: boolean) => mainApp.remote?.setEnabled(enabled))
-  ipcMain.handle(Channels.RemoteSetRelayUrl, (_e, url: string) => mainApp.remote?.setRelayUrl(url))
-  ipcMain.handle(Channels.RemoteStartPairing, () => mainApp.remote?.startPairing() ?? null)
-  ipcMain.handle(Channels.RemoteRevokeToken, () => mainApp.remote?.revokeToken())
   ipcMain.handle(Channels.ExternalApiGetStatus, () => mainApp.externalApi.getStatus())
   ipcMain.handle(Channels.ExternalApiSetEnabled, (_e, enabled: boolean) => mainApp.externalApi.setEnabled(enabled))
   ipcMain.handle(Channels.ExternalApiRegenerateToken, () => mainApp.externalApi.regenerateToken())
@@ -1067,9 +1046,6 @@ app.whenReady().then(async () => {
   })
   mainApp.browserBridge.onStatusChange(info => {
     win?.webContents.send(Channels.EventBrowserStatus, info)
-  })
-  mainApp.remote?.onStatusChange(info => {
-    win?.webContents.send(Channels.EventRemoteStatus, info)
   })
   await mainApp.connections.init().catch(err => {
     console.error('[meow] connections init failed:', err)
@@ -1161,8 +1137,6 @@ app.on('before-quit', (event) => {
     return mainApp.connections.dispose()
   }).then(() => {
     return mainApp.browserBridge.close()
-  }).then(() => {
-    mainApp.remote?.dispose()
   }).then(() => {
     tray?.dispose()
     tray = null

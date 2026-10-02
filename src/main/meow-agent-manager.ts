@@ -112,7 +112,7 @@ export interface MeowAgentManagerDeps {
   onBackgroundProcData?: (e: { id: string; chunk: string }) => void
   onBackgroundProcExit?: (e: { id: string; exitCode: number | null }) => void
   onVariantInvalidated?: (agentId: string) => void
-  /** Fired for every user message sent to an agent (typed, slash command, or remote). */
+  /** Fired for every user message sent to an agent (typed or slash command). */
   onUserMessage?: (agentId: string, message: ChatMessage) => void
   onArtifact?: (entry: Omit<ArtifactEntry, 'id' | 'ts'>) => void
   notifications?: NotificationsSettings
