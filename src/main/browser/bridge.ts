@@ -1,14 +1,15 @@
-import { createServer, type Server } from 'node:http'
+import { createServer, type IncomingMessage, type Server } from 'node:http'
 import { randomInt, randomUUID } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { WebSocketServer, WebSocket } from 'ws'
 import type {
   BrowserCommandName, BrowserCommandResult, BrowserEvent, BrowserStatus, BrowserStatusInfo,
-  ExtensionToBridge, PairingInfo
+  ExtensionToBridge, HelloMessage, HelloResultMessage, PairingInfo, PendingExtensionInfo, TrustedExtension
 } from '../../shared/browser-types'
 import type { SnapshotNode } from '../../shared/browser-types'
 import { snapshotToText, countSnapshotNodes } from './snapshot-format'
+import { TrustedExtensionStore } from './trusted-store'
 
 export interface BridgeDeps {
   host?: string
@@ -18,6 +19,8 @@ export interface BridgeDeps {
   codeTtlMs?: number
   maxLogEntries?: number
   createServer?: () => Server
+  trusted?: TrustedExtensionStore
+  pendingTtlMs?: number
 }
 
 interface PendingCommand {
@@ -30,6 +33,7 @@ const DEFAULT_PORT = 3927
 const DEFAULT_CODE_TTL_MS = 5 * 60_000
 const DEFAULT_MAX_LOG = 200
 const DEFAULT_TIMEOUT_MS = 30_000
+const DEFAULT_PENDING_TTL_MS = 120_000
 
 export class BrowserBridge {
   private server: Server | null = null
@@ -44,8 +48,15 @@ export class BrowserBridge {
   private consoleLogs: unknown[] = []
   private networkLogs: unknown[] = []
   private statusListeners = new Set<(info: BrowserStatusInfo) => void>()
+  private pendingExtension: PendingExtensionInfo | null = null
+  private pendingSocket: WebSocket | null = null
+  private pendingTimer: ReturnType<typeof setTimeout> | null = null
+  private pairedExtensionId: string | null = null
+  private trusted: TrustedExtensionStore
 
-  constructor(private deps: BridgeDeps = {}) {}
+  constructor(private deps: BridgeDeps = {}) {
+    this.trusted = deps.trusted ?? new TrustedExtensionStore()
+  }
 
   getStatus(): BrowserStatusInfo {
     const paired = this.status === 'paired'
@@ -53,7 +64,8 @@ export class BrowserBridge {
       status: this.status,
       port: this.port,
       paired,
-      ...(paired ? {} : { pairingCode: this.code, pairingExpiresAt: this.codeExpiresAt || undefined })
+      ...(paired ? {} : { pairingCode: this.code, pairingExpiresAt: this.codeExpiresAt || undefined }),
+      ...(this.pendingExtension ? { pendingExtension: this.pendingExtension } : {})
     }
   }
 
@@ -105,7 +117,7 @@ export class BrowserBridge {
     this.port = typeof addr === 'object' && addr ? addr.port : 0
     this.server = server
     this.wss = new WebSocketServer({ server })
-    this.wss.on('connection', (ws) => this.handleConnection(ws))
+    this.wss.on('connection', (ws, req) => this.handleConnection(ws, req))
     this.setStatus('listening')
     return this.port
   }
@@ -178,14 +190,17 @@ export class BrowserBridge {
     })
     this.server = null
     this.sessionPaired = false
+    this.clearPending()
+    this.pairedExtensionId = null
     this.setStatus('idle')
   }
 
-  private handleConnection(ws: WebSocket): void {
+  private handleConnection(ws: WebSocket, req: IncomingMessage): void {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.close()
     }
     this.socket = ws
+    const origin = req.headers.origin
     this.setStatus(this.code && Date.now() < this.codeExpiresAt ? 'listening' : 'idle')
 
     ws.on('message', (raw) => {
@@ -196,6 +211,7 @@ export class BrowserBridge {
         return
       }
       if (msg.type === 'pair') this.handlePair(ws, msg.code)
+      else if (msg.type === 'hello') this.handleHello(ws, origin, msg)
       else if (msg.type === 'result') this.handleResult(msg.id, msg)
       else if (msg.type === 'event') this.handleEvent(msg.name, msg.data)
       else if (msg.type === 'ping') ws.send(JSON.stringify({ type: 'pong' }))
@@ -208,6 +224,102 @@ export class BrowserBridge {
       }
     })
     ws.on('error', () => ws.close())
+  }
+
+  private handleHello(ws: WebSocket, origin: string | undefined, msg: HelloMessage): void {
+    // The claimed id is only trustworthy when the handshake Origin matches it: a web
+    // page or a local process can send any id, but cannot forge a chrome-extension:// origin.
+    if (!msg.extensionId || origin !== `chrome-extension://${msg.extensionId}`) {
+      ws.send(JSON.stringify({
+        type: 'hello_result', ok: false, paired: false, error: 'origin mismatch'
+      } satisfies HelloResultMessage))
+      // Detach first: the close handler only touches the socket it still owns, so a
+      // rejected connection must not be able to move the bridge out of listening.
+      if (this.socket === ws) this.socket = null
+      ws.close()
+      return
+    }
+    if (this.trusted.has(msg.extensionId)) {
+      this.clearPending()
+      this.pairedExtensionId = msg.extensionId
+      this.setStatus('paired')
+      ws.send(JSON.stringify({ type: 'hello_result', ok: true, paired: true } satisfies HelloResultMessage))
+      return
+    }
+    if (this.pendingSocket && this.pendingSocket !== ws) this.pendingSocket.close()
+    this.pendingSocket = ws
+    this.pendingExtension = {
+      extensionId: msg.extensionId,
+      ...(msg.version ? { version: msg.version } : {}),
+      requestedAt: Date.now()
+    }
+    this.armPendingTimer()
+    this.setStatus('pending')
+    ws.send(JSON.stringify({
+      type: 'hello_result', ok: true, paired: false, pending: true
+    } satisfies HelloResultMessage))
+  }
+
+  private armPendingTimer(): void {
+    if (this.pendingTimer) clearTimeout(this.pendingTimer)
+    this.pendingTimer = setTimeout(() => {
+      this.pendingTimer = null
+      const socket = this.pendingSocket
+      this.clearPending()
+      // Detach before closing so the socket's own close handler does not overwrite
+      // the status we are about to set (and never touch a paired socket).
+      if (this.socket === socket) this.socket = null
+      if (this.status === 'pending') this.setStatus(this.pairedExtensionId ? 'paired' : 'listening')
+      socket?.close()
+    }, this.deps.pendingTtlMs ?? DEFAULT_PENDING_TTL_MS)
+  }
+
+  private clearPending(): void {
+    if (this.pendingTimer) {
+      clearTimeout(this.pendingTimer)
+      this.pendingTimer = null
+    }
+    this.pendingExtension = null
+    this.pendingSocket = null
+  }
+
+  approveExtension(extensionId: string): BrowserStatusInfo {
+    if (this.pendingExtension?.extensionId !== extensionId) return this.getStatus()
+    const socket = this.pendingSocket
+    this.trusted.approve(extensionId, this.pendingExtension.version)
+    this.clearPending()
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'hello_result', ok: true, paired: true } satisfies HelloResultMessage))
+      this.socket = socket
+      this.pairedExtensionId = extensionId
+      this.setStatus('paired')
+    }
+    return this.getStatus()
+  }
+
+  denyExtension(extensionId: string): BrowserStatusInfo {
+    if (this.pendingExtension?.extensionId !== extensionId) return this.getStatus()
+    const socket = this.pendingSocket
+    this.clearPending()
+    if (this.socket === socket) this.socket = null
+    if (this.status === 'pending') this.setStatus(this.pairedExtensionId ? 'paired' : 'listening')
+    socket?.close()
+    return this.getStatus()
+  }
+
+  revokeExtension(extensionId: string): BrowserStatusInfo {
+    this.trusted.revoke(extensionId)
+    if (this.pairedExtensionId === extensionId) {
+      this.socket?.close()
+      this.socket = null
+      this.pairedExtensionId = null
+      this.setStatus('listening')
+    }
+    return this.getStatus()
+  }
+
+  getTrustedExtensions(): TrustedExtension[] {
+    return this.trusted.list()
   }
 
   private handlePair(ws: WebSocket, code: string): void {

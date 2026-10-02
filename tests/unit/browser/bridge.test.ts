@@ -5,6 +5,7 @@ import path from 'node:path'
 import WebSocket from 'ws'
 import { BrowserBridge } from '../../../src/main/browser/bridge'
 import type { BridgeToExtension } from '../../../src/shared/browser-types'
+import { TrustedExtensionStore } from '../../../src/main/browser/trusted-store'
 
 const bridges: BrowserBridge[] = []
 const dirs: string[] = []
@@ -210,5 +211,205 @@ describe('BrowserBridge', () => {
     await nextMsg(ws)
     expect(seen).toContain('paired')
     off()
+  })
+})
+
+const EXT_ID = 'abcdefghijklmnopabcdefghijklmnop'
+const EXT_ORIGIN = `chrome-extension://${EXT_ID}`
+
+function connectWithOrigin(port: number, origin: string): Promise<WebSocket> {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}`, { origin })
+    ws.once('open', () => resolve(ws))
+    ws.once('error', reject)
+  })
+}
+
+function hello(ws: WebSocket, extensionId = EXT_ID, version = '0.3.4'): void {
+  ws.send(JSON.stringify({ type: 'hello', extensionId, version }))
+}
+
+function closed(ws: WebSocket): Promise<void> {
+  return new Promise(resolve => ws.once('close', () => resolve()))
+}
+
+describe('BrowserBridge extension approval', () => {
+  it('pairs silently when the extension id is already trusted', async () => {
+    const trusted = new TrustedExtensionStore()
+    trusted.approve(EXT_ID, '0.3.4')
+    const b = newBridge({ trusted })
+    const port = await b.start()
+
+    const ws = await connectWithOrigin(port, EXT_ORIGIN)
+    hello(ws)
+    expect(await nextMsg(ws)).toMatchObject({ type: 'hello_result', ok: true, paired: true })
+    expect(b.getStatus().status).toBe('paired')
+    expect(b.getStatus().pendingExtension).toBeUndefined()
+    ws.close()
+  })
+
+  it('asks for approval when the extension id is unknown', async () => {
+    const b = newBridge({ trusted: new TrustedExtensionStore() })
+    const port = await b.start()
+
+    const ws = await connectWithOrigin(port, EXT_ORIGIN)
+    hello(ws)
+    expect(await nextMsg(ws)).toMatchObject({ type: 'hello_result', ok: true, paired: false, pending: true })
+    const status = b.getStatus()
+    expect(status.status).toBe('pending')
+    expect(status.paired).toBe(false)
+    expect(status.pendingExtension).toMatchObject({ extensionId: EXT_ID, version: '0.3.4' })
+    ws.close()
+  })
+
+  it('rejects a hello whose origin does not match the claimed id', async () => {
+    const trusted = new TrustedExtensionStore()
+    trusted.approve(EXT_ID, '0.3.4')
+    const b = newBridge({ trusted })
+    const port = await b.start()
+
+    const ws = await connectWithOrigin(port, 'https://evil.example')
+    hello(ws)
+    expect(await nextMsg(ws)).toMatchObject({ type: 'hello_result', ok: false })
+    await closed(ws)
+    expect(b.getStatus().paired).toBe(false)
+    expect(b.getStatus().status).toBe('listening')
+  })
+
+  it('approveExtension pairs the pending socket and persists the id', async () => {
+    const trusted = new TrustedExtensionStore()
+    const b = newBridge({ trusted })
+    const port = await b.start()
+
+    const ws = await connectWithOrigin(port, EXT_ORIGIN)
+    hello(ws)
+    await nextMsg(ws)
+
+    const info = b.approveExtension(EXT_ID)
+    expect(await nextMsg(ws)).toMatchObject({ type: 'hello_result', ok: true, paired: true })
+    expect(info.status).toBe('paired')
+    expect(info.pendingExtension).toBeUndefined()
+    expect(trusted.has(EXT_ID)).toBe(true)
+    ws.close()
+  })
+
+  it('approveExtension with a different id is a no-op', async () => {
+    const trusted = new TrustedExtensionStore()
+    const b = newBridge({ trusted })
+    const port = await b.start()
+
+    const ws = await connectWithOrigin(port, EXT_ORIGIN)
+    hello(ws)
+    await nextMsg(ws)
+
+    const info = b.approveExtension('zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz')
+    expect(info.status).toBe('pending')
+    expect(trusted.has('zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz')).toBe(false)
+    expect(trusted.has(EXT_ID)).toBe(false)
+    ws.close()
+  })
+
+  it('denyExtension closes the pending socket and clears the approval', async () => {
+    const trusted = new TrustedExtensionStore()
+    const b = newBridge({ trusted })
+    const port = await b.start()
+
+    const ws = await connectWithOrigin(port, EXT_ORIGIN)
+    hello(ws)
+    await nextMsg(ws)
+
+    const info = b.denyExtension(EXT_ID)
+    await closed(ws)
+    expect(info.status).toBe('listening')
+    expect(info.pendingExtension).toBeUndefined()
+    expect(trusted.has(EXT_ID)).toBe(false)
+  })
+
+  it('revokeExtension disconnects the paired extension', async () => {
+    const trusted = new TrustedExtensionStore()
+    trusted.approve(EXT_ID)
+    const b = newBridge({ trusted })
+    const port = await b.start()
+
+    const ws = await connectWithOrigin(port, EXT_ORIGIN)
+    hello(ws)
+    await nextMsg(ws)
+    expect(b.getStatus().paired).toBe(true)
+
+    const info = b.revokeExtension(EXT_ID)
+    await closed(ws)
+    expect(info.status).toBe('listening')
+    expect(info.paired).toBe(false)
+    expect(trusted.has(EXT_ID)).toBe(false)
+  })
+
+  it('drops a pending approval after the ttl', async () => {
+    const b = newBridge({ trusted: new TrustedExtensionStore(), pendingTtlMs: 50 })
+    const port = await b.start()
+
+    const ws = await connectWithOrigin(port, EXT_ORIGIN)
+    hello(ws)
+    await nextMsg(ws)
+    await closed(ws)
+
+    expect(b.getStatus().status).toBe('listening')
+    expect(b.getStatus().pendingExtension).toBeUndefined()
+  })
+
+  it('replaces the pending extension when a second unknown one connects', async () => {
+    const trusted = new TrustedExtensionStore()
+    const b = newBridge({ trusted })
+    const port = await b.start()
+
+    const first = await connectWithOrigin(port, EXT_ORIGIN)
+    hello(first)
+    await nextMsg(first)
+
+    const secondId = 'ponmlkjihgfedcbaponmlkjihgfedcba'
+    const second = await connectWithOrigin(port, `chrome-extension://${secondId}`)
+    hello(second, secondId)
+    await nextMsg(second)
+
+    await closed(first)
+    expect(b.getStatus().pendingExtension?.extensionId).toBe(secondId)
+
+    b.approveExtension(secondId)
+    expect(await nextMsg(second)).toMatchObject({ type: 'hello_result', ok: true, paired: true })
+    expect(b.getStatus().paired).toBe(true)
+    second.close()
+  })
+
+  it('re-pairs silently after a reconnect once trusted', async () => {
+    const trusted = new TrustedExtensionStore()
+    trusted.approve(EXT_ID)
+    const b = newBridge({ trusted })
+    const port = await b.start()
+
+    const first = await connectWithOrigin(port, EXT_ORIGIN)
+    hello(first)
+    await nextMsg(first)
+    first.close()
+    await new Promise(r => setTimeout(r, 50))
+
+    const second = await connectWithOrigin(port, EXT_ORIGIN)
+    hello(second)
+    expect(await nextMsg(second)).toMatchObject({ type: 'hello_result', ok: true, paired: true })
+    expect(b.getStatus().paired).toBe(true)
+    second.close()
+  })
+
+  it('notifies status listeners with the pending extension', async () => {
+    const b = newBridge({ trusted: new TrustedExtensionStore() })
+    const port = await b.start()
+    const seen: { status: string; pending?: string }[] = []
+    const off = b.onStatusChange(info => seen.push({ status: info.status, pending: info.pendingExtension?.extensionId }))
+
+    const ws = await connectWithOrigin(port, EXT_ORIGIN)
+    hello(ws)
+    await nextMsg(ws)
+
+    expect(seen).toContainEqual({ status: 'pending', pending: EXT_ID })
+    off()
+    ws.close()
   })
 })
