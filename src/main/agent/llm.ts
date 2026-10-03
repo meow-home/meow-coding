@@ -46,6 +46,8 @@ export interface LlmStreamOptions {
 
 export interface LlmClient {
   stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart>
+  /** True when the model needs every past reasoning_content echoed back (DeepSeek thinking mode). */
+  echoAllReasoning?(modelId: string): boolean
 }
 
 type StreamProviderOptions = NonNullable<Parameters<typeof streamText>[0]['providerOptions']>
@@ -304,6 +306,13 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string, re
         (budget) => rawStream(budget === undefined ? opts : { ...opts, maxOutputTokens: budget }),
         { ...retry, signal: opts.signal, reduceBudget: parseMaxTokensRejection }
       )
+    },
+    // DeepSeek thinking mode rejects a request carrying tools unless every
+    // previous reasoning_content is passed back — also when DeepSeek models are
+    // served through another OpenAI-compatible gateway.
+    echoAllReasoning(modelId: string): boolean {
+      if (provider === 'anthropic' || provider === 'google') return false
+      return isDeepSeek || /deepseek/i.test(modelId)
     }
   }
 }

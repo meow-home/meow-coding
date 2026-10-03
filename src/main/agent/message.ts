@@ -25,6 +25,12 @@ export interface ToLlmOptions {
    * only — never written to the session store.
    */
   turnContext?: string
+  /**
+   * Replay the reasoning of every assistant message, not only the current tool
+   * loop, and send an empty `reasoning_content` for messages that have none.
+   * DeepSeek thinking mode requires this for any request that carries tools.
+   */
+  echoAllReasoning?: boolean
 }
 
 // Index of the first item belonging to the last `keepFullTurns` user turns.
@@ -91,7 +97,13 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
           input: normalizeToolInput(call.input)
         })
       }
-      result.push({ role: 'assistant', content })
+      // The SDK omits reasoning_content when there is no reasoning part; DeepSeek
+      // then rejects reasoning-less assistant messages (e.g. a background-shell
+      // exit notice) — send the field explicitly as an empty string.
+      const emptyReasoning = opts?.echoAllReasoning && !pendingAssistant.reasoning
+      result.push(emptyReasoning
+        ? { role: 'assistant', content, providerOptions: { openaiCompatible: { reasoning_content: '' } } }
+        : { role: 'assistant', content })
       pendingAssistant = null
     }
     result.push(...pendingResults)
@@ -134,7 +146,7 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
           })
         }
       } else {
-        pendingAssistant = { text: item.message.text, calls: [], reasoning: index > lastUserIndex ? item.message.reasoning : undefined }
+        pendingAssistant = { text: item.message.text, calls: [], reasoning: opts?.echoAllReasoning || index > lastUserIndex ? item.message.reasoning : undefined }
       }
     } else if (item.kind === 'tool') {
       // A tool item must follow the assistant message that made the call. An

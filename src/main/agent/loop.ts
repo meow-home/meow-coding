@@ -1003,6 +1003,7 @@ export class SessionRunner {
       toolOutputMaxChars: this.compaction?.toolOutputMaxChars,
       keepFullTurns: this.compaction?.tailTurns ?? DEFAULT_KEEP_FULL_TURNS,
       ...(this.turnContext ? { turnContext: this.turnContext } : {}),
+      ...(this.deps.llm.echoAllReasoning?.(this.deps.model) ? { echoAllReasoning: true } : {}),
       ...this.truncationOpts()
     }
   }

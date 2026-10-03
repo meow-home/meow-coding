@@ -269,6 +269,21 @@ describe('createOpenAICompatibleLlm', () => {
   })
 })
 
+describe('echoAllReasoning', () => {
+  it('is on for a DeepSeek endpoint under a generic OpenAI-compatible provider id', () => {
+    expect(createLlm('openai', 'k', 'https://api.deepseek.com').echoAllReasoning!('deepseek-flash')).toBe(true)
+  })
+
+  it('is on for DeepSeek models served through another gateway', () => {
+    expect(createLlm('ollama-cloud', 'k', 'https://ollama.com/v1').echoAllReasoning!('deepseek-v4.1-flash')).toBe(true)
+  })
+
+  it('is off for other models and for Anthropic/Google', () => {
+    expect(createLlm('ollama-cloud', 'k', 'https://ollama.com/v1').echoAllReasoning!('glm-5')).toBe(false)
+    expect(createLlm('anthropic', 'k').echoAllReasoning!('claude-opus-5-5')).toBe(false)
+  })
+})
+
 describe('DeepSeek usage capture', () => {
   async function streamOnce(llm: ReturnType<typeof createLlm>) {
     const out: LlmStreamPart[] = []

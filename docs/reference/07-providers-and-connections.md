@@ -44,7 +44,7 @@ transcript estimate.
 **DeepSeek handling** is triggered when the provider id is `deepseek`, `providerType === 'deepseek'`,
 or the base URL hostname ends with `deepseek.com`. It adds a custom `convertUsage` that
 reads cache hits from `prompt_cache_hit_tokens` rather than OpenAI's
-`prompt_tokens_details.cached_tokens`. Reasoning is echoed back as `reasoning_content` only for assistant messages after the last user message (the current tool loop, where thinking-mode tool use requires it); earlier turns are replayed without reasoning (`agent/message.ts`).
+`prompt_tokens_details.cached_tokens`. Reasoning is echoed back as `reasoning_content` only for assistant messages after the last user message (the current tool loop); earlier turns are replayed without reasoning (`agent/message.ts`). DeepSeek thinking mode is stricter: a request carrying tools must pass back the `reasoning_content` of every previous turn, so `LlmClient.echoAllReasoning(model)` — true for the DeepSeek endpoints above and for any model id matching `/deepseek/i` on the OpenAI-compatible branch — makes the runner set `ToLlmOptions.echoAllReasoning`: every assistant message replays its reasoning, and one with none (e.g. a background-shell exit notice) is sent with `reasoning_content: ""` via `providerOptions.openaiCompatible`.
 
 **opencode handling** is triggered when the provider id is `opencode`/`opencode-go` or the base URL
 hostname ends with `opencode.ai`. The Zen/Go gateway routes requests by session and rejects them with

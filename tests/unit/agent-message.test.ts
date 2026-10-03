@@ -124,6 +124,44 @@ describe('toLlmMessages', () => {
     expect(assistants[1].content[0]).toEqual({ type: 'reasoning', text: 'current thoughts' })
   })
 
+  it('replays every turn\'s reasoning when echoAllReasoning is set (DeepSeek thinking mode with tools)', () => {
+    const earlier: ChatMessage = { ...msg('assistant', 'first answer'), reasoning: 'old thoughts' }
+    const current: ChatMessage = { ...msg('assistant', ''), reasoning: 'current thoughts' }
+    const items = [
+      { kind: 'message' as const, message: msg('user', 'first question') },
+      { kind: 'message' as const, message: earlier },
+      { kind: 'message' as const, message: msg('user', 'second question') },
+      { kind: 'message' as const, message: current },
+      { kind: 'tool' as const, tool: toolCall('glob', { pattern: '*' }) }
+    ]
+    const llm = toLlmMessages(items, { echoAllReasoning: true })
+    const assistants = llm.filter(m => m.role === 'assistant') as Array<{ content: Array<{ type: string; text?: string }> }>
+    expect(assistants[0].content[0]).toEqual({ type: 'reasoning', text: 'old thoughts' })
+    expect(assistants[1].content[0]).toEqual({ type: 'reasoning', text: 'current thoughts' })
+  })
+
+  it('sends an empty reasoning_content for a reasoning-less assistant message when echoAllReasoning is set', () => {
+    // A background-shell exit notice is appended as an assistant message with no
+    // reasoning, mid tool loop; DeepSeek rejects it without reasoning_content.
+    const thinking: ChatMessage = { ...msg('assistant', ''), reasoning: 'run install' }
+    const notice = msg('assistant', '[background bash f1] `npm install` exited (code 0).')
+    const items = [
+      { kind: 'message' as const, message: msg('user', 'install') },
+      { kind: 'message' as const, message: thinking },
+      { kind: 'tool' as const, tool: toolCall('bash', { command: 'npm install' }) },
+      { kind: 'message' as const, message: notice }
+    ]
+    const withEcho = toLlmMessages(items, { echoAllReasoning: true })
+    const last = withEcho[withEcho.length - 1] as { role: string; providerOptions?: unknown }
+    expect(last.role).toBe('assistant')
+    expect(last.providerOptions).toEqual({ openaiCompatible: { reasoning_content: '' } })
+    const first = withEcho.find(m => m.role === 'assistant') as { providerOptions?: unknown }
+    expect(first.providerOptions).toBeUndefined()
+
+    const plain = toLlmMessages(items)
+    expect((plain[plain.length - 1] as { providerOptions?: unknown }).providerOptions).toBeUndefined()
+  })
+
   it('does not give tool definitions an execute function', () => {
     const def = { name: 'read', description: 'Read a file', schema: { type: 'object', properties: {} }, run: async () => ({}) } as unknown as ToolDefinition
     expect(toToolDefinition(def)).not.toHaveProperty('execute')
