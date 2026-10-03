@@ -7,7 +7,7 @@ tools, and exposes them to the Meow agent as `ToolDefinition`s alongside the bui
 
 | File | Responsibility |
 |---|---|
-| `manager.ts` | `McpManager`: `connect(servers)` (closeAll → per-server client), `getTools()`, `getStatus()`, `closeAll()` on dispose. Also defines `McpServerConfig` type + status shape. `McpManagerDeps` accepts `truncation` (`TruncationStore`) + `getMcpOutputMaxTokens`; the `run` wrapper truncates output exceeding the cap (default `DEFAULT_MCP_OUTPUT_TOKENS` 25000) to a head/tail preview + file path. `mcpToolName(server, tool)` builds the exposed `mcp__<server>__<tool>` name, replacing characters outside `[a-zA-Z0-9_-]` with `_` (providers reject other function names); calls still use the original tool name. |
+| `manager.ts` | `McpManager`: `connect(servers)` (closeAll → per-server client), `getTools()`, `getStatus()`, `closeAll()` on dispose. Also defines `McpServerConfig` type + status shape. `McpManagerDeps` accepts `truncation` (`TruncationStore`) + `getMcpOutputMaxTokens`; the `run` wrapper truncates output exceeding the cap (default `DEFAULT_MCP_OUTPUT_TOKENS` 25000) to a head/tail preview + file path. The file is keyed by `ToolContext.callId` (not the tool name, so a second call to the same tool cannot overwrite the file an earlier preview names); JSON payloads are pretty-printed on disk so the line-based `read` tool can page them. `mcpToolName(server, tool)` builds the exposed `mcp__<server>__<tool>` name, replacing characters outside `[a-zA-Z0-9_-]` with `_` (providers reject other function names); calls still use the original tool name. |
 
 ## Conventions
 

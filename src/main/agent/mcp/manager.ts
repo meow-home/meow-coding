@@ -224,7 +224,10 @@ export class McpManager {
             if (estimateTokens(full) <= maxTokens) return { output: full }
             // Exceeds the cap: persist the full output and return a head preview + file path.
             if (this.deps.truncation && callCtx?.agentId) {
-              const preview = this.deps.truncation.truncate(callCtx.agentId, fullName, full, { maxBytes: charsForTokens(maxTokens) })
+              // Key the file by call, not tool name: a second call to the same
+              // tool would otherwise overwrite the file the first preview names.
+              const fileKey = callCtx.callId ?? `${fullName}-${Date.now()}`
+              const preview = this.deps.truncation.truncate(callCtx.agentId, fileKey, full, { maxBytes: charsForTokens(maxTokens) })
               return { output: preview }
             }
             return { output: full.slice(0, charsForTokens(maxTokens)) + '\n[truncated]' }

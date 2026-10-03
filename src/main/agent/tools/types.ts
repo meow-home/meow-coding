@@ -31,6 +31,8 @@ export interface ToolContext {
   emitSubagent?(taskId: string, e: SubagentToolEvent): void
   signal?: AbortSignal
   agentId?: string
+  // The model's id for this tool call; unique per call, unlike the tool name.
+  callId?: string
   // Subagents run under their own agentId for tracing, but their file changes
   // belong to the parent's turn so undo/revert can reach them.
   snapshotAgentId?: string

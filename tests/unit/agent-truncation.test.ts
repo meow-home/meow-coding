@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync, existsSync, readdirSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync, existsSync, readdirSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { TruncationStore } from '../../src/main/agent/truncation'
@@ -28,6 +28,20 @@ describe('TruncationStore', () => {
     const files = readdirSync(dir)
     expect(files).toHaveLength(1)
     expect(existsSync(path.join(dir, files[0]))).toBe(true)
+  })
+
+  it('pretty-prints a JSON payload on disk so the read tool can page it by line', () => {
+    const text = JSON.stringify({ items: Array.from({ length: 2000 }, (_, i) => ({ id: i, name: `item-${i}` })) })
+    store.truncate('a1', 'mcp-1', text, { maxBytes: 1000, headBytes: 100, tailBytes: 100 })
+    const saved = readFileSync(path.join(dir, readdirSync(dir)[0]), 'utf-8')
+    expect(saved.split('\n').length).toBeGreaterThan(2000)
+    expect(JSON.parse(saved)).toEqual(JSON.parse(text))
+  })
+
+  it('stores non-JSON text verbatim', () => {
+    const text = '{not json' + 'x'.repeat(2000)
+    store.truncate('a1', 'bash-2', text, { maxBytes: 1000 })
+    expect(readFileSync(path.join(dir, readdirSync(dir)[0]), 'utf-8')).toBe(text)
   })
 
   it('falls back to a plain slice when the file cannot be written', () => {

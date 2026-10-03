@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach } from 'vitest'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
@@ -11,13 +11,13 @@ import type { ToolContext } from '../../src/main/agent/tools/types'
 
 const ctx: ToolContext = { cwd: '/proj', ask: async () => null }
 
-function makeBigServer(payload: string): Server {
+function makeBigServer(payload: string | ((args: Record<string, unknown>) => string)): Server {
   const server = new Server({ name: 'big', version: '1' }, { capabilities: { tools: {} } })
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [{ name: 'blob', description: 'big', inputSchema: { type: 'object', properties: {} } }]
   }))
-  server.setRequestHandler(CallToolRequestSchema, async () => ({
-    content: [{ type: 'text', text: payload }]
+  server.setRequestHandler(CallToolRequestSchema, async (req) => ({
+    content: [{ type: 'text', text: typeof payload === 'string' ? payload : payload(req.params.arguments ?? {}) }]
   }))
   return server
 }
@@ -194,9 +194,33 @@ describe('McpManager', () => {
     await mcp.connect({ big: { command: 'node' } })
 
     const tools = mcp.getTools()
-    const r = await tools.get('mcp__big__blob')!.run({}, { ...ctx, agentId: 'agent-1' })
+    const r = await tools.get('mcp__big__blob')!.run({}, { ...ctx, agentId: 'agent-1', callId: 'call-0' })
     expect(r.output).toContain('truncated')
-    expect(truncation.exists('agent-1', 'mcp__big__blob')).toBe(true)
+    expect(truncation.exists('agent-1', 'call-0')).toBe(true)
+  })
+
+  it('keeps one full-output file per call when the same MCP tool is called twice', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'mcp-trunc-two-'))
+    const truncation = new TruncationStore(dir)
+    const server = makeBigServer((args) => String(args.label).repeat(60 * 4000))
+    servers.push(server)
+    const [serverSide, clientSide] = InMemoryTransport.createLinkedPair()
+    await server.connect(serverSide)
+
+    const mcp = new McpManager({ createTransport: () => clientSide, truncation, getMcpOutputMaxTokens: () => 25000 })
+    managers.push(mcp)
+    await mcp.connect({ big: { command: 'node' } })
+
+    const blob = mcp.getTools().get('mcp__big__blob')!
+    const first = await blob.run({ label: 'a' }, { ...ctx, agentId: 'agent-1', callId: 'call-1' })
+    await blob.run({ label: 'b' }, { ...ctx, agentId: 'agent-1', callId: 'call-2' })
+
+    // The path in the first preview must still hold the first call's output,
+    // not the second call's (same tool name used to share one file).
+    const firstPath = /full output at (.+?)\]/.exec(first.output!)![1]
+    expect(readFileSync(firstPath, 'utf-8').startsWith('aaaa')).toBe(true)
+    expect(truncation.exists('agent-1', 'call-1')).toBe(true)
+    expect(truncation.exists('agent-1', 'call-2')).toBe(true)
   })
 
   it('parses tools with non-standard outputSchema (e.g. allOf) permissively', async () => {

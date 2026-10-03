@@ -13,6 +13,19 @@ export const DEFAULT_MAX_LINES = 2000
 const DEFAULT_HEAD_BYTES = 4000
 const DEFAULT_TAIL_BYTES = 4000
 
+// MCP results are often one minified JSON line, which the line-based read tool
+// cannot page past its per-call char cap. Pretty-printing splits it into
+// records; anything that is not valid JSON is stored verbatim.
+function prettyJson(text: string): string {
+  const first = text.trimStart()[0]
+  if (first !== '{' && first !== '[') return text
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2)
+  } catch {
+    return text
+  }
+}
+
 export class TruncationStore {
   constructor(private dir: string) {
     try {
@@ -41,7 +54,7 @@ export class TruncationStore {
     const tailBytes = opts.tailBytes ?? DEFAULT_TAIL_BYTES
     const filePath = this.fileFor(agentId, toolId)
     try {
-      writeFileSync(filePath, text)
+      writeFileSync(filePath, prettyJson(text))
     } catch {
       // fall back to a plain slice when the file cannot be written
       return text.slice(0, headBytes) + '\n[truncated]\n' + text.slice(-tailBytes)

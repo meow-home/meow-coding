@@ -729,6 +729,7 @@ export class SessionRunner {
           runContext: this.runContext,
           signal,
           agentId: this.deps.agentId,
+          callId: call.id,
           taskId: this.deps.taskId,
           turn: this.deps.turn,
           snapshots: this.deps.snapshots,
