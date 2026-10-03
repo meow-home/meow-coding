@@ -283,8 +283,10 @@ returns `browser not connected — run browser_start first`.
 
 ## 4.4 MCP tools
 
-`McpManager.getTools()` converts each connected server's tools into `ToolDefinition`s. Names come
-from the server, so permission rules for them must be added explicitly (they otherwise fall through
+`McpManager.getTools()` converts each connected server's tools into `ToolDefinition`s named
+`mcp__<server>__<tool>`; characters outside `[a-zA-Z0-9_-]` in either part become `_` (OpenAI-compatible
+providers such as DeepSeek reject other function names), while calls still use the original tool name.
+Names come from the server, so permission rules for them must be added explicitly (they otherwise fall through
 to `ask`). Output exceeding `mcpOutput.maxTokens` (default 25 000) is replaced by a head/tail
 preview plus the path of the full output on disk. See
 [08 — MCP](08-integrations.md#81-mcp-model-context-protocol).

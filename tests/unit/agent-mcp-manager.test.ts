@@ -77,6 +77,23 @@ describe('McpManager', () => {
     expect(status[0].tools).toEqual(['echo'])
   })
 
+  it('normalizes server/tool names to the provider-safe charset and calls the original tool', async () => {
+    const server = makeEchoServer()
+    servers.push(server)
+    const [serverSide, clientSide] = InMemoryTransport.createLinkedPair()
+    await server.connect(serverSide)
+
+    const mcp = new McpManager({ createTransport: () => clientSide })
+    managers.push(mcp)
+    await mcp.connect({ 'pms mcp': { command: 'node' } })
+
+    const tools = mcp.getTools()
+    expect([...tools.keys()]).toEqual(['mcp__pms_mcp__echo'])
+    for (const name of tools.keys()) expect(name).toMatch(/^[a-zA-Z0-9_-]+$/)
+    const r = await tools.get('mcp__pms_mcp__echo')!.run({ text: 'hi' }, ctx)
+    expect(r.output).toBe('echo:hi')
+  })
+
   it('declares roots capability and serves the project dir as workspace root', async () => {
     const server = makeEchoServer()
     servers.push(server)

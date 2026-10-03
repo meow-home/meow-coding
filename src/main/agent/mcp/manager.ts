@@ -16,6 +16,14 @@ import { DEFAULT_MCP_OUTPUT_TOKENS } from '../config'
 
 export type { McpServerConfig }
 
+// Providers validate function names against ^[a-zA-Z0-9_-]+$ (OpenAI, DeepSeek, ...),
+// so a server named "pms mcp" or a tool named "docs.search" must be normalized.
+// Only the exposed name changes; calls still use the server's original tool name.
+export function mcpToolName(serverName: string, toolName: string): string {
+  const safe = (s: string): string => s.replace(/[^a-zA-Z0-9_-]/g, '_')
+  return `mcp__${safe(serverName)}__${safe(toolName)}`
+}
+
 export interface McpToolInfo {
   name: string
   description?: string
@@ -194,7 +202,7 @@ export class McpManager {
     for (const conn of this.connections.values()) {
       const serverName = conn.serverName
       for (const tool of conn.tools) {
-        const fullName = `mcp__${serverName}__${tool.name}`
+        const fullName = mcpToolName(serverName, tool.name)
         out.set(fullName, {
           name: fullName,
           description: tool.description ?? `MCP tool ${tool.name} from server ${serverName}`,
