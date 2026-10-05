@@ -445,7 +445,7 @@ with the slot free the manager calls its `onAgentAvailable` dep, which `index.ts
 
 | Mechanism | Scope | Config | Effect |
 |---|---|---|---|
-| `TruncationStore.truncate` | At prompt-build time, per tool result | `toolOutput.maxBytes` (51 200), `toolOutput.maxLines` (2 000) | Writes the full output to `userData/truncation/<agentId>-<toolId>.txt` and puts a head+tail preview with the file path in the prompt |
+| `TruncationStore.truncate` | At prompt-build time, per tool result | `toolOutput.maxBytes` (51 200), `toolOutput.maxLines` (2 000) | Writes the full output to `userData/truncation/<agentId>-<toolId>.txt` and puts a head+tail preview with the file path in the prompt; JSON payloads are pretty-printed so the line-based `read` tool can page them |
 | `toolOutputMaxChars` | Older tool results only | auto or explicit | Recent tail turns (`keepFullTurns = tailTurns`) reach the model at full size; older ones are capped, so a `read` or a test run stays useful while it matters |
 | MCP output cap | MCP tools only | `mcpOutput.maxTokens` (default 25 000) | Same head/tail + file preview, applied inside the MCP `run` wrapper |
 

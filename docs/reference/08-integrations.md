@@ -39,7 +39,9 @@ A `command` containing spaces is split into `command` + `args` on load when `arg
 
 The `run` wrapper truncates output exceeding `mcpOutput.maxTokens` (default
 `DEFAULT_MCP_OUTPUT_TOKENS = 25000`) into a head/tail preview plus the path of the full text written
-by `TruncationStore`. Without this a single verbose MCP call could consume the entire context.
+by `TruncationStore`. The file is keyed by the tool call id (not the tool name), so a second call to
+the same tool cannot overwrite the file an earlier preview names; JSON payloads are pretty-printed on
+disk. Without this a single verbose MCP call could consume the entire context.
 
 ### Wiring
 

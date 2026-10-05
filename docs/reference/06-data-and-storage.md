@@ -41,7 +41,7 @@ in `src/main/index.ts`).
 | `bin/meow-delegate.mjs` | `external-api/manager.ts` | file | The external-delegation CLI, copied from `resources/external-api/meow-delegate.mjs` on every app start |
 | `logs/<agentId>.log` | `log-manager.ts` | text | Raw PTY output, append-only |
 | `logs/<YYYY-MM-DD>-log.txt` | `system-logger.ts` | text | App-wide system log (main/render/agent), append-only, pruned after 7 days on startup |
-| `truncation/<agentId>-<toolId>.txt` | `agent/truncation.ts` | text | Full text of truncated tool output; cleaned up after 7 days on startup |
+| `truncation/<agentId>-<toolId>.txt` | `agent/truncation.ts` | text | Full text of truncated tool output, JSON pretty-printed; MCP output is keyed by the call id so a repeat call cannot overwrite an earlier file; cleaned up after 7 days on startup |
 | `connections/index.json` | `connections/connection-store.ts` | `{ version: 1, accounts: ConnectionAccount[] }` | **Metadata only** — never secrets |
 | `connections/vault.json` | `vault.ts` | `{ ref: base64 }` | `safeStorage`-encrypted secrets |
 | `connections/runtime/` | `connections/codex-proxy-manager.ts` | random owner-only dir | Sidecar config containing OAuth tokens; removed on graceful shutdown, stale dirs cleaned at next launch |
