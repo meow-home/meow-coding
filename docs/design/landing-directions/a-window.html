@@ -3,16 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Meow Coding — Run multiple coding sessions, side by side</title>
-<meta name="description" content="Meow Coding is a desktop app for running multiple coding sessions side by side — each one a chat with its built-in native Meow agent — inside a single window." />
-<meta property="og:type" content="website" />
-<meta property="og:title" content="Meow Coding — Run multiple coding sessions, side by side" />
-<meta property="og:description" content="A desktop app built around a first-party coding agent. Every session gets a pane and stays mounted, so the ones you are not looking at keep working." />
-<meta property="og:image" content="./meow-app-screen-light-mode.png" />
-<meta name="twitter:card" content="summary_large_image" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<title>Meow Coding — Direction A · Window</title>
 <style>
   :root {
     --bg: #0a0a0b;
@@ -38,7 +29,7 @@
     --hairline: rgba(255, 255, 255, 0.10);
     --hairline-strong: rgba(255, 255, 255, 0.16);
     --font-ui: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
-    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --font-mono: 'JetBrainsMonoNerdFontMono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --r-xs: 4px; --r-sm: 5px; --r: 8px; --r-lg: 11px;
     --chrome-h: 34px;
     --status-h: 26px;
@@ -58,13 +49,6 @@
   a { color: inherit; text-decoration: none; }
   ::selection { background: var(--accent-dim); color: #fff; }
   :focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; border-radius: 4px; }
-
-  .skip {
-    position: absolute; left: 8px; top: -40px; z-index: 10;
-    background: var(--accent); color: #fff; padding: 7px 12px;
-    border-radius: var(--r-sm); font-size: 13px; font-weight: 600;
-  }
-  .skip:focus { top: 8px; }
 
   /* ============ window shell ============ */
   .shell {
@@ -93,7 +77,6 @@
   .chrome-btns span { width: 11px; height: 11px; border: 1px solid var(--hairline-strong); border-radius: 2px; display: block; }
 
   .body { display: grid; grid-template-columns: var(--side-w) 1fr; min-height: 0; }
-  .body > * { min-width: 0; }
 
   /* ============ sidebar ============ */
   .side {
@@ -326,20 +309,8 @@
   @media (max-width: 900px) {
     .shell { height: auto; grid-template-rows: var(--chrome-h) auto auto; }
     .body { grid-template-columns: 1fr; }
-    .side { border-right: 0; border-bottom: 1px solid var(--hairline); max-height: none; overflow: visible; }
-    .side-sep, .side-stat, .side-new { display: none; }
-    /* The sidebar keeps being the navigation, just laid on its side: one scrollable
-       strip of session pills instead of a column. */
-    .side-group { display: flex; gap: 6px; overflow-x: auto; padding: 0 10px 10px; scrollbar-width: none; }
-    .side-group::-webkit-scrollbar { display: none; }
-    .side-proj { display: none; }
-    .row {
-      flex: 0 0 auto; border: 1px solid var(--hairline); border-left: 1px solid var(--hairline);
-      border-radius: 999px; padding: 4px 11px; background: var(--bg-raised);
-    }
-    .row.is-active { border-color: var(--accent); background: var(--bg-active); }
-    .row .name { overflow: visible; }
-    .row .meta { display: none; }
+    .side { border-right: 0; border-bottom: 1px solid var(--hairline); max-height: none; }
+    .side-group, .side-sep, .side-stat { display: none; }
     .feed { overflow: visible; }
     .lane { padding: 28px 20px 56px; }
     .grid.cols-3, .grid.cols-2 { grid-template-columns: 1fr; }
@@ -347,14 +318,10 @@
     .tool .tkind { display: none; }
     .status { flex-wrap: wrap; height: auto; padding: 6px 12px; gap: 10px; }
   }
-  @media (prefers-reduced-motion: reduce) {
-    .feed { scroll-behavior: auto; }
-    .composer-row .caret { animation: none; }
-  }
+  @media (prefers-reduced-motion: reduce) { .feed { scroll-behavior: auto; } }
 </style>
 </head>
 <body>
-<a class="skip" href="#top">Skip to content</a>
 <div class="shell">
 
   <!-- ================= title bar ================= -->
@@ -376,24 +343,24 @@
     <nav class="side" aria-label="Page sections">
       <div class="side-head">
         <span class="side-label">Sessions</span>
-        <span class="side-count">8</span>
+        <span class="side-count">9</span>
       </div>
       <div class="side-new">New session <kbd>Ctrl N</kbd></div>
 
       <div class="side-group">
         <div class="side-proj"><span class="caret">▾</span> meow-coding</div>
         <a class="row is-active" href="#top" data-nav><span class="dot run"></span><span class="name">Overview</span></a>
-        <a class="row" href="#shots" data-nav><span class="dot idle"></span><span class="name">The app</span></a>
+        <a class="row" href="#shots" data-nav><span class="dot idle"></span><span class="name">Screenshots</span></a>
         <a class="row" href="#session" data-nav><span class="dot idle"></span><span class="name">Inside a session</span></a>
-        <a class="row" href="#tools" data-nav><span class="dot run"></span><span class="name">22 tools</span><span class="meta" aria-hidden="true">22</span></a>
-        <a class="row" href="#skills" data-nav><span class="dot idle"></span><span class="name">Skills &amp; commands</span><span class="meta" aria-hidden="true">21</span></a>
+        <a class="row" href="#tools" data-nav><span class="dot run"></span><span class="name">22 tools</span><span class="meta">22</span></a>
+        <a class="row" href="#skills" data-nav><span class="dot idle"></span><span class="name">Skills &amp; commands</span><span class="meta">21</span></a>
         <a class="row" href="#settings" data-nav><span class="dot idle"></span><span class="name">Settings</span></a>
       </div>
 
       <div class="side-group">
         <div class="side-proj"><span class="caret">▾</span> project</div>
-        <a class="row" href="#sources" data-nav><span class="dot"></span><span class="name">Built on open source</span></a>
-        <a class="row" href="#install" data-nav><span class="dot"></span><span class="name">Install</span></a>
+        <a class="row" href="#sources" data-nav><span class="dot" style="background:var(--text-faint)"></span><span class="name">Built on open source</span></a>
+        <a class="row" href="#install" data-nav><span class="dot" style="background:var(--text-faint)"></span><span class="name">Install</span></a>
       </div>
 
       <div class="side-sep"></div>
@@ -415,13 +382,13 @@
         </span>
       </div>
 
-      <div class="feed" id="feed" tabindex="0" aria-label="Page content">
+      <div class="feed" id="feed">
         <div class="lane">
 
           <!-- ---------- hero ---------- -->
           <section id="top">
             <p class="eyebrow">One window · many sessions</p>
-            <h1 class="h1">Run your coding sessions side by side. <span class="quiet">None of them wait for you.</span></h1>
+            <h1 class="h1">Run six coding sessions at once. <span class="quiet">None of them wait for you.</span></h1>
             <p class="lede">
               Meow Coding is a desktop app built around a first-party coding agent. Every session gets a
               pane and stays mounted, so the ones you are not looking at keep working. The transcript,
@@ -456,18 +423,18 @@
             <div class="sec-head">
               <span class="idx">01</span>
               <h2>The app</h2>
-              <span class="hint">Windows · Linux · macOS</span>
+              <span class="hint">Windows · Electron 41</span>
             </div>
             <div class="shots">
               <figure class="shot" style="margin:0">
                 <div class="shot-bar"><span class="tag">light</span><span>meow-app-screen-light-mode.png</span></div>
-                <img src="./meow-app-screen-light-mode.png" width="1400" height="899" loading="lazy"
+                <img src="../../meow-app-screen-light-mode.png" width="1400" height="899" loading="lazy"
                      alt="Meow Coding in light mode: a session list on the left, a chat with tool cards in the middle, and a file panel on the right." />
                 <figcaption class="shot-cap">Two projects, several sessions, one chat open. The sidebar keeps every session reachable while the others keep running.</figcaption>
               </figure>
               <figure class="shot" style="margin:0">
                 <div class="shot-bar"><span class="tag">dark</span><span>meow-app-screen-dark-mode.png</span></div>
-                <img src="./meow-app-screen-dark-mode.png" width="1405" height="903" loading="lazy"
+                <img src="../../meow-app-screen-dark-mode.png" width="1405" height="903" loading="lazy"
                      alt="Meow Coding in dark mode: the same layout with the dark theme applied." />
                 <figcaption class="shot-cap">Same window, dark theme. Both themes ship; the accent is the same blue in each.</figcaption>
               </figure>
@@ -490,11 +457,6 @@
                 <span class="kicker">Parallel</span>
                 <h3>Sessions that keep running</h3>
                 <p>Create, rename, stop or delete a session from its sidebar row. Move one to the background and it keeps going while you work elsewhere.</p>
-              </div>
-              <div class="cell">
-                <span class="kicker">Agent</span>
-                <h3>Native Meow chat</h3>
-                <p>Streaming output, markdown rendering, tool-call cards, image attachments and per-session undo and redo — no terminal to babysit.</p>
               </div>
               <div class="cell">
                 <span class="kicker">Control</span>
@@ -520,16 +482,6 @@
                 <span class="kicker">Steering</span>
                 <h3>Talk to it mid-turn</h3>
                 <p>Messages sent while a turn is running are queued and injected at the next step, so you can redirect without stopping the work.</p>
-              </div>
-              <div class="cell">
-                <span class="kicker">Overlays</span>
-                <h3>Files and processes</h3>
-                <p>An in-app explorer with a lazy directory tree, name filter and content search, plus a per-session view of background shells and monitors with live streamed output.</p>
-              </div>
-              <div class="cell">
-                <span class="kicker">Policy</span>
-                <h3>Hooks and memory</h3>
-                <p><span class="mono">PreToolUse</span>, <span class="mono">PostToolUse</span> and <span class="mono">Stop</span> hooks run your own policy outside the context window, and a per-project memory store keeps durable notes across sessions.</p>
               </div>
             </div>
           </section>
@@ -618,9 +570,10 @@
               <div class="tab"><div class="t">Updates</div><div class="d">Background updates</div></div>
             </div>
             <p class="sec-note">
-              Providers cover Anthropic, OpenAI, Google and any OpenAI-compatible endpoint, plus a
-              Codex account connection and a local gateway. The app updates itself in the background
-              and tells you when a new version is ready.
+              Hooks run your own policy outside the context window —
+              <span class="mono">PreToolUse</span>, <span class="mono">PostToolUse</span>,
+              <span class="mono">Stop</span>. A per-project memory store keeps durable notes across
+              sessions, one Markdown file per fact.
             </p>
           </section>
 
@@ -679,7 +632,7 @@
           </section>
 
           <footer class="foot">
-            <span>Meow Coding · open source · <span id="year"></span></span>
+            <span>Meow Coding · open source</span>
             <span class="sp"></span>
             <a href="https://github.com/stardust-bytes/meow-coding">GitHub</a>
             <a href="https://github.com/stardust-bytes/meow-coding/releases">Releases</a>
@@ -719,43 +672,14 @@
     });
   });
 
-  const scroller = () => (window.innerWidth > 900 ? feed : document.scrollingElement);
-
-  // The last section is shorter than the reading area, so it can never cross the spy's
-  // line. At the very bottom of the page, name it explicitly — and keep naming it, because
-  // the observer's callback arrives after the scroll event and would otherwise win.
-  const atBottom = () => {
-    const el = scroller();
-    return el.scrollTop + el.clientHeight >= el.scrollHeight - 4;
-  };
-
   const spy = new IntersectionObserver(
     (entries) => {
-      if (atBottom()) return setActive(rows.length - 1);
       const hit = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
       if (hit) setActive(targets.indexOf(hit.target));
     },
     { root: window.innerWidth > 900 ? feed : null, rootMargin: '0px 0px -70% 0px', threshold: 0 }
   );
   targets.forEach((t) => t && spy.observe(t));
-
-  const bottomGuard = () => { if (atBottom()) setActive(rows.length - 1); };
-  (window.innerWidth > 900 ? feed : window).addEventListener('scroll', bottomGuard, { passive: true });
-  window.addEventListener('resize', bottomGuard);
-
-  // The document itself never scrolls, so a deep link has to be applied to the feed.
-  if (location.hash) {
-    const t = document.querySelector(location.hash);
-    if (t) {
-      requestAnimationFrame(() => {
-        if (location.hash === '#top') scroller().scrollTop = 0;
-        else t.scrollIntoView({ block: 'start' });
-        setActive(Math.max(0, targets.indexOf(t)));
-      });
-    }
-  }
-
-  document.getElementById('year').textContent = new Date().getFullYear();
 </script>
 </body>
 </html>

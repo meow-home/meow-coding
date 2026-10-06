@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Meow Coding — Direction C · Parallel</title>
+<style>
+  :root {
+    --bg: #0a0a0b;
+    --bg-panel: #0f0f11;
+    --bg-raised: #161618;
+    --bg-hover: #1c1c20;
+    --text: #ffffff;
+    --text-dim: #b0b0b0;
+    --text-faint: #8c8c94;
+    --text-quiet: #6a6a72;
+    --accent: #007acc;
+    --accent-strong: #1f9cf0;
+    --accent-dim: rgba(0, 122, 204, 0.18);
+    --orange: #ffb454;
+    --green: #4ade9f;
+    --red: #ff5f56;
+    --hairline: rgba(255, 255, 255, 0.10);
+    --hairline-strong: rgba(255, 255, 255, 0.16);
+    --font-ui: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrainsMonoNerdFontMono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --r: 8px; --r-lg: 12px;
+    --max: 1240px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--font-ui); font-size: 15px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-decoration: none; }
+  ::selection { background: var(--accent-dim); }
+  :focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; border-radius: 4px; }
+  .wrap { max-width: var(--max); margin: 0 auto; padding: 0 28px; }
+  code, .mono { font-family: var(--font-mono); font-size: 0.87em; color: var(--orange); }
+
+  /* ============ top bar ============ */
+  .bar {
+    position: sticky; top: 0; z-index: 30;
+    background: rgba(10, 10, 11, 0.86); backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--hairline);
+  }
+  .bar-in { display: flex; align-items: center; gap: 22px; height: 52px; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: -0.01em; font-size: 14px; }
+  .bar nav { display: flex; gap: 20px; font-size: 13.5px; color: var(--text-dim); }
+  .bar nav a:hover { color: var(--text); }
+  .bar .sp { flex: 1; }
+  .bar .ver { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-faint); }
+  .bar .gh {
+    font-size: 13px; font-weight: 600; padding: 6px 13px;
+    border: 1px solid var(--hairline-strong); border-radius: var(--r); background: var(--bg-raised);
+  }
+  .bar .gh:hover { background: var(--bg-hover); border-color: rgba(255,255,255,0.3); }
+
+  /* ============ hero ============ */
+  .hero { padding: 72px 0 40px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.06fr); gap: 56px; align-items: center; }
+  .kicker {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent-strong);
+  }
+  .kicker .live { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  h1 {
+    margin: 18px 0 0;
+    font-size: clamp(2.1rem, 4.6vw, 3.5rem);
+    line-height: 1.03; letter-spacing: -0.04em; font-weight: 700;
+    max-width: 17ch;
+  }
+  h1 .dim { color: var(--text-quiet); }
+  .lede { margin: 22px 0 0; max-width: 52ch; color: var(--text-dim); font-size: 15.5px; }
+  .cta { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 10px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; padding: 10px 17px;
+    border-radius: var(--r); font-size: 13.5px; font-weight: 600;
+    border: 1px solid var(--hairline-strong); background: var(--bg-raised); color: var(--text);
+  }
+  .btn:hover { background: var(--bg-hover); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); }
+  .btn.primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+  .btn .k { font-family: var(--font-mono); font-weight: 400; font-size: 11px; opacity: 0.75; }
+
+  /* ============ the pane wall (signature) ============ */
+  .wall {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    padding: 8px; border: 1px solid var(--hairline); border-radius: var(--r-lg);
+    background: var(--bg-panel);
+  }
+  .pane {
+    background: var(--bg); border: 1px solid var(--hairline); border-radius: var(--r);
+    padding: 10px 11px 12px; min-height: 108px;
+    display: flex; flex-direction: column; gap: 7px;
+    transition: border-color 180ms ease, background 180ms ease;
+  }
+  .pane:hover { border-color: var(--accent-dim); background: var(--bg-raised); }
+  .pane-head { display: flex; align-items: center; gap: 7px; font-size: 12px; }
+  .pane-head .nm { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pane-head .st { margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; background: var(--text-faint); }
+  .dot.run { background: var(--green); box-shadow: 0 0 9px rgba(74,222,159,0.5); }
+  .dot.idle { background: var(--orange); box-shadow: 0 0 9px rgba(255,180,84,0.4); }
+  .dot.spawn { background: var(--accent); box-shadow: 0 0 9px var(--accent-dim); }
+  .pane-body {
+    font-family: var(--font-mono); font-size: 11.5px; line-height: 1.65;
+    color: var(--text-dim); flex: 1;
+  }
+  .pane-body .t { color: var(--accent-strong); }
+  .pane-body .g { color: var(--green); }
+  .pane-body .o { color: var(--orange); }
+  .pane-body .f { color: var(--text-faint); }
+  .caret { display: inline-block; width: 6px; height: 12px; background: var(--accent-strong); vertical-align: -2px; animation: blink 1.1s step-end infinite; }
+  @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+  /* ============ bands ============ */
+  .band { padding: 64px 0; border-top: 1px solid var(--hairline); scroll-margin-top: 60px; }
+  .band-head { display: grid; grid-template-columns: 200px 1fr; gap: 32px; align-items: baseline; margin-bottom: 30px; }
+  .band-head .rail { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint); }
+  .band-head h2 { margin: 0; font-size: clamp(1.4rem, 2.6vw, 1.95rem); font-weight: 600; letter-spacing: -0.025em; max-width: 26ch; }
+  .band-head p { margin: 12px 0 0; color: var(--text-dim); max-width: 68ch; font-size: 14.5px; }
+
+  /* ============ transcript mock ============ */
+  .chat {
+    border: 1px solid var(--hairline); border-radius: var(--r-lg); background: var(--bg-panel);
+    overflow: hidden;
+  }
+  .chat-head {
+    display: flex; align-items: center; gap: 9px; padding: 9px 14px;
+    border-bottom: 1px solid var(--hairline); font-size: 12.5px; background: var(--bg-panel);
+  }
+  .chat-head .pill {
+    margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-dim);
+    border: 1px solid var(--hairline-strong); border-radius: 999px; padding: 2px 9px;
+  }
+  .chat-body { padding: 18px 20px; display: grid; gap: 12px; }
+  .msg { display: grid; grid-template-columns: 62px 1fr; gap: 14px; align-items: baseline; }
+  .msg .who { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); }
+  .msg .txt { color: var(--text-dim); font-size: 14px; }
+  .msg.user .txt { color: var(--text); }
+  .tool {
+    display: grid; grid-template-columns: 62px 1fr; gap: 14px; align-items: baseline;
+  }
+  .tool .card {
+    background: var(--bg); border: 1px solid var(--hairline); border-left: 2px solid var(--accent);
+    border-radius: var(--r); padding: 9px 12px;
+    font-family: var(--font-mono); font-size: 11.5px; line-height: 1.7; color: var(--text-dim);
+    overflow-x: auto; white-space: pre;
+  }
+  .tool .card .h { color: var(--text); }
+  .tool .card .ok { color: var(--green); }
+  .tool .card .no { color: var(--red); }
+  .tool .card .cm { color: var(--text-faint); }
+
+  /* ============ bento ============ */
+  .bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  .cell {
+    background: var(--bg-panel); border: 1px solid var(--hairline); border-radius: var(--r);
+    padding: 18px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .cell:hover { background: var(--bg-raised); border-color: var(--hairline-strong); }
+  .cell h3 { margin: 0; font-size: 14.5px; font-weight: 600; letter-spacing: -0.012em; }
+  .cell p { margin: 0; font-size: 13.5px; color: var(--text-dim); }
+  .cell .tag { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-strong); }
+  .cell.w3 { grid-column: span 3; }
+  .cell.w2 { grid-column: span 2; }
+  .cell.w4 { grid-column: span 4; }
+  .cell.w6 { grid-column: span 6; }
+  .cell.big { min-height: 190px; justify-content: flex-end; }
+  .cell.big .glyph { flex: 1; display: flex; align-items: center; }
+
+  /* ============ tool grid ============ */
+  .toolgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 1px; background: var(--hairline); border: 1px solid var(--hairline); border-radius: var(--r); overflow: hidden; }
+  .tg { background: var(--bg-panel); padding: 13px 15px; }
+  .tg:hover { background: var(--bg-raised); }
+  .tg .n { font-family: var(--font-mono); font-size: 12.5px; color: var(--accent-strong); }
+  .tg .d { margin-top: 4px; font-size: 12.5px; color: var(--text-dim); }
+  .tg .k { margin-top: 7px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
+
+  /* ============ chips ============ */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px; }
+  .chip { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-dim); border: 1px solid var(--hairline); background: var(--bg-panel); border-radius: 4px; padding: 3px 8px; }
+  .chip.a { color: var(--accent-strong); border-color: var(--accent-dim); }
+
+  /* ============ shots ============ */
+  .shots { display: grid; gap: 14px; }
+  .shot { border: 1px solid var(--hairline); border-radius: var(--r-lg); overflow: hidden; background: var(--bg-panel); }
+  .shot img { display: block; width: 100%; height: auto; }
+  .shot figcaption { padding: 10px 14px; border-top: 1px solid var(--hairline); font-size: 12.5px; color: var(--text-faint); }
+
+  /* ============ sources ============ */
+  .src { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
+  .src a {
+    display: flex; flex-direction: column; gap: 4px;
+    background: var(--bg-panel); border: 1px solid var(--hairline); border-radius: var(--r); padding: 14px 16px;
+  }
+  .src a:hover { background: var(--bg-raised); border-color: var(--accent-dim); }
+  .src .w { font-size: 13.5px; }
+  .src .r { font-family: var(--font-mono); font-size: 11.5px; color: var(--accent-strong); }
+  .src .l { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
+
+  /* ============ footer ============ */
+  .foot { border-top: 1px solid var(--hairline); padding: 26px 0 40px; display: flex; flex-wrap: wrap; gap: 14px; align-items: center; font-size: 13px; color: var(--text-faint); }
+  .foot .sp { flex: 1; }
+  .foot a:hover { color: var(--text); }
+
+  @media (max-width: 1000px) {
+    .hero { grid-template-columns: 1fr; gap: 40px; padding-top: 48px; }
+    .band-head { grid-template-columns: 1fr; gap: 8px; }
+    .cell.w3, .cell.w2, .cell.w4 { grid-column: span 6; }
+  }
+  @media (max-width: 640px) {
+    .wrap { padding: 0 18px; }
+    .bar nav { display: none; }
+    .wall { grid-template-columns: 1fr; }
+    .msg, .tool { grid-template-columns: 1fr; gap: 4px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .kicker .live, .caret { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="wrap bar-in">
+    <span class="brand">
+      <svg width="15" height="15" viewBox="0 0 14 14" aria-hidden="true">
+        <path d="M2 5.2 2.6 1.6 5.1 3.4h3.8L11.4 1.6 12 5.2c.6.9.9 1.9.9 3 0 2.7-2.6 4.6-5.9 4.6S1.1 10.9 1.1 8.2c0-1.1.3-2.1.9-3Z" fill="#007acc"/>
+      </svg>
+      Meow Coding
+    </span>
+    <nav>
+      <a href="#sessions">Sessions</a>
+      <a href="#tools">Tools</a>
+      <a href="#settings">Settings</a>
+      <a href="#install">Install</a>
+    </nav>
+    <span class="sp"></span>
+    <span class="ver">v0.50.5</span>
+    <a class="gh" href="https://github.com/stardust-bytes/meow-coding">GitHub</a>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- ================= HERO ================= -->
+  <section class="hero">
+    <div>
+      <span class="kicker"><span class="live"></span> six sessions running</span>
+      <h1>Your agent runs in more than one place at a time. <span class="dim">Now you can see all of it.</span></h1>
+      <p class="lede">
+        Meow Coding is a desktop app built around a first-party coding agent. Each session gets its own
+        pane and stays mounted, so the work you are not watching keeps going — and every tool call,
+        permission and dollar stays visible.
+      </p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/stardust-bytes/meow-coding/releases">Download <span class="k">v0.50.5</span></a>
+        <a class="btn" href="https://github.com/stardust-bytes/meow-coding">Browse the source</a>
+      </div>
+    </div>
+
+    <!-- signature: the pane wall -->
+    <div class="wall" aria-label="Illustration of six sessions running in parallel">
+      <div class="pane">
+        <div class="pane-head"><span class="dot run"></span><span class="nm">refactor the parser</span><span class="st">running</span></div>
+        <div class="pane-body"><span class="t">edit</span> src/parse.ts<br /><span class="f">+38 −12 · 3 files</span><br /><span class="g">tests pass</span> <span class="caret"></span></div>
+      </div>
+      <div class="pane">
+        <div class="pane-head"><span class="dot run"></span><span class="nm">review the diff</span><span class="st">running</span></div>
+        <div class="pane-body"><span class="t">git</span> diff --stat<br /><span class="f">14 files changed</span><br /><span class="o">2 findings</span></div>
+      </div>
+      <div class="pane">
+        <div class="pane-head"><span class="dot idle"></span><span class="nm">write the tests</span><span class="st">waiting</span></div>
+        <div class="pane-body"><span class="t">bash</span> npm test<br /><span class="f">147 files · 1599 tests</span><br /><span class="g">all passing</span></div>
+      </div>
+      <div class="pane">
+        <div class="pane-head"><span class="dot run"></span><span class="nm">checkout flow</span><span class="st">browser</span></div>
+        <div class="pane-body"><span class="t">browser_click</span> #pay<br /><span class="f">chrome · paired</span><br /><span class="g">page read</span></div>
+      </div>
+      <div class="pane">
+        <div class="pane-head"><span class="dot spawn"></span><span class="nm">quarterly report</span><span class="st">starting</span></div>
+        <div class="pane-body"><span class="t">office</span> report.xlsx<br /><span class="f">sheet 3 of 5</span></div>
+      </div>
+      <div class="pane">
+        <div class="pane-head"><span class="dot idle"></span><span class="nm">landing page</span><span class="st">waiting</span></div>
+        <div class="pane-body"><span class="t">skill</span> frontend-design<br /><span class="f">3 directions ready</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SESSIONS ================= -->
+  <section class="band" id="sessions">
+    <div class="band-head">
+      <span class="rail">Sessions</span>
+      <div>
+        <h2>A session is a chat with the agent. It is also a process you can steer.</h2>
+        <p>
+          Create, rename, stop or delete a session from its own sidebar row. Push one to the background
+          and it keeps working while you read another. Send a message mid-turn and it is injected at
+          the next step, so you can redirect without killing the run.
+        </p>
+      </div>
+    </div>
+
+    <div class="chat">
+      <div class="chat-head">
+        <span class="dot run"></span>
+        <span>refactor the parser</span>
+        <span class="mono" style="color:var(--text-faint);font-size:11.5px">master*</span>
+        <span class="pill">TODO 4/6</span>
+      </div>
+      <div class="chat-body">
+        <div class="msg user"><span class="who">You</span><span class="txt">Split the parser and keep the tests green.</span></div>
+        <div class="tool">
+          <span class="who">Meow</span>
+          <div class="card"><span class="h">bash</span>  npm test -- parser
+<span class="ok">✓</span> 147 files · 1599 tests passed  <span class="cm">(12.4s)</span></div>
+        </div>
+        <div class="tool">
+          <span class="who"></span>
+          <div class="card"><span class="h">edit</span>  src/parse.ts
+<span class="ok">+38</span> <span class="no">−12</span>  extract tokenizer into its own module</div>
+        </div>
+        <div class="tool">
+          <span class="who"></span>
+          <div class="card"><span class="h">todowrite</span>  4 of 6 done
+<span class="ok">✓</span> extract tokenizer   <span class="ok">✓</span> move tests
+<span class="o">·</span> update call sites   <span class="o">·</span> run the suite</div>
+        </div>
+        <div class="msg"><span class="who">Meow</span><span class="txt">Tokenizer is out and the suite is green. Two call sites still import the old path — want me to update them now, or wait until you have reviewed the split?</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CAPABILITIES ================= -->
+  <section class="band" id="capabilities">
+    <div class="band-head">
+      <span class="rail">Capabilities</span>
+      <div>
+        <h2>Everything the parallel workflow needs, in the window.</h2>
+      </div>
+    </div>
+
+    <div class="bento">
+      <div class="cell w3 big">
+        <span class="tag">Control</span>
+        <h3>Permissions you set once, then forget</h3>
+        <p>Per-tool allow, ask or deny with wildcard patterns. Remembered answers, a read-only plan mode, and a prompt that tells you exactly what is about to run.</p>
+      </div>
+      <div class="cell w3 big">
+        <span class="tag">Recovery</span>
+        <h3>Undo a whole turn, files and transcript</h3>
+        <p>Every turn snapshots the files it touched. Undo restores them and trims the conversation; redo puts both back. Nothing is lost to a bad edit.</p>
+      </div>
+      <div class="cell w2">
+        <span class="tag">Context</span>
+        <h3>Compaction before the wall</h3>
+        <p>Older turns are summarized with a verbatim tail kept intact, so a long session keeps its thread.</p>
+      </div>
+      <div class="cell w2">
+        <span class="tag">Cost</span>
+        <h3>Tokens and dollars, per session</h3>
+        <p>Priced from the models.dev catalog, cache reads included. Per model, per session, per day.</p>
+      </div>
+      <div class="cell w2">
+        <span class="tag">Agents</span>
+        <h3>Subagents and delegation</h3>
+        <p>Spawn an isolated agent with narrowed permissions, or hand the task to another session.</p>
+      </div>
+      <div class="cell w6">
+        <span class="tag">Also included</span>
+        <h3>Hooks and memory · Files and Processes overlays · Browser bridge · Office documents · Background updates</h3>
+        <p>
+          Hooks run your own policy outside the context window. A per-project memory store keeps durable
+          notes across sessions. The Files overlay searches a project by name and content; the Processes
+          overlay shows every background shell with live output. The browser bridge drives a real Chrome
+          profile through an approved extension.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= TOOLS ================= -->
+  <section class="band" id="tools">
+    <div class="band-head">
+      <span class="rail">Tools</span>
+      <div>
+        <h2>Twenty-two tools, and every call is a card in the transcript.</h2>
+        <p>MCP servers add their own tools to the same list. A custom tool is a JavaScript module dropped into <code>userData/tools</code>.</p>
+      </div>
+    </div>
+    <div class="toolgrid">
+      <div class="tg"><div class="n">bash</div><div class="d">Run a command; long jobs go to the background</div><div class="k">shell</div></div>
+      <div class="tg"><div class="n">read · write · edit</div><div class="d">Read, create, or edit a file</div><div class="k">files</div></div>
+      <div class="tg"><div class="n">apply-patch</div><div class="d">Apply a diff across several files</div><div class="k">files</div></div>
+      <div class="tg"><div class="n">glob · grep</div><div class="d">Find files, search contents</div><div class="k">search</div></div>
+      <div class="tg"><div class="n">git</div><div class="d">Status, diff, log, commit</div><div class="k">vcs</div></div>
+      <div class="tg"><div class="n">todowrite</div><div class="d">Keep a visible task list</div><div class="k">plan</div></div>
+      <div class="tg"><div class="n">question</div><div class="d">Ask before committing to a direction</div><div class="k">plan</div></div>
+      <div class="tg"><div class="n">task</div><div class="d">Spawn an isolated subagent</div><div class="k">agents</div></div>
+      <div class="tg"><div class="n">delegate_session</div><div class="d">Hand work to another session</div><div class="k">agents</div></div>
+      <div class="tg"><div class="n">skill</div><div class="d">Load a skill into the turn</div><div class="k">agents</div></div>
+      <div class="tg"><div class="n">webfetch · websearch</div><div class="d">Read a page, or find one</div><div class="k">web</div></div>
+      <div class="tg"><div class="n">browser</div><div class="d">Drive a real Chrome profile</div><div class="k">web</div></div>
+      <div class="tg"><div class="n">lsp</div><div class="d">Definitions, references, symbols</div><div class="k">code</div></div>
+      <div class="tg"><div class="n">office</div><div class="d">Create and edit .docx, .xlsx, .pptx</div><div class="k">docs</div></div>
+      <div class="tg"><div class="n">revert</div><div class="d">Undo the files this session changed</div><div class="k">safety</div></div>
+      <div class="tg"><div class="n">monitor · bash_output</div><div class="d">Watch a long-running command</div><div class="k">shell</div></div>
+    </div>
+  </section>
+
+  <!-- ================= SETTINGS ================= -->
+  <section class="band" id="settings">
+    <div class="band-head">
+      <span class="rail">Settings</span>
+      <div>
+        <h2>Nine tabs. No config file you have to hand-edit.</h2>
+      </div>
+    </div>
+    <div class="bento">
+      <div class="cell w2"><h3>Sub-agents</h3><p>Roles, models, tool access.</p></div>
+      <div class="cell w2"><h3>Providers</h3><p>Keys in an encrypted vault, model lists, OAuth connections.</p></div>
+      <div class="cell w2"><h3>MCP</h3><p>stdio and HTTP servers, merged into the tool list.</p></div>
+      <div class="cell w2"><h3>Permissions</h3><p>Allow, ask, deny, with wildcards.</p></div>
+      <div class="cell w2"><h3>Commands</h3><p>Your own slash commands in Markdown.</p></div>
+      <div class="cell w2"><h3>Context</h3><p>Compaction thresholds.</p></div>
+      <div class="cell w2"><h3>External delegation</h3><p>Claude Code hands work to a Meow session.</p></div>
+      <div class="cell w2"><h3>Personalize</h3><p>Theme, fonts, density.</p></div>
+      <div class="cell w2"><h3>Updates</h3><p>Background updates.</p></div>
+    </div>
+
+    <div class="chips">
+      <span class="chip a">/init</span>
+      <span class="chip a">/review</span>
+      <span class="chip a">/new</span>
+      <span class="chip a">/compact</span>
+      <span class="chip a">/frontend-design</span>
+      <span class="chip">/brainstorming</span>
+      <span class="chip">/writing-plans</span>
+      <span class="chip">/executing-plans</span>
+      <span class="chip">/test-driven-development</span>
+      <span class="chip">/systematic-debugging</span>
+      <span class="chip">/verification-before-completion</span>
+      <span class="chip">+ 9 more</span>
+    </div>
+  </section>
+
+  <!-- ================= SCREENSHOTS ================= -->
+  <section class="band" id="shots">
+    <div class="band-head">
+      <span class="rail">The app</span>
+      <div><h2>Both themes ship. Same accent, same layout.</h2></div>
+    </div>
+    <div class="shots">
+      <figure class="shot" style="margin:0">
+        <img src="../../meow-app-screen-light-mode.png" width="1400" height="899" loading="lazy"
+             alt="Meow Coding in light mode: sessions listed per project, an agent chat with tool cards, and a file panel." />
+        <figcaption>Light theme — two projects, nine sessions, one chat open.</figcaption>
+      </figure>
+      <figure class="shot" style="margin:0">
+        <img src="../../meow-app-screen-dark-mode.png" width="1405" height="903" loading="lazy"
+             alt="Meow Coding in dark mode: the same layout with the dark theme applied." />
+        <figcaption>Dark theme — the same window, the same blue.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ================= SOURCES + INSTALL ================= -->
+  <section class="band" id="install">
+    <div class="band-head">
+      <span class="rail">Install</span>
+      <div>
+        <h2>Download it, or build it in three commands.</h2>
+        <p><code>git clone</code> · <code>npm install</code> · <code>npm run build</code> — Windows, Linux and macOS. The app updates itself in the background.</p>
+      </div>
+    </div>
+    <div class="cta" style="margin-bottom:34px">
+      <a class="btn primary" href="https://github.com/stardust-bytes/meow-coding/releases">Get v0.50.5</a>
+      <a class="btn" href="https://github.com/stardust-bytes/meow-coding#readme">Read the README</a>
+    </div>
+
+    <div class="src">
+      <a href="https://github.com/obra/superpowers">
+        <span class="w">Superpowers workflow skills</span>
+        <span class="r">obra/superpowers</span>
+        <span class="l">MIT</span>
+      </a>
+      <a href="https://github.com/anthropics/skills">
+        <span class="w">Design and document skills</span>
+        <span class="r">anthropics/skills</span>
+        <span class="l">Apache-2.0</span>
+      </a>
+      <a href="https://github.com/iOfficeAI/OfficeCLI">
+        <span class="w">Office document tool</span>
+        <span class="r">iOfficeAI/OfficeCLI</span>
+        <span class="l">Apache-2.0</span>
+      </a>
+      <a href="https://github.com/router-for-me/CLIProxyAPI">
+        <span class="w">Codex account proxy</span>
+        <span class="r">router-for-me/CLIProxyAPI</span>
+        <span class="l">MIT</span>
+      </a>
+      <a href="https://www.electronjs.org/">
+        <span class="w">Application shell</span>
+        <span class="r">Electron · React · TypeScript</span>
+        <span class="l">MIT</span>
+      </a>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span>Meow Coding · open source</span>
+    <span class="sp"></span>
+    <a href="https://github.com/stardust-bytes/meow-coding">GitHub</a>
+    <a href="https://github.com/stardust-bytes/meow-coding/releases">Releases</a>
+    <span id="year"></span>
+  </footer>
+</div>
+
+<script>
+  document.getElementById('year').textContent = new Date().getFullYear();
+
+  // The wall is the hero: keep one pane visibly alive so the page reads as "running",
+  // not as a screenshot. Cycles a short line into the first pane every few seconds.
+  const target = document.querySelector('.pane-body');
+  const lines = [
+    '<span class="t">edit</span> src/parse.ts<br /><span class="f">+38 −12 · 3 files</span><br /><span class="g">tests pass</span>',
+    '<span class="t">bash</span> npm test<br /><span class="f">147 files · 1599 tests</span><br /><span class="g">all passing</span>',
+    '<span class="t">grep</span> "tokenizer"<br /><span class="f">6 matches in 4 files</span>',
+  ];
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    let i = 0;
+    setInterval(() => {
+      i = (i + 1) % lines.length;
+      target.innerHTML = lines[i] + ' <span class="caret"></span>';
+    }, 3600);
+  }
+</script>
+</body>
+</html>

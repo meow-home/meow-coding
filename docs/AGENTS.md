@@ -9,6 +9,11 @@ Documentation following the Superpowers workflow.
 - `superpowers/notes/` — technical notes / ad-hoc decisions.
 - `reference/` — full system reference for agents/LLMs: product, architecture, agent runtime, tools,
   IPC, storage, providers, integrations, UI, build/release, conventions. Start at `reference/README.md`.
+- `design/` — UI mockup galleries, one directory per redesign (`todo-popup-mockups/`,
+  `landing-directions/`). Each holds an `index.html` chooser with live previews of every direction
+  plus one self-contained HTML file per direction. Scratch, not shipped: once a direction is chosen
+  it is folded into the real UI (`docs/index.html` for the landing page) and the gallery stays as a
+  record of the alternatives.
 
 ## Conventions
 

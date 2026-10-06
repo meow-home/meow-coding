@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Landing page — three directions</title>
+<style>
+  :root {
+    --bg: #0a0a0b;
+    --bg-panel: #0f0f11;
+    --bg-raised: #161618;
+    --bg-hover: #1c1c20;
+    --text: #ffffff;
+    --text-dim: #b0b0b0;
+    --text-faint: #707076;
+    --accent: #007acc;
+    --accent-strong: #1f9cf0;
+    --accent-dim: rgba(0, 122, 204, 0.18);
+    --orange: #ffb454;
+    --green: #4ade9f;
+    --hairline: rgba(255, 255, 255, 0.10);
+    --hairline-strong: rgba(255, 255, 255, 0.16);
+    --font-ui: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrainsMonoNerdFontMono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --r: 8px; --r-lg: 12px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--font-ui); font-size: 15px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-decoration: none; }
+  ::selection { background: var(--accent-dim); }
+  :focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; border-radius: 4px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 56px 28px 80px; }
+  code { font-family: var(--font-mono); font-size: 0.87em; color: var(--orange); }
+
+  .eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-strong); }
+  h1 { margin: 14px 0 0; font-size: clamp(1.7rem, 3.4vw, 2.4rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; max-width: 24ch; }
+  .lede { margin: 16px 0 0; max-width: 78ch; color: var(--text-dim); }
+  .lede b { color: var(--text); font-weight: 500; }
+
+  .grid { margin-top: 40px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .card {
+    background: var(--bg-panel); border: 1px solid var(--hairline); border-radius: var(--r-lg);
+    overflow: hidden; display: flex; flex-direction: column;
+  }
+  .card:hover { border-color: var(--hairline-strong); }
+  .card-head { padding: 14px 16px 12px; border-bottom: 1px solid var(--hairline); }
+  .card-head .tag { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-strong); }
+  .card-head h2 { margin: 6px 0 0; font-size: 17px; font-weight: 600; letter-spacing: -0.02em; }
+  .card-head p { margin: 7px 0 0; font-size: 13px; color: var(--text-dim); }
+
+  .preview { position: relative; height: 236px; overflow: hidden; background: #050506; border-bottom: 1px solid var(--hairline); }
+  .preview iframe {
+    position: absolute; top: 0; left: 0;
+    width: 1400px; height: 900px; border: 0;
+    transform-origin: 0 0;
+    pointer-events: none;
+  }
+  .preview .fade { position: absolute; inset: auto 0 0 0; height: 56px; background: linear-gradient(to bottom, transparent, var(--bg-panel)); }
+
+  .specs { padding: 14px 16px; display: grid; gap: 9px; }
+  .spec { display: grid; grid-template-columns: 74px 1fr; gap: 10px; font-size: 12.5px; }
+  .spec dt { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); padding-top: 2px; }
+  .spec dd { margin: 0; color: var(--text-dim); }
+  .spec dd .k { color: var(--text); }
+
+  .swatches { display: flex; gap: 4px; margin-top: 2px; }
+  .sw { width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--hairline); }
+
+  .card-foot { margin-top: auto; padding: 12px 16px 16px; display: flex; gap: 8px; }
+  .btn {
+    flex: 1; text-align: center; padding: 9px 12px; border-radius: var(--r);
+    font-size: 13px; font-weight: 600; border: 1px solid var(--hairline-strong); background: var(--bg-raised);
+  }
+  .btn:hover { background: var(--bg-hover); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); }
+  .btn.primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+
+  .notes { margin-top: 52px; display: grid; grid-template-columns: 200px 1fr; gap: 32px; align-items: start; }
+  .notes .rail { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint); }
+  .notes h2 { margin: 0 0 14px; font-size: 19px; font-weight: 600; letter-spacing: -0.02em; }
+  .notes p { margin: 0 0 12px; color: var(--text-dim); max-width: 78ch; }
+  .notes ul { margin: 0 0 12px; padding-left: 20px; color: var(--text-dim); max-width: 78ch; }
+  .notes li { margin-bottom: 6px; }
+  .notes li b { color: var(--text); font-weight: 500; }
+
+  @media (max-width: 1000px) {
+    .grid { grid-template-columns: 1fr; }
+    .notes { grid-template-columns: 1fr; gap: 12px; }
+    .preview { height: 300px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Landing page · three directions</p>
+  <h1>Three ways to open the Meow Coding page.</h1>
+  <p class="lede">
+    Same product, same facts, same screenshots — three different arguments. Each one is a full page
+    you can scroll; the frames below are live previews. Pick one and I will fold the current copy into
+    it and ship it as <code>docs/index.html</code>. <b>No emoji anywhere</b>, and every colour and
+    typeface comes from the app itself.
+  </p>
+
+  <div class="grid">
+
+    <!-- ============ A ============ -->
+    <article class="card">
+      <div class="card-head">
+        <span class="tag">Direction A · chosen</span>
+        <h2>The window</h2>
+        <p>The page <em>is</em> the app: title bar, session sidebar, pane header, status bar. The sidebar is the navigation.</p>
+      </div>
+      <div class="preview">
+        <iframe src="a-window.html" title="Preview of direction A" loading="lazy" scrolling="no"></iframe>
+        <div class="fade"></div>
+      </div>
+      <dl class="specs">
+        <div class="spec"><dt>Palette</dt><dd class="swatches">
+          <span class="sw" style="background:#0a0a0b"></span>
+          <span class="sw" style="background:#0f0f11"></span>
+          <span class="sw" style="background:#007acc"></span>
+          <span class="sw" style="background:#ffb454"></span>
+          <span class="sw" style="background:#4ade9f"></span>
+        </dd></div>
+        <div class="spec"><dt>Type</dt><dd><span class="k">Segoe UI Variable</span> for text, <span class="k">JetBrains Mono</span> for data — the app's own two faces.</dd></div>
+        <div class="spec"><dt>Signature</dt><dd>The chrome. Status dots, branch names and a TODO pill carry the real product state.</dd></div>
+        <div class="spec"><dt>Best when</dt><dd>You want the page to feel like the product, not like a brochure about it.</dd></div>
+      </dl>
+      <div class="card-foot">
+        <a class="btn primary" href="../../index.html">Shipped as docs/index.html</a>
+        <a class="btn" href="a-window.html">Open mockup</a>
+      </div>
+    </article>
+
+    <!-- ============ B ============ -->
+    <article class="card">
+      <div class="card-head">
+        <span class="tag">Direction B</span>
+        <h2>The manual</h2>
+        <p>A man page for the app, in the light theme. NAME, SYNOPSIS, DESCRIPTION, TOOLS, SEE ALSO.</p>
+      </div>
+      <div class="preview">
+        <iframe src="b-manual.html" title="Preview of direction B" loading="lazy" scrolling="no"></iframe>
+        <div class="fade"></div>
+      </div>
+      <dl class="specs">
+        <div class="spec"><dt>Palette</dt><dd class="swatches">
+          <span class="sw" style="background:#ffffff"></span>
+          <span class="sw" style="background:#f8f9fa"></span>
+          <span class="sw" style="background:#0066b8"></span>
+          <span class="sw" style="background:#c4661e"></span>
+          <span class="sw" style="background:#1e1e1e"></span>
+        </dd></div>
+        <div class="spec"><dt>Type</dt><dd><span class="k">IBM Plex Sans Condensed</span> for the thesis, <span class="k">IBM Plex Sans</span> for text, <span class="k">IBM Plex Mono</span> for everything the app would print.</dd></div>
+        <div class="spec"><dt>Signature</dt><dd>The running head names the section you are reading, the way a man page does.</dd></div>
+        <div class="spec"><dt>Best when</dt><dd>You want to be read by someone evaluating the tool — dense, factual, no marketing.</dd></div>
+      </dl>
+      <div class="card-foot">
+        <a class="btn primary" href="b-manual.html">Open full page</a>
+      </div>
+    </article>
+
+    <!-- ============ C ============ -->
+    <article class="card">
+      <div class="card-head">
+        <span class="tag">Direction C</span>
+        <h2>Parallel</h2>
+        <p>Opens on a wall of six live panes — the product's one idea, shown before it is explained.</p>
+      </div>
+      <div class="preview">
+        <iframe src="c-parallel.html" title="Preview of direction C" loading="lazy" scrolling="no"></iframe>
+        <div class="fade"></div>
+      </div>
+      <dl class="specs">
+        <div class="spec"><dt>Palette</dt><dd class="swatches">
+          <span class="sw" style="background:#0a0a0b"></span>
+          <span class="sw" style="background:#0f0f11"></span>
+          <span class="sw" style="background:#007acc"></span>
+          <span class="sw" style="background:#4ade9f"></span>
+          <span class="sw" style="background:#ff5f56"></span>
+        </dd></div>
+        <div class="spec"><dt>Type</dt><dd><span class="k">Segoe UI Variable</span> at display weight, <span class="k">JetBrains Mono</span> for the pane contents.</dd></div>
+        <div class="spec"><dt>Signature</dt><dd>The pane wall, with one pane that keeps working while you read.</dd></div>
+        <div class="spec"><dt>Best when</dt><dd>You want the strongest first impression and a page that shows rather than tells.</dd></div>
+      </dl>
+      <div class="card-foot">
+        <a class="btn primary" href="c-parallel.html">Open full page</a>
+      </div>
+    </article>
+  </div>
+
+  <!-- ============ notes ============ -->
+  <section class="notes">
+    <span class="rail">What changed</span>
+    <div>
+      <h2>What is different from the page you have now</h2>
+      <p>
+        The current page is a dark hero with violet and amber glows, glass cards, emoji icons and a
+        Tailwind CDN build. It reads as a template: the palette has nothing to do with the app, and the
+        emoji do the work that the product's own interface could do better.
+      </p>
+      <ul>
+        <li><b>Colour comes from the app.</b> VSCode blue <code>#007acc</code>, near-black <code>#0a0a0b</code>, and the real semantic colours for running, idle and error. No violet, no amber glow.</li>
+        <li><b>Type comes from the app.</b> Segoe UI Variable and JetBrains Mono are what the product actually renders in. Direction B swaps in IBM Plex as a deliberate alternative for the light theme.</li>
+        <li><b>No emoji.</b> Icons are drawn SVG or the app's own vocabulary — status dots, branch names, tool names, counts.</li>
+        <li><b>Structure carries meaning.</b> Sections are numbered because the page is a sequence you read top to bottom; Direction B uses man-page section names because that is the form it borrows.</li>
+        <li><b>Real numbers.</b> 22 tools, 21 skills, 20 commands, 9 settings tabs, v0.50.5 — taken from the code, not estimated.</li>
+        <li><b>No CDN.</b> All three are a single self-contained file with system fonts, so the page works offline and on GitHub Pages without a network round trip.</li>
+      </ul>
+
+      <h2 style="margin-top:28px">My recommendation</h2>
+      <p>
+        <b>A</b> if you want the page to be unmistakably this product — it is the most specific to Meow
+        Coding and the least like anything else. <b>C</b> if you want the strongest first ten seconds;
+        it says "parallel sessions" before a single sentence is read. <b>B</b> is the safest and the most
+        informative, and it is the only one that shows the light theme, which the app ships and the
+        current page never mentions.
+      </p>
+      <p>
+        They are not exclusive: A's chrome and C's pane wall can be combined, and B's tool table can be
+        dropped into either. Tell me which one to take forward, and whether you want any part of
+        another mixed in.
+      </p>
+    </div>
+  </section>
+</div>
+
+<script>
+  // Preview frames are scaled to fit their card, so the scale has to be measured rather
+  // than hard-coded: the cards change width with the viewport.
+  const fit = () => {
+    for (const frame of document.querySelectorAll('.preview iframe')) {
+      const box = frame.parentElement;
+      const s = box.clientWidth / 1400;
+      frame.style.transform = `scale(${s})`;
+      box.style.height = Math.round(900 * s) + 'px';
+    }
+  };
+  fit();
+  addEventListener('resize', fit);
+</script>
+</body>
+</html>

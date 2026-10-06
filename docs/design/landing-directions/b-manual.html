@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Meow Coding — Direction B · Manual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper: #ffffff;
+    --paper-soft: #f8f9fa;
+    --paper-sink: #f0f1f3;
+    --ink: #1e1e1e;
+    --ink-strong: #000000;
+    --ink-dim: #6a6a6a;
+    /* The app's light-theme tertiary grey is #a0a0a0, which fails AA at caption size.
+       Darken it for the page; keep a separate token for the dimmed headline. */
+    --ink-faint: #767676;
+    --ink-quiet: #b0b0b0;
+    --rule: #d8d8d8;
+    --rule-strong: #b4b4b4;
+    --accent: #0066b8;
+    --accent-soft: #e8f1f9;
+    --code: #c4661e;
+    --green: #098658;
+    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+    --font-cond: 'IBM Plex Sans Condensed', 'IBM Plex Sans', system-ui, sans-serif;
+    --measure: 74ch;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; text-underline-offset: 2px; }
+  ::selection { background: var(--accent-soft); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ============ running head ============ */
+  .head {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--rule);
+  }
+  .head-in {
+    max-width: 1080px; margin: 0 auto;
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+    gap: 16px; padding: 9px 28px;
+    font-family: var(--font-mono); font-size: 11px;
+    letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .head-in .l { color: var(--ink-faint); }
+  .head-in .c { color: var(--ink); font-weight: 500; letter-spacing: 0.1em; }
+  .head-in .r { text-align: right; color: var(--ink-faint); }
+  .head-in .r a { color: var(--ink-dim); }
+  .head-in .r a { color: var(--ink-dim); }
+  .head-in .r a:hover { color: var(--accent); text-decoration: none; }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 28px 96px; }
+
+  /* ============ man-page section ============ */
+  .sec { padding-top: 46px; scroll-margin-top: 44px; }
+  .sec > h2 {
+    margin: 0 0 18px;
+    font-family: var(--font-mono);
+    font-size: 12px; font-weight: 600;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--ink);
+    padding-bottom: 7px;
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  .sec p { margin: 0 0 14px; max-width: var(--measure); }
+  .sec p:last-child { margin-bottom: 0; }
+  code, .mono { font-family: var(--font-mono); font-size: 0.86em; color: var(--code); }
+  b, strong { font-weight: 600; color: var(--ink-strong); }
+
+  /* ============ NAME / SYNOPSIS ============ */
+  .name-line {
+    font-family: var(--font-mono);
+    font-size: clamp(1.15rem, 2.4vw, 1.5rem);
+    line-height: 1.35;
+    margin: 0;
+    color: var(--ink);
+  }
+  .name-line .cmd { font-weight: 600; color: var(--ink-strong); }
+  .name-line .sep { color: var(--ink-faint); padding: 0 6px; }
+
+  /* The page's one h1: the thesis, set in the condensed face. */
+  .thesis-h1 {
+    margin: 30px 0 0;
+    font-family: var(--font-cond);
+    font-weight: 700;
+    font-size: clamp(2rem, 4.8vw, 3.3rem);
+    line-height: 1.06;
+    letter-spacing: -0.02em;
+    color: var(--ink-strong);
+    max-width: 22ch;
+  }
+  .thesis-h1 em { font-style: normal; color: var(--accent); }
+
+  .synopsis {
+    margin: 0;
+    padding: 18px 20px;
+    background: var(--paper-soft);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 2px;
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    line-height: 1.85;
+    color: var(--ink);
+    overflow-x: auto;
+  }
+  .synopsis .kw { color: var(--accent); font-weight: 500; }
+  .synopsis .arg { color: var(--ink-dim); }
+  .synopsis .cmt { color: var(--ink-faint); }
+
+  /* ============ screenshots ============ */
+  .shots { display: grid; gap: 26px; margin-top: 4px; }
+  figure.shot { margin: 0; }
+  .shot-frame {
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    overflow: hidden;
+    background: var(--paper-soft);
+  }
+  .shot-frame img { display: block; width: 100%; height: auto; }
+  figcaption {
+    margin-top: 9px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.6;
+    color: var(--ink-dim);
+    display: flex; gap: 10px;
+  }
+  figcaption .n { color: var(--accent); flex: 0 0 auto; }
+
+  /* ============ definition list ============ */
+  dl.defs { margin: 0; }
+  dl.defs > div {
+    display: grid; grid-template-columns: 190px 1fr; gap: 20px;
+    padding: 13px 0;
+    border-top: 1px solid var(--rule);
+  }
+  dl.defs > div:first-child { border-top: 0; padding-top: 0; }
+  dl.defs dt {
+    font-family: var(--font-mono);
+    font-size: 12.5px; font-weight: 500;
+    color: var(--ink-strong);
+    padding-top: 2px;
+  }
+  dl.defs dd { margin: 0; color: var(--ink); max-width: 62ch; }
+  dl.defs dd .sub { display: block; color: var(--ink-dim); font-size: 14px; margin-top: 3px; }
+
+  /* ============ tool table ============ */
+  table.tools { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.tools th {
+    text-align: left; font-family: var(--font-mono); font-size: 10.5px;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint);
+    font-weight: 500; padding: 0 14px 7px 0; border-bottom: 1px solid var(--rule-strong);
+  }
+  table.tools td { padding: 9px 14px 9px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  table.tools tr:hover td { background: var(--paper-soft); }
+  table.tools td.t { font-family: var(--font-mono); font-size: 12.5px; color: var(--accent); white-space: nowrap; }
+  table.tools td.k { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; }
+  table.tools td.d { color: var(--ink-dim); }
+
+  /* ============ command list ============ */
+  ul.cmds { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 40px; }
+  ul.cmds li { break-inside: avoid; padding: 5px 0; border-bottom: 1px solid var(--rule); display: flex; gap: 12px; align-items: baseline; }
+  ul.cmds .c { font-family: var(--font-mono); font-size: 12.5px; color: var(--accent); flex: 0 0 168px; }
+  ul.cmds .d { font-size: 13.5px; color: var(--ink-dim); }
+
+  /* ============ see also ============ */
+  ul.see { list-style: none; margin: 0; padding: 0; }
+  ul.see li { padding: 11px 0; border-top: 1px solid var(--rule); display: flex; gap: 16px; align-items: baseline; }
+  ul.see li:first-child { border-top: 0; padding-top: 0; }
+  ul.see .ref { font-family: var(--font-mono); font-size: 12.5px; color: var(--accent); flex: 0 0 250px; }
+  ul.see .what { color: var(--ink-dim); font-size: 14px; }
+  ul.see .lic { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); }
+
+  /* ============ install ============ */
+  .install {
+    margin-top: 4px; padding: 18px 20px;
+    background: var(--paper-soft); border: 1px solid var(--rule); border-radius: 2px;
+    font-family: var(--font-mono); font-size: 13px; line-height: 1.9;
+  }
+  .install .p { color: var(--ink-faint); user-select: none; }
+  .install .c { color: var(--ink); }
+  .install .o { color: var(--ink-dim); }
+  .cta { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 10px; }
+  .btn {
+    display: inline-block; padding: 9px 16px; border-radius: 2px;
+    font-family: var(--font-mono); font-size: 12.5px; font-weight: 500;
+    border: 1px solid var(--rule-strong); color: var(--ink);
+  }
+  .btn:hover { text-decoration: none; background: var(--paper-sink); border-color: var(--ink-faint); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: #00579e; border-color: #00579e; }
+
+  /* ============ footer ============ */
+  .foot {
+    margin-top: 64px; padding-top: 14px; border-top: 1px solid var(--rule-strong);
+    display: flex; flex-wrap: wrap; gap: 14px; align-items: baseline;
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em;
+    color: var(--ink-faint);
+  }
+  .foot .sp { flex: 1; }
+  .foot a { color: var(--ink-dim); }
+  .foot a:hover { color: var(--accent); text-decoration: none; }
+
+  @media (max-width: 820px) {
+    .wrap { padding: 0 18px 64px; }
+    .head-in { padding: 9px 18px; grid-template-columns: 1fr auto; }
+    .head-in .r { display: none; }
+    dl.defs > div { grid-template-columns: 1fr; gap: 4px; }
+    ul.cmds { columns: 1; }
+    ul.see li { flex-wrap: wrap; gap: 4px 12px; }
+    ul.see .ref { flex: 1 1 100%; }
+    ul.see .lic { margin-left: 0; }
+    table.tools td.k, table.tools th.k { display: none; }
+    /* The synopsis is a fixed-width block; let it wrap on narrow screens instead of
+       scrolling sideways inside its own box. */
+    .synopsis { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12.5px; padding: 14px 15px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="head">
+  <div class="head-in">
+    <span class="l">Meow&nbsp;Coding&nbsp;0.50.5</span>
+    <span class="c" id="running-head">Name</span>
+    <span class="r"><a href="https://github.com/stardust-bytes/meow-coding">github.com/stardust-bytes/meow-coding</a></span>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ================= NAME ================= -->
+  <section class="sec" id="name" data-title="Name">
+    <h2>Name</h2>
+    <p class="name-line">
+      <span class="cmd">meow-coding</span>
+      <span class="sep">—</span>
+      run many coding sessions in one window
+    </p>
+  </section>
+
+  <!-- ================= SYNOPSIS ================= -->
+  <section class="sec" id="synopsis" data-title="Synopsis">
+    <h2>Synopsis</h2>
+    <pre class="synopsis"><span class="kw">meow-coding</span> <span class="arg">[--project <i>DIR</i>] [--session <i>NAME</i>] [--theme <i>dark</i>|<i>light</i>]</span>
+<span class="kw">meow-coding</span> <span class="arg">--new-session [--agent <i>meow</i>] [--model <i>MODEL</i>]</span>
+<span class="kw">meow-coding</span> <span class="arg">--list-sessions</span>            <span class="cmt"># every session, running or idle</span></pre>
+
+    <h1 class="thesis-h1">One window. <em>Every session keeps running</em> — including the ones you are not looking at.</h1>
+
+    <p style="margin-top:22px">
+      Most coding agents live in a terminal, one conversation per window. Meow Coding makes the
+      <b>session</b> the unit of work instead: each one gets a pane, stays mounted, and keeps its own
+      transcript, tool calls, permissions and cost. Nothing is a black box, because the agent is
+      first-party and runs in the app.
+    </p>
+  </section>
+
+  <!-- ================= DESCRIPTION ================= -->
+  <section class="sec" id="description" data-title="Description">
+    <h2>Description</h2>
+
+    <div class="shots">
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="../../meow-app-screen-light-mode.png" width="1400" height="899" loading="lazy"
+               alt="Meow Coding in light mode: sessions listed per project on the left, an agent chat with tool cards in the middle, and a file panel on the right." />
+        </div>
+        <figcaption><span class="n">Fig. 1</span><span>Light theme. Two projects, nine sessions, one chat open. The sidebar keeps every session reachable; the rest keep running behind it.</span></figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="../../meow-app-screen-dark-mode.png" width="1405" height="903" loading="lazy"
+               alt="Meow Coding in dark mode: the same layout with the dark theme applied." />
+        </div>
+        <figcaption><span class="n">Fig. 2</span><span>Dark theme. Same window, same accent blue. The theme is a setting, not a different product.</span></figcaption>
+      </figure>
+    </div>
+
+    <p style="margin-top:26px">
+      A session is a chat with the <b>Meow agent</b>. It reads and writes files, runs commands, searches
+      the web, drives a browser, and asks before doing anything you have not allowed. Every turn
+      snapshots the files it touched, so <code>undo</code> restores the files and trims the transcript
+      together.
+    </p>
+  </section>
+
+  <!-- ================= SESSIONS ================= -->
+  <section class="sec" id="sessions" data-title="Sessions">
+    <h2>Sessions</h2>
+    <dl class="defs">
+      <div>
+        <dt>--new-session</dt>
+        <dd>Start a session from the sidebar. It is titled automatically from your first message.
+        <span class="sub">Create, rename, stop, delete, or push to the background from the session's own row.</span></dd>
+      </div>
+      <div>
+        <dt>--background</dt>
+        <dd>Move a session out of view without stopping it.
+        <span class="sub">Background sessions appear in their own panel with live output, and raise an alert when they finish or fail.</span></dd>
+      </div>
+      <div>
+        <dt>--steer</dt>
+        <dd>Send a message while a turn is already running.
+        <span class="sub">It is queued and injected at the next step boundary, so you can redirect the work without killing it.</span></dd>
+      </div>
+      <div>
+        <dt>--compact</dt>
+        <dd>Summarize the older part of the transcript when the context limit approaches.
+        <span class="sub">A verbatim tail is kept intact, so the thread of the conversation survives. It also runs while the session is idle.</span></dd>
+      </div>
+      <div>
+        <dt>--undo / --redo</dt>
+        <dd>Step back or forward one turn.
+        <span class="sub">Files and transcript move together, from per-turn snapshots.</span></dd>
+      </div>
+      <div>
+        <dt>--plan-mode</dt>
+        <dd>Run read-only.
+        <span class="sub">The agent can look at everything and change nothing — for analysis and review.</span></dd>
+      </div>
+    </dl>
+  </section>
+
+  <!-- ================= TOOLS ================= -->
+  <section class="sec" id="tools" data-title="Tools">
+    <h2>Tools</h2>
+    <p style="margin-bottom:20px">
+      Twenty-two tools ship with the agent. Each call appears in the transcript as a card you can open,
+      so you can see exactly what ran and what it returned.
+    </p>
+    <table class="tools">
+      <thead>
+        <tr><th>Tool</th><th class="k">Kind</th><th>Does</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="t">bash</td><td class="k">shell</td><td class="d">Run a command; long jobs can go to the background and be read later</td></tr>
+        <tr><td class="t">read · write · edit</td><td class="k">files</td><td class="d">Read a file, create one, or apply a targeted edit</td></tr>
+        <tr><td class="t">apply-patch</td><td class="k">files</td><td class="d">Apply a unified diff across several files in one call</td></tr>
+        <tr><td class="t">glob · grep</td><td class="k">search</td><td class="d">Find files by pattern, search their contents</td></tr>
+        <tr><td class="t">git</td><td class="k">vcs</td><td class="d">Status, diff, log and commit without leaving the chat</td></tr>
+        <tr><td class="t">todowrite</td><td class="k">plan</td><td class="d">Keep a task list visible in the pane header</td></tr>
+        <tr><td class="t">question</td><td class="k">plan</td><td class="d">Ask you to choose before committing to a direction</td></tr>
+        <tr><td class="t">task</td><td class="k">agents</td><td class="d">Spawn an isolated subagent with its own context and narrowed permissions</td></tr>
+        <tr><td class="t">delegate_session</td><td class="k">agents</td><td class="d">Hand a task to another session in the same project</td></tr>
+        <tr><td class="t">skill</td><td class="k">agents</td><td class="d">Load a bundled or custom skill into the current turn</td></tr>
+        <tr><td class="t">webfetch · websearch</td><td class="k">web</td><td class="d">Read a page, or search for one</td></tr>
+        <tr><td class="t">browser</td><td class="k">web</td><td class="d">Drive a real Chrome profile: navigate, click, type, read</td></tr>
+        <tr><td class="t">lsp</td><td class="k">code</td><td class="d">Ask a language server for definitions, references and symbols</td></tr>
+        <tr><td class="t">office</td><td class="k">docs</td><td class="d">Create and edit .docx, .xlsx and .pptx files</td></tr>
+        <tr><td class="t">revert</td><td class="k">safety</td><td class="d">Undo the files this session changed</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:20px">
+      MCP servers add their own tools to the same list, over stdio or HTTP. A custom tool is a
+      JavaScript module dropped into <code>userData/tools</code>.
+    </p>
+  </section>
+
+  <!-- ================= COMMANDS ================= -->
+  <section class="sec" id="commands" data-title="Commands">
+    <h2>Commands</h2>
+    <p style="margin-bottom:18px">
+      Type <code>/</code> in the composer to run a command. Twenty ship with the app; the fifteen
+      Superpowers workflows cover the long jobs — brainstorming, planning, executing, reviewing.
+    </p>
+    <ul class="cmds">
+      <li><span class="c">/init</span><span class="d">Write or improve AGENTS.md for this project</span></li>
+      <li><span class="c">/review</span><span class="d">Review the uncommitted changes</span></li>
+      <li><span class="c">/new</span><span class="d">Start a new session</span></li>
+      <li><span class="c">/compact</span><span class="d">Summarize older context to free space</span></li>
+      <li><span class="c">/frontend-design</span><span class="d">Design or redesign a UI</span></li>
+      <li><span class="c">/brainstorming</span><span class="d">Explore intent before building</span></li>
+      <li><span class="c">/writing-plans</span><span class="d">Turn a spec into a plan</span></li>
+      <li><span class="c">/executing-plans</span><span class="d">Work through a plan</span></li>
+      <li><span class="c">/test-driven-development</span><span class="d">Test first, then implement</span></li>
+      <li><span class="c">/systematic-debugging</span><span class="d">Find the cause before the fix</span></li>
+      <li><span class="c">/requesting-code-review</span><span class="d">Ask for review with evidence</span></li>
+      <li><span class="c">/verification-before-completion</span><span class="d">Prove it works before claiming done</span></li>
+    </ul>
+    <p style="margin-top:20px">
+      Write your own in Markdown. <code>$1..$N</code> takes arguments, <code>@path</code> inlines a file,
+      <code>!cmd</code> inlines a command's output. Subagent roles live in
+      <code>.meow/agents/*.md</code> and can only narrow what your permission rules already allow.
+    </p>
+  </section>
+
+  <!-- ================= FILES ================= -->
+  <section class="sec" id="files" data-title="Files">
+    <h2>Files</h2>
+    <dl class="defs">
+      <div>
+        <dt>meow.json</dt>
+        <dd>Providers, models, permissions, compaction thresholds, sampling overrides.
+        <span class="sub">Per project, at the repo root.</span></dd>
+      </div>
+      <div>
+        <dt>.meow/memory/</dt>
+        <dd>Durable notes the agent keeps across sessions.
+        <span class="sub">One Markdown file per fact, with an index the agent reads at the start of every turn.</span></dd>
+      </div>
+      <div>
+        <dt>.meow/agents/</dt>
+        <dd>Custom subagent roles for this project.
+        <span class="sub">Frontmatter takes a name, description, tool list, model, and deny/ask rules.</span></dd>
+      </div>
+      <div>
+        <dt>userData/workspaces.json</dt>
+        <dd>Your projects and their sessions.</dd>
+      </div>
+      <div>
+        <dt>userData/logs/</dt>
+        <dd>Every byte of agent output, one log per session, openable from the pane menu.</dd>
+      </div>
+    </dl>
+  </section>
+
+  <!-- ================= SETTINGS ================= -->
+  <section class="sec" id="settings" data-title="Settings">
+    <h2>Settings</h2>
+    <p style="margin-bottom:18px">
+      Nine tabs, and no config file you have to hand-edit. Hooks run your own policy outside the
+      context window — <code>PreToolUse</code>, <code>PostToolUse</code>, <code>Stop</code>.
+    </p>
+    <dl class="defs">
+      <div><dt>Sub-agents</dt><dd>Roles, models and tool access for spawned agents.</dd></div>
+      <div><dt>Providers</dt><dd>API keys in an encrypted vault, model lists, and OAuth connections.</dd></div>
+      <div><dt>MCP</dt><dd>stdio and HTTP servers, with their tools merged into the agent's list.</dd></div>
+      <div><dt>Permissions</dt><dd>Per-tool allow, ask or deny, with wildcard patterns and remembered answers.</dd></div>
+      <div><dt>Commands</dt><dd>Your own slash commands, written in Markdown.</dd></div>
+      <div><dt>Context</dt><dd>Compaction thresholds and context-window handling.</dd></div>
+      <div><dt>External delegation</dt><dd>Let Claude Code hand work to a Meow session.</dd></div>
+      <div><dt>Personalize</dt><dd>Theme, fonts, density.</dd></div>
+      <div><dt>Updates</dt><dd>Background updates, with a prompt when a version is ready.</dd></div>
+    </dl>
+  </section>
+
+  <!-- ================= INSTALL ================= -->
+  <section class="sec" id="install" data-title="Install">
+    <h2>Install</h2>
+    <div class="install">
+      <div><span class="p">$ </span><span class="c">git clone https://github.com/stardust-bytes/meow-coding</span></div>
+      <div><span class="p">$ </span><span class="c">npm install</span></div>
+      <div><span class="p">$ </span><span class="c">npm run build</span></div>
+      <div><span class="o"># or download the installer for Windows, Linux or macOS</span></div>
+    </div>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/stardust-bytes/meow-coding/releases">Download 0.50.5</a>
+      <a class="btn" href="https://github.com/stardust-bytes/meow-coding#readme">Read the README</a>
+    </div>
+  </section>
+
+  <!-- ================= SEE ALSO ================= -->
+  <section class="sec" id="see-also" data-title="See also">
+    <h2>See also</h2>
+    <ul class="see">
+      <li>
+        <a class="ref" href="https://github.com/obra/superpowers">superpowers(7)</a>
+        <span class="what">Workflow skills for planning, executing and reviewing</span>
+        <span class="lic">MIT</span>
+      </li>
+      <li>
+        <a class="ref" href="https://github.com/anthropics/skills">anthropics-skills(7)</a>
+        <span class="what">Design and document skills, bundled verbatim</span>
+        <span class="lic">Apache-2.0</span>
+      </li>
+      <li>
+        <a class="ref" href="https://github.com/iOfficeAI/OfficeCLI">officecli(1)</a>
+        <span class="what">Office document tool behind the office tool</span>
+        <span class="lic">Apache-2.0</span>
+      </li>
+      <li>
+        <a class="ref" href="https://github.com/router-for-me/CLIProxyAPI">cliproxyapi(1)</a>
+        <span class="what">Account-scoped local proxy for Codex connections</span>
+        <span class="lic">MIT</span>
+      </li>
+      <li>
+        <a class="ref" href="https://www.electronjs.org/">electron(1)</a>
+        <span class="what">Application shell, with React and TypeScript</span>
+        <span class="lic">MIT</span>
+      </li>
+    </ul>
+  </section>
+
+  <footer class="foot">
+    <span>Meow Coding 0.50.5</span>
+    <span class="sp"></span>
+    <a href="https://github.com/stardust-bytes/meow-coding">GitHub</a>
+    <a href="https://github.com/stardust-bytes/meow-coding/releases">Releases</a>
+    <span id="year"></span>
+  </footer>
+</div>
+
+<script>
+  // Running head: the man-page convention of naming the section you are reading.
+  // Resolved from scroll position rather than intersection entries — sections are much
+  // taller than the viewport, so several are always intersecting and the entry order
+  // says nothing about which one the reader is actually in.
+  const sections = [...document.querySelectorAll('.sec[data-title]')];
+  const head = document.getElementById('running-head');
+  const HEAD_H = 44;
+
+  const syncHead = () => {
+    // Name the section the reader is in: the last one whose top has crossed a reading line
+    // a third of the way down. At the very bottom nothing can cross it any more, so the
+    // last section wins there.
+    const line = HEAD_H + (innerHeight - HEAD_H) * 0.35;
+    let current = null;
+    for (const s of sections) {
+      if (s.getBoundingClientRect().top <= line) current = s;
+    }
+    if (scrollY <= 8) current = sections[0];
+    else if (scrollY + innerHeight >= document.body.scrollHeight - 4) current = sections[sections.length - 1];
+    if (!current) current = sections[0];
+    if (head.textContent !== current.dataset.title) head.textContent = current.dataset.title;
+  };
+
+  addEventListener('scroll', syncHead, { passive: true });
+  syncHead();
+
+  document.getElementById('year').textContent = new Date().getFullYear();
+</script>
+</body>
+</html>
