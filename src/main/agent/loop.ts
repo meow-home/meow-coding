@@ -19,6 +19,8 @@ import { DEFAULT_MAX_CONTEXT_TOKENS } from './config'
 import { classifyContextOverflowError } from './limits'
 import { toolLoopDetector } from './repetition'
 import type { ToolLoopDetector, ToolLoopVerdict } from './repetition'
+import { todoNudgeDetector } from './todo-nudge'
+import type { TodoNudgeDetector } from './todo-nudge'
 import { createResponseGuard, MAX_TOOL_CALLS_PER_RESPONSE } from './response-guard'
 import type { GuardVerdict } from './response-guard'
 import { runWithConcurrency, scheduleBatches } from './tool-scheduler'
@@ -105,6 +107,12 @@ export interface LoopDeps {
   // boundary while a turn is running, opencode-style).
   takeSteers?: () => QueuedMessage[]
   setTodos?: (todos: TodoItem[]) => void
+  /**
+   * Reads the session's current todo list back so the loop can nudge a stale
+   * one (see `todo-nudge.ts`). Absent for subagents, which never get
+   * `todowrite` — and therefore never get the nudge either.
+   */
+  getTodos?: () => TodoItem[]
   variantOptions?: Record<string, unknown>
   onUsage?: (tokens: MessageTokens) => void
   computeCost?: (usage: { input: number; output: number; cacheRead?: number; cacheWrite?: number }) => number
@@ -218,6 +226,8 @@ export class SessionRunner {
   private stopBlocksThisRun = 0
   // Per run: a tool loop spans steps. The stream guard is per step (see run()).
   private toolLoop: ToolLoopDetector = toolLoopDetector()
+  // Per run: how long the todo list has gone without an update (see todo-nudge.ts).
+  private todoNudge: TodoNudgeDetector = todoNudgeDetector()
   // Fixed run identity for this turn; snapshot per tool invocation.
   private runContext: AgentRunContext | undefined
 
@@ -277,6 +287,7 @@ export class SessionRunner {
     this.recoveryHitsThisRun = 0
     this.stopBlocksThisRun = 0
     this.toolLoop = toolLoopDetector()
+    this.todoNudge = todoNudgeDetector()
     this.hooks = this.deps.hooks?.()
     this.compaction = this.resolveCompaction()
     const runUsage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 }
@@ -652,6 +663,10 @@ export class SessionRunner {
       this.toolLoop.reset()
     }
     if (cut) attachNote(call, cutNote(cut, MAX_TOOL_CALLS_PER_RESPONSE))
+    // Counts every call, including a denied or failed one: the model still took
+    // a step, and the list is still stale.
+    const todoNote = this.deps.getTodos ? this.todoNudge.observe(call.tool, this.deps.getTodos()) : null
+    if (todoNote) attachNote(call, todoNote)
     this.deps.appendTool(call)
     this.deps.onEvent({ type: 'tool-result', agentId: this.deps.agentId, call })
     return tripped

@@ -1766,6 +1766,7 @@ ${content}` : content
         this.deps.store.setTodos(this.runSessionId(agent.id), todos)
         this.emit({ type: 'todo-updated', agentId: agent.id, todos })
       },
+      getTodos: () => this.deps.store.todos(this.runSessionId(agent.id)),
       variantOptions,
       diagnostics: cfg.lsp.enabled && this.deps.lsp
         ? (filePath, text) => this.deps.lsp!.diagnosticsText(filePath, text)

@@ -200,6 +200,15 @@ ported from opencode (use for 3+ step work, exactly one `in_progress`, update in
 mark complete on intent). A malformed `todos` value (a string instead of an array) is sanitized to
 `[]` before persisting. **Subagents never receive this tool** — their runner has no `setTodos` sink.
 
+A description alone does not hold: models build the list and then stop updating it. So the loop
+also nudges — `todo-nudge.ts` counts tool calls since the last `todowrite` and, once
+`TODO_NUDGE_AFTER_CALLS` (6) have passed while the list still has an `in_progress` (else a `pending`)
+item, attaches a `<system-reminder>[meow]` note to the next tool result naming that item. The counter
+resets on every `todowrite` (and after each note, so notes are a window apart), at most
+`MAX_TODO_NUDGES` (2) per run, and a list that is empty or entirely `completed`/`cancelled` is never
+nudged. The note rides on the tool result like every other harness note — it is never a user message.
+A runner without `getTodos` (a subagent) never nudges.
+
 ### `task`
 
 `{ description: string, prompt: string, subagent_type?: string (default 'research'), task_id?: string, background?: boolean }`

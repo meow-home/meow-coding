@@ -255,6 +255,7 @@ Notable details:
 | `snapshots`, `snapshotAgentId` | Undo support; a subagent snapshots under the **parent's** id |
 | `diagnostics(filePath, text)` | LSP diagnostics, injected only when `lsp.enabled` |
 | `setTodos(todos)` | Todo sink (absent for subagents, which is why they never get `todowrite`) |
+| `getTodos()` | Reads the session's current todo list back (a `LoopDeps` dep, not a `ToolContext` field) so the loop can nudge a stale one; absent for subagents, which is also why they never get the nudge |
 | `emitSubagent(taskId, e)` | Bubbles subagent progress up as `subagent-event` |
 | `ask(question)` | Emits `prompt-request` (`kind: 'question'`) and awaits the answer |
 | `onFileRead(filePath)` | Returns a `<system-reminder>` block with nearby `AGENTS.md`/`CLAUDE.md` content, deduped across the session |
@@ -668,7 +669,7 @@ reference, but the next turn must see the new mode.
 - **Precedence:** `AGENTS.md`/`CLAUDE.md` > memory > skills > base `systemPrompt`.
 - **Environment:** `snapshotEnvironment(cwd)` captures platform, shell, cwd, date, and git `{branch, dirtyCount}` (`null` when not a repo); `GitStatusService` has a 5s timeout, so slow/missing git never blocks a turn.
 - **Memory:** per-project `<cwd>/.meow/memory/`, gitignored. `MEMORY.md` index (≤ 200 lines) shown at turn start; the agent `read`s a fact file when relevant. Fact files have frontmatter (`name`, `description`, `metadata.type`) and `[[name]]` links; the agent writes them with the existing `write`/`edit` tools (no new tool). The index is data, not instructions. Toggle: `agents.<name>.memory: false` disables memory.
-- **Reminder injection:** turn start (once per run, via `toLlmOptions.turnContext`, never written to the session store); tool results — `read` attaches nearby instructions (existing), `git` and git-like `bash` append a freshness reminder, `write`/`edit` into the memory dir append a MEMORY.md sync reminder.
+- **Reminder injection:** turn start (once per run, via `toLlmOptions.turnContext`, never written to the session store); tool results — `read` attaches nearby instructions (existing), `git` and git-like `bash` append a freshness reminder, `write`/`edit` into the memory dir append a MEMORY.md sync reminder, and a stale todo list appends a `todowrite` nudge (see [04 — `todowrite`](04-tool-catalog.md#todowrite)).
 
 ## 3.16 Hooks
 

@@ -10,7 +10,8 @@ import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/
 import type { ToolDefinition, ToolRunResult } from '../../src/main/agent/tools/types'
 import type { HooksRunner, PostToolUseResult, PreToolUseResult, StopResult } from '../../src/main/agent/hooks'
 import type { TranscriptItem } from '../../src/main/agent/message'
-import type { ChatEvent, ChatMessage, ToolCallData } from '../../src/shared/types'
+import type { ChatEvent, ChatMessage, TodoItem, ToolCallData } from '../../src/shared/types'
+import { TODO_NUDGE_AFTER_CALLS } from '../../src/main/agent/todo-nudge'
 import { questionTool } from '../../src/main/agent/tools/question'
 
 class StubLlm implements LlmClient {
@@ -1015,6 +1016,63 @@ describe('SessionRunner', () => {
     await new Promise(r => setTimeout(r, 30))
     const toolItem = h.items.find(i => i.kind === 'tool') as Extract<TranscriptItem, { kind: 'tool' }> | undefined
     expect(String(toolItem!.tool.output)).toBe('done')
+  })
+
+  it('nudges a stale todo list after a full window of tool calls', async () => {
+    const todos: TodoItem[] = [{ content: 'write the fix', status: 'in_progress' }]
+    const h = makeHarness({
+      getTodos: () => todos,
+      tools: new Map([['read', stubTool('read')]])
+    })
+    h.llm.queue = [
+      ...Array.from({ length: TODO_NUDGE_AFTER_CALLS }, (_, i) => [
+        { kind: 'tool-call' as const, toolCallId: `tc${i}`, toolName: 'read', toolInput: { file_path: `src/f${i}.ts` } },
+        { kind: 'finish' as const }
+      ]),
+      textParts('done')
+    ]
+    await h.runner.run()
+    const outputs = h.items
+      .filter(i => i.kind === 'tool')
+      .map(i => i.tool.output ?? '')
+    expect(outputs.slice(0, TODO_NUDGE_AFTER_CALLS - 1).join('\n')).not.toContain('<system-reminder>')
+    expect(outputs[TODO_NUDGE_AFTER_CALLS - 1]).toContain('write the fix')
+    expect(outputs[TODO_NUDGE_AFTER_CALLS - 1]).toContain('todowrite')
+    // The note rides on the tool result; it is never a user message.
+    const messages = h.items.filter(i => i.kind === 'message')
+    expect(messages.every(i => !i.message.text.includes('Todo list:'))).toBe(true)
+  })
+
+  it('never nudges without a todo sink (subagents)', async () => {
+    const h = makeHarness({ tools: new Map([['read', stubTool('read')]]) })
+    h.llm.queue = [
+      ...Array.from({ length: TODO_NUDGE_AFTER_CALLS + 1 }, (_, i) => [
+        { kind: 'tool-call' as const, toolCallId: `tc${i}`, toolName: 'read', toolInput: { file_path: `src/f${i}.ts` } },
+        { kind: 'finish' as const }
+      ]),
+      textParts('done')
+    ]
+    await h.runner.run()
+    const outputs = h.items.filter(i => i.kind === 'tool').map(i => i.tool.output ?? '')
+    expect(outputs.join('\n')).not.toContain('Todo list:')
+  })
+
+  it('never nudges a finished todo list', async () => {
+    const todos: TodoItem[] = [{ content: 'write the fix', status: 'completed' }]
+    const h = makeHarness({
+      getTodos: () => todos,
+      tools: new Map([['read', stubTool('read')]])
+    })
+    h.llm.queue = [
+      ...Array.from({ length: TODO_NUDGE_AFTER_CALLS + 1 }, (_, i) => [
+        { kind: 'tool-call' as const, toolCallId: `tc${i}`, toolName: 'read', toolInput: { file_path: `src/f${i}.ts` } },
+        { kind: 'finish' as const }
+      ]),
+      textParts('done')
+    ]
+    await h.runner.run()
+    const outputs = h.items.filter(i => i.kind === 'tool').map(i => i.tool.output ?? '')
+    expect(outputs.join('\n')).not.toContain('Todo list:')
   })
 
   it('feeds back a thrown tool error as its message and still runs the sibling', async () => {
