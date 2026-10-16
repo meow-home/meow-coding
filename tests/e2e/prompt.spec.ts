@@ -57,7 +57,7 @@ test('keyboard 1 triggers allow when panel focused', async () => {
   }
 })
 
-async function launchQuestion() {
+async function launchQuestion(question = 'Please enter your username:') {
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
   const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
   seedWorkspace(userData, project)
@@ -66,12 +66,12 @@ async function launchQuestion() {
   await window.locator('.project-toggle').click()
   await window.locator('.session-list .session-row').first().click()
   await expect(window.locator('.chat-panel')).toBeVisible()
-  await app.evaluate(async ({ BrowserWindow }) => {
+  await app.evaluate(async ({ BrowserWindow }, text) => {
     BrowserWindow.getAllWindows()[0].webContents.send('chat:event', {
       type: 'prompt-request', agentId: 'a1', promptId: 'p1', kind: 'question',
-      question: 'Please enter your username:', custom: true
+      question: text, custom: true
     })
-  })
+  }, question)
   await expect(window.locator('.chat-prompt')).toBeVisible()
   return { app, window }
 }
@@ -82,6 +82,39 @@ test('text-only question submits the typed answer', async () => {
     await window.locator('.chat-prompt-input').fill('nguyen.vana')
     await window.locator('.chat-prompt-actions button', { hasText: 'Send' }).click()
     await expect(window.locator('.chat-prompt')).toHaveCount(0)
+  } finally {
+    await app.close()
+  }
+})
+
+test('a long question grows the card instead of scrolling inside it', async () => {
+  const long = Array.from({ length: 60 }, (_, i) => `Line ${i + 1} of a very long question.`).join('\n\n')
+  const { app, window } = await launchQuestion(long)
+  try {
+    const box = await window.evaluate(() => {
+      const card = document.querySelector('.chat-prompt') as HTMLElement
+      const head = document.querySelector('.chat-prompt-head') as HTMLElement
+      return {
+        overflowY: getComputedStyle(card).overflowY,
+        scrollHeight: card.scrollHeight,
+        clientHeight: card.clientHeight,
+        height: card.getBoundingClientRect().height,
+        viewport: window.innerHeight,
+        headPosition: getComputedStyle(head).position
+      }
+    })
+    // The card is a feed row, so the FEED owns the scrolling: the card must not
+    // cap its own height and scroll its content (a nested scrollbar inside a
+    // scrolling transcript).
+    expect(box.overflowY).not.toBe('auto')
+    expect(box.overflowY).not.toBe('scroll')
+    expect(box.scrollHeight).toBeLessThanOrEqual(box.clientHeight + 1)
+    // Proof the old 50vh cap is gone: the card outgrows half the window.
+    expect(box.height).toBeGreaterThan(box.viewport / 2)
+    // With no scroll container inside the card, a sticky header would resolve
+    // against the feed and pin itself to the feed's top edge while the card is
+    // in view - detaching from the card it belongs to.
+    expect(box.headPosition).toBe('static')
   } finally {
     await app.close()
   }
