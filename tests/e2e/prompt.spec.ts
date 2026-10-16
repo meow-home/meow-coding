@@ -87,23 +87,34 @@ test('text-only question submits the typed answer', async () => {
   }
 })
 
-test('prompt is rendered inside the chat input card', async () => {
+test('prompt is the last row of the chat feed', async () => {
   const { app, window } = await launchPrompt()
   try {
-    const input = await window.locator('.chat-input').boundingBox()
+    // It is a feed row (a child of the transcript content), not a composer child.
+    const placement = await window.evaluate(() => {
+      const prompt = document.querySelector('.chat-prompt')!
+      const content = document.querySelector('.chat-feed-content')!
+      const composer = document.querySelector('.chat-composer')!
+      return { inFeed: content.contains(prompt), inComposer: composer.contains(prompt) }
+    })
+    expect(placement.inFeed).toBe(true)
+    expect(placement.inComposer).toBe(false)
+
+    const feed = await window.locator('.chat-feed').boundingBox()
     const prompt = await window.locator('.chat-prompt').boundingBox()
+    expect(feed).not.toBeNull()
     expect(prompt).not.toBeNull()
-    expect(input).not.toBeNull()
-    // The prompt is in-flow at the top of the input card, so it sits inside it.
-    expect(prompt!.x).toBeGreaterThanOrEqual(input!.x)
-    expect(prompt!.x + prompt!.width).toBeLessThanOrEqual(input!.x + input!.width + 1)
-    expect(prompt!.y).toBeGreaterThanOrEqual(input!.y)
+    // Inside the feed's scroll region, on its lane column.
+    expect(prompt!.y).toBeGreaterThanOrEqual(feed!.y)
+    expect(prompt!.y + prompt!.height).toBeLessThanOrEqual(feed!.y + feed!.height + 1)
+    expect(prompt!.x).toBeGreaterThanOrEqual(feed!.x)
+    expect(prompt!.x + prompt!.width).toBeLessThanOrEqual(feed!.x + feed!.width + 1)
   } finally {
     await app.close()
   }
 })
 
-test('prompt does not overlay the chat feed', async () => {
+test('prompt does not sit in the composer', async () => {
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
   const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
   seedWorkspace(userData, project)
@@ -119,14 +130,14 @@ test('prompt does not overlay the chat feed', async () => {
     })
   })
   await expect(window.locator('.chat-prompt')).toBeVisible()
-  const feedBox = await window.locator('.chat-feed').boundingBox()
+  const composerBox = await window.locator('.chat-composer').boundingBox()
   const prompt = await window.locator('.chat-prompt').boundingBox()
   try {
-    expect(feedBox).not.toBeNull()
+    expect(composerBox).not.toBeNull()
     expect(prompt).not.toBeNull()
-    // The prompt lives in the composer card below the feed, so it must not
-    // overlap the feed region.
-    expect(prompt!.y).toBeGreaterThanOrEqual(feedBox!.y + feedBox!.height)
+    // The prompt lives in the feed above the composer, so it must not overlap
+    // the composer region (the input card and footer stay unobstructed).
+    expect(prompt!.y + prompt!.height).toBeLessThanOrEqual(composerBox!.y + 1)
   } finally {
     await app.close()
   }

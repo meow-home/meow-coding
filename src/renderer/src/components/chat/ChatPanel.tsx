@@ -346,6 +346,16 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     }
   }, [pendingPrompt])
 
+  // The prompt is the last row of the feed (see the render below), so a prompt
+  // that arrives while the user is reading history would be off-screen — and the
+  // agent stays blocked until it is answered. Bring it into view on arrival.
+  const promptId = pendingPrompt?.promptId
+  const jumpToEnd = scroll.jumpToEnd
+  useEffect(() => {
+    if (!promptId) return
+    jumpToEnd()
+  }, [promptId, jumpToEnd])
+
   const loadTranscript = useCallback(() => {
     if (agentId === DRAFT_SESSION_ID) return
     void window.api.listChatTranscript(agentId).then(({ items: tail, hasMore }) => {
@@ -1163,18 +1173,6 @@ if (e.type === 'usage') {
             ))}
           </div>
         )}
-        <div className="chat-latest-boundary" ref={scroll.latestRef} aria-hidden="true" />
-        <div className="chat-turn-tail" ref={scroll.tailRef} aria-hidden="true" />
-        <div ref={scroll.endRef} aria-hidden="true" />
-        </div>
-      </div>
-      {scroll.showJumpToEnd && (
-        <button className="chat-jump-to-end" onClick={scroll.jumpToEnd} title="Scroll to end" aria-label="Scroll to end">
-          <ChevronDown size={16} aria-hidden="true" />
-        </button>
-      )}
-      </div>
-      <div className="chat-composer">
         {pendingPrompt && (
           <div className="chat-prompt" ref={pendingPrompt.promptType === 'permission' ? promptRef : undefined}
             tabIndex={pendingPrompt.promptType === 'permission' ? -1 : undefined}>
@@ -1301,6 +1299,18 @@ if (e.type === 'usage') {
             ))}
           </div>
         )}
+        <div className="chat-latest-boundary" ref={scroll.latestRef} aria-hidden="true" />
+        <div className="chat-turn-tail" ref={scroll.tailRef} aria-hidden="true" />
+        <div ref={scroll.endRef} aria-hidden="true" />
+        </div>
+      </div>
+      {scroll.showJumpToEnd && (
+        <button className="chat-jump-to-end" onClick={scroll.jumpToEnd} title="Scroll to end" aria-label="Scroll to end">
+          <ChevronDown size={16} aria-hidden="true" />
+        </button>
+      )}
+      </div>
+      <div className="chat-composer">
         <ChatInput
           ref={chatInputRef}
           agentId={agentId}

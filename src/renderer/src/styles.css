@@ -1426,8 +1426,9 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 }
 .tool-cluster-body > .tool-call:last-child { border-bottom: 0; }
 
-/* Prompt (permission / question) — rendered in-flow at the top of the chat
-   input card, so it never overlays the chat history. */
+/* Prompt (permission / question) — the last row of the chat feed (like the
+   meow-chatui PromptCard): it scrolls with the transcript instead of sitting
+   above the composer, so it reads as part of the conversation it interrupts. */
 .chat-prompt {
   border: 0.083333rem solid var(--hairline);
   border-radius: var(--radius-lg);
@@ -1532,7 +1533,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 
 /* Composer */
 /* Full panel width, inset by the lane as padding: the composer surface still reaches the panel edges,
-   while its children (prompt popup, input card, footer) land on the lane column. */
+   while its children (input card, footer) land on the lane column. */
 .chat-composer { max-width: 100%; display: flex; flex-direction: column; gap: 0.5rem; padding-block: 0.833333rem 1rem; padding-inline: var(--chat-inset); background: var(--bg-chat); }
 .chat-input {
   display: flex; flex-direction: column; gap: 0.5rem;
