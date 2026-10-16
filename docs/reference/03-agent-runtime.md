@@ -273,6 +273,21 @@ that call's tool result and does not also inject a feed notification. When the 6
 window expires or is aborted, its waiter detaches; a later resolution follows the normal background
 notification/wakeup path instead of being silently consumed.
 
+### Question echo
+
+A `question` call's answer is the user's own words, so the loop echoes it into the transcript as a
+real user message (`SessionRunner.echoQuestionAnswer`, fed by the `metadata.answer` the tool
+returns): the feed reads as a conversation instead of burying the answer inside the tool card, and
+the model sees it as a user turn too. The echo is appended **after** `finishCall`, because the tool
+row is only appended once the tool has run — echoing from inside the tool would store the answer
+before the question and make a reload disagree with the live feed. An unanswered (empty/cancelled)
+question carries no metadata and is not echoed.
+
+The model genuinely receives the answer twice (the `User answered: X` tool result and the user turn
+`X`), which has two knock-on effects: `toLlmMessages`' `lastUserIndex` moves to the echo, so the
+question step's reasoning is no longer replayed on the next step, and the extra turn boundary makes
+`recentTurnStart` (compaction) truncate older tool output slightly sooner.
+
 ### Instruction attachment on read
 
 `onFileRead` implements opencode's behavior: when the model reads a file, the nearest

@@ -219,4 +219,14 @@ describe('question', () => {
     const r = await questionTool.run({ question: 'unanswered' }, ctx)
     expect(r.error).toMatch(/did not answer/)
   })
+
+  it('exposes the answer in metadata so the loop can echo it as a user message', async () => {
+    const r = await questionTool.run({ question: 'what is your name?' }, ctx)
+    expect(r.metadata).toEqual({ answer: 'meow' })
+  })
+
+  it('exposes no answer metadata when the user did not answer', async () => {
+    const r = await questionTool.run({ question: 'unanswered' }, ctx)
+    expect(r.metadata).toBeUndefined()
+  })
 })

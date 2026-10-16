@@ -188,8 +188,10 @@ the home directory.
 `{ question: string, header?: string, options?: [{label, description?}], multiple?: boolean, custom?: boolean }`
 
 Emits a `prompt-request` with `kind: 'question'` and blocks until the user answers. Returns
-`User answered: <answer>`; an empty/cancelled answer is an error. The system prompt explicitly tells
-the agent to use this instead of writing questions as plain text.
+`User answered: <answer>`; an empty/cancelled answer is an error. The answer also rides in
+`metadata.answer`, which the loop echoes into the transcript as a real user message (see
+[03](03-agent-runtime.md#question-echo)). The system prompt explicitly tells the agent to use this
+instead of writing questions as plain text.
 
 ### `todowrite`
 

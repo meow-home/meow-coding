@@ -537,6 +537,7 @@ export class SessionRunner {
         for (const d of batch) {
           const verdictForCall = this.finishCall(d.call, cut && d.call === lastCall ? cut : undefined)
           if (verdictForCall) tripped = verdictForCall
+          this.echoQuestionAnswer(d.call)
         }
       }
 
@@ -670,6 +671,22 @@ export class SessionRunner {
     this.deps.appendTool(call)
     this.deps.onEvent({ type: 'tool-result', agentId: this.deps.agentId, call })
     return tripped
+  }
+
+  // The `question` tool's answer is the user's own words, so it is echoed into
+  // the transcript as a real user message: the feed then reads as a
+  // conversation instead of burying the answer in the tool card, and the model
+  // sees it as a user turn too. Called AFTER finishCall — the tool row is
+  // appended there, once the tool has run, so echoing from inside the tool
+  // would put the answer before the question and make a reload (which reads the
+  // stored order) disagree with the live feed.
+  private echoQuestionAnswer(call: ToolCallData): void {
+    if (call.tool !== 'question') return
+    const answer = call.metadata?.answer
+    if (typeof answer !== 'string' || !answer.trim()) return
+    const msg: ChatMessage = { id: randomUUID(), role: 'user', text: answer, displayText: answer, createdAt: Date.now() }
+    this.deps.appendMessage(msg)
+    this.deps.onEvent({ type: 'user-message', agentId: this.deps.agentId, message: msg })
   }
 
   private logRecovery(hit: RecoveryHit, channel: 'text' | 'reasoning' | undefined, level: RecoveryLevel, step: number, tail: string): void {

@@ -46,6 +46,8 @@ export const questionTool: ToolDefinition = {
     if (answer === null || answer.trim() === '') {
       return { error: 'question: user did not answer' }
     }
-    return { output: `User answered: ${answer}` }
+    // `answer` rides along in metadata so the loop can echo the user's own words
+    // into the transcript as a user message (see SessionRunner.echoQuestionAnswer).
+    return { output: `User answered: ${answer}`, metadata: { answer } }
   }
 }

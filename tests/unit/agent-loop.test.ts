@@ -358,6 +358,40 @@ describe('SessionRunner', () => {
     const resultEvent = h.events.find(e => e.type === 'tool-result') as Extract<ChatEvent, { type: 'tool-result' }>
     expect(resultEvent.call.output).toBe('got: yes')
   })
+  it('echoes the question tool answer into the transcript as a user message after the tool row', async () => {
+    const h = makeHarness({ tools: new Map([['question', questionTool]]) })
+    h.ask.mockImplementation(async () => ({ allow: true, text: 'PostgreSQL' }))
+    h.llm.queue = [
+      [{ kind: 'tool-call', toolCallId: 'tc1', toolName: 'question', toolInput: { question: 'which db?' } }, { kind: 'finish' }],
+      textParts('thanks')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    const userRows = h.items.filter(i => i.kind === 'message' && i.message.role === 'user')
+    expect(userRows.length).toBe(1)
+    expect(userRows[0].kind === 'message' && userRows[0].message.text).toBe('PostgreSQL')
+    // The echo lands AFTER the tool row: the tool row is appended by finishCall,
+    // once the tool has run, so appending from inside the tool would put the
+    // answer before the question and make a reload disagree with the live feed.
+    expect(h.items.indexOf(userRows[0])).toBeGreaterThan(h.items.findIndex(i => i.kind === 'tool'))
+    const echo = h.events.find(e => e.type === 'user-message') as Extract<ChatEvent, { type: 'user-message' }>
+    expect(echo.message.text).toBe('PostgreSQL')
+    expect(echo.message.displayText).toBe('PostgreSQL')
+  })
+
+  it('does not echo a question the user never answered', async () => {
+    const h = makeHarness({ tools: new Map([['question', questionTool]]) })
+    h.ask.mockImplementation(async () => null)
+    h.llm.queue = [
+      [{ kind: 'tool-call', toolCallId: 'tc1', toolName: 'question', toolInput: { question: 'which db?' } }, { kind: 'finish' }],
+      textParts('thanks')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    expect(h.items.some(i => i.kind === 'message' && i.message.role === 'user')).toBe(false)
+    expect(h.events.some(e => e.type === 'user-message')).toBe(false)
+  })
+
   it('normalizes malformed question options so they never reach the UI as a non-array', async () => {
     const h = makeHarness({
       tools: new Map([['question', questionTool]])

@@ -210,7 +210,7 @@ The full agent-behavior stream. Every variant carries `agentId`.
 | `type` | Payload | Meaning |
 |---|---|---|
 | `turn-started` | — | A turn began; the UI clears transient state and shows the stop button |
-| `user-message` | `message: ChatMessage` | A user message was appended (direct send or steered) |
+| `user-message` | `message: ChatMessage` | A user message was appended (direct send, steered, or a `question` tool answer echoed by the loop) |
 | `text-delta` | `delta: string` | Streamed assistant text |
 | `reasoning-delta` | `delta: string` | Streamed reasoning text |
 | `step-start` | `step: number` | A model request is about to start (display-only; the UI opens a new bubble for the step) |
