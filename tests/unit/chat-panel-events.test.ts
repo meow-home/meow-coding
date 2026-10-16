@@ -533,4 +533,79 @@ describe('ChatPanel reasoning across a tool call', () => {
     expect(noteAt).toBeGreaterThanOrEqual(0)
     expect(toolAt).toBeGreaterThan(noteAt)
   })
+  it('skipping a question ends the turn and closes the prompt', async () => {
+    let resolveTranscript!: (page: TranscriptPage) => void
+    const transcript = new Promise<TranscriptPage>(resolve => { resolveTranscript = resolve })
+    let onEvent: ((event: ChatEvent) => void) | undefined
+    const stopChat = vi.fn(async () => undefined)
+    const api = new Proxy({}, {
+      get: (_target, key) => {
+        if (key === 'listChatTranscript') return () => transcript
+        if (key === 'onChatEvent') return (listener: (event: ChatEvent) => void) => { onEvent = listener; return () => {} }
+        if (key === 'stopChat') return stopChat
+        if (key === 'getAgentVariants' || key === 'getChatTodos' || key === 'listCommands' || key === 'listModels') {
+          return async () => []
+        }
+        if (key === 'getContextInfo') return async () => ({ limit: 128000, compactThreshold: 100000, sessionCost: 0 })
+        if (key === 'isChatRunning') return async () => true
+        if (key === 'getPendingPrompt') return async () => null
+        return async () => undefined
+      }
+    }) as Window['api']
+    Object.defineProperty(window, 'api', { configurable: true, value: api })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => { root?.render(createElement(ChatPanel, { agentId: 'agent-1', cwd: 'C:\repo' })) })
+    act(() => onEvent?.({
+      type: 'prompt-request', agentId: 'agent-1', promptId: 'p1', kind: 'question',
+      question: 'Which database?', options: [{ label: 'PostgreSQL' }], custom: true
+    }))
+    await act(async () => { resolveTranscript({ items: [], hasMore: false }); await transcript })
+
+    const skip = container.querySelector<HTMLButtonElement>('.chat-prompt-skip')
+    expect(skip).not.toBeNull()
+    await act(async () => { skip!.click() })
+
+    // Skip is the composer's Stop: it ends the turn. The prompt must close on
+    // its own rather than wait for a `done` event that may never arrive.
+    expect(stopChat).toHaveBeenCalledWith('agent-1')
+    expect(container.querySelector('.chat-prompt')).toBeNull()
+  })
+  it('offers Skip on a multiple-select question', async () => {
+    let resolveTranscript!: (page: TranscriptPage) => void
+    const transcript = new Promise<TranscriptPage>(resolve => { resolveTranscript = resolve })
+    let onEvent: ((event: ChatEvent) => void) | undefined
+    const api = new Proxy({}, {
+      get: (_target, key) => {
+        if (key === 'listChatTranscript') return () => transcript
+        if (key === 'onChatEvent') return (listener: (event: ChatEvent) => void) => { onEvent = listener; return () => {} }
+        if (key === 'getAgentVariants' || key === 'getChatTodos' || key === 'listCommands' || key === 'listModels') {
+          return async () => []
+        }
+        if (key === 'getContextInfo') return async () => ({ limit: 128000, compactThreshold: 100000, sessionCost: 0 })
+        if (key === 'isChatRunning') return async () => true
+        if (key === 'getPendingPrompt') return async () => null
+        return async () => undefined
+      }
+    }) as Window['api']
+    Object.defineProperty(window, 'api', { configurable: true, value: api })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => { root?.render(createElement(ChatPanel, { agentId: 'agent-1', cwd: 'C:\repo' })) })
+    act(() => onEvent?.({
+      type: 'prompt-request', agentId: 'agent-1', promptId: 'p1', kind: 'question',
+      question: 'Which databases?', options: [{ label: 'PostgreSQL' }, { label: 'SQLite' }], multiple: true
+    }))
+    await act(async () => { resolveTranscript({ items: [], hasMore: false }); await transcript })
+
+    // The multi-select shape has its own Send row; Skip must be offered there
+    // too, not only on the shapes that render a text input.
+    const row = container.querySelector('.chat-prompt-actions')!
+    expect(row.textContent).toContain('Send')
+    expect(row.querySelector('.chat-prompt-skip')).not.toBeNull()
+  })
 })

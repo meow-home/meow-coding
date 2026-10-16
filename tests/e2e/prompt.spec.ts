@@ -87,6 +87,17 @@ test('text-only question submits the typed answer', async () => {
   }
 })
 
+test('skip closes the question prompt', async () => {
+  const { app, window } = await launchQuestion()
+  try {
+    await window.locator('.chat-prompt-skip').click()
+    // Skip ends the turn; the card must not wait for a `done` event to close.
+    await expect(window.locator('.chat-prompt')).toHaveCount(0)
+  } finally {
+    await app.close()
+  }
+})
+
 test('a long question grows the card instead of scrolling inside it', async () => {
   const long = Array.from({ length: 60 }, (_, i) => `Line ${i + 1} of a very long question.`).join('\n\n')
   const { app, window } = await launchQuestion(long)

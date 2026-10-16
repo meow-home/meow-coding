@@ -184,8 +184,13 @@ Chat conventions:
   cap and no overflow of its own: the feed is already the scroll container, so a long question grows
   the card and the transcript scrolls, rather than nesting a second scrollbar inside the card (and
   the prompt header is not sticky, since with no inner scroll container it would resolve against the
-  feed and pin itself to the feed's top edge while the card is in view). Pinned by
-  `tests/e2e/prompt.spec.ts` and `tests/e2e/chat-lane.spec.ts`.
+  feed and pin itself to the feed's top edge while the card is in view). A question prompt also
+  offers **Skip** (`.chat-prompt-skip`, next to Send — or sharing the hint row on a single-select
+  question): it declines to answer and ends the turn through the same `stopChat` the composer's Stop
+  uses, so the tool reports the question as unanswered and the next turn still sees it, and the
+  prompt is cleared locally too (it must not wait for a `done` event that may never arrive).
+  Permission prompts are unchanged — Deny already covers them. Pinned by `tests/e2e/prompt.spec.ts`
+  and `tests/e2e/chat-lane.spec.ts`.
 - Feed items are updated **copy-on-write**; never mutate in place, or `memo()` stops working.
 - Images travel as data URLs inside `ImageAttachment`; only `image/*` is accepted.
 - The message queue shows `queued` badge rows supporting remove/edit via

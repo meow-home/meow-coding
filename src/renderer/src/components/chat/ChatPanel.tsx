@@ -945,6 +945,15 @@ if (e.type === 'usage') {
     respond(pendingPrompt.promptId, true, text)
   }, [pendingPrompt, customInput, questionText, selectedOptions, respond])
 
+  // Skip is the composer's Stop: the user declines to answer and the turn ends
+  // (the tool reports the question as unanswered, so the next turn still sees
+  // it). The prompt is cleared here as well, so the card cannot linger when the
+  // turn had already finished and no `done` event is coming.
+  const skipQuestion = useCallback(() => {
+    setPendingPrompt(null)
+    void window.api.stopChat(agentId)
+  }, [agentId])
+
   const startCustomInput = useCallback(() => {
     setCustomInput(v => !v)
     if (pendingPrompt && !pendingPrompt.multiple) setSelectedOptions([])
@@ -1279,6 +1288,7 @@ if (e.type === 'usage') {
                       }}
                     />
                     <button onClick={submitQuestion}>Send</button>
+                    <button className="chat-prompt-skip" onClick={skipQuestion}>Skip</button>
                   </div>
                 )}
                 {!!pendingPrompt.options?.length && pendingPrompt.multiple && !customInput && (
@@ -1290,10 +1300,14 @@ if (e.type === 'usage') {
                     >
                       Send
                     </button>
+                    <button className="chat-prompt-skip" onClick={skipQuestion}>Skip</button>
                   </div>
                 )}
                 {!!pendingPrompt.options?.length && !customInput && (
-                  <div className="chat-prompt-hint">↑/↓ to navigate, Enter to select</div>
+                  <div className="chat-prompt-hint-row">
+                    <span className="chat-prompt-hint">↑/↓ to navigate, Enter to select</span>
+                    <button className="chat-prompt-skip" onClick={skipQuestion}>Skip</button>
+                  </div>
                 )}
               </>
             ))}

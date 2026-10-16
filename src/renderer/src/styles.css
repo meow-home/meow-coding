@@ -1521,8 +1521,10 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .chat-option-label { white-space: pre-wrap; word-break: break-word; }
 .chat-option-desc { color: var(--text-dim); font-size: var(--fs-base); white-space: pre-wrap; word-break: break-word; }
 .chat-prompt-actions { display: flex; gap: 0.666667rem; align-items: center; }
-.chat-prompt-actions button { padding: 0.5rem 1.166667rem; background: var(--bg-input); color: var(--text-strong); cursor: pointer; border: 0.083333rem solid var(--hairline); border-radius: var(--radius); transition: border-color 120ms ease, background 120ms ease; }
-.chat-prompt-actions button:hover { background: var(--bg-input-hover); border-color: var(--accent-border); }
+.chat-prompt-actions button,
+.chat-prompt-skip { padding: 0.5rem 1.166667rem; background: var(--bg-input); color: var(--text-strong); cursor: pointer; border: 0.083333rem solid var(--hairline); border-radius: var(--radius); transition: border-color 120ms ease, background 120ms ease; }
+.chat-prompt-actions button:hover,
+.chat-prompt-skip:hover { background: var(--bg-input-hover); border-color: var(--accent-border); }
 .chat-prompt-actions button.focused { outline: 0.083333rem solid var(--accent); outline-offset: -0.083333rem; }
 .chat-prompt-actions button.allow { color: var(--green); }
 .chat-prompt-actions button.always { color: var(--accent); }
@@ -2803,6 +2805,9 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   padding: 0 0.416667rem; margin-left: 0.333333rem; color: var(--text-dim);
 }
 .chat-prompt-hint { font-size: var(--fs-base); color: var(--text-dim); }
+/* Single-select questions answer on click, so their only row is the hint: it
+   shares the row with Skip, hint left and button right. */
+.chat-prompt-hint-row { display: flex; align-items: center; justify-content: space-between; gap: 0.666667rem; }
 
 /* MCP status */
 .mcp-status { border-top: 0.083333rem solid var(--hairline); padding-top: 0.666667rem; display: flex; flex-direction: column; gap: 0.333333rem; }
