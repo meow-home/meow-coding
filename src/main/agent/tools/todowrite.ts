@@ -29,6 +29,7 @@ const TODOWRITE_DESCRIPTION = [
   '## Rules',
   '- Update status in real time; don\'t batch completions',
   '- Mark `completed` only after the work is actually done, including verification — never based on intent',
+  '- When every item is `completed` or `cancelled`, the list is cleared automatically — send the final finished list, no empty-list call is needed',
   '- Keep exactly one `in_progress` while work remains',
   '- If blocked or partial, keep it `in_progress` and add a follow-up todo describing the blocker',
   '- Items should be specific and actionable; break large work into smaller steps'
@@ -52,7 +53,16 @@ export const todowriteTool: ToolDefinition = {
     let todos: TodoItem[] = Array.isArray(input.todos)
       ? (input.todos as unknown as TodoItem[])
       : []
+    // A finished list has served its purpose: once nothing is pending or in
+    // progress the session todos reset to [], so the renderer's pill disappears
+    // and a later turn starts from a clean slate instead of inheriting a stale
+    // all-completed list.
+    const cleared = todos.length > 0 && todos.every(t => t.status === 'completed' || t.status === 'cancelled')
+    if (cleared) todos = []
     ctx.setTodos?.(todos)
-    return { output: JSON.stringify(todos, null, 2) }
+    const output = cleared
+      ? `${JSON.stringify(todos, null, 2)}\n\nTodo list cleared: every item was completed or cancelled.`
+      : JSON.stringify(todos, null, 2)
+    return { output }
   }
 }

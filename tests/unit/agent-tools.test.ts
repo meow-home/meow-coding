@@ -194,6 +194,33 @@ describe('todowrite', () => {
     expect(saved[0]).toEqual([])
     expect(r.output).toBe('[]')
   })
+
+  it('resets the list to [] once every item is completed or cancelled', async () => {
+    const saved: unknown[] = []
+    const todoCtx: ToolContext = { cwd: '', ask: async () => null, setTodos: (t) => saved.push(t) }
+    const r = await todowriteTool.run({
+      todos: [
+        { content: 'a', status: 'completed' },
+        { content: 'b', status: 'cancelled' }
+      ]
+    }, todoCtx)
+    expect(saved).toEqual([[]])
+    expect(r.output).toContain('[]')
+    expect(r.output).toContain('cleared')
+  })
+
+  it('keeps the list while any item is still pending or in progress', async () => {
+    const saved: Array<Array<{ content: string; status: string }>> = []
+    const todoCtx: ToolContext = { cwd: '', ask: async () => null, setTodos: (t) => saved.push(t) }
+    const r = await todowriteTool.run({
+      todos: [
+        { content: 'a', status: 'completed' },
+        { content: 'b', status: 'pending' }
+      ]
+    }, todoCtx)
+    expect(saved[0]).toHaveLength(2)
+    expect(r.output).not.toContain('cleared')
+  })
 })
 
 describe('question', () => {

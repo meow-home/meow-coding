@@ -200,7 +200,10 @@ instead of writing questions as plain text.
 Writes to the session's todo list and emits `todo-updated`. Its description is a full usage policy
 ported from opencode (use for 3+ step work, exactly one `in_progress`, update in real time, never
 mark complete on intent). A malformed `todos` value (a string instead of an array) is sanitized to
-`[]` before persisting. **Subagents never receive this tool** — their runner has no `setTodos` sink.
+`[]` before persisting. Once every item is `completed` or `cancelled` the stored list resets to `[]`
+(the pill disappears and the next turn starts clean); the tool output says the list was cleared, so
+the model is not surprised by the empty state. **Subagents never receive this tool** — their runner
+has no `setTodos` sink.
 
 A description alone does not hold: models build the list and then stop updating it. So the loop
 also nudges — `todo-nudge.ts` counts tool calls since the last `todowrite` and, once
