@@ -31,7 +31,7 @@ commands, references, compaction and usage accounting. Orchestrated by `MeowAgen
 | `run-context.ts` | `AgentRunContext` (fixed per-turn identity), `AgentTurnResult`, `DelegatedTurnInput`, `DelegationResultInput` — the shared contracts between the manager's fixed-session runs and the `SessionDelegationService`. |
 | `permission.ts` | Permission rules (allow/ask/deny) + matcher used by `decidePermission`; `ToolPermissionContext` + `decide` gate every tool call, and `deriveSubagentContext` narrows the parent's context for a subagent (deny > ask > allow, no prompting in background). |
 | `subagent-roles.ts` | Subagent role discovery: `.meow/agents/*.md` (project) → user dir → built-ins, first-wins by name; frontmatter (`name`, `description`, `tools`, `model`, `deny`, `ask`) can only narrow permissions — there is no `allow` key. |
-| `commands.ts` | Slash commands: built-ins (init/review/Superpowers skills; system commands `new` and `compact`, dispatched by the manager) + user store (`commands.json`) + `resolveCommand`/`expandReferences`-aware templates. |
+| `commands.ts` | Slash commands: built-ins (init/review/frontend-design; system commands `new` and `compact`, dispatched by the manager) + user store (`commands.json`) + `resolveCommand`/`expandReferences`-aware templates. |
 | `references.ts` | `expandReferences`: expands `@path` / `@"path with space"` mentions into file contents appended to the prompt. |
 | `snapshot.ts` | `SnapshotStore`: per-turn file snapshots for undo/redo. |
 | `saved-permissions.ts` | Persists "always allow" tool permissions (`permissions.json`). |

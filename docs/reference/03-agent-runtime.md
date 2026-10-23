@@ -657,7 +657,6 @@ Built-ins:
 | `/new` | **system** | Creates a new session and emits `session-created` — never reaches the LLM |
 | `/compact [focus]` | **system** | Summarizes older context now (next step boundary if a turn is running); never creates a user message |
 | `/frontend-design` | prompt | Invokes the `frontend-design` skill with `$ARGUMENTS` |
-| `/<skill-name>` ×15 | prompt | Invokes the corresponding Superpowers skill: `brainstorming`, `diagnosing-superpowers`, `dispatching-parallel-agents`, `executing-plans`, `finishing-a-development-branch`, `receiving-code-review`, `requesting-code-review`, `subagent-driven-development`, `systematic-debugging`, `test-driven-development`, `using-git-worktrees`, `using-superpowers`, `verification-before-completion`, `writing-plans`, `writing-skills` |
 
 Built-in commands cannot be removed. Template resolution (`resolveCommandTemplate`):
 

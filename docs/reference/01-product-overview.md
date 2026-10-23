@@ -125,7 +125,7 @@ straight to the code.
   compaction, cost tracking, MCP, skills, steering) is explicitly modeled on it. The feature-by-feature
   comparison lives in `docs/superpowers/notes/2026-08-05-opencode-feature-diff.md`, and several
   source comments say "mirrors opencode …" to mark the reference behavior.
-- **obra/superpowers** — the bundled workflow skills and Superpowers commands.
+- **obra/superpowers** — workflow conventions and planning design concepts.
 - **anthropics/skills** (Apache-2.0) — the bundled frontend/design skills, shipped verbatim with
   their license files.
 - **iOfficeAI/OfficeCLI** (Apache-2.0) — the `office` tool backend.

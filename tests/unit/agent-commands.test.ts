@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
-  CommandStore, INIT_COMMAND, REVIEW_COMMAND, FRONTEND_DESIGN_COMMAND, SUPERPOWERS_COMMANDS,
+  CommandStore, INIT_COMMAND, REVIEW_COMMAND, FRONTEND_DESIGN_COMMAND,
   projectCommands, uniqueCommands, resolveCommandTemplate, resolveShell, resolveCommand
 } from '../../src/main/agent/commands'
 
@@ -62,11 +62,12 @@ describe('CommandStore', () => {
     const list = store.list()
     expect(list.map(c => c.name)).toContain('init')
     expect(list.map(c => c.name)).toContain('review')
-    expect(list.map(c => c.name)).toContain('using-superpowers')
-    expect(list.map(c => c.name)).toContain('brainstorming')
+    expect(list.map(c => c.name)).toContain('frontend-design')
+    expect(list.map(c => c.name)).not.toContain('using-superpowers')
+    expect(list.map(c => c.name)).not.toContain('brainstorming')
 
-    const brainstormingCmd = list.find(c => c.name === 'brainstorming')
-    expect(brainstormingCmd?.builtIn).toBe(true)
+    const fdCmd = list.find(c => c.name === 'frontend-design')
+    expect(fdCmd?.builtIn).toBe(true)
 
     const initCmd = list.find(c => c.name === 'init')
     expect(initCmd?.builtIn).toBe(true)
@@ -93,21 +94,6 @@ describe('CommandStore', () => {
       expect(out).toContain('Use the `frontend-design` skill for this request and follow it strictly.')
       expect(out).toContain('Read AGENTS.md before taking action.')
       expect(out).toContain('User request:\nredesign the landing page')
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
-  it('superpowers commands resolve $ARGUMENTS into the skill dispatch prompt', async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), 'meow-sp-'))
-    try {
-      const cmd = SUPERPOWERS_COMMANDS.find(c => c.name === 'using-superpowers')
-      expect(cmd).toBeDefined()
-      const out = await resolveCommand(cmd!, 'analyze the build config', { cwd: dir, commands: [] })
-      expect(out).toContain('Use the Superpowers skill `using-superpowers`')
-      expect(out).toContain('Read AGENTS.md before taking action.')
-      expect(out).toContain('User request:\nanalyze the build config')
-      expect(SUPERPOWERS_COMMANDS.length).toBeGreaterThanOrEqual(14)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

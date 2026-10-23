@@ -464,33 +464,39 @@ describe('MeowAgentManager', () => {
   })
 
   it('respondPrompt allow lets a permission-ask tool run', async () => {
-    const { manager: m2, events: evts } = await makeManager({
-      partsQueue: [
-        [
-          { kind: 'tool-call', toolCallId: 'tc1', toolName: 'websearch', toolInput: { query: 'meow' } },
-          { kind: 'finish' }
-        ],
-        [{ kind: 'text', text: 'ok' }, { kind: 'finish' }]
-      ]
-    })
-    m2.newSession('a1')
-    const sendPromise = m2.send('a1', 'search web')
-    // wait for prompt-request, then allow
-    await new Promise<void>(resolve => {
-      const t = setInterval(() => {
-        const p = evts.find(e => e.type === 'prompt-request') as Extract<ChatEvent, { type: 'prompt-request' }> | undefined
-        if (p) {
-          clearInterval(t)
-          m2.respondPrompt('a1', p.promptId, { allow: true } satisfies PromptResponse)
-          resolve()
-        }
-      }, 5)
-    })
-    await sendPromise
-    const result = evts.find(e => e.type === 'tool-result') as Extract<ChatEvent, { type: 'tool-result' }>
-    expect(result).toBeDefined()
-    expect(result.call.permission).toBe('allowed')
-    expect(result.call.error).toMatch(/TAVILY_API_KEY/)
+    const prevKey = process.env.TAVILY_API_KEY
+    delete process.env.TAVILY_API_KEY
+    try {
+      const { manager: m2, events: evts } = await makeManager({
+        partsQueue: [
+          [
+            { kind: 'tool-call', toolCallId: 'tc1', toolName: 'websearch', toolInput: { query: 'meow' } },
+            { kind: 'finish' }
+          ],
+          [{ kind: 'text', text: 'ok' }, { kind: 'finish' }]
+        ]
+      })
+      m2.newSession('a1')
+      const sendPromise = m2.send('a1', 'search web')
+      // wait for prompt-request, then allow
+      await new Promise<void>(resolve => {
+        const t = setInterval(() => {
+          const p = evts.find(e => e.type === 'prompt-request') as Extract<ChatEvent, { type: 'prompt-request' }> | undefined
+          if (p) {
+            clearInterval(t)
+            m2.respondPrompt('a1', p.promptId, { allow: true } satisfies PromptResponse)
+            resolve()
+          }
+        }, 5)
+      })
+      await sendPromise
+      const result = evts.find(e => e.type === 'tool-result') as Extract<ChatEvent, { type: 'tool-result' }>
+      expect(result).toBeDefined()
+      expect(result.call.permission).toBe('allowed')
+      expect(result.call.error).toMatch(/TAVILY_API_KEY/)
+    } finally {
+      if (prevKey !== undefined) process.env.TAVILY_API_KEY = prevKey
+    }
   })
 
   it('getPendingPrompt returns the in-flight permission prompt so a remounted panel can restore it', async () => {
@@ -1367,17 +1373,17 @@ describe('MeowAgentManager', () => {
     expect(stored?.text).toBe(echo.message.text)
   })
 
-  it('brainstorming bubble shows the raw slash input, not the resolved template', async () => {
+  it('frontend-design bubble shows the raw slash input, not the resolved template', async () => {
     const { manager, events } = await makeManager()
-    expect(manager.listCommands('/proj').map(c => c.name)).toContain('brainstorming')
-    await manager.runCommand('a1', 'brainstorming', 'tôi test')
+    expect(manager.listCommands('/proj').map(c => c.name)).toContain('frontend-design')
+    await manager.runCommand('a1', 'frontend-design', 'tôi test')
     const echo = events.find(e => e.type === 'user-message') as Extract<ChatEvent, { type: 'user-message' }>
-    expect(echo.message.displayText).toBe('/brainstorming tôi test')
-    expect(echo.message.text).toContain('Use the Superpowers skill `brainstorming`')
+    expect(echo.message.displayText).toBe('/frontend-design tôi test')
+    expect(echo.message.text).toContain('Use the `frontend-design` skill')
     expect(echo.message.text).toContain('User request:')
     expect(echo.message.text).toContain('tôi test')
     // Renderer shows displayText ?? text → the raw slash input.
-    expect(echo.message.displayText ?? echo.message.text).toBe('/brainstorming tôi test')
+    expect(echo.message.displayText ?? echo.message.text).toBe('/frontend-design tôi test')
   })
 
   it('queues displayText alongside the resolved text when a turn is running', async () => {

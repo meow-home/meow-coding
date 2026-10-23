@@ -18,12 +18,11 @@ agent ships with a chat UI, tool registry, sessions, permissions, and skill syst
   between them from the sidebar. A session you are not looking at stays mounted and keeps running.
 - **Native Meow agent** — a first-party coding agent with chat UI, streaming output, markdown
   rendering, tool-call cards, image attachments, and undo/redo.
-- **Slash commands** — `/init`, `/review`, `/new`, `/compact`, `/frontend-design`, and Superpowers
-  workflows (such as `/brainstorming`, `/writing-plans`), plus custom commands with `$1..$N`,
-  `$ARGUMENTS`, `@path` references and `` !`cmd` `` shell interpolation.
-- **Bundled skills** — 21 skills loadable by the agent: 15 Superpowers workflow skills, 5 Anthropic
-  front-end/design skills (`frontend-design`, `canvas-design`, `theme-factory`, `brand-guidelines`,
-  `web-artifacts-builder`), and `katalon-studio`.
+- **Slash commands** — `/init`, `/review`, `/new`, `/compact`, `/frontend-design`, plus custom commands
+  with `$1..$N`, `$ARGUMENTS`, `@path` references and `` !`cmd` `` shell interpolation.
+- **Bundled skills** — 6 skills loadable by the agent: 5 Anthropic front-end/design skills
+  (`frontend-design`, `canvas-design`, `theme-factory`, `brand-guidelines`, `web-artifacts-builder`),
+  and `katalon-studio`.
 - **Sessions** — create / switch / rename / delete conversations from the sidebar, with auto-title
   and per-session undo/redo through file snapshots.
 - **Subagents & delegation** — the `task` tool spawns isolated subagents with narrowed permissions,

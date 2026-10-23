@@ -150,30 +150,16 @@ describe('bash tool', () => {
     expect(r.output).toMatch(/khong ton tai|fallback/i)
   }, 20000)
 
-  it('runs the bundled superpowers SDD scripts (git bash)', async () => {
+  it('runs a bash script on windows using git bash', async () => {
     if (process.platform !== 'win32') return
-    const dir = mkdtempSync(path.join(tmpdir(), 'meow-sdd-'))
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-bash-'))
     try {
-      execFileSync('git', ['init', '-q'], { cwd: dir })
-      execFileSync('git', ['config', 'user.email', 't@t'], { cwd: dir })
-      execFileSync('git', ['config', 'user.name', 't'], { cwd: dir })
-      mkdirSync(path.join(dir, 'docs', 'superpowers', 'plans'), { recursive: true })
-      writeFileSync(path.join(dir, 'docs', 'superpowers', 'plans', 'test.md'),
-        '# Plan\n\n### Task 1: first\n\nstep a\n\n### Task 2: second\n\nstep b\n')
-      const skillDir = path.join(process.cwd(), 'resources', 'skills', 'subagent-driven-development')
-      const sddWorkspace = path.join(skillDir, 'scripts', 'sdd-workspace')
-      const taskBrief = path.join(skillDir, 'scripts', 'task-brief')
-      const plan = 'docs/superpowers/plans/test.md'
+      const script = path.join(dir, 'test.sh')
+      writeFileSync(script, '#!/usr/bin/env bash\necho "hello from git bash"\n')
       const ctx2: ToolContext = { cwd: dir, ask: async () => null }
-
-      const ws = await bashTool.run({ command: `bash "${sddWorkspace}" "${plan}"` }, ctx2)
-      expect(ws.error ?? '').toBe('')
-      expect(ws.output).toMatch(/\.superpowers[/\\]sdd[/\\]test$/)
-
-      const brief = await bashTool.run({ command: `bash "${taskBrief}" "${plan}" 1` }, ctx2)
-      expect(brief.error ?? '').toBe('')
-      expect(existsSync(path.join(dir, '.superpowers', 'sdd', 'test', 'task-1-brief.md'))).toBe(true)
-      expect(brief.output).toContain('wrote')
+      const res = await bashTool.run({ command: `bash "${script}"` }, ctx2)
+      expect(res.error ?? '').toBe('')
+      expect(res.output).toContain('hello from git bash')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
