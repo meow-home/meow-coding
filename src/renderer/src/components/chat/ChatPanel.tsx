@@ -11,7 +11,7 @@ import AddMenu from './AddMenu'
 import { useChatScroll } from './useChatScroll'
 import { buildQuestionAnswer } from './questionAnswer'
 import ToolCallCard from './ToolCallCard'
-import ToolCluster from './ToolCluster'
+import ToolCluster, { type ClusterStep } from './ToolCluster'
 import MarkdownText from './MarkdownText'
 import ModelPicker from './ModelPicker'
 import VariantPicker from './VariantPicker'
@@ -23,7 +23,7 @@ import { countWords } from './reasoning'
 type FeedItem =
   | { kind: 'message'; id: string; role: ChatMessage['role']; text: string; reasoning?: string; images?: ImageAttachment[]; delegation?: ChatDelegationMeta }
   | { kind: 'tool'; id: string; call: ToolCallData }
-  | { kind: 'cluster'; id: string; calls: ToolCallData[] }
+  | { kind: 'cluster'; id: string; steps: ClusterStep[] }
   | { kind: 'error'; id: string; text: string; retryable?: boolean }
   | { kind: 'compaction'; id: string; running?: boolean; failed?: boolean }
   | { kind: 'retry'; id: string; attempt: number; maxAttempts: number; delayMs: number; unbounded?: boolean }
@@ -56,33 +56,41 @@ function feedItemKey(item: FeedItem): string {
 // in src/main/agent/loop.ts), so the stored transcript would otherwise scatter
 // otherwise-consecutive tools across 1-tool clusters. FeedMessage already drops
 // these empty bubbles at render, so the visible result matches a fresh live
-// session. Clustering happens at render time, not in state, so transcript
-// paging and live upserts still work against the flat shape.
+// session. Reasoning-only assistant messages (thinking between tool calls) join
+// the run as `thought` steps instead of breaking it, so a think → tool → think
+// loop reads as one line rather than alternating rows. Thoughts that never meet
+// a tool stay ordinary messages. Clustering happens at render time, not in
+// state, so transcript paging and live upserts still work against the flat shape.
 function clusterToolRows(items: FeedItem[]): FeedItem[] {
-  const isEmptyAssistant = (it: FeedItem): boolean => {
-    if (it.kind !== 'message') return false
-    if (it.role !== 'assistant') return false
-    const textEmpty = !it.text || it.text.trim() === ''
-    const reasoningEmpty = !it.reasoning || it.reasoning.trim() === ''
-    const imagesEmpty = !it.images || it.images.length === 0
-    return textEmpty && reasoningEmpty && imagesEmpty
-  }
+  const isAssistantWithoutText = (it: FeedItem): it is FeedItem & { kind: 'message' } =>
+    it.kind === 'message' && it.role === 'assistant'
+    && (!it.text || it.text.trim() === '')
+    && (!it.images || it.images.length === 0)
   const out: FeedItem[] = []
-  let run: ToolCallData[] | null = null
+  let run: ClusterStep[] | null = null
+  let thoughts: (FeedItem & { kind: 'message' })[] = []
+  const toSteps = (ms: typeof thoughts): ClusterStep[] =>
+    ms.map(m => ({ kind: 'thought', id: m.id, text: m.reasoning ?? '' }))
   const flush = () => {
-    if (run === null) return
-    out.push({ kind: 'cluster', id: run[0].id, calls: run })
+    if (run === null) {
+      out.push(...thoughts)
+    } else {
+      run.push(...toSteps(thoughts))
+      out.push({ kind: 'cluster', id: run[0].kind === 'tool' ? run[0].call.id : run[0].id, steps: run })
+    }
     run = null
+    thoughts = []
   }
   for (const item of items) {
     if (item.kind === 'tool') {
-      if (run === null) run = [item.call]
-      else run.push(item.call)
+      run = [...(run ?? []), ...toSteps(thoughts), { kind: 'tool', call: item.call }]
+      thoughts = []
       continue
     }
-    // Empty assistant messages are dropped AND do not break the tool run —
-    // they are pure structural artifacts of the agent's batched persistence.
-    if (isEmptyAssistant(item)) continue
+    if (isAssistantWithoutText(item)) {
+      if (item.reasoning && item.reasoning.trim() !== '') thoughts.push(item)
+      continue
+    }
     flush()
     out.push(item)
   }
@@ -1034,6 +1042,8 @@ if (e.type === 'usage') {
     { label: 'Deny', key: '3', run: () => pendingPrompt && respond(pendingPrompt.promptId, false) }
   ]
 
+  const feedRows = clusterToolRows(items)
+
   return (
     <div className="chat-panel" style={{ display: 'flex', flexDirection: 'row', flex: 1, minHeight: 0, position: 'relative' }}>
       <div className="chat-panel-main" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, position: 'relative' }}>
@@ -1063,7 +1073,7 @@ if (e.type === 'usage') {
         {loadingOlder && (
           <div className="chat-loading-older">Loading earlier messages…</div>
         )}
-        {clusterToolRows(items).map(item => {
+        {feedRows.map((item, index) => {
           if (item.kind === 'compaction') {
             return (
               <div key={item.id} className={`chat-compacted ${item.failed ? 'failed' : ''} ${item.running ? 'running' : ''}`}>
@@ -1107,7 +1117,7 @@ if (e.type === 'usage') {
             return <ToolCallCard key={item.id} call={item.call} />
           }
           if (item.kind === 'cluster') {
-            return <ToolCluster key={item.id} firstId={item.id} calls={item.calls} />
+            return <ToolCluster key={item.id} firstId={item.id} steps={item.steps} live={running && index === feedRows.length - 1} />
           }
           if (item.kind === 'subagent') {
             return (

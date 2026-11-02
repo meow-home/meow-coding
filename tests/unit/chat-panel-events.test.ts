@@ -368,6 +368,51 @@ describe('ChatPanel live event reconciliation', () => {
     expect(container.querySelectorAll('.chat-msg.assistant')).toHaveLength(0)
   })
 
+  it('folds reasoning-only messages between tool calls into one cluster as thought steps', async () => {
+    const api = new Proxy({}, {
+      get: (_target, key) => {
+        if (key === 'listChatTranscript') {
+          return async () => ({
+            items: [
+              { kind: 'message', message: { id: 'u-1', role: 'user', text: 'look around', createdAt: 1 } },
+              { kind: 'message', message: { id: 'a-1', role: 'assistant', text: '', reasoning: 'Check the repo first.', createdAt: 2 } },
+              { kind: 'tool', tool: { id: 'tc-1', tool: 'bash', input: { command: 'ls' }, permission: 'allowed', output: 'a.txt' } },
+              { kind: 'message', message: { id: 'a-2', role: 'assistant', text: '', reasoning: 'Now read it.\nThen decide.', createdAt: 3 } },
+              { kind: 'tool', tool: { id: 'tc-2', tool: 'read', input: { file_path: 'a.txt' }, permission: 'allowed', output: 'hi' } },
+              { kind: 'message', message: { id: 'a-3', role: 'assistant', text: 'Done.', reasoning: 'Wrap up.', createdAt: 4 } },
+              { kind: 'message', message: { id: 'a-4', role: 'assistant', text: '', reasoning: 'Lonely thought.', createdAt: 5 } }
+            ],
+            hasMore: false
+          })
+        }
+        if (key === 'onChatEvent') return () => () => {}
+        if (key === 'getAgentVariants' || key === 'getChatTodos' || key === 'listCommands' || key === 'listModels') {
+          return async () => []
+        }
+        if (key === 'getContextInfo') return async () => ({ limit: 128000, compactThreshold: 100000, sessionCost: 0 })
+        if (key === 'isChatRunning') return async () => false
+        if (key === 'getPendingPrompt') return async () => null
+        return async () => undefined
+      }
+    }) as Window['api']
+    Object.defineProperty(window, 'api', { configurable: true, value: api })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => { root?.render(createElement(ChatPanel, { agentId: 'agent-1', cwd: 'C:\\repo' })) })
+
+    expect(container.querySelectorAll('.tool-cluster')).toHaveLength(1)
+    const steps = Array.from(container.querySelectorAll('.tool-cluster-body > .tool-call'))
+    expect(steps.map(s => s.classList.contains('tool-thought') ? 'thought' : 'tool')).toEqual(['thought', 'tool', 'thought', 'tool'])
+    expect(steps[2].querySelector('.tool-thought-preview')!.textContent).toBe('Now read it.')
+    expect(container.querySelector('.tool-cluster-title')!.textContent).toBe('Ran a command, read a.txt')
+    // A message with real text stays outside, and a thought with no tool after it stays a bubble.
+    const bubbles = container.querySelectorAll('.chat-msg.assistant')
+    expect(bubbles).toHaveLength(2)
+    expect(bubbles[1].querySelector('.chat-reasoning')).not.toBeNull()
+  })
+
   it('renders a persisted error as a card with a Retry button that calls retryChat', async () => {
     let resolveTranscript!: (page: TranscriptPage) => void
     const transcript = new Promise<TranscriptPage>(resolve => { resolveTranscript = resolve })
@@ -522,18 +567,13 @@ describe('ChatPanel reasoning across a tool call', () => {
 
     await act(async () => { await new Promise(r => setTimeout(r, 50)) })
 
-    const notes = container.querySelectorAll('.chat-reasoning')
-    expect(notes).toHaveLength(1)
-    expect(notes[0].textContent).toContain('Let me check the file.')
-    expect(notes[0].textContent).toContain('Now I will edit it.')
-
-    // The whole thought stays above the tool it announced.
-    const feed = container.querySelector('.chat-feed-content')!
-    const order = [...feed.children].map(el => el.className)
-    const noteAt = order.findIndex(c => c.includes('chat-msg'))
-    const toolAt = order.findIndex(c => c.includes('tool-cluster'))
-    expect(noteAt).toBeGreaterThanOrEqual(0)
-    expect(toolAt).toBeGreaterThan(noteAt)
+    // The thought joins the tool's cluster as one step, whole, above the tool it announced.
+    const steps = [...container.querySelectorAll('.tool-cluster-body > .tool-call')]
+    expect(steps.map(s => s.classList.contains('tool-thought') ? 'thought' : 'tool')).toEqual(['thought', 'tool'])
+    const thought = steps[0].querySelector('.tool-thought-text')!.textContent
+    expect(thought).toContain('Let me check the file.')
+    expect(thought).toContain('Now I will edit it.')
+    expect(container.querySelectorAll('.chat-reasoning')).toHaveLength(0)
   })
   it('skipping a question ends the turn and closes the prompt', async () => {
     let resolveTranscript!: (page: TranscriptPage) => void

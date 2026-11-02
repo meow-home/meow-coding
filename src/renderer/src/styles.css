@@ -1434,6 +1434,15 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   text-transform: none; letter-spacing: 0; font-weight: var(--fw-medium);
   padding: 0.083333rem 0.333333rem;
 }
+/* A thought step reads quieter than a tool step: dim badge, prose preview. */
+.tool-cluster-body .tool-call-badge-thought { color: var(--text-dim); }
+.tool-thought-preview { font-family: var(--font-ui); font-style: italic; }
+.tool-thought-text {
+  padding: 0.666667rem 0.833333rem;
+  white-space: pre-wrap; word-break: break-word; user-select: text;
+  color: var(--text-dim); font-size: var(--fs-base); line-height: 1.55;
+  max-height: 18.333333rem; overflow-y: auto;
+}
 
 /* Prompt (permission / question) — the last row of the chat feed (like the
    meow-chatui PromptCard): it scrolls with the transcript instead of sitting
