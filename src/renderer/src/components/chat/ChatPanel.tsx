@@ -12,6 +12,7 @@ import { useChatScroll } from './useChatScroll'
 import { buildQuestionAnswer } from './questionAnswer'
 import ToolCallCard from './ToolCallCard'
 import ToolCluster, { type ClusterStep } from './ToolCluster'
+import TodoCard from './TodoCard'
 import MarkdownText from './MarkdownText'
 import ModelPicker from './ModelPicker'
 import VariantPicker from './VariantPicker'
@@ -225,7 +226,6 @@ interface Props {
   onVariantChange?: (variant: string | undefined) => void
   onSendDraftMessage?: (textAndImages: { text: string; images?: ImageAttachment[] }) => void
   onOpenSubagent?: (item: SubagentOverlayItem) => void
-  onTodosChange?: (todos: TodoItem[]) => void
 }
 
 function RetryCountdown({ id, attempt, maxAttempts, delayMs, unbounded }: { id: string; attempt: number; maxAttempts: number; delayMs: number; unbounded?: boolean }) {
@@ -242,7 +242,7 @@ function RetryCountdown({ id, attempt, maxAttempts, delayMs, unbounded }: { id: 
   )
 }
 
-function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVariantChange, onSendDraftMessage, onOpenSubagent, onTodosChange }: Props) {
+function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVariantChange, onSendDraftMessage, onOpenSubagent }: Props) {
   const [items, setItems] = useState<FeedItem[]>([])
   const [running, setRunning] = useState(false)
   const [currentMode, setCurrentMode] = useState<AgentMode>(mode)
@@ -269,10 +269,6 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const [compactThreshold, setCompactThreshold] = useState<number | null>(null)
   const [commands, setCommands] = useState<Command[]>([])
   const [todos, setTodos] = useState<TodoItem[]>([])
-  // Keep the pane header's todo pill in sync with the chat's todo list. The
-  // pill lives in the header (a sibling of this panel), so the list is lifted
-  // up via onTodosChange rather than rendered here.
-  useEffect(() => { onTodosChange?.(todos) }, [todos, onTodosChange])
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   const [queue, setQueue] = useState<QueuedMessage[]>([])
   const queueRef = useRef<QueuedMessage[]>([])
@@ -1192,6 +1188,7 @@ if (e.type === 'usage') {
             ))}
           </div>
         )}
+        {todos.length > 0 && <TodoCard todos={todos} />}
         {pendingPrompt && (
           <div className="chat-prompt" ref={pendingPrompt.promptType === 'permission' ? promptRef : undefined}
             tabIndex={pendingPrompt.promptType === 'permission' ? -1 : undefined}>

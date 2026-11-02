@@ -5,8 +5,7 @@ import path from 'node:path'
 
 // The chat lane: the transcript content, the question/permission prompt and the
 // composer card all sit on ONE centered column of `--chat-lane-w` (64rem). The
-// todo list is a compact pill (TodoPill) seated in the pane header, not a lane
-// surface. Two
+// todo list is a transcript row (TodoCard), so it rides the feed's lane. Two
 // details are load-bearing and pinned here:
 //
 //  1. The feed box stays full panel width, so the scrollbar hugs the panel edge
@@ -119,9 +118,8 @@ async function measureLane(window: Page) {
 type LaneBox = { left: number; right: number } | null
 
 /** Every surface that must sit on the lane column: the transcript content lane,
- *  the composer card and the composer footer. The todo list is a compact pill
- *  (see TodoPill) seated in the pane header, so it is intentionally NOT a lane
- *  surface. */
+ *  the composer card and the composer footer. The todo card (TodoCard) is a row
+ *  inside `.chat-feed-content`, so it is covered by the feed's lane. */
 function laneBoxes(m: Awaited<ReturnType<typeof measureLane>>): Array<[string, LaneBox]> {
   return [
     ['.chat-feed-content', m.feedContent],
@@ -143,7 +141,7 @@ for (const long of [true, false]) {
     const { userData } = createFixture(long)
     const { app, window } = await launchAt(userData, WIDE)
     try {
-      await expect(window.locator('.todo-pill')).toBeVisible()
+      await expect(window.locator('.chat-todo')).toBeVisible()
       expect((await measureLane(window)).feedOverflows).toBe(long)
 
       const m = await measureLane(window)

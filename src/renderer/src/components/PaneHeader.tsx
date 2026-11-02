@@ -11,10 +11,9 @@ import {
   Square,
   Trash2
 } from 'lucide-react'
-import type { AgentState, TodoItem } from '@shared/types'
+import type { AgentState } from '@shared/types'
 import BaseDropdown from './common/BaseDropdown'
 import ConfirmDialog from './ConfirmDialog'
-import TodoPill from './chat/TodoPill'
 
 interface Props {
   name: string
@@ -30,7 +29,6 @@ interface Props {
   onOpenFiles?: () => void
   onOpenProcesses?: () => void
   onRemove: () => void
-  todos?: TodoItem[]
 }
 
 const STATUS_LABEL: Record<AgentState['status'], string> = {
@@ -50,8 +48,7 @@ export default function PaneHeader({
   onOpenLog,
   onOpenFiles,
   onOpenProcesses,
-  onRemove,
-  todos
+  onRemove
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [injecting, setInjecting] = useState(false)
@@ -78,7 +75,6 @@ export default function PaneHeader({
       />
       <span className="pane-title">{name}</span>
       <span className="pane-actions">
-        {todos && todos.length > 0 && <TodoPill todos={todos} />}
         {injecting && (
           <input
             className="input inject-input"

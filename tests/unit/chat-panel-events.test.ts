@@ -651,3 +651,55 @@ describe('ChatPanel reasoning across a tool call', () => {
     expect(row.querySelector('.chat-prompt-skip')).not.toBeNull()
   })
 })
+
+describe('ChatPanel todo card', () => {
+  it('renders the todo list as a feed row above a pending question', async () => {
+    let onEvent: ((event: ChatEvent) => void) | undefined
+    const api = new Proxy({}, {
+      get: (_target, key) => {
+        if (key === 'listChatTranscript') return async () => ({ items: [], hasMore: false })
+        if (key === 'onChatEvent') return (listener: (event: ChatEvent) => void) => { onEvent = listener; return () => {} }
+        if (key === 'getAgentVariants' || key === 'getChatTodos' || key === 'listCommands' || key === 'listModels') {
+          return async () => []
+        }
+        if (key === 'getContextInfo') return async () => ({ limit: 128000, compactThreshold: 100000, sessionCost: 0 })
+        if (key === 'isChatRunning') return async () => true
+        if (key === 'getPendingPrompt') return async () => null
+        return async () => undefined
+      }
+    }) as Window['api']
+    Object.defineProperty(window, 'api', { configurable: true, value: api })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => { root?.render(createElement(ChatPanel, { agentId: 'agent-1', cwd: 'C:\repo' })) })
+    act(() => onEvent?.({
+      type: 'todo-updated', agentId: 'agent-1',
+      todos: [
+        { content: 'Add tokens', status: 'completed' },
+        { content: 'Wire toggle', status: 'in_progress' },
+        { content: 'Run tests', status: 'pending' }
+      ]
+    }))
+    act(() => onEvent?.({
+      type: 'prompt-request', agentId: 'agent-1', promptId: 'p1', kind: 'question',
+      question: 'Where?', options: [{ label: 'Appearance' }], custom: true
+    }))
+
+    const feed = container.querySelector('.chat-feed-content')!
+    const order = [...feed.children].map(el => el.className.split(' ')[0])
+    expect(order.indexOf('chat-todo')).toBeGreaterThanOrEqual(0)
+    expect(order.indexOf('chat-prompt')).toBe(order.indexOf('chat-todo') + 1)
+    expect(container.querySelector('.chat-todo-count')!.textContent).toBe('1/3')
+    expect(container.querySelector('.chat-todo-item.status-in_progress .spinning')).not.toBeNull()
+
+    // Collapsed, the header keeps naming the active task.
+    await act(async () => { container.querySelector<HTMLButtonElement>('.chat-todo-head')!.click() })
+    expect(container.querySelector('.chat-todo-list')).toBeNull()
+    expect(container.querySelector('.chat-todo-active')!.textContent).toBe('Wire toggle')
+
+    act(() => onEvent?.({ type: 'todo-updated', agentId: 'agent-1', todos: [] }))
+    expect(container.querySelector('.chat-todo')).toBeNull()
+  })
+})
