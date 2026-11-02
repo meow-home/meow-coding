@@ -1378,6 +1378,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .tool-call-error { color: var(--red); border-top: 0.083333rem solid var(--hairline); }
 .tool-call-input { color: var(--text-dim); border-top: none; }
 
+/* Tool-call cluster — a run of consecutive tool calls collapses into one
    chrome-less summary line (Claude-style); the steps only get a framed list
    when the user opens it. `content-visibility: auto` stays on each inner
    .tool-call (perf budget). */
