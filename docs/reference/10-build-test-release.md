@@ -197,9 +197,19 @@ publish (ubuntu-latest, on tags)
   read docs/changelogs/changelog-<version>.md (strips the leading "v" from the
     tag to locate the file; falls back to a generic body when the file is missing)
   softprops/action-gh-release@v2 → GitHub Release (body = the changelog)
+    │
+    ▼
+notify (ubuntu-latest, always — even when an earlier job failed)
+  POST Telegram sendMessage: ✅ + release link when publish succeeded,
+    otherwise ❌ + each job's result + the run link
+  skipped (exit 0) when TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not set
 ```
 
 `fail-fast: false` on the matrix, so one platform failing still produces the others.
+
+Telegram notification secrets: `TELEGRAM_BOT_TOKEN` (from @BotFather) and `TELEGRAM_CHAT_ID` (the
+chat, group or channel the bot posts to; the bot must be a member and, for a private chat, the user
+must have sent it `/start` first).
 
 ## 10.7 Windows code signing
 

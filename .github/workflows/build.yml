@@ -121,3 +121,33 @@ jobs:
         with:
           body: ${{ steps.changelog.outputs.changelog }}
           files: artifacts/**/*
+
+  notify:
+    needs: [test, build, publish]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Telegram notification
+        shell: bash
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TEST_RESULT: ${{ needs.test.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RELEASE_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}
+        run: |
+          if [[ -z "$TELEGRAM_BOT_TOKEN" || -z "$TELEGRAM_CHAT_ID" ]]; then
+            echo "Telegram secrets not set, skipping notification"
+            exit 0
+          fi
+          if [[ "$PUBLISH_RESULT" == "success" ]]; then
+            text="✅ Meow Coding ${GITHUB_REF_NAME} built and released"$'\n'"${RELEASE_URL}"
+          else
+            text="❌ Meow Coding ${GITHUB_REF_NAME} build failed"$'\n'"test: ${TEST_RESULT} · build: ${BUILD_RESULT} · publish: ${PUBLISH_RESULT}"$'\n'"${RUN_URL}"
+          fi
+          curl -sS --fail-with-body -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${text}" \
+            -d "disable_web_page_preview=true" > /dev/null
