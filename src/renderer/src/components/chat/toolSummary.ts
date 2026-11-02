@@ -35,6 +35,12 @@ export function baseName(path: string): string {
   return parts.length > 0 ? parts[parts.length - 1] : path
 }
 
+// Agents prefix almost every command with `cd <project> &&`, which pushes the
+// part that matters off the end of a one-line row.
+export function stripCdPrefix(command: string): string {
+  return command.replace(/^cd\s+("[^"]*"|'[^']*'|\S+)\s*&&\s*/, '')
+}
+
 function patchPaths(patch: string): string[] {
   const out: string[] = []
   for (const m of patch.matchAll(/^\*\*\* (?:Update|Add|Delete) File: (.+)$/gm)) out.push(m[1].trim())
@@ -105,7 +111,7 @@ export function describeRunning(call: ToolCallData): string {
     case 'write': return `Writing${name}`
     case 'command': {
       const cmd = str(call.input, ['command', 'cmd'])
-      return cmd ? `Running ${cmd.split('\n')[0]}` : 'Running a command'
+      return cmd ? `Running ${stripCdPrefix(cmd).split('\n')[0]}` : 'Running a command'
     }
     case 'search': {
       const pattern = str(call.input, ['pattern', 'query'])

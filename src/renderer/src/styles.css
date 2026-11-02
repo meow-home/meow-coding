@@ -1424,6 +1424,16 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   border-bottom: 0.083333rem solid var(--hairline);
 }
 .tool-cluster-body > .tool-call:last-child { border-bottom: 0; }
+/* Inside a cluster a step is a plain list row (the mockup): the ✓/✗ already
+   carries status, so no coloured left rule, no caret, no shouting badge. */
+.tool-cluster-body > .tool-call { border-left: 0; background: transparent; }
+.tool-cluster-body .tool-call-header { background: transparent; padding: 0.333333rem 0.833333rem; }
+.tool-cluster-body .tool-call-header:hover { background: var(--bg-hover); }
+.tool-cluster-body .tool-call-chevron { display: none; }
+.tool-cluster-body .tool-call-badge {
+  text-transform: none; letter-spacing: 0; font-weight: var(--fw-medium);
+  padding: 0.083333rem 0.333333rem;
+}
 
 /* Prompt (permission / question) — the last row of the chat feed (like the
    meow-chatui PromptCard): it scrolls with the transcript instead of sitting

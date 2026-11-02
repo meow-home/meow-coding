@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ToolCallData } from '../../src/shared/types'
-import { describeRunning, diffStats, summarizeCalls } from '../../src/renderer/src/components/chat/toolSummary'
+import { describeRunning, diffStats, stripCdPrefix, summarizeCalls } from '../../src/renderer/src/components/chat/toolSummary'
 
 let seq = 0
 function call(tool: string, input: Record<string, unknown>, extra: Partial<ToolCallData> = {}): ToolCallData {
@@ -39,6 +39,15 @@ describe('describeRunning', () => {
     expect(describeRunning(call('read', { file_path: 'C:\\repo\\ChatPanel.tsx' }))).toBe('Reading ChatPanel.tsx')
     expect(describeRunning(call('bash', { command: 'npm test\nnpm run e2e' }))).toBe('Running npm test')
     expect(describeRunning(call('grep', { pattern: 'tool-cluster' }))).toBe('Searching for tool-cluster')
+    expect(describeRunning(call('bash', { command: 'cd /c/repo && npm test' }))).toBe('Running npm test')
+  })
+})
+
+describe('stripCdPrefix', () => {
+  it('drops a leading cd into the project, quoted or not, and nothing else', () => {
+    expect(stripCdPrefix('cd /c/Users/me/repo && grep -rn x src')).toBe('grep -rn x src')
+    expect(stripCdPrefix('cd "C:\\My Repo" && npm test')).toBe('npm test')
+    expect(stripCdPrefix('npm test && cd dist')).toBe('npm test && cd dist')
   })
 })
 

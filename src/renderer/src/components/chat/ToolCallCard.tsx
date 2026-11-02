@@ -2,7 +2,7 @@ import { memo } from 'react'
 import { ChevronRight } from 'lucide-react'
 import type { ToolCallData } from '@shared/types'
 import DiffView from './DiffView'
-import { diffStats } from './toolSummary'
+import { diffStats, stripCdPrefix } from './toolSummary'
 
 interface Props {
   call: ToolCallData
@@ -27,7 +27,7 @@ function describeInput(call: ToolCallData): string {
     case 'edit': case 'apply-patch': case 'write': case 'read':
       return first(['file_path', 'path'])
     case 'bash': case 'terminal': case 'cmd': case 'sh':
-      return first(['command', 'cmd'])
+      return stripCdPrefix(first(['command', 'cmd']))
     case 'websearch': case 'webfetch':
       return first(['query', 'url'])
     case 'glob': case 'grep': case 'ls': case 'dir':
@@ -39,6 +39,11 @@ function describeInput(call: ToolCallData): string {
       return ''
     }
   }
+}
+
+function fullInput(call: ToolCallData): string {
+  const cmd = call.input?.command
+  return typeof cmd === 'string' && cmd.trim() ? cmd.trim() : describeInput(call)
 }
 
 // call objects are replaced wholesale on tool-start/tool-result, so memo keeps
@@ -76,7 +81,7 @@ export default memo(function ToolCallCard({ call, collapseWhileRunning }: Props)
       <summary className="tool-call-header">
         <ChevronRight className="tool-call-chevron" />
         <span className={`tool-call-badge tool-call-badge-${call.tool}`}>{call.tool}</span>
-        <span className="tool-call-summary" title={describeInput(call)}>{describeInput(call)}</span>
+        <span className="tool-call-summary" title={fullInput(call)}>{describeInput(call)}</span>
         {stats.added > 0 && <span className="tool-call-added">+{stats.added}</span>}
         {stats.removed > 0 && <span className="tool-call-removed">−{stats.removed}</span>}
         {pending && <span className="tool-call-running">running…</span>}
