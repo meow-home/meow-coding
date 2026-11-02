@@ -1,7 +1,8 @@
 import { memo } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Loader2 } from 'lucide-react'
 import type { ToolCallData } from '@shared/types'
 import ToolCallCard from './ToolCallCard'
+import { describeRunning, diffStats, summarizeCalls } from './toolSummary'
 
 interface Props {
   calls: ToolCallData[]
@@ -11,44 +12,34 @@ interface Props {
   firstId: string
 }
 
-// ToolCluster is a thin wrapper around consecutive ToolCallCards. It collapses
-// a run of tool calls (which the agent fires one after another, with no
-// assistant text between) into a single cluster with a master caret + count
-// header, so the feed stops scattering them with the default feed gap.
-function statusCounts(calls: ToolCallData[]): { ok: number; running: number; err: number } {
-  let ok = 0, running = 0, err = 0
-  for (const c of calls) {
-    if (c.permission === 'pending') running++
-    else if (c.permission === 'denied') err++
-    else ok++
-  }
-  return { ok, running, err }
-}
+// ToolCluster folds a run of consecutive tool calls into one collapsed,
+// chrome-less line ("Read 2 files, ran a command  +12 −3"), so a long run no
+// longer stretches the feed. While a step runs, the line names that step.
+export default memo(function ToolCluster({ calls }: Props) {
+  const running = calls.filter(c => c.permission === 'pending')
+  const failed = calls.filter(c => c.permission === 'denied' || c.error !== undefined).length
+  const { added, removed } = diffStats(calls)
+  const active = running[running.length - 1]
 
-export default memo(function ToolCluster({ calls, firstId }: Props) {
-  const counts = statusCounts(calls)
-  // `open` keeps the cluster expanded by default (matches the user's
-  // screenshot: caret points down, rows visible). The user can still collapse
-  // it via the master caret.
+  // No `open` prop: the cluster starts collapsed and the browser keeps the
+  // user's toggle across re-renders.
   return (
-    <details className="tool-cluster" open>
+    <details className={`tool-cluster${active ? ' running' : ''}`}>
       <summary className="tool-cluster-header">
-        <ChevronRight className="tool-cluster-chevron" />
-        <span className="tool-cluster-title">Ran {calls.length} {calls.length === 1 ? 'command' : 'commands'}</span>
-        <span className="tool-cluster-meta">
-          {counts.ok > 0 && <span className="tool-cluster-count ok">{counts.ok} ok</span>}
-          {counts.running > 0 && <span className="tool-cluster-count running">{counts.running} running</span>}
-          {counts.err > 0 && <span className="tool-cluster-count err">{counts.err} failed</span>}
+        {active && <Loader2 className="tool-cluster-spinner" aria-hidden="true" />}
+        <span className="tool-cluster-title">
+          {active ? `${describeRunning(active)}…` : summarizeCalls(calls)}
         </span>
+        {active && <span className="tool-cluster-progress">{calls.length - running.length}/{calls.length}</span>}
+        {!active && added > 0 && <span className="tool-cluster-added">+{added}</span>}
+        {!active && removed > 0 && <span className="tool-cluster-removed">−{removed}</span>}
+        {failed > 0 && <span className="tool-cluster-failed">· {failed} failed</span>}
+        <ChevronRight className="tool-cluster-chevron" aria-hidden="true" />
       </summary>
       <div className="tool-cluster-body">
         {calls.map(c => (
-          // ToolCallCard already keys on its own id; passing `key` here would
-          // double-apply. ToolCallCard is memo'd and replaces its call object
-          // wholesale on tool-start/tool-result, so it only re-renders when
-          // the call itself changes. Inside a cluster we collapse each step
-          // by default — the cluster header already shows progress, so a long
-          // run of steps shouldn't each pop open and scatter the feed.
+          // Steps stay collapsed even while running — the header already
+          // names the active step; the user clicks a row to see its body.
           <ToolCallCard key={c.id} call={c} collapseWhileRunning />
         ))}
       </div>

@@ -240,8 +240,8 @@ describe('ChatPanel live event reconciliation', () => {
     expect(container.querySelectorAll('.tool-call:not(.tool-cluster .tool-call)')).toHaveLength(0)
     // The lone tool wraps in its own 1-tool cluster.
     const titles = Array.from(container.querySelectorAll('.tool-cluster-title')).map(n => n.textContent ?? '')
-    expect(titles).toContain('Ran 1 command')
-    expect(titles).toContain('Ran 2 commands')
+    expect(titles).toContain('Ran a command')
+    expect(titles).toContain('Ran a command, read a.txt')
   })
 
   it('keeps every tool call wrapped in a cluster, collapsed by default even while running', async () => {
@@ -300,7 +300,8 @@ describe('ChatPanel live event reconciliation', () => {
     const clusters = Array.from(container.querySelectorAll('.tool-cluster')) as HTMLElement[]
     expect(clusters).toHaveLength(2) // original 2-tool cluster + new 1-tool cluster
     const loneCluster = clusters[clusters.length - 1]
-    expect(loneCluster.querySelector('.tool-cluster-title')!.textContent).toContain('Ran 1 command')
+    expect(loneCluster.querySelector('.tool-cluster-title')!.textContent).toBe('Running pwd…')
+    expect((loneCluster as HTMLDetailsElement).open).toBe(false)
     const loneCard = loneCluster.querySelector('.tool-call') as HTMLDetailsElement
     expect(loneCard.open).toBe(false)
   })
@@ -361,7 +362,8 @@ describe('ChatPanel live event reconciliation', () => {
     // drops them), so the cluster should look the same as on a fresh live run.
     expect(container.querySelectorAll('.tool-cluster')).toHaveLength(1)
     expect(container.querySelectorAll('.tool-cluster .tool-call')).toHaveLength(3)
-    expect(container.querySelector('.tool-cluster-title')!.textContent).toContain('Ran 3 commands')
+    expect(container.querySelector('.tool-cluster-title')!.textContent).toBe('Ran 2 commands, read a.txt')
+    expect((container.querySelector('.tool-cluster') as HTMLDetailsElement).open).toBe(false)
     // The empty assistant messages are dropped entirely from the rendered feed.
     expect(container.querySelectorAll('.chat-msg.assistant')).toHaveLength(0)
   })

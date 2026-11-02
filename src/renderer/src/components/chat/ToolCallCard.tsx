@@ -2,6 +2,7 @@ import { memo } from 'react'
 import { ChevronRight } from 'lucide-react'
 import type { ToolCallData } from '@shared/types'
 import DiffView from './DiffView'
+import { diffStats } from './toolSummary'
 
 interface Props {
   call: ToolCallData
@@ -52,6 +53,8 @@ export default memo(function ToolCallCard({ call, collapseWhileRunning }: Props)
     ? input.patch
     : null
 
+  const stats = diffStats([call])
+
   const statusClass = pending
     ? 'status-running'
     : call.permission === 'denied'
@@ -74,6 +77,8 @@ export default memo(function ToolCallCard({ call, collapseWhileRunning }: Props)
         <ChevronRight className="tool-call-chevron" />
         <span className={`tool-call-badge tool-call-badge-${call.tool}`}>{call.tool}</span>
         <span className="tool-call-summary" title={describeInput(call)}>{describeInput(call)}</span>
+        {stats.added > 0 && <span className="tool-call-added">+{stats.added}</span>}
+        {stats.removed > 0 && <span className="tool-call-removed">−{stats.removed}</span>}
         {pending && <span className="tool-call-running">running…</span>}
         {!pending && (
           <span className={`tool-call-status ${call.permission === 'denied' ? 'err' : 'ok'}`}>
