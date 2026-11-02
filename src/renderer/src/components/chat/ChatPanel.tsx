@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { AlertCircle, Check, ChevronDown, ChevronRight, Copy, RotateCw } from 'lucide-react'
+import { AlertCircle, Check, ChevronDown, ChevronRight, Copy, RotateCw, X } from 'lucide-react'
 import type { AgentMode, ChatDelegationMeta, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ImageAttachment, QuestionOption, QueuedMessage, TodoItem, ToolCallData } from '@shared/types'
 import { DRAFT_SESSION_ID } from '@shared/types'
 import { isExternalPeer } from '@shared/external-api-types'
@@ -107,6 +107,9 @@ interface PendingPrompt {
   options?: QuestionOption[]
   multiple?: boolean
   custom?: boolean
+  submitLabel?: string
+  skipLabel?: string
+  customLabel?: string
 }
 
 // Splits user text on @path tokens and highlights them, matching the main-side
@@ -499,7 +502,10 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
         question: info.question,
         options: info.options,
         multiple: info.multiple,
-        custom: info.custom
+        custom: info.custom,
+        submitLabel: info.submitLabel,
+        skipLabel: info.skipLabel,
+        customLabel: info.customLabel
       })
       setSelectedAction(0)
       setSelectedOptions([])
@@ -787,7 +793,10 @@ if (e.type === 'usage') {
         question: e.question,
         options: e.options,
         multiple: e.multiple,
-        custom: e.custom
+        custom: e.custom,
+        submitLabel: e.submitLabel,
+        skipLabel: e.skipLabel,
+        customLabel: e.customLabel
       })
       setSelectedAction(0)
       setSelectedOptions([])
@@ -1000,9 +1009,25 @@ if (e.type === 'usage') {
     const onKey = (e: KeyboardEvent) => {
       if (!pendingPrompt || pendingPrompt.promptType !== 'question') return
       const t = e.target as HTMLElement
-      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) return
+      const inField = t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement
+      const inPromptField = inField && t.classList.contains('chat-prompt-input')
       const optionCount = pendingPrompt.options?.length ?? 0
-      const custom = pendingPrompt.custom !== false
+      // Esc closes the free-text field when it is an optional answer row; on a
+      // text-only question (or with focus outside any field) it skips. Esc in
+      // the composer must not kill the turn just because a prompt is pending.
+      if (e.key === 'Escape') {
+        if (inPromptField && customInput) {
+          e.preventDefault()
+          setCustomInput(false)
+          setQuestionIndex(optionCount)
+        } else if (inPromptField || !inField) {
+          e.preventDefault()
+          skipQuestion()
+        }
+        return
+      }
+      if (inField) return
+      const custom = optionCount > 0 && pendingPrompt.custom !== false
       const submit = pendingPrompt.multiple && !customInput && optionCount > 0
       const total = optionCount + (custom ? 1 : 0) + (submit ? 1 : 0)
       if (total === 0) return
@@ -1030,13 +1055,29 @@ if (e.type === 'usage') {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [pendingPrompt, questionIndex, toggleOption, respond, startCustomInput])
+  }, [pendingPrompt, questionIndex, customInput, toggleOption, respond, startCustomInput, skipQuestion])
 
   const permissionActions = [
     { label: 'Allow', key: '1', run: () => pendingPrompt && respond(pendingPrompt.promptId, true) },
     { label: 'Always', key: '2', run: () => pendingPrompt && respond(pendingPrompt.promptId, true, undefined, true) },
     { label: 'Deny', key: '3', run: () => pendingPrompt && respond(pendingPrompt.promptId, false) }
   ]
+
+  // Question footer is driven by one state machine: the free-text field wins
+  // whenever it is visible, otherwise the card shows exactly one action row
+  // (Submit for multi-select + Skip). Labels come from the model with safe
+  // defaults for older prompts.
+  const questionOptions = pendingPrompt?.options ?? []
+  const questionOptionCount = questionOptions.length
+  const questionHasOptions = questionOptionCount > 0
+  const questionAllowCustom = pendingPrompt?.custom !== false
+  const questionInputVisible = pendingPrompt?.promptType === 'question' && (customInput || !questionHasOptions)
+  const questionShowSubmit = questionHasOptions && pendingPrompt?.multiple === true && !questionInputVisible
+  const questionShowSkip = questionHasOptions && !questionInputVisible
+  const questionSubmitLabel = pendingPrompt?.submitLabel ?? 'Submit'
+  const questionSkipLabel = pendingPrompt?.skipLabel ?? 'Skip'
+  const questionCustomLabel = pendingPrompt?.customLabel ?? 'Type your own answer'
+  const questionSubmitIndex = questionOptionCount + (questionAllowCustom ? 1 : 0)
 
   const feedRows = clusterToolRows(items)
 
@@ -1207,6 +1248,16 @@ if (e.type === 'usage') {
               >
                 <ChevronDown size={12} aria-hidden="true" />
               </button>
+              {pendingPrompt.promptType === 'question' && (
+                <button
+                  className="chat-prompt-close"
+                  title={`${questionSkipLabel} — ends the turn`}
+                  aria-label="Skip question"
+                  onClick={skipQuestion}
+                >
+                  <X size={12} aria-hidden="true" />
+                </button>
+              )}
             </div>
             {promptCollapsed && (pendingPrompt.promptType === 'permission' ? (
               <div className="chat-prompt-collapsed-text">Meow wants to run <code>{pendingPrompt.call?.tool}</code></div>
@@ -1241,20 +1292,22 @@ if (e.type === 'usage') {
                   <MarkdownText text={pendingPrompt.question ?? ''} />
                   {pendingPrompt.multiple && <span className="chat-prompt-multi-hint"> (select all that apply)</span>}
                 </div>
-                {Array.isArray(pendingPrompt.options) && pendingPrompt.options.length > 0 && (
+                {questionHasOptions && (
                   <div className="chat-options">
-                    {pendingPrompt.options.map((opt, i) => {
+                    {questionOptions.map((opt, i) => {
                       const selected = selectedOptions.includes(opt.label)
-                      const mark = pendingPrompt.multiple ? (selected ? '[✓]' : '[ ]') : `${i + 1}.`
                       return (
                         <button
                           key={opt.label + i}
                           className={`chat-option ${selected ? 'selected' : ''} ${questionIndex === i ? 'focused' : ''}`}
+                          aria-pressed={pendingPrompt.multiple ? selected : undefined}
                           onClick={() => (pendingPrompt.multiple
                             ? toggleOption(opt.label)
                             : respond(pendingPrompt.promptId, true, opt.label))}
                         >
-                          <span className="chat-option-mark">{mark}</span>
+                          {pendingPrompt.multiple
+                            ? <span className="chat-check"><Check size={10} strokeWidth={3} aria-hidden="true" /></span>
+                            : <span className="chat-option-mark">{i + 1}.</span>}
                           <span className="chat-option-text">
                             <span className="chat-option-label">{opt.label}</span>
                             {opt.description && <span className="chat-option-desc">{opt.description}</span>}
@@ -1262,25 +1315,24 @@ if (e.type === 'usage') {
                         </button>
                       )
                     })}
-                    {pendingPrompt.custom !== false && (
+                    {questionAllowCustom && (
                       <button
-                        className={`chat-option custom ${customInput ? 'selected' : ''} ${questionIndex === (pendingPrompt.options?.length ?? 0) ? 'focused' : ''}`}
+                        className={`chat-option custom ${customInput ? 'selected' : ''} ${questionIndex === questionOptionCount ? 'focused' : ''}`}
+                        aria-pressed={pendingPrompt.multiple ? customInput : undefined}
                         onClick={startCustomInput}
                       >
-                        <span className="chat-option-mark">
-                          {pendingPrompt.multiple
-                            ? (customInput ? '[✓]' : '[ ]')
-                            : `${(pendingPrompt.options?.length ?? 0) + 1}.`}
-                        </span>
+                        {pendingPrompt.multiple
+                          ? <span className="chat-check"><Check size={10} strokeWidth={3} aria-hidden="true" /></span>
+                          : <span className="chat-option-mark">{questionOptionCount + 1}.</span>}
                         <span className="chat-option-text">
-                          <span className="chat-option-label">Type your own answer</span>
+                          <span className="chat-option-label">{questionCustomLabel}</span>
                         </span>
                       </button>
                     )}
                   </div>
                 )}
-                {(customInput || !pendingPrompt.options?.length) && (
-                  <div className="chat-prompt-actions">
+                {questionInputVisible ? (
+                  <div className="chat-prompt-input-wrap">
                     <input
                       autoFocus
                       className="chat-prompt-input"
@@ -1294,26 +1346,27 @@ if (e.type === 'usage') {
                         }
                       }}
                     />
-                    <button onClick={submitQuestion}>Send</button>
-                    <button className="chat-prompt-skip" onClick={skipQuestion}>Skip</button>
+                    <div className="chat-prompt-input-hint">
+                      Enter to send · Esc {customInput ? 'to close the field' : 'to skip'}
+                    </div>
                   </div>
-                )}
-                {!!pendingPrompt.options?.length && pendingPrompt.multiple && !customInput && (
+                ) : (
                   <div className="chat-prompt-actions">
-                    <button
-                      className={questionIndex === (pendingPrompt.options?.length ?? 0) + (pendingPrompt.custom !== false ? 1 : 0) ? 'focused' : ''}
-                      onClick={submitQuestion}
-                      disabled={selectedOptions.length === 0}
-                    >
-                      Send
-                    </button>
-                    <button className="chat-prompt-skip" onClick={skipQuestion}>Skip</button>
-                  </div>
-                )}
-                {!!pendingPrompt.options?.length && !customInput && (
-                  <div className="chat-prompt-hint-row">
-                    <span className="chat-prompt-hint">↑/↓ to navigate, Enter to select</span>
-                    <button className="chat-prompt-skip" onClick={skipQuestion}>Skip</button>
+                    <span className="chat-prompt-hint">
+                      {pendingPrompt.multiple ? '↑/↓ to navigate, Enter to toggle' : '↑/↓ to navigate, Enter to select'}
+                    </span>
+                    {questionShowSubmit && (
+                      <button
+                        className={questionIndex === questionSubmitIndex ? 'focused' : ''}
+                        onClick={submitQuestion}
+                        disabled={selectedOptions.length === 0}
+                      >
+                        {questionSubmitLabel}
+                      </button>
+                    )}
+                    {questionShowSkip && (
+                      <button className="chat-prompt-skip" onClick={skipQuestion}>{questionSkipLabel}</button>
+                    )}
                   </div>
                 )}
               </>

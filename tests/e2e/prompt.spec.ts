@@ -57,7 +57,7 @@ test('keyboard 1 triggers allow when panel focused', async () => {
   }
 })
 
-async function launchQuestion(question = 'Please enter your username:') {
+async function launchQuestion(question = 'Please enter your username:', extra: Record<string, unknown> = {}) {
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
   const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
   seedWorkspace(userData, project)
@@ -66,33 +66,62 @@ async function launchQuestion(question = 'Please enter your username:') {
   await window.locator('.project-toggle').click()
   await window.locator('.session-list .session-row').first().click()
   await expect(window.locator('.chat-panel')).toBeVisible()
-  await app.evaluate(async ({ BrowserWindow }, text) => {
+  await app.evaluate(async ({ BrowserWindow }, payload) => {
     BrowserWindow.getAllWindows()[0].webContents.send('chat:event', {
       type: 'prompt-request', agentId: 'a1', promptId: 'p1', kind: 'question',
-      question: text, custom: true
+      question: payload.question, custom: true, ...payload.extra
     })
-  }, question)
+  }, { question, extra })
   await expect(window.locator('.chat-prompt')).toBeVisible()
   return { app, window }
 }
 
-test('text-only question submits the typed answer', async () => {
+test('text-only question is input-only and submits on Enter', async () => {
   const { app, window } = await launchQuestion()
   try {
+    await expect(window.locator('.chat-prompt-input')).toBeVisible()
+    await expect(window.locator('.chat-prompt-actions')).toHaveCount(0)
+    await expect(window.locator('.chat-prompt-close')).toBeVisible()
     await window.locator('.chat-prompt-input').fill('nguyen.vana')
-    await window.locator('.chat-prompt-actions button', { hasText: 'Send' }).click()
+    await window.locator('.chat-prompt-input').press('Enter')
     await expect(window.locator('.chat-prompt')).toHaveCount(0)
   } finally {
     await app.close()
   }
 })
 
-test('skip closes the question prompt', async () => {
+test('the header × closes the question prompt', async () => {
   const { app, window } = await launchQuestion()
   try {
-    await window.locator('.chat-prompt-skip').click()
+    await window.locator('.chat-prompt-close').click()
     // Skip ends the turn; the card must not wait for a `done` event to close.
     await expect(window.locator('.chat-prompt')).toHaveCount(0)
+  } finally {
+    await app.close()
+  }
+})
+
+test('multi-select renders one action row with the AI labels', async () => {
+  const { app, window } = await launchQuestion('Pick checks:', {
+    options: [{ label: 'Lint' }, { label: 'Tests' }],
+    multiple: true,
+    custom: false,
+    submitLabel: 'Continue',
+    skipLabel: 'Not now'
+  })
+  try {
+    // The old duplicate row came from the multi-select action block and the
+    // hint block both rendering a Skip button.
+    await expect(window.locator('.chat-prompt-actions')).toHaveCount(1)
+    const actions = window.locator('.chat-prompt-actions')
+    await expect(actions.locator('button')).toHaveCount(2)
+    const submit = actions.locator('button', { hasText: 'Continue' })
+    await expect(submit).toBeVisible()
+    await expect(submit).toBeDisabled()
+    await expect(actions.locator('button', { hasText: 'Not now' })).toBeVisible()
+    await window.locator('.chat-option', { hasText: 'Lint' }).click()
+    await expect(submit).toBeEnabled()
+    await expect(window.locator('.chat-prompt-actions')).toHaveCount(1)
   } finally {
     await app.close()
   }

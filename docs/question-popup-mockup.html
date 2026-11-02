@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Meow Chat — Question Popup — All Cases</title>
+<style>
+  :root {
+    /* Repo tokens (src/renderer/src/styles.css) */
+    --bg: #0a0a0b;
+    --bg-panel: #0f0f11;
+    --bg-raised: #161618;
+    --bg-hover: #1c1c20;
+    --bg-active: #242428;
+    --bg-input: #1a1a1d;
+    --bg-input-hover: #242428;
+    --bg-code: #0a0a0b;
+    --bg-bubble-user: #1a3a5c;
+    --text: #ffffff;
+    --text-strong: #ffffff;
+    --text-dim: #b0b0b0;
+    --text-faint: #707076;
+    --accent: #007acc;
+    --accent-strong: #1f9cf0;
+    --accent-dim: rgba(0, 122, 204, 0.18);
+    --accent-dim-hover: rgba(0, 122, 204, 0.26);
+    --accent-border: rgba(0, 122, 204, 0.45);
+    --focus-ring: rgba(0, 122, 204, 0.45);
+    --green: #4ade9f;
+    --yellow: #ffb454;
+    --red: #ff5f56;
+    --hairline: rgba(255, 255, 255, 0.10);
+    --hairline-strong: rgba(255, 255, 255, 0.18);
+    --radius-xs: 0.25rem;
+    --radius-sm: 0.333333rem;
+    --radius: 0.5rem;
+    --radius-lg: 0.666667rem;
+    --font-ui: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+  [data-theme='light'] {
+    --bg: #ffffff;
+    --bg-panel: #ffffff;
+    --bg-raised: #f7f7f8;
+    --bg-hover: #ececee;
+    --bg-active: #e3e3e6;
+    --bg-input: #ffffff;
+    --bg-input-hover: #f0f0f2;
+    --bg-code: #f5f5f5;
+    --bg-bubble-user: #dbeafe;
+    --text: #1e1e1e;
+    --text-strong: #111111;
+    --text-dim: #4b4b4b;
+    --text-faint: #8a8a8a;
+    --accent: #007acc;
+    --accent-strong: #0066aa;
+    --accent-dim: rgba(0, 122, 204, 0.10);
+    --accent-dim-hover: rgba(0, 122, 204, 0.16);
+    --accent-border: rgba(0, 122, 204, 0.40);
+    --focus-ring: rgba(0, 122, 204, 0.25);
+    --green: #16a34a;
+    --yellow: #b45309;
+    --red: #dc2626;
+    --hairline: rgba(0, 0, 0, 0.12);
+    --hairline-strong: rgba(0, 0, 0, 0.22);
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--font-ui); font-size: 14px; line-height: 1.5; }
+  .page { max-width: 1320px; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+  .page-head { display: flex; align-items: flex-start; gap: 1.5rem; margin-bottom: 2rem; }
+  .page-head h1 { margin: 0 0 0.35rem; font-size: 1.5rem; letter-spacing: -0.01em; }
+  .lede { margin: 0; max-width: 72ch; color: var(--text-dim); font-size: 0.95rem; }
+  .theme-btn {
+    margin-left: auto; flex: 0 0 auto; background: var(--bg-raised); color: var(--text);
+    border: 1px solid var(--hairline); border-radius: var(--radius-sm);
+    padding: 0.45rem 0.8rem; font: inherit; font-size: 0.82rem; cursor: pointer;
+  }
+  .theme-btn:hover { background: var(--bg-hover); }
+
+  h2.section-title {
+    font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--text-dim); margin: 2.5rem 0 0.9rem; font-weight: 600;
+  }
+
+  /* Change summary */
+  .changes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; }
+  @media (max-width: 1000px) { .changes { grid-template-columns: repeat(2, 1fr); } }
+  .change {
+    border: 1px solid var(--hairline); border-radius: var(--radius);
+    background: var(--bg-raised); padding: 0.85rem 0.95rem;
+  }
+  .change .n {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.25rem; height: 1.25rem; border-radius: 999px;
+    background: var(--accent-dim); color: var(--accent-strong);
+    border: 1px solid var(--accent-border); font-family: var(--font-mono);
+    font-size: 0.7rem; margin-bottom: 0.45rem;
+  }
+  .change b { display: block; font-size: 0.88rem; margin-bottom: 0.2rem; }
+  .change span { color: var(--text-dim); font-size: 0.8rem; line-height: 1.45; }
+
+  /* Case grid */
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem 1.25rem; align-items: start; }
+  @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+  .case { display: flex; flex-direction: column; gap: 0.45rem; min-width: 0; }
+  .case-head { display: flex; align-items: center; gap: 0.4rem; }
+  .case-id {
+    font-family: var(--font-mono); font-size: 0.68rem; color: var(--accent-strong);
+    background: var(--accent-dim); border: 1px solid var(--accent-border);
+    padding: 0.05rem 0.35rem; border-radius: var(--radius-xs);
+  }
+  .case-title { font-size: 0.82rem; font-weight: 600; }
+  .tag {
+    margin-left: auto; font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 0.05rem 0.4rem; border-radius: 999px; border: 1px solid var(--hairline-strong);
+    color: var(--text-dim); white-space: nowrap;
+  }
+  .tag.new { color: var(--accent-strong); border-color: var(--accent-border); }
+  .tag.fix { color: var(--green); border-color: rgba(74, 222, 159, 0.4); }
+  .tag.edge { color: var(--yellow); border-color: rgba(255, 180, 84, 0.4); }
+  .tag.keep { color: var(--text-dim); }
+  .case-note { margin: 0; color: var(--text-dim); font-size: 0.78rem; line-height: 1.5; }
+  .case-note code, .schema code { font-family: var(--font-mono); font-size: 0.92em; color: var(--yellow); }
+
+  /* ── Prompt card (mirrors .chat-prompt) ── */
+  .prompt {
+    border: 1px solid var(--hairline); border-radius: var(--radius-lg);
+    background: var(--bg-raised); box-shadow: var(--shadow-1);
+    padding: 0.75rem 0.9rem; display: flex; flex-direction: column; gap: 0.55rem;
+    font-size: 0.86rem; min-width: 0;
+  }
+  .prompt-head {
+    display: flex; align-items: center; gap: 0.5rem;
+    border-bottom: 1px solid var(--hairline);
+    padding: 0.1rem 0 0.35rem; margin-top: -0.1rem;
+  }
+  .badge {
+    display: inline-flex; align-items: center; padding: 0.05rem 0.35rem;
+    border-radius: var(--radius-xs); font-size: 0.58rem; font-weight: 700;
+    letter-spacing: 0.05em; text-transform: uppercase; flex: 0 0 auto;
+  }
+  .badge.question { background: var(--accent-dim); color: var(--accent-strong); border: 1px solid var(--accent-border); }
+  .badge.permission { background: rgba(255, 180, 84, 0.15); color: var(--yellow); border: 1px solid rgba(255, 180, 84, 0.3); }
+  .head-label {
+    flex: 1; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-dim); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .icon-btn {
+    flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+    width: 1.4rem; height: 1.4rem; padding: 0; background: transparent;
+    border: 1px solid transparent; border-radius: var(--radius-sm);
+    color: var(--text-dim); cursor: default;
+  }
+  .icon-btn:hover { color: var(--text-strong); background: var(--bg-hover); }
+  .icon-btn.close { color: var(--text-dim); }
+  .icon-btn.close:hover { color: var(--red); }
+  .icon-btn.dashed { border: 1px dashed var(--hairline-strong); }
+  .qtext { white-space: pre-wrap; line-height: 1.45; user-select: text; }
+  .multi-hint { color: var(--text-dim); font-size: 0.78rem; }
+
+  /* Options */
+  .options { display: flex; flex-direction: column; gap: 0.12rem; }
+  .opt {
+    display: flex; align-items: flex-start; gap: 0.55rem; padding: 0.4rem 0.55rem;
+    border-radius: var(--radius); font-size: 0.84rem; line-height: 1.4; min-width: 0;
+    transition: background 120ms ease;
+  }
+  .opt:hover { background: var(--bg-hover); }
+  .opt.focused { background: var(--bg-active); outline: 1px solid var(--accent); outline-offset: -1px; }
+  /* Selected: soft accent tint only — no left accent bar. The checkbox carries the state. */
+  .opt.selected { background: var(--accent-dim); }
+  .opt.selected:hover { background: var(--accent-dim-hover); }
+  .opt.selected.focused { background: var(--accent-dim); outline: 1px solid var(--accent); outline-offset: -1px; }
+  /* Forced-hover rows used by the "Option row states" demo. */
+  .opt.hover-demo { background: var(--bg-hover); }
+  .opt.selected.hover-demo { background: var(--accent-dim-hover); }
+  .opt-mark { flex: 0 0 auto; min-width: 0.95rem; color: var(--text-dim); font-family: var(--font-mono); font-size: 0.78rem; }
+  .opt.selected .opt-mark { color: var(--accent-strong); }
+  /* Real checkbox (multi-select) — replaces the old "[ ]" / "[✓]" text marks. */
+  .check {
+    flex: 0 0 auto; width: 15px; height: 15px; margin-top: 2px;
+    border-radius: 4px; border: 1.5px solid var(--hairline-strong);
+    background: transparent; color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background 120ms ease, border-color 120ms ease;
+  }
+  .check svg { width: 10px; height: 10px; opacity: 0; transition: opacity 120ms ease; }
+  .opt.selected .check { background: var(--accent); border-color: var(--accent); }
+  .opt.selected .check svg { opacity: 1; }
+  .opt.focused .check { box-shadow: 0 0 0 2px var(--focus-ring); }
+  /* S2 — outlined square: accent border + accent check, no fill. */
+  .opt.selected .check.outline { background: transparent; border-color: var(--accent); color: var(--accent); }
+  /* S3 — circular check: radio-like silhouette with a check glyph. */
+  .check.circle { border-radius: 50%; }
+  .check.circle svg { width: 9px; height: 9px; }
+  /* S4 — compact square. */
+  .check.small { width: 12px; height: 12px; border-radius: 3px; }
+  .check.small svg { width: 8px; height: 8px; }
+  .opt-text { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+  .opt-label { color: var(--text); }
+  .opt-desc { color: var(--text-dim); font-size: 0.74rem; }
+  .opt.custom .opt-label { color: var(--accent-strong); }
+
+  /* Actions */
+  .actions { display: flex; align-items: center; gap: 0.5rem; min-height: 1.9rem; }
+  .actions .hint { flex: 1; min-width: 0; }
+  .btn {
+    flex: 0 0 auto; padding: 0.34rem 0.85rem; background: var(--bg-input);
+    color: var(--text-strong); border: 1px solid var(--hairline); border-radius: var(--radius);
+    font: inherit; font-size: 0.78rem; cursor: default; white-space: nowrap;
+  }
+  .btn.submit { color: var(--accent-strong); border-color: var(--accent-border); }
+  .btn.skip { color: var(--text-dim); }
+  .btn.allow { color: var(--green); }
+  .btn.always { color: var(--accent-strong); }
+  .btn.disabled { opacity: 0.4; }
+  .btn.focused { outline: 1px solid var(--accent); outline-offset: -1px; }
+  .btn kbd {
+    font-family: var(--font-mono); font-size: 0.66rem; margin-left: 0.2rem;
+    color: var(--text-faint);
+  }
+
+  .hint { color: var(--text-dim); font-size: 0.72rem; line-height: 1.45; }
+  .hint kbd {
+    font-family: var(--font-mono); font-size: 0.66rem; padding: 0 0.22rem;
+    border: 1px solid var(--hairline); border-radius: var(--radius-xs); background: var(--bg-code);
+    color: var(--text-dim);
+  }
+
+  /* Input */
+  .input-wrap { display: flex; flex-direction: column; gap: 0.2rem; }
+  .input {
+    display: flex; align-items: center; padding: 0.42rem 0.75rem;
+    background: var(--bg-code); border: 1px solid var(--hairline);
+    border-radius: var(--radius); font-size: 0.84rem; color: var(--text);
+    min-width: 0;
+  }
+  .input.focused { border-color: var(--accent); box-shadow: 0 0 0 0.14rem var(--focus-ring); }
+  .input .placeholder { color: var(--text-faint); }
+  .input .caret { display: inline-block; width: 1px; height: 1em; background: var(--accent-strong); margin-left: 1px; }
+
+  /* Collapsed */
+  .collapsed-text { color: var(--text-dim); font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Bug comparison */
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+  @media (max-width: 700px) { .compare { grid-template-columns: 1fr; } }
+  .compare-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); margin-bottom: 0.2rem; }
+  .prompt.bug { border-color: rgba(255, 95, 86, 0.55); }
+  .dupe {
+    border: 1px dashed var(--red); border-radius: var(--radius);
+    padding: 0.15rem 0.35rem; margin-top: 0.15rem;
+  }
+  .dupe-label { color: var(--red); font-size: 0.66rem; margin-top: 0.2rem; }
+
+  /* Feed snippets */
+  .feed { display: flex; flex-direction: column; gap: 0.45rem; }
+  .feed-row { border: 1px solid var(--hairline); border-radius: var(--radius-sm); background: var(--bg-raised); padding: 0.45rem 0.6rem; display: flex; align-items: center; gap: 0.45rem; font-size: 0.78rem; }
+  .feed-badge { font-family: var(--font-mono); font-size: 0.68rem; color: var(--yellow); background: var(--bg-code); border: 1px solid var(--hairline); border-radius: var(--radius-xs); padding: 0 0.3rem; }
+  .feed-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
+  .feed-ok { color: var(--green); font-size: 0.72rem; }
+  .bubble-user {
+    align-self: flex-end; max-width: 80%; background: var(--bg-bubble-user); color: var(--text);
+    padding: 0.42rem 0.65rem; border-radius: var(--radius); font-size: 0.8rem;
+  }
+
+  /* Narrow */
+  .narrow { width: 300px; max-width: 100%; }
+  .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Schema */
+  .schema {
+    border: 1px solid var(--hairline); border-radius: var(--radius);
+    background: var(--bg-raised); padding: 1rem 1.1rem;
+  }
+  .schema pre {
+    margin: 0.6rem 0 0; padding: 0.8rem 0.9rem; background: var(--bg-code);
+    border: 1px solid var(--hairline); border-radius: var(--radius-sm);
+    overflow-x: auto; font-family: var(--font-mono); font-size: 0.76rem; line-height: 1.55;
+    color: var(--text-dim);
+  }
+  .schema pre b { color: var(--accent-strong); font-weight: 500; }
+  .schema pre i { color: var(--text-faint); font-style: normal; }
+  .schema table { width: 100%; border-collapse: collapse; margin-top: 0.8rem; font-size: 0.78rem; }
+  .schema th, .schema td { text-align: left; padding: 0.4rem 0.55rem; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+  .schema th { color: var(--text-dim); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  .schema td code { color: var(--yellow); }
+
+  /* Decisions */
+  .decisions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+  @media (max-width: 900px) { .decisions { grid-template-columns: 1fr; } }
+  .decision { border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--bg-raised); padding: 0.8rem 0.95rem; }
+  .decision b { display: block; font-size: 0.84rem; margin-bottom: 0.2rem; }
+  .decision span { color: var(--text-dim); font-size: 0.78rem; line-height: 1.5; }
+  .decision em { color: var(--text); font-style: normal; }
+  .state-machine {
+    border: 1px solid var(--hairline); border-radius: var(--radius);
+    background: var(--bg-raised); padding: 0.9rem 1rem; margin-top: 0.9rem;
+    font-family: var(--font-mono); font-size: 0.76rem; line-height: 1.7; color: var(--text-dim);
+    white-space: pre-wrap;
+  }
+  .state-machine b { color: var(--accent-strong); font-weight: 500; }
+  .footer-note { margin-top: 2.5rem; color: var(--text-faint); font-size: 0.78rem; }
+
+  /* Checkbox style variants */
+  .variants { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; }
+  @media (max-width: 1100px) { .variants { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .variant { border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--bg-raised); padding: 0.7rem 0.8rem; }
+  .variant h3 { margin: 0 0 0.45rem; font-size: 0.76rem; font-weight: 600; display: flex; align-items: center; gap: 0.35rem; }
+  .variant .options { gap: 0.1rem; }
+  .variant .opt { padding: 0.28rem 0.35rem; font-size: 0.8rem; }
+  .variant .tag { margin-left: auto; }
+
+  /* Option row state demo */
+  .row-states { max-width: 680px; display: flex; flex-direction: column; gap: 0.45rem; }
+  .row-states .opt { padding: 0.45rem 0.6rem; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="page-head">
+    <div>
+      <h1>Question popup — redesign mockup</h1>
+      <p class="lede">
+        Every state of the permission / question prompt after the four requested changes.
+        Static mockup only — no app code has been changed. Review the cards, then pick the
+        open decisions at the bottom.
+      </p>
+    </div>
+    <button class="theme-btn" id="themeBtn" type="button">Toggle light</button>
+  </header>
+
+  <h2 class="section-title">What changes</h2>
+  <div class="changes">
+    <div class="change">
+      <div class="n">1</div>
+      <b>Header “×” = skip</b>
+      <span>Always visible on a question card, next to the collapse chevron. Esc does the same. Skip ends the turn (decided).</span>
+    </div>
+    <div class="change">
+      <div class="n">2</div>
+      <b>AI-labelled action buttons</b>
+      <span><code>submitLabel</code>, <code>skipLabel</code>, <code>customLabel</code>; at most two action buttons.</span>
+    </div>
+    <div class="change">
+      <div class="n">3</div>
+      <b>One action row</b>
+      <span>No more body buttons + footer buttons duplicating the same action.</span>
+    </div>
+    <div class="change">
+      <div class="n">4</div>
+      <b>Text answer = input only</b>
+      <span>No Send button beside the field. Enter submits; Esc / × skips.</span>
+    </div>
+  </div>
+
+  <h2 class="section-title">State machine (footer rules)</h2>
+  <div class="state-machine"><b>options.length === 0</b>            →  [ input ]                       + hint “Enter to send · Esc to skip”   (no buttons)
+<b>options &gt; 0, input open</b>         →  [ input ]                       + hint “Enter to send · Esc to close input” (no buttons)
+<b>options &gt; 0, multiple, no input</b> →  [ option rows ] + [ Submit ] [ Skip ]   (one row, Submit disabled until ≥ 1)
+<b>options &gt; 0, single, no input</b>   →  [ option rows ] + [ Skip ]              (one row; clicking a row answers immediately)
+<b>collapsed</b>                        →  header only + one-line question + ×</div>
+
+  <h2 class="section-title">Cases</h2>
+  <div class="grid">
+
+    <!-- P1 -->
+    <div class="case">
+      <div class="case-head">
+        <span class="case-id">P1</span>
+        <span class="case-title">Permission prompt — unchanged</span>
+        <span class="tag keep">Keep</span>
+      </div>
+      <div class="prompt">
+        <div class="prompt-head">
+          <span class="badge permission">Permission</span>
+          <span class="head-label">Permission Request</span>
+          <button class="icon-btn" type="button" title="Collapse">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+        </div>
+        <div class="qtext">Meow wants to run <code style="font-family:var(--font-mono);color:var(--yellow)">bash</code>:</div>
+        <div class="actions">
+          <button class="btn allow" type="button">Allow <kbd>1</kbd></button>
+          <button class="btn always" type="button">Always <kbd>2</kbd></button>
+          <button class="btn" type="button">Deny <kbd>3</kbd></button>
+        </div>
+        <div class="hint">←/→ or Tab to select, Enter to confirm</div>
+      </div>
+      <p class="case-note">No change requested here. The three actions stay as they are.</p>
+    </div>
+
+    <!-- P2 -->
+    <div class="case">
+      <div class="case-head">
+        <span class="case-id">P2</span>
+        <span class="case-title">Permission prompt + optional ×</span>
+        <span class="tag edge">Optional</span>
+      </div>
+      <div class="prompt">
+        <div class="prompt-head">
+          <span class="badge permission">Permission</span>
+          <span class="head-label">Permission Request</span>
+          <button class="icon-btn" type="button" title="Collapse">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <button class="icon-btn close dashed" type="button" title="Deny">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="qtext">Meow wants to run <code style="font-family:var(--font-mono);color:var(--yellow)">bash</code>:</div>
+        <div class="actions">
+          <button class="btn allow" type="button">Allow <kbd>1</kbd></button>
+          <button class="btn always" type="button">Always <kbd>2</kbd></button>
+          <button class="btn" type="button">Deny <kbd>3</kbd></button>
+        </div>
+        <div class="hint">←/→ or Tab to select, Enter to confirm</div>
+      </div>
+      <p class="case-note">Optional consistency: × on a permission card maps to <em>Deny</em> (dashed to mark it as a proposal).</p>
+    </div>
+
+    <!-- Q1 -->
+    <div class="case">
+      <div class="case-head">
+        <span class="case-id">Q1</span>
+        <span class="case-title">Text-only — empty</span>
+        <span class="tag new">New</span>
+      </div>
+      <div class="prompt">
+        <div class="prompt-head">
+          <span class="badge question">Question</span>
+          <span class="head-label">Agent Question</span>
+          <button class="icon-btn" type="button" title="Collapse">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <button class="icon-btn close" type="button" title="Skip question (ends the turn)">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="qtext">Please enter your username:</div>
+        <div class="input-wrap">
+          <div class="input focused"><span class="placeholder">Answer…</span><span class="caret"></span></div>
+          <div class="hint"><kbd>↵</kbd> Enter to send &nbsp;·&nbsp; <kbd>Esc</kbd> or × to skip</div>
+        </div>
+      </div>
+      <p class="case-note">Only the input. No Send / Skip buttons — Enter submits, the header × (or Esc) skips.</p>
+    </div>
+
+    <!-- Q2 -->
+    <div class="case">
+      <div class="case-head">
+        <span class="case-id">Q2</span>
+        <span class="case-title">Text-only — typed</span>
+        <span class="tag new">New</span>
+      </div>
+      <div class="prompt">
+        <div class="prompt-head">
+          <span class="badge question">Question</span>
+          <span class="head-label">Agent Question</span>
+          <button class="icon-btn" type="button" title="Collapse">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <button class="icon-btn close" type="button" title="Skip question (ends the turn)">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="qtext">Please enter your username:</div>
+        <div class="input-wrap">
+          <div class="input focused">nguyen.vana<span class="caret"></span></div>
+          <div class="hint"><kbd>↵</kbd> Enter to send &nbsp;·&nbsp; <kbd>Esc</kbd> or × to skip</div>
+        </div>
+      </div>
+      <p class="case-note">Same layout while typing. Enter submits; the field never grows a Send button.</p>
+    </div>
+
+    <!-- Q3 -->
+    <div class="case">
+      <div class="case-head">
+        <span class="case-id">Q3</span>
+        <span class="case-title">Single-select + custom answer</span>
+        <span class="tag new">New</span>
+      </div>
+      <div class="prompt">
+        <div class="prompt-head">
+          <span class="badge question">Question</span>
+          <span class="head-label">Agent Question</span>
+          <button class="icon-btn" type="button" title="Collapse">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <button class="icon-btn close" type="button" title="Skip question (ends the turn)">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="qtext">Which database should I use?</div>
+        <div class="options">
+          <div class="opt focused">
+            <span class="opt-mark">1.</span>
+            <span class="opt-text"><span class="opt-label">PostgreSQL</span><span class="opt-desc">Relational, strong consistency</span></span>
+          </div>
+          <div class="opt">
+            <span class="opt-mark">2.</span>
+            <span class="opt-text"><span class="opt-label">SQLite</span><span class="opt-desc">Zero-config, local file</span></span>
+          </div>
+          <div class="opt">
+            <span class="opt-mark">3.</span>
+            <span class="opt-text"><span class="opt-label">MongoDB</span><span class="opt-desc">Document store</span></span>
+          </div>
+          <div class="opt custom">
+            <span class="opt-mark">4.</span>
+            <span class="opt-text"><span class="opt-label">Other</span></span>
+          </div>
+        </div>
+        <div class="actions">
+          <span class="hint">↑/↓ navigate · Enter select</span>
+          <button class="btn skip" type="button">Skip</button>
+        </div>
+      </div>
+      <p class="case-note">Clicking an option answers immediately — no Submit button. The only footer button is the AI-labelled skip.</p>
+    </div>
+
+    <!-- Q4 -->
+    <div class="case">
+      <div class="case-head">
+        <span class="case-id">Q4</span>
+        <span class="case-title">Single-select — “Other” opened</span>
+        <span class="tag new">New</span>
+      </div>
+      <div class="prompt">
+        <div class="prompt-head">
+          <span class="badge question">Question</span>
+          <span class="head-label">Agent Question</span>
+          <button class="icon-btn" type="button" title="Collapse">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <button class="icon-btn close" type="button" title="Skip question (ends the turn)">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="qtext">Which database should I use?</div>
+        <div class="options">
+          <div class="opt">
+            <span class="opt-mark">1.</span>
+            <span class="opt-text"><span class="opt-label">PostgreSQL</span><span class="opt-desc">Relational, strong consistency</span></span>
+          </div>
+          <div class="opt">
+            <span class="opt-mark">2.</span>
+            <span class="opt-text"><span class="opt-label">SQLite</span><span class="opt-desc">Zero-config, local file</span></span>
+          </div>
+          <div class="opt">
+            <span class="opt-mark">3.</span>
+            <span class="opt-text"><span class="opt-label">MongoDB</span><span class="opt-desc">Document store</span></span>
+          </div>
+          <div class="opt custom selected">
+            <span class="opt-mark">4.</span>
+            <span class="opt-text"><span class="opt-label">Other</span></span>
+          </div>
+        </div>
+        <div class="input-wrap">
+          <div class="input focused">Use CockroachDB<span class="caret"></span></div>
+          <div class="hint"><kbd>↵</kbd> Enter to send &nbsp;·&nbsp; <kbd>Esc</kbd> closes the input &nbsp;·&nbsp; click “Other” again to close</div>
+        </div>
+      </div>
+      <p class="case-note">Input-only, no footer buttons. Enter submits the typed answer; × still skips the whole question.</p>
+    </div>
+
+    <!-- Q5 -->
+    <div class="case">
+      <div class="case-head">
+        <span class="case-id">Q5</span>
+        <span class="case-title">Single-select, <code>custom: false</code></span>
+        <span class="tag keep">Existing</span>
+      </div>
+      <div class="prompt">
+        <div class="prompt-head">
+          <span class="badge question">Question</span>
+          <span class="head-label">Agent Question</span>
+          <button class="icon-btn" type="button" title="Collapse">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <button class="icon-btn close" type="button" title="Skip question (ends the turn)">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="qtext">Which database should I use?</div>
+        <div class="options">
+          <div class="opt">
+            <span class="opt-mark">1.</span>
+            <span class="opt-text"><span class="opt-label">PostgreSQL</span></span>
+          </div>
+          <div class="opt">
+            <span class="opt-mark">2.</span>
+            <span class="opt-text"><span class="opt-label">SQLite</span></span>
+          </div>
+        </div>
+        <div class="actions">
+          <span class="hint">↑/↓ navigate · Enter select</span>
+          <button class="btn skip" type="button">Skip</button>
+        </div>
+      </div>
+      <p class="case-note">No “Other” row. Same single footer row; skip label still comes from the AI.</p>
+    </div>
+
+    <!-- Q6 -->
+    <div class="case">
+      <div class="case-head">
+        <span class="case-id">Q6</span>
+        <span class="case-title">Multi-select — nothing selected</span>
+        <span class="tag new">New</span>
+      </div>
+      <div class="prompt">
+        <div class="prompt-head">
+          <span class="badge question">Question</span>
+          <span class="head-label">Agent Question</span>
+          <button class="icon-btn" type="button" title="Collapse">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <button class="icon-btn close" type="button" title="Skip question (ends the turn)">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="qtext">Which checks should I run? <span class="multi-hint">(select all that apply)</span></div>
+        <div class="options">
+          <div class="opt"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Lint</span></span></div>
+          <div class="opt"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Typecheck</span></span></div>
+          <div class="opt"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Tests</span></span></div>
+          <div class="opt custom"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Other</span></span></div>
+        </div>
+        <div class="actions">
+          <span class="hint">↑/↓ navigate · Enter toggle</span>
+          <button class="btn submit disabled" type="button">Submit</button>
+          <button class="btn skip" type="button">Skip</button>
+        </div>
+      </div>
+      <p class="case-note">One footer row. Submit is disabled until at least one row is selected.</p>
+    </div>
+
+    <!-- Q7 -->
+    <div class="case">
+      <div class="case-head">
+        <span class="case-id">Q7</span>
+        <span class="case-title">Multi-select — two selected</span>
+        <span class="tag new">New</span>
+      </div>
+      <div class="prompt">
+        <div class="prompt-head">
+          <span class="badge question">Question</span>
+          <span class="head-label">Agent Question</span>
+          <button class="icon-btn" type="button" title="Collapse">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <button class="icon-btn close" type="button" title="Skip question (ends the turn)">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="qtext">Which checks should I run? <span class="multi-hint">(select all that apply)</span></div>
+        <div class="options">
+          <div class="opt selected"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Lint</span></span></div>
+          <div class="opt selected"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Typecheck</span></span></div>
+          <div class="opt"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Tests</span></span></div>
+          <div class="opt custom"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Other</span></span></div>
+        </div>
+        <div class="actions">
+          <span class="hint">↑/↓ navigate · Enter toggle</span>
+          <button class="btn submit focused" type="button">Submit</button>
+          <button class="btn skip" type="button">Skip</button>
+        </div>
+      </div>
+      <p class="case-note">Submit enabled; exactly two action buttons, both labelled by the AI.</p>
+    </div>
+
+    <!-- Q8 -->
+    <div class="case">
+      <div class="case-head">
+        <span class="case-id">Q8</span>
+        <span class="case-title">Multi-select, <code>custom: false</code> — duplicate row bug</span>
+        <span class="tag fix">Fix</span>
+      </div>
+      <div class="compare">
+        <div>
+          <div class="compare-label">Current — two Skip buttons</div>
+          <div class="prompt bug">
+            <div class="qtext" style="font-size:0.8rem">Which checks should I run?</div>
+            <div class="options">
+              <div class="opt selected"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Lint</span></span></div>
+              <div class="opt"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Typecheck</span></span></div>
+            </div>
+            <div class="actions">
+              <button class="btn submit" type="button">Send</button>
+              <button class="btn skip" type="button">Skip</button>
+            </div>
+            <div class="dupe">
+              <div class="actions">
+                <span class="hint">↑/↓ navigate, Enter to select</span>
+                <button class="btn skip" type="button">Skip</button>
+              </div>
+            </div>
+            <div class="dupe-label">↑ duplicate — rendered by the hint block as well</div>
+          </div>
+        </div>
+        <div>
+          <div class="compare-label">Proposed — one row</div>
+          <div class="prompt">
+            <div class="qtext" style="font-size:0.8rem">Which checks should I run?</div>
+            <div class="options">
+              <div class="opt selected"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Lint</span></span></div>
+              <div class="opt"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Typecheck</span></span></div>
+            </div>
+            <div class="actions">
+              <span class="hint">↑/↓ navigate · Enter toggle</span>
+              <button class="btn submit" type="button">Submit</button>
+              <button class="btn skip" type="button">Skip</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="case-note">The hint block must never render its own skip button when the multi-select action row is already present.</p>
+    </div>
+
+    <!-- Q9 -->
+    <div class="case">
+      <div class="case-head">
+        <span class="case-id">Q9</span>
+        <span class="case-title">Multi-select — “Other” opened</span>
+        <span class="tag new">New</span>
+      </div>
+      <div class="prompt">
+        <div class="prompt-head">
+          <span class="badge question">Question</span>
+          <span class="head-label">Agent Question</span>
+          <button class="icon-btn" type="button" title="Collapse">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <button class="icon-btn close" type="button" title="Skip question (ends the turn)">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="qtext">Which checks should I run? <span class="multi-hint">(select all that apply)</span></div>
+        <div class="options">
+          <div class="opt selected"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Lint</span></span></div>
+          <div class="opt"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Typecheck</span></span></div>
+          <div class="opt selected"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Other</span></span></div>
+        </div>
+        <div class="input-wrap">
+          <div class="input focused">Also run the e2e suite<span class="caret"></span></div>
+          <div class="hint"><kbd>↵</kbd> Enter submits selected rows + this text &nbsp;·&nbsp; <kbd>Esc</kbd> closes the input</div>
+        </div>
+      </div>
+      <p class="case-note">Input-only while typing; Enter commits the checked rows and the typed text together.</p>
+    </div>
+
+    <!-- Q10 -->
+    <div class="case">
+      <div class="case-head">
+        <span class="case-id">Q10</span>
+        <span class="case-title">Collapsed</span>
+        <span class="tag keep">Existing</span>
+      </div>
+      <div class="prompt">
+        <div class="prompt-head">
+          <span class="badge question">Question</span>
+          <span class="head-label">Agent Question</span>
+          <button class="icon-btn" type="button" title="Expand">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" style="transform:rotate(-90deg)"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <button class="icon-btn close" type="button" title="Skip question (ends the turn)">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="collapsed-text">Which database should I use?</div>
+      </div>
+      <p class="case-note">Collapsing keeps the header actions: expand chevron and × are both still reachable.</p>
+    </div>
+
+    <!-- Q11 -->
+    <div class="case">
+      <div class="case-head">
+        <span class="case-id">Q11</span>
+        <span class="case-title">Recovery pause question</span>
+        <span class="tag keep">Existing</span>
+      </div>
+      <div class="prompt">
+        <div class="prompt-head">
+          <span class="badge question">Question</span>
+          <span class="head-label">Agent Question</span>
+          <button class="icon-btn" type="button" title="Collapse">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <button class="icon-btn close" type="button" title="Skip question (ends the turn)">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="qtext">The model keeps repeating itself and could not recover on its own. Continue this turn?</div>
+        <div class="options">
+          <div class="opt focused"><span class="opt-mark">1.</span><span class="opt-text"><span class="opt-label">Continue</span></span></div>
+          <div class="opt"><span class="opt-mark">2.</span><span class="opt-text"><span class="opt-label">Stop</span></span></div>
+          <div class="opt custom"><span class="opt-mark">3.</span><span class="opt-text"><span class="opt-label">Other</span></span></div>
+        </div>
+        <div class="actions">
+          <span class="hint">↑/↓ navigate · Enter select</span>
+          <button class="btn skip" type="button">Skip</button>
+        </div>
+      </div>
+      <p class="case-note">“Stop” is a normal option (it answers the question); × / Skip declines the question entirely. They read differently now.</p>
+    </div>
+
+    <!-- Q12 -->
+    <div class="case">
+      <div class="case-head">
+        <span class="case-id">Q12</span>
+        <span class="case-title">Long question</span>
+        <span class="tag keep">Existing</span>
+      </div>
+      <div class="prompt">
+        <div class="prompt-head">
+          <span class="badge question">Question</span>
+          <span class="head-label">Agent Question</span>
+          <button class="icon-btn" type="button" title="Collapse">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <button class="icon-btn close" type="button" title="Skip question (ends the turn)">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="qtext">Line 1 of a long question.
+
+Line 2 explains the trade-off in more detail.
+
+Line 3 adds another constraint the user should consider.
+
+Line 4 repeats the context so the card grows past the fold.
+
+Line 5 keeps going…
+
+Line 6 …
+
+Line 7 …
+
+Line 8 — the feed scrolls, the card does not.</div>
+        <div class="actions">
+          <span class="hint">↑/↓ navigate · Enter select</span>
+          <button class="btn skip" type="button">Skip</button>
+        </div>
+      </div>
+      <p class="case-note">No internal scrollbar and no sticky header — the card grows and the feed owns the scrolling (current behaviour, preserved).</p>
+    </div>
+
+    <!-- Q13 -->
+    <div class="case">
+      <div class="case-head">
+        <span class="case-id">Q13</span>
+        <span class="case-title">After answering — card gone, answer echoed</span>
+        <span class="tag keep">Existing</span>
+      </div>
+      <div class="feed">
+        <div class="feed-row">
+          <span class="feed-badge">question</span>
+          <span class="feed-text">Which database should I use?</span>
+          <span class="feed-ok">✓</span>
+        </div>
+        <div class="bubble-user">PostgreSQL</div>
+        <div class="feed-row">
+          <span class="feed-badge">read</span>
+          <span class="feed-text">src/main/db.ts</span>
+          <span class="feed-ok">✓</span>
+        </div>
+      </div>
+      <p class="case-note">The prompt disappears as soon as it is answered or skipped; the answer lands as a user bubble after the tool row (existing loop behaviour).</p>
+    </div>
+
+    <!-- Q14 -->
+    <div class="case">
+      <div class="case-head">
+        <span class="case-id">Q14</span>
+        <span class="case-title">Narrow pane</span>
+        <span class="tag edge">Edge</span>
+      </div>
+      <div class="narrow">
+        <div class="prompt">
+          <div class="prompt-head">
+            <span class="badge question">Question</span>
+            <span class="head-label">Agent Question</span>
+            <button class="icon-btn" type="button" title="Collapse">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <button class="icon-btn close" type="button" title="Skip question (ends the turn)">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div class="qtext truncate">Which database should I use for the new service?</div>
+          <div class="options">
+            <div class="opt"><span class="opt-mark">1.</span><span class="opt-text"><span class="opt-label truncate">PostgreSQL</span></span></div>
+            <div class="opt"><span class="opt-mark">2.</span><span class="opt-text"><span class="opt-label truncate">SQLite</span></span></div>
+          </div>
+          <div class="actions">
+            <span class="hint truncate">↑/↓ · Enter</span>
+            <button class="btn submit" type="button">Submit</button>
+            <button class="btn skip" type="button">Skip</button>
+          </div>
+        </div>
+      </div>
+      <p class="case-note">The action row stays a single row: the hint truncates first, labels ellipsize, buttons never wrap under each other.</p>
+    </div>
+
+    <!-- Q15 -->
+    <div class="case">
+      <div class="case-head">
+        <span class="case-id">Q15</span>
+        <span class="case-title">No options + <code>custom: false</code></span>
+        <span class="tag edge">Guard</span>
+      </div>
+      <div class="prompt">
+        <div class="prompt-head">
+          <span class="badge question">Question</span>
+          <span class="head-label">Agent Question</span>
+          <button class="icon-btn" type="button" title="Collapse">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <button class="icon-btn close" type="button" title="Skip question (ends the turn)">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="qtext">What should the new session be called?</div>
+        <div class="input-wrap">
+          <div class="input focused"><span class="placeholder">Answer…</span><span class="caret"></span></div>
+          <div class="hint"><kbd>↵</kbd> Enter to send &nbsp;·&nbsp; <kbd>Esc</kbd> or × to skip</div>
+        </div>
+      </div>
+      <p class="case-note">Guard: when there are no options, the input is shown even if <code>custom: false</code> — otherwise the card would be a dead end.</p>
+    </div>
+
+  </div>
+
+  <h2 class="section-title">Checkbox styles — pick one</h2>
+  <div class="variants">
+    <div class="variant">
+      <h3>S1 · Filled square <span class="tag new">Used above</span></h3>
+      <div class="options">
+        <div class="opt selected"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Selected</span></span></div>
+        <div class="opt"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Not selected</span></span></div>
+        <div class="opt focused"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Focused</span></span></div>
+      </div>
+    </div>
+    <div class="variant">
+      <h3>S2 · Outlined square</h3>
+      <div class="options">
+        <div class="opt selected"><span class="check outline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Selected</span></span></div>
+        <div class="opt"><span class="check outline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Not selected</span></span></div>
+        <div class="opt focused"><span class="check outline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Focused</span></span></div>
+      </div>
+    </div>
+    <div class="variant">
+      <h3>S3 · Circular check</h3>
+      <div class="options">
+        <div class="opt selected"><span class="check circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Selected</span></span></div>
+        <div class="opt"><span class="check circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Not selected</span></span></div>
+        <div class="opt focused"><span class="check circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Focused</span></span></div>
+      </div>
+    </div>
+    <div class="variant">
+      <h3>S4 · Compact square</h3>
+      <div class="options">
+        <div class="opt selected"><span class="check small"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Selected</span></span></div>
+        <div class="opt"><span class="check small"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Not selected</span></span></div>
+        <div class="opt focused"><span class="check small"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Focused</span></span></div>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="section-title">Option row states — no left accent bar</h2>
+  <div class="row-states">
+    <div class="prompt">
+      <div class="options">
+        <div class="opt"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Default row</span></span></div>
+        <div class="opt hover-demo"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Hover row</span><span class="opt-desc">background: --bg-hover</span></span></div>
+        <div class="opt selected"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Selected row</span><span class="opt-desc">soft accent tint, checkbox filled, no left bar</span></span></div>
+        <div class="opt focused"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Focused row</span><span class="opt-desc">keyboard: --bg-active + accent outline</span></span></div>
+        <div class="opt selected focused"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span class="opt-text"><span class="opt-label">Selected + focused</span><span class="opt-desc">tint + outline</span></span></div>
+      </div>
+    </div>
+    <p class="case-note">Hover and selection are background-only. The old <code>inset 2px 0 0 accent</code> left bar is removed; the checkbox is the primary selected signal.</p>
+  </div>
+
+  <h2 class="section-title">Proposed AI labels</h2>
+  <div class="schema">
+    <p style="margin:0;color:var(--text-dim);font-size:0.84rem">
+      Keep <code>options</code> as the choice rows (their labels are already AI-provided). Add three optional
+      labels for the chrome. The UI still renders at most <b>two</b> action buttons — Submit + Skip — and
+      Skip always keeps its skip behaviour; the model can only rename it.
+    </p>
+    <pre><i>// src/shared/types.ts — QuestionPrompt / prompt-request / PendingPromptInfo</i>
+question: string
+header?: string
+options?: QuestionOption[]
+multiple?: boolean
+custom?: boolean
+<b>submitLabel?: string</b>   <i>// confirm button, 1–3 words, max 24 chars (default: "Submit")</i>
+<b>skipLabel?: string</b>     <i>// skip button, 1–3 words, max 24 chars (default: "Skip")</i>
+<b>customLabel?: string</b>   <i>// free-text row, 1–4 words, max 24 chars (default: "Type your own answer")</i></pre>
+    <pre><i>// src/main/agent/tools/question.ts — schema additions</i>
+submitLabel: z.string().optional().describe('Label for the confirm button (1-3 words, max 24 chars). Default: Submit'),
+skipLabel:   z.string().optional().describe('Label for the skip button (1-3 words, max 24 chars). Default: Skip'),
+customLabel: z.string().optional().describe('Label for the free-text answer row (1-4 words). Default: Type your own answer')</pre>
+    <table>
+      <thead><tr><th>Field</th><th>Default</th><th>Where it renders</th><th>Behaviour</th></tr></thead>
+      <tbody>
+        <tr><td><code>submitLabel</code></td><td>Submit</td><td>Multi-select action row</td><td>Submits the checked rows (disabled while empty)</td></tr>
+        <tr><td><code>skipLabel</code></td><td>Skip</td><td>Footer skip + × tooltip</td><td>Always skip — never changes the action type</td></tr>
+        <tr><td><code>customLabel</code></td><td>Type your own answer</td><td>Last option row</td><td>Opens the input-only answer field</td></tr>
+        <tr><td><code>options[].label</code></td><td>—</td><td>Choice rows</td><td>Already AI-labelled; single-select answers on click</td></tr>
+      </tbody>
+    </table>
+    <p style="margin:0.8rem 0 0;color:var(--text-dim);font-size:0.8rem">
+      Sanitize every label in main: trim, collapse whitespace, cap at 24 chars, fall back to the default when empty.
+      The two-button cap is structural — the renderer only has slots for Submit and Skip, so the model cannot add a third action.
+    </p>
+  </div>
+
+  <h2 class="section-title">Open decisions</h2>
+  <div class="decisions">
+    <div class="decision">
+      <b>1. What does × do?</b>
+      <span><em>Decided: stop the turn.</em> × and Skip both call <code>stopChat</code>, matching today’s Skip. The agent stops and the tool reports “user did not answer”.</span>
+    </div>
+    <div class="decision">
+      <b>2. Skip in the single-select footer?</b>
+      <span>Keep the one-button <em>[Skip]</em> row, or rely on × / Esc only and leave the single-select footer as a hint line?</span>
+    </div>
+    <div class="decision">
+      <b>3. × on permission cards?</b>
+      <span>Add it as a second <em>Deny</em> affordance, or keep permission prompts exactly as they are?</span>
+    </div>
+    <div class="decision">
+      <b>4. Cap the option count?</b>
+      <span>Claude uses 2–4 options. Keep the current unlimited list, or cap it at 4 (plus the free-text row)?</span>
+    </div>
+    <div class="decision">
+      <b>5. Esc inside the input</b>
+      <span>Close the input (back to the option list) or skip the whole question? Current mockup: close the input; × always skips.</span>
+    </div>
+    <div class="decision">
+      <b>6. Label source</b>
+      <span>Three optional fields (<code>submitLabel</code>, <code>skipLabel</code>, <code>customLabel</code>) — or an explicit <code>actions[]</code> array? Fields are simpler and keep <code>options</code> backward-compatible.</span>
+    </div>
+  </div>
+
+  <p class="footer-note">
+    Mockup only · <code>docs/question-popup-mockup.html</code> · tokens mirror <code>src/renderer/src/styles.css</code>.
+  </p>
+</div>
+<script>
+  const btn = document.getElementById('themeBtn')
+  btn.addEventListener('click', () => {
+    const root = document.documentElement
+    const light = root.dataset.theme === 'light'
+    root.dataset.theme = light ? 'dark' : 'light'
+    btn.textContent = light ? 'Toggle light' : 'Toggle dark'
+  })
+</script>
+</body>
+</html>

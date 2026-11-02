@@ -150,6 +150,7 @@ test('the question answer is echoed into the feed as a user message after the to
       // tool row - the order the transcript is stored in, so a reload agrees.
       const answer = window.locator('.chat-msg.user', { hasText: 'PostgreSQL' })
       await expect(answer).toHaveCount(1)
+      await window.locator('.tool-cluster > summary').first().click()
       await expect(window.locator('.tool-call-badge-question')).toBeVisible()
       expect(await isAfter(window, '.tool-call', '.chat-msg.user', 'PostgreSQL')).toBe(true)
 
@@ -161,6 +162,7 @@ test('the question answer is echoed into the feed as a user message after the to
       // Reload from disk: the echo is persisted, not a live-only render.
       ;({ app, window } = await launch(userData))
       await expect(window.locator('.chat-msg.user', { hasText: 'PostgreSQL' })).toHaveCount(1)
+      await window.locator('.tool-cluster > summary').first().click()
       await expect(window.locator('.tool-call-badge-question')).toBeVisible()
       expect(await isAfter(window, '.tool-call', '.chat-msg.user', 'PostgreSQL')).toBe(true)
     } finally {

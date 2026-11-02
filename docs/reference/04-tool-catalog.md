@@ -185,13 +185,18 @@ the home directory.
 
 ### `question`
 
-`{ question: string, header?: string, options?: [{label, description?}], multiple?: boolean, custom?: boolean }`
+`{ question: string, header?: string, options?: [{label, description?}], multiple?: boolean, custom?: boolean, submitLabel?: string, skipLabel?: string, customLabel?: string }`
 
 Emits a `prompt-request` with `kind: 'question'` and blocks until the user answers. Returns
 `User answered: <answer>`; an empty/cancelled answer is an error. The answer also rides in
 `metadata.answer`, which the loop echoes into the transcript as a real user message (see
 [03](03-agent-runtime.md#question-echo)). The system prompt explicitly tells the agent to use this
 instead of writing questions as plain text.
+
+`submitLabel` / `skipLabel` / `customLabel` are optional chrome labels for the confirm button, the
+skip button and the free-text row. The tool trims them, collapses whitespace and caps them at 24
+characters (`normalizeLabel`), falling back to `Submit` / `Skip` / `Type your own answer`. Skip stays
+a skip action — the model can rename it but cannot change its behaviour.
 
 ### `todowrite`
 

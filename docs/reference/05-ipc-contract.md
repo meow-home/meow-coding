@@ -217,7 +217,7 @@ The full agent-behavior stream. Every variant carries `agentId`.
 | `step-discarded` | `reason: 'repetition'; recovery?: { level: 1\|2\|3; of: 3 }` | The step's streamed output was dropped by the repetition guard and the step is re-run; `recovery` is present for automatic levels 1-3 (display-only) |
 | `tool-start` | `call: ToolCallData` | A tool call was requested (`permission: 'pending'`) |
 | `tool-result` | `call: ToolCallData` | The tool finished; `output` / `error` / final `permission` are set |
-| `prompt-request` | `promptId`, `kind: 'permission' \| 'question'`, `call?`, `question?`, `options?`, `multiple?`, `custom?`, `taskId?`, `subagentType?` | The agent is blocked awaiting the user; answer with `respondPrompt` |
+| `prompt-request` | `promptId`, `kind: 'permission' \| 'question'`, `call?`, `question?`, `options?`, `multiple?`, `custom?`, `submitLabel?`, `skipLabel?`, `customLabel?`, `taskId?`, `subagentType?` | The agent is blocked awaiting the user; answer with `respondPrompt` |
 | `usage` | `tokens: MessageTokens`, `sessionCost`, `sessionTokens { input, output }` | Per-step usage. `sessionTokens.input` includes cache read/write to match provider dashboards |
 | `todo-updated` | `todos: TodoItem[]` | The todo list changed |
 | `queue-updated` | `queue: QueuedMessage[]` | The pending-message queue changed |

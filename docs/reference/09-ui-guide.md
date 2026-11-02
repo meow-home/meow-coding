@@ -185,13 +185,20 @@ Chat conventions:
   cap and no overflow of its own: the feed is already the scroll container, so a long question grows
   the card and the transcript scrolls, rather than nesting a second scrollbar inside the card (and
   the prompt header is not sticky, since with no inner scroll container it would resolve against the
-  feed and pin itself to the feed's top edge while the card is in view). A question prompt also
-  offers **Skip** (`.chat-prompt-skip`, next to Send — or sharing the hint row on a single-select
-  question): it declines to answer and ends the turn through the same `stopChat` the composer's Stop
-  uses, so the tool reports the question as unanswered and the next turn still sees it, and the
-  prompt is cleared locally too (it must not wait for a `done` event that may never arrive).
-  Permission prompts are unchanged — Deny already covers them. Pinned by `tests/e2e/prompt.spec.ts`
-  and `tests/e2e/chat-lane.spec.ts`.
+  feed and pin itself to the feed's top edge while the card is in view). A question prompt has a
+  header **×** (`.chat-prompt-close`, next to the collapse chevron) and, when options are present,
+  one footer action row: `[Submit] [Skip]` for multi-select, `[Skip]` for single-select (clicking a
+  row answers immediately). The footer never duplicates itself: the hint block no longer renders its
+  own Skip. Skip — ×, the footer button, or Esc outside the field — declines to answer and ends the
+  turn through the same `stopChat` the composer's Stop uses, so the tool reports the question as
+  unanswered and the next turn still sees it, and the prompt is cleared locally too (it must not
+  wait for a `done` event that may never arrive). A free-text answer is **input-only**: no Send
+  button beside the field; Enter submits, Esc closes an optional field or skips a text-only
+  question. Multi-select rows use a filled-square checkbox (`.chat-check`) and selected rows carry a
+  soft accent tint without a left accent bar; the confirm/skip/free-text labels come from the
+  model (`submitLabel` / `skipLabel` / `customLabel`, defaults `Submit` / `Skip` / `Type your own
+  answer`). Permission prompts are unchanged — Deny already covers them. Pinned by
+  `tests/e2e/prompt.spec.ts` and `tests/e2e/chat-lane.spec.ts`.
 - Feed items are updated **copy-on-write**; never mutate in place, or `memo()` stops working.
 - Images travel as data URLs inside `ImageAttachment`; only `image/*` is accepted.
 - The message queue shows `queued` badge rows supporting remove/edit via

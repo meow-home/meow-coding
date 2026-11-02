@@ -271,6 +271,7 @@ export type ChatEvent =
   | { type: 'prompt-request'; agentId: string; promptId: string
       kind: 'permission' | 'question'; call?: ToolCallData; question?: string
       options?: QuestionOption[]; multiple?: boolean; custom?: boolean
+      submitLabel?: string; skipLabel?: string; customLabel?: string
       taskId?: string; subagentType?: string }
   | { type: 'turn-started'; agentId: string }
   | { type: 'done'; agentId: string; reason: string; tokens?: TokenUsage; cost?: number; stuckCategory?: 'stream' | 'tool' | 'monitor'; stuckTool?: string; recoveryCount?: number }
@@ -320,6 +321,12 @@ export interface QuestionPrompt {
   options?: QuestionOption[]
   multiple?: boolean
   custom?: boolean
+  /** Confirm-button label (1-3 words, max 24 chars). Default: "Submit". */
+  submitLabel?: string
+  /** Skip-button label (1-3 words, max 24 chars). Default: "Skip". */
+  skipLabel?: string
+  /** Free-text row label (1-4 words, max 24 chars). Default: "Type your own answer". */
+  customLabel?: string
 }
 
 export type TodoStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
@@ -347,6 +354,9 @@ export interface PendingPromptInfo {
   options?: QuestionOption[]
   multiple?: boolean
   custom?: boolean
+  submitLabel?: string
+  skipLabel?: string
+  customLabel?: string
   taskId?: string
   subagentType?: string
 }

@@ -644,10 +644,10 @@ describe('ChatPanel reasoning across a tool call', () => {
     }))
     await act(async () => { resolveTranscript({ items: [], hasMore: false }); await transcript })
 
-    // The multi-select shape has its own Send row; Skip must be offered there
+    // The multi-select shape has one action row with Submit + Skip; Skip must be offered there
     // too, not only on the shapes that render a text input.
     const row = container.querySelector('.chat-prompt-actions')!
-    expect(row.textContent).toContain('Send')
+    expect(row.textContent).toContain('Submit')
     expect(row.querySelector('.chat-prompt-skip')).not.toBeNull()
   })
 })

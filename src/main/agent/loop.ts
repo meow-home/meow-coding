@@ -789,7 +789,10 @@ export class SessionRunner {
               question: question.question,
               options: question.options,
               multiple: question.multiple,
-              custom: question.custom
+              custom: question.custom,
+              submitLabel: question.submitLabel,
+              skipLabel: question.skipLabel,
+              customLabel: question.customLabel
             })
             const resp = await this.deps.ask(promptId, undefined, {
               promptId,
@@ -797,7 +800,10 @@ export class SessionRunner {
               question: question.question,
               options: question.options,
               multiple: question.multiple,
-              custom: question.custom
+              custom: question.custom,
+              submitLabel: question.submitLabel,
+              skipLabel: question.skipLabel,
+              customLabel: question.customLabel
             })
             return resp?.text ?? null
           },

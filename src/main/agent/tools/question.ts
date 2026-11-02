@@ -27,6 +27,19 @@ function normalizeOptions(options: unknown): QuestionOption[] | undefined {
   return valid.length > 0 ? valid : undefined
 }
 
+export const DEFAULT_SUBMIT_LABEL = 'Submit'
+export const DEFAULT_SKIP_LABEL = 'Skip'
+export const DEFAULT_CUSTOM_LABEL = 'Type your own answer'
+
+// Labels are model-authored chrome, not content: keep them one line, short and
+// non-empty so a stray newline or a paragraph cannot break the action row.
+export function normalizeLabel(value: unknown, fallback: string): string {
+  if (typeof value !== 'string') return fallback
+  const label = value.replace(/\s+/g, ' ').trim()
+  // Slice by code point so a 24-char cap cannot split a surrogate pair.
+  return label ? Array.from(label).slice(0, 24).join('') : fallback
+}
+
 export const questionTool: ToolDefinition = {
   name: 'question',
   description:
@@ -38,11 +51,23 @@ export const questionTool: ToolDefinition = {
     header: z.string().optional().describe('Very short label (max 30 chars)'),
     options: z.array(optionSchema).optional().describe('Available choices'),
     multiple: z.boolean().optional().describe('Allow selecting multiple choices'),
-    custom: z.boolean().optional().describe('Allow typing a custom answer (default: true)')
+    custom: z.boolean().optional().describe('Allow typing a custom answer (default: true)'),
+    submitLabel: z.string().optional().describe('Label for the confirm button (1-3 words, max 24 chars). Default: Submit'),
+    skipLabel: z.string().optional().describe('Label for the skip button (1-3 words, max 24 chars). Default: Skip'),
+    customLabel: z.string().optional().describe('Label for the free-text answer row (1-4 words, max 24 chars). Default: Type your own answer')
   }),
   async run(input, ctx): Promise<ToolRunResult> {
-    const { question, header, options, multiple, custom } = input as unknown as QuestionPrompt
-    const answer = await ctx.ask({ question, header, options: normalizeOptions(options), multiple, custom })
+    const { question, header, options, multiple, custom, submitLabel, skipLabel, customLabel } = input as unknown as QuestionPrompt
+    const answer = await ctx.ask({
+      question,
+      header,
+      options: normalizeOptions(options),
+      multiple,
+      custom,
+      submitLabel: normalizeLabel(submitLabel, DEFAULT_SUBMIT_LABEL),
+      skipLabel: normalizeLabel(skipLabel, DEFAULT_SKIP_LABEL),
+      customLabel: normalizeLabel(customLabel, DEFAULT_CUSTOM_LABEL)
+    })
     if (answer === null || answer.trim() === '') {
       return { error: 'question: user did not answer' }
     }
