@@ -1,9 +1,9 @@
 # AGENTS.md — tests
 
-- `unit/` — pure logic tests (Vitest, `node` environment). One file per module: `<name>.test.ts`.
+- `unit/` — pure logic tests (Vitest, `node` environment). One file per module: `<name>.test.ts` / `<name>.test.tsx`.
 - `integration/` — real integration tests: `pty-manager.test.ts` (ConPTY), `agent-stream-overlap.test.ts`,
   `browser/bridge-flow.test.ts`.
-- `e2e/` — Playwright for Electron, smoke test that launches the app.
+- `e2e/` — Playwright for Electron: smoke, chat, prompt, composer, context-footer, scrollbar, selectors, menus, and session terminal dock tests that launch the app.
 - `fixtures/` — fake CLI (`echo-agent.js`) spawned in place of a real agent + `mock-lsp-server.js`.
 
 ## Conventions

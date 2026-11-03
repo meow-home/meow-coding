@@ -10,7 +10,7 @@ vocabulary is "session".
 
 - Electron 41 + electron-vite 5 + React 19 + TypeScript (strict).
 - PTY: `@lydell/node-pty` (runtime parked, still shipped); terminal UI: `@xterm/xterm` +
-  `@xterm/addon-fit` — declared but unused by `src/` (the in-app terminals were removed).
+  `@xterm/addon-fit` — used by the session terminal dock.
 - Test: Vitest (unit + integration), Playwright (e2e).
 
 ## Structure
@@ -50,9 +50,8 @@ Alias `@shared` → `src/shared` (configured in electron.vite.config.ts, vitest.
 
 - IPC: **do not hardcode** channel strings; only use `Channels` from `src/shared/ipc.ts`.
 - Persistent data: `userData/workspaces.json`; per-agent logs in `userData/logs/<agentId>.log`.
-- The native "meow" agent is the only agent kind the UI creates; in-app terminals (xterm panes) and the
-  CLI/template agent system were removed. The parked PTY runtime (`src/main/pty-manager.ts`, the `Pty*`
-  IPC channels, `@lydell/node-pty`) still ships — its removal is a separate, deferred plan.
+- The native "meow" agent is the only agent kind the UI creates; session terminals are back as a
+  per-session dock backed by a dedicated `PtyManager` (the parked agent PTY channels are still deferred).
 - Only the main process may spawn/kill processes; the renderer accesses everything via `window.api`.
 - Security: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: false`. Do not expose
   `ipcRenderer` to the window.

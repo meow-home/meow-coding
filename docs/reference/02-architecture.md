@@ -68,6 +68,9 @@ and the tsconfigs.
 | File | Role |
 |---|---|
 | `pty-manager.ts` | node-pty wrapper. Emits `data` / `exit`. `buildSpawnCommand` wraps non-`.exe` commands through `cmd.exe` on Windows. `stop()` uses `tree-kill` with a 3s force-kill fallback. |
+| `terminal-manager.ts` | `TerminalManager` — orchestrates session terminal tabs; owns its own dedicated `PtyManager` instance, `TerminalStore`, ring buffer (scrollback) per terminal, exit handling, process limit enforcement, and IPC forwarding. |
+| `terminal-shell.ts` | Platform shell resolution: user `terminal.shell` from `meow.json`, or Git Bash / PowerShell on Windows, login shell on POSIX. |
+| `terminal-buffer.ts` | Fixed-size ring buffer for per-terminal scrollback (512 KiB cap) and chunk batcher (16ms / 64KiB) for IPC data emission. |
 | `log-manager.ts` | Appends PTY output to `userData/logs/<agentId>.log`. |
 | `alert-service.ts` | Idle timer (default 5 min) → `idle` event; `onExit` → `exit` event. |
 | `notification-service.ts` | Native `Notification`, only fired while the window is unfocused. |
@@ -90,6 +93,7 @@ and the tsconfigs.
 | `vault.ts` | `connections/vault.json` | `safeStorage`-encrypted secrets keyed by ref. |
 | `models-catalog.ts` | `models.json` + bundled `models-snapshot.json` | models.dev catalog cache with offline fallback. |
 | `artifact-store.ts` | in-memory only | Per-project artifact list, one entry per (path, agentId), newest first. |
+| `terminal-store.ts` | `terminals/<agentId>/index.json` | Session terminal tab metadata (id, title, userTitle, cwd, status, exitCode, restored, createdAt) plus scrollback log files (`<termId>.log`). |
 
 ### Git and files
 
@@ -181,7 +185,25 @@ Every user-visible agent behavior is expressed as a `ChatEvent` (see
 [05 — IPC contract](05-ipc-contract.md#54-chatevent)). The renderer never computes agent state; it
 renders events.
 
-## 2.7 Data flow: settings
+## 2.7b Data flow: session terminals
+
+```
+renderer: TerminalDock / TerminalView
+   → window.api.terminalCreate(agentId, opts)       [Channels.TerminalCreate]
+   → TerminalManager.create()
+        ├ checks 8 terminals/session cap
+        ├ resolves shell (meow.json terminal.shell or platform default)
+        ├ PtyManager.startTerminal()  ── spawns shell without cmd.exe shim wrapping ──▶
+        └ creates ring buffer + output batcher (16ms / 64KiB)
+   → PtyManager 'data'
+        ├ buffer.append(data) (512 KiB cap)
+        └ if attached: batcher.push(data) → emitData → win.webContents.send(Channels.EventTerminalData)
+   → renderer: TerminalView receives 'terminal:data' → xterm.write()
+   → keystrokes: xterm.onData → window.api.terminalWrite(id, data) [Channels.TerminalWrite]
+        → PtyManager.writeRaw(id, data) (raw stdin, no CRLF normalization)
+```
+
+## 2.8 Data flow: settings
 
 ```
 renderer SettingsDialog
@@ -199,7 +221,7 @@ Provider connect/disconnect uses `writeSettingsAndReload`, which writes synchron
 **not** await `reload()` — MCP reconnection can take up to 60s per server and would otherwise block
 the modal from closing.
 
-## 2.8 Startup sequence (`app.whenReady`)
+## 2.9 Startup sequence (`app.whenReady`)
 
 1. Bail out if this is a secondary instance (single-instance lock).
 2. `truncationCleanup()` — drop truncation files older than 7 days.
@@ -217,24 +239,26 @@ the modal from closing.
 7. `registerIpcHandlers()`, `createWindow()`, `TrayManager.create()`.
 8. After 1.5s, an automatic update check (packaged builds only).
 
-## 2.9 Shutdown sequence (`before-quit`)
+## 2.10 Shutdown sequence (`before-quit`)
 
 The first `before-quit` is **preventDefault**ed and a cleanup chain runs, then `app.exit(0)`:
 
 ```
-stopGitPoll()
+TerminalManager.flush()
+ → stopGitPoll()
+ → SessionDelegationService.suspend() + flush()
  → MeowAgentManager.dispose()   (stop idle-compact timer, abort all turns + background subagents,
                                  flush sessions, close MCP, dispose LSP)
  → ConnectionsManager.dispose() (stop the cliproxy sidecar, remove its runtime dir)
  → BrowserBridge.close()
  → TrayManager.dispose()
- → PtyManager.stopAll()         (tree-kill every process tree)
+ → Promise.allSettled([TerminalManager.stopAll(), PtyManager.stopAll()]) (tree-kill every process tree)
  → app.exit(0)
 ```
 
 Closing the window does **not** quit while a tray exists — it hides to tray so agents keep running.
 
-## 2.10 Invariants
+## 2.11 Invariants
 
 1. **Only main spawns or kills processes.** The renderer has no path to `child_process`.
 2. **Channel strings are never hardcoded** outside `src/shared/ipc.ts`; use `Channels`.

@@ -68,6 +68,15 @@ condition summary. Selecting a shell streams its output live in the right column
 (`backgroundProcSubscribe`/`unsubscribe` + `onBackgroundProcData`/`onBackgroundProcExit`) and only shells the
 panel is watching are forwarded to the renderer.
 
+### Session terminal dock
+
+Each session pane embeds an optional bottom terminal dock (`TerminalDock`) hosting interactive shell tabs powered by xterm.js (`TerminalView`) and dedicated `PtyManager` processes in the main process.
+- **Toggle & shortcut**: Toggled via `Ctrl+\`` (`Cmd+\`` on macOS) or the Terminal button in `PaneHeader`. Dock open state per session is persisted in `localStorage` under `meow.terminal.open.<agentId>`.
+- **Dock layout & resizing**: Rendered below the chat panel inside `Pane.tsx`. It features a top tab bar with a `+` new tab button, individual terminal tabs with close `×` buttons, status indicators, and an action bar (Restart button when exited, split placeholder, minimize/close buttons). Height can be resized via its top resizer handle (clamped between 120px and 600px, default 260px) and is persisted in `localStorage` as `meow.terminal.height`.
+- **Active pane gating**: Terminal views mount only when `active && !background && terminalOpen` to prevent hidden xterm allocation or leaks in background panes.
+- **Context menu & clipboard**: Right-clicking the terminal view opens a context menu with Copy, Paste, Clear Buffer, and "Send Selection to Chat". "Send Selection to Chat" dispatches a `meow:composer-insert` custom window event containing the formatted selection (```text ... ```), which `ChatInput.tsx` listens for and appends to the composer.
+- **Theme sync**: Resolves runtime CSS variables (`--bg-chat`, `--chat-text`, `--text`, `--font-mono`) and dynamically updates xterm options on theme changes via `MutationObserver` on `data-theme`.
+
 ## 9.3 `App.tsx` — the state hub
 
 Owns: workspaces, the mounted `WorkspaceRuntime`s (one per kept-alive project),
@@ -134,6 +143,13 @@ is dismissible (no install button, "Later" only).
 | `files/file-path.ts` | `baseName` / `joinProjectPath` — renderer-side path helpers (the renderer must not import `node:path`) |
 | `files/tree-filter.ts` | `filterTree` — name filter over already-loaded directories, keeping the ancestor chain of every match |
 | `FileContextMenu.tsx` | Context menu for tree/artifact entries and the Files overlay (Copy path when `showCopyPath`) |
+
+### Terminal (`components/terminal/`)
+
+| Component | Responsibility |
+|---|---|
+| `TerminalDock.tsx` | Bottom dock container for session terminal tabs: tab list, tab renames, new tab (`+`), close tab (`×`), restart exited tab, dock resize handle, dock close/toggle. |
+| `TerminalView.tsx` | Individual xterm.js instance: fit addon, IPC data/resize/exit event subscriptions, theme variable sync, right-click context menu (Copy, Paste, Clear, Send to Chat via `meow:composer-insert`). |
 
 ### Dialogs
 
