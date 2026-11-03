@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 import * as pty from '@lydell/node-pty'
 import kill from 'tree-kill'
+import type { ResolvedShell } from './terminal-shell'
 
 export interface PtySession {
   agentId: string
@@ -50,6 +51,17 @@ export class PtyManager extends EventEmitter {
     return this.spawnSession(agentId, name, resolved.command, resolved.args, cwd, 'agent', env)
   }
 
+  startTerminal(
+    id: string,
+    cwd: string,
+    shell: ResolvedShell,
+    env?: Record<string, string>
+  ): PtySession {
+    if (this.sessions.has(id)) throw new Error(`Agent already running: ${id}`)
+    if (this.stopping.has(id)) throw new Error(`Agent is stopping: ${id}`)
+    return this.spawnSession(id, shell.name, shell.file, shell.args, cwd, 'terminal', env)
+  }
+
   private spawnSession(
     id: string,
     name: string,
@@ -88,6 +100,14 @@ export class PtyManager extends EventEmitter {
       ? data.replace(/\r\n/g, '\r').replace(/\n/g, '\r')
       : data
     s.process.write(normalized)
+  }
+
+  // Terminal inputs (xterm keystrokes, escape sequences, pastes) must be sent
+  // byte-for-byte without rewriting newlines.
+  writeRaw(id: string, data: string): void {
+    const s = this.sessions.get(id)
+    if (!s) return
+    s.process.write(data)
   }
 
   resize(agentId: string, cols: number, rows: number): void {

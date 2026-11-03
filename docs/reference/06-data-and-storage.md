@@ -39,6 +39,8 @@ in `src/main/index.ts`).
 | `models.json` | `models-catalog.ts` | object | Cached models.dev catalog (falls back to the bundled `models-snapshot.json`) |
 | `external-api.json` | `external-api/config-file.ts` | object | `{ enabled, port, token, cliPath }` for the external-delegation loopback API; `token` is 32 random bytes (hex), created once and kept until `regenerateToken()`; `port` is `null` when not listening; mode `0600` on POSIX. See [08 — Integrations](08-integrations.md#86-external-delegation-claude-code--meow) |
 | `bin/meow-delegate.mjs` | `external-api/manager.ts` | file | The external-delegation CLI, copied from `resources/external-api/meow-delegate.mjs` on every app start |
+| `terminals/<agentId>/index.json` | `terminal-store.ts` | `TerminalInfo[]` | Session terminal metadata; see [6.4c](#64c-session-terminals-terminalsagentid) below |
+| `terminals/<agentId>/<termId>.log` | `terminal-store.ts` | text | Terminal scrollback log (max 512 KiB), pruned on save when not in index.json |
 | `logs/<agentId>.log` | `log-manager.ts` | text | Raw PTY output, append-only |
 | `logs/<YYYY-MM-DD>-log.txt` | `system-logger.ts` | text | App-wide system log (main/render/agent), append-only, pruned after 7 days on startup |
 | `truncation/<agentId>-<toolId>.txt` | `agent/truncation.ts` | text | Full text of truncated tool output, JSON pretty-printed; MCP output is keyed by the call id so a repeat call cannot overwrite an earlier file; cleaned up after 7 days on startup |
@@ -136,6 +138,12 @@ writes it through `settingsToConfig`.
   "lsp": { "enabled": true, "diagnosticsTimeoutMs": 3000 },
   "notifications": { "needsInput": true, "onDone": true },
 
+  // ── Terminal ─────────────────────────────────────────────────────────────
+  "terminal": {
+    "shell": "/bin/zsh",        // optional override path/binary for session terminals
+    "args": ["-l"]              // optional launch arguments (absent/invalid defaults to [])
+  },
+
   // ── Subagent model overrides ─────────────────────────────────────────────
   "subagentModels": {
     "research": { "provider": "anthropic", "model": "claude-haiku-4-5" }
@@ -161,6 +169,8 @@ writes it through `settingsToConfig`.
   existed.
 - **`settingsToConfig`** sets `apiKeyEnv: "<ID>_API_KEY"` for providers that carry neither an
   `apiKey` nor a `keyRef`, so environment-variable configuration keeps working.
+- **`terminal`** accepts `{ shell?: string, args?: string[] }`. A non-string `shell` or
+  non-string-array `args` is ignored; absent or unconfigured falls back to platform default terminal shells.
 
 ### `resolveAgentConfig` resolution order
 
@@ -311,6 +321,34 @@ interface SessionDelegation {
 - `purgeTerminalBefore(cutoff)` drops terminal records whose `finishedAt` predates the cutoff
   (30 days; earlier when both participating sessions have been deleted).
 
+### 6.4c Session terminals (`terminals/<agentId>/`)
+
+`TerminalStore` (`src/main/terminal-store.ts`) and `TerminalManager` (`src/main/terminal-manager.ts`)
+manage per-session embedded terminals. Each session may have up to 8 terminals (`MAX_TERMINALS_PER_SESSION = 8`),
+persisted in `userData/terminals/<agentId>/`:
+
+- **`index.json`** — array of `TerminalInfo` metadata:
+  ```ts
+  interface TerminalInfo {
+    id: string            // 'term_' + 10 random base36 chars
+    agentId: string
+    title: string         // shell name until the user renames
+    userTitle?: string
+    cwd: string
+    status: TerminalStatus // 'running' | 'exited'
+    exitCode?: number
+    restored?: boolean    // true when loaded from disk after an app restart
+    createdAt: number
+  }
+  ```
+- **`<termId>.log`** — UTF-8 scrollback log per terminal, capped to 512 KiB (`SCROLLBACK_BYTES`).
+- **Atomic writes**: Written via `writeFileAtomic` (`src/main/atomic-write.ts`). On save, any `.log`
+  files without matching terminal IDs in `index.json` are pruned.
+- **Cleanup**: When all terminals in a session are removed or `save` is called with empty info, the
+  `<agentId>/` folder is deleted via `removeSession(agentId)`.
+- **Restoration**: On application restart, previously running terminals are loaded with `status: 'exited'`,
+  `restored: true`, and scrollback seeded with the saved log plus a notice prompt (`[meow] Restored after restart — press Restart to start a new shell.`).
+
 ## 6.5 Project-level configuration (`.meow/`)
 
 ```
@@ -374,6 +412,10 @@ Everything else: $ARGUMENTS
 | `meow.rightpanel.open` | `'1'` / `'0'` |
 | `meow.rightpanel.tab` | `'tree'` / `'artifacts'` |
 | `meow.rightpanel.width` | number, clamped to 240–600 |
+| `meow.files.width` | number, docked Files overlay width (320–900px, default 420px) |
+| `meow.processes.width` | number, docked Processes overlay width (320–900px, default 420px) |
+| `meow.terminal.height` | number, session terminal dock height (120–600px, default 260px) |
+| `meow.terminal.open.<agentId>` | `'1'` / `'0'`, per-session dock open/closed visibility state |
 | `meow.sidebar.expanded` | JSON map of project path → expanded (bool) |
 | `meow.activeSessionByPath` | JSON map of project path → active session id |
 

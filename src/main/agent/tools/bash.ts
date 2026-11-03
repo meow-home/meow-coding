@@ -209,7 +209,7 @@ function whichPath(name: string): string | null {
 
 // Mirrors opencode: on Windows prefer Git Bash so unix commands and the
 // superpowers shell scripts (bash) work. Falls back to cmd.exe.
-function gitBashPath(): string | null {
+export function gitBashPath(): string | null {
   if (process.env.MEOW_GIT_BASH_PATH) return process.env.MEOW_GIT_BASH_PATH
   const systemDrive = process.env.SystemDrive ?? 'C:'
   const candidates: string[] = [

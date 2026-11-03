@@ -63,6 +63,7 @@ export interface MeowConfig {
   hooks?: HooksConfig
   /** Per-model sampling overrides, keyed by model-id pattern (see agent/sampling.ts). */
   sampling?: SamplingOverrides
+  terminal?: { shell?: string; args?: string[] }
 }
 
 export interface ResolvedAgentConfig {
@@ -277,6 +278,21 @@ function normalizeSampling(raw: unknown): SamplingOverrides | undefined {
   return Object.keys(out).length > 0 ? out : undefined
 }
 
+function normalizeTerminal(raw: unknown): { shell?: string; args?: string[] } | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const source = raw as Record<string, unknown>
+  const shell = typeof source.shell === 'string' ? source.shell : undefined
+  const args =
+    Array.isArray(source.args) && source.args.every((a) => typeof a === 'string')
+      ? (source.args as string[])
+      : undefined
+  if (shell === undefined && args === undefined) return undefined
+  return {
+    ...(shell !== undefined ? { shell } : {}),
+    ...(args !== undefined ? { args } : {})
+  }
+}
+
 function normalizeLsp(raw: Partial<LspConfig> | undefined): LspConfig {
   return {
     enabled: raw?.enabled ?? DEFAULT_LSP.enabled,
@@ -378,7 +394,8 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     subagentModels: normalizeSubagentModels(raw.subagentModels, providers),
     lastUsedModel: raw.lastUsedModel,
     hooks: normalizeHooks(raw.hooks),
-    sampling: normalizeSampling(raw.sampling)
+    sampling: normalizeSampling(raw.sampling),
+    terminal: normalizeTerminal(raw.terminal)
   }
 }
 
@@ -566,6 +583,7 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
     hooks: normalizeHooks(base.hooks),
     // Like hooks, sampling is edited in meow.json only and must survive a settings save.
     sampling: normalizeSampling(base.sampling),
+    terminal: normalizeTerminal(base.terminal),
     ...(settings.subagentModels
       ? { subagentModels: normalizeSubagentModels(settings.subagentModels, providers) }
       : {}),

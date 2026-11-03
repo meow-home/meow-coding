@@ -1,8 +1,10 @@
 import { describe, expect, it, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { PtyManager } from '../../src/main/pty-manager'
+import { gitBashPath } from '../../src/main/agent/tools/bash'
+import { resolveTerminalShell } from '../../src/main/terminal-shell'
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'echo-agent.js')
 
@@ -140,4 +142,75 @@ describe('PtyManager', () => {
     expect(() => pty.start('a1', 'echo', process.execPath, [FIXTURE], process.cwd())).not.toThrow()
     await pty.stop('a1')
   })
+})
+
+describe('PtyManager terminal session', () => {
+  it('spawns a resolved shell, receives raw input and cleans up the process tree', async () => {
+    const pty = new PtyManager()
+    const shell = resolveTerminalShell({
+      platform: process.platform,
+      env: process.env,
+      gitBash: gitBashPath,
+      exists: existsSync
+    })
+    const data: string[] = []
+    const exits: { agentId: string; exitCode: number; kind?: 'agent' | 'terminal' }[] = []
+    pty.on('data', ({ data: d }) => data.push(d))
+    pty.on('exit', e => exits.push(e))
+
+    try {
+      const session = pty.startTerminal('t1', tmpdir(), shell)
+
+      pty.writeRaw('t1', 'echo TERM_OK\r')
+
+      await new Promise<void>((resolve, reject) => {
+        const t = setTimeout(() => reject(new Error(`timeout waiting for TERM_OK; got: ${data.join('')}`)), 15000)
+        let retryTicks = 0
+        const check = () => {
+          // The shell echoes the typed command too; only a line that is exactly
+          // TERM_OK proves the command ran.
+          if (/\nTERM_OK\r?\n/.test(data.join(''))) {
+            clearTimeout(t)
+            resolve()
+          } else {
+            retryTicks++
+            // Retrying input in case shell startup banner swallowed earlier input
+            if (retryTicks % 10 === 0 && pty.isRunning('t1')) {
+              pty.writeRaw('t1', 'echo TERM_OK\r')
+            }
+            setTimeout(check, 50)
+          }
+        }
+        check()
+      })
+
+      expect(data.join('')).toContain('TERM_OK')
+
+      const pid = session.pid || session.process.pid
+      await pty.stop('t1')
+
+      expect(pty.isRunning('t1')).toBe(false)
+
+      const exitEvent = exits.find(e => e.agentId === 't1')
+      expect(exitEvent).toBeDefined()
+      expect(exitEvent?.kind).toBe('terminal')
+
+      if (pid) {
+        let isDead = false
+        const startWait = Date.now()
+        while (Date.now() - startWait < 5000) {
+          try {
+            process.kill(pid, 0)
+            await new Promise(r => setTimeout(r, 50))
+          } catch {
+            isDead = true
+            break
+          }
+        }
+        expect(isDead).toBe(true)
+      }
+    } finally {
+      await pty.stopAll()
+    }
+  }, 25000)
 })

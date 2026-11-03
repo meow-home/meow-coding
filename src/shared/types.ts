@@ -594,3 +594,20 @@ export interface MonitorInfo {
   targetId: string
   until: string
 }
+
+export type TerminalStatus = 'running' | 'exited'
+
+export interface TerminalInfo {
+  id: string
+  agentId: string
+  title: string
+  userTitle?: string
+  cwd: string
+  status: TerminalStatus
+  exitCode?: number
+  restored?: boolean
+  createdAt: number
+}
+
+export interface TerminalCreateOptions { cwd?: string; command?: string; title?: string }
+
