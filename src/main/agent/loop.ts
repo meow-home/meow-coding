@@ -19,7 +19,7 @@ import { DEFAULT_MAX_CONTEXT_TOKENS } from './config'
 import { classifyContextOverflowError } from './limits'
 import { toolLoopDetector } from './repetition'
 import type { ToolLoopDetector, ToolLoopVerdict } from './repetition'
-import { todoNudgeDetector } from './todo-nudge'
+import { todoEndOfTurnNote, todoNudgeDetector } from './todo-nudge'
 import type { TodoNudgeDetector } from './todo-nudge'
 import { createResponseGuard, MAX_TOOL_CALLS_PER_RESPONSE } from './response-guard'
 import type { GuardVerdict } from './response-guard'
@@ -228,6 +228,8 @@ export class SessionRunner {
   private toolLoop: ToolLoopDetector = toolLoopDetector()
   // Per run: how long the todo list has gone without an update (see todo-nudge.ts).
   private todoNudge: TodoNudgeDetector = todoNudgeDetector()
+  // Per run: the end-of-turn todo gate fires at most once (see todo-nudge.ts).
+  private todoGateUsed = false
   // Fixed run identity for this turn; snapshot per tool invocation.
   private runContext: AgentRunContext | undefined
 
@@ -288,6 +290,7 @@ export class SessionRunner {
     this.stopBlocksThisRun = 0
     this.toolLoop = toolLoopDetector()
     this.todoNudge = todoNudgeDetector()
+    this.todoGateUsed = false
     this.hooks = this.deps.hooks?.()
     this.compaction = this.resolveCompaction()
     const runUsage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 }
@@ -591,6 +594,7 @@ export class SessionRunner {
           continue
         }
         const reason = isLastStep ? 'max-steps' : classifyFinish(finishReason)
+        if (reason === 'complete' && this.blockedByOpenTodos()) continue
         if (await this.blockedByStopHook(textBuffer)) {
           steps = 0
           continue
@@ -607,6 +611,17 @@ export class SessionRunner {
         return
       }
     }
+  }
+
+  // A normal end-of-turn with todo items still open gets one more step to
+  // update the list. The note is a <system-reminder>, so the renderer hides it.
+  private blockedByOpenTodos(): boolean {
+    if (this.todoGateUsed || !this.deps.getTodos) return false
+    const note = todoEndOfTurnNote(this.deps.getTodos())
+    if (!note) return false
+    this.todoGateUsed = true
+    this.deps.appendMessage({ id: randomUUID(), role: 'user', text: note, createdAt: Date.now() })
+    return true
   }
 
   // Runs Stop hooks before a normal end-of-turn. A block keeps the loop going

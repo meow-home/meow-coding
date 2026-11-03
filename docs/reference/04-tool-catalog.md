@@ -215,9 +215,16 @@ also nudges — `todo-nudge.ts` counts tool calls since the last `todowrite` and
 `TODO_NUDGE_AFTER_CALLS` (6) have passed while the list still has an `in_progress` (else a `pending`)
 item, attaches a `<system-reminder>[meow]` note to the next tool result naming that item. The counter
 resets on every `todowrite` (and after each note, so notes are a window apart), at most
-`MAX_TODO_NUDGES` (2) per run, and a list that is empty or entirely `completed`/`cancelled` is never
+`MAX_TODO_NUDGES` (4) per run, and a list that is empty or entirely `completed`/`cancelled` is never
 nudged. The note rides on the tool result like every other harness note — it is never a user message.
-A runner without `getTodos` (a subagent) never nudges.
+
+Mid-turn notes only fire on tool calls, so a model that writes its final answer can still leave the
+list open. The loop therefore gates the end of the turn too: when a normal (`complete`) finish arrives
+while the list still has `pending`/`in_progress` items, it appends `todoEndOfTurnNote` (the open items,
+up to 8, as a hidden `<system-reminder>` user message) and runs one more step so the model can call
+`todowrite`, keep working, or leave the items open if it is waiting on the user. The gate fires at most
+once per run and never on `max-steps`, `length`, or `refusal` endings.
+A runner without `getTodos` (a subagent) never nudges or gates.
 
 ### `task`
 

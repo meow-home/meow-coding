@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_TODO_NUDGES, TODO_NUDGE_AFTER_CALLS, todoNudgeDetector } from '../../src/main/agent/todo-nudge'
+import { MAX_TODO_NUDGES, TODO_NUDGE_AFTER_CALLS, openTodos, todoEndOfTurnNote, todoNudgeDetector } from '../../src/main/agent/todo-nudge'
 import type { TodoItem } from '../../src/shared/types'
 
 const working: TodoItem[] = [
@@ -81,5 +81,31 @@ describe('todoNudgeDetector', () => {
     expect(note).toContain('line one x')
     expect(note).not.toContain('\nline one')
     expect(note.length).toBeLessThan(600)
+  })
+})
+
+describe('todoEndOfTurnNote', () => {
+  it('lists only the open items with their status', () => {
+    const note = todoEndOfTurnNote(working)!
+    expect(note).toContain('<system-reminder>')
+    expect(note).toContain('2 open item(s)')
+    expect(note).toContain('- [in_progress] write the fix')
+    expect(note).toContain('- [pending] run the tests')
+    expect(note).not.toContain('read the code')
+    expect(note).toContain('todowrite')
+  })
+
+  it('is null for an empty or finished list', () => {
+    expect(todoEndOfTurnNote([])).toBeNull()
+    expect(todoEndOfTurnNote([{ content: 'a', status: 'completed' }, { content: 'b', status: 'cancelled' }])).toBeNull()
+  })
+
+  it('caps a long list', () => {
+    const todos: TodoItem[] = Array.from({ length: 12 }, (_, i) => ({ content: `step ${i}`, status: 'pending' }))
+    const note = todoEndOfTurnNote(todos)!
+    expect(note).toContain('step 7')
+    expect(note).not.toContain('step 8')
+    expect(note).toContain('and 4 more')
+    expect(openTodos(todos)).toHaveLength(12)
   })
 })

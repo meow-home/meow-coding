@@ -175,6 +175,8 @@ loop:
   done{stuck, stuckCategory: 'tool'|'stream'}
   if no tool call:
     if length/max_tokens and resumes < MAX_LENGTH_RESUMES → append continuation nudge (user msg), continue
+    if a normal finish and the todo list still has pending/in_progress items (once per run)
+      → append todoEndOfTurnNote (hidden <system-reminder> user msg), continue
     emit done{reason: isLastStep ? 'max-steps' : classifyFinish(finishReason)}; return   ← a text-only answer on the last (tool-less) step is still max-steps
   if isLastStep   → emit done{reason:'max-steps'}; return
 ```

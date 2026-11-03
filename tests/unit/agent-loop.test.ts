@@ -1109,6 +1109,45 @@ describe('SessionRunner', () => {
     expect(outputs.join('\n')).not.toContain('Todo list:')
   })
 
+  it('gives a turn ending with open todos one more step to update the list', async () => {
+    let todos: TodoItem[] = [{ content: 'write the fix', status: 'in_progress' }]
+    const h = makeHarness({
+      getTodos: () => todos,
+      tools: new Map([['todowrite', stubTool('todowrite', async () => { todos = []; return { output: 'cleared' } })]])
+    })
+    h.llm.queue = [
+      textParts('all done'),
+      [{ kind: 'tool-call', toolCallId: 'tc1', toolName: 'todowrite', toolInput: { todos: [] } }, { kind: 'finish' }],
+      textParts('')
+    ]
+    await h.runner.run()
+    expect(h.llm.calls).toHaveLength(3)
+    const reminder = h.items.find(i => i.kind === 'message' && i.message.role === 'user')
+    expect(reminder && reminder.kind === 'message' && reminder.message.text).toMatch(/^<system-reminder>/)
+    expect(reminder && reminder.kind === 'message' && reminder.message.text).toContain('write the fix')
+    expect(h.events.at(-1)).toMatchObject({ type: 'done', reason: 'complete' })
+  })
+
+  it('fires the end-of-turn todo gate at most once per run', async () => {
+    const todos: TodoItem[] = [{ content: 'ask the user', status: 'pending' }]
+    const h = makeHarness({ getTodos: () => todos })
+    h.llm.queue = [textParts('which option?'), textParts('waiting for you')]
+    await h.runner.run()
+    expect(h.llm.calls).toHaveLength(2)
+    expect(h.events.at(-1)).toMatchObject({ type: 'done', reason: 'complete' })
+  })
+
+  it('lets a turn with a finished list or no todo sink end right away', async () => {
+    const done = makeHarness({ getTodos: () => [{ content: 'x', status: 'completed' }] })
+    done.llm.queue = [textParts('done')]
+    await done.runner.run()
+    expect(done.llm.calls).toHaveLength(1)
+    const sub = makeHarness()
+    sub.llm.queue = [textParts('done')]
+    await sub.runner.run()
+    expect(sub.llm.calls).toHaveLength(1)
+  })
+
   it('feeds back a thrown tool error as its message and still runs the sibling', async () => {
     const boom = vi.fn(async () => { throw new Error('boom') })
     const ok = vi.fn(async () => ({ output: 'ok result' }))
