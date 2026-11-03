@@ -38,7 +38,7 @@ export default function TerminalView({ terminalId, agentId }: TerminalViewProps)
     const term = new Terminal({
       cursorBlink: true,
       fontFamily: initialTheme.fontFamily,
-      fontSize: 13,
+      fontSize: 12,
       theme: {
         background: initialTheme.background,
         foreground: initialTheme.foreground,
