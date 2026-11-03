@@ -234,12 +234,10 @@ export default function TerminalView({ terminalId, agentId }: TerminalViewProps)
   }
 
   return (
-    <div
-      className="terminal-view-container"
-      ref={containerRef}
-      onContextMenu={handleContextMenu}
-    >
+    <div className="terminal-view-container" onContextMenu={handleContextMenu}>
+      <div className="terminal-view-host" ref={containerRef} />
       <BaseDropdown
+        menuClassName="sidebar-menu-dropdown"
         open={Boolean(contextMenu)}
         onOpenChange={(open) => {
           if (!open) setContextMenu(null)

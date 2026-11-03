@@ -327,6 +327,7 @@ export default function TerminalDock({ agentId, visible, onClose }: TerminalDock
       </div>
 
       <BaseDropdown
+        menuClassName="sidebar-menu-dropdown"
         open={Boolean(tabMenu)}
         onOpenChange={(open) => {
           if (!open) setTabMenu(null)

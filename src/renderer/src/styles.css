@@ -5033,7 +5033,13 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   overflow: hidden;
 }
 
-.terminal-view-container .xterm {
+.terminal-view-host {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.terminal-view-host .xterm {
   height: 100%;
 }
 
