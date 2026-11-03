@@ -15,7 +15,8 @@ export type DropdownPlacement =
   | 'right-end'
 
 export interface BaseDropdownProps {
-  trigger: ReactNode | ((props: { open: boolean; toggle: () => void }) => ReactNode)
+  trigger?: ReactNode | ((props: { open: boolean; toggle: () => void }) => ReactNode)
+  anchorPoint?: { x: number; y: number } | null
   open?: boolean
   onOpenChange?: (open: boolean) => void
   placement?: DropdownPlacement
@@ -96,6 +97,7 @@ export function computeDropdownPosition({
 
 export default function BaseDropdown({
   trigger,
+  anchorPoint,
   open: controlledOpen,
   onOpenChange,
   placement = 'bottom-start',
@@ -130,8 +132,22 @@ export default function BaseDropdown({
   useLayoutEffect(() => {
     if (!isOpen) return
     const updatePosition = () => {
-      if (!triggerRef.current || !menuRef.current) return
-      const tRect = triggerRef.current.getBoundingClientRect()
+      if (!menuRef.current) return
+      let tRect: { top: number; bottom: number; left: number; right: number; width: number; height: number }
+      if (anchorPoint) {
+        tRect = {
+          top: anchorPoint.y,
+          bottom: anchorPoint.y,
+          left: anchorPoint.x,
+          right: anchorPoint.x,
+          width: 0,
+          height: 0
+        }
+      } else if (triggerRef.current) {
+        tRect = triggerRef.current.getBoundingClientRect()
+      } else {
+        return
+      }
       const mRect = menuRef.current.getBoundingClientRect()
       const calculated = computeDropdownPosition({
         triggerRect: tRect,
@@ -150,7 +166,7 @@ export default function BaseDropdown({
       window.removeEventListener('resize', updatePosition)
       window.removeEventListener('scroll', updatePosition, true)
     }
-  }, [isOpen, placement, offset])
+  }, [isOpen, placement, offset, anchorPoint])
 
   useEffect(() => {
     if (!isOpen) return
@@ -178,17 +194,19 @@ export default function BaseDropdown({
       ref={triggerRef}
       style={containerStyle}
     >
-      {typeof trigger === 'function' ? trigger({ open: isOpen, toggle }) : (
-        <div
-          onClick={(e) => {
-            e.stopPropagation()
-            toggle()
-          }}
-          className="base-dropdown-trigger-wrapper"
-        >
-          {trigger}
-        </div>
-      )}
+      {trigger ? (
+        typeof trigger === 'function' ? trigger({ open: isOpen, toggle }) : (
+          <div
+            onClick={(e) => {
+              e.stopPropagation()
+              toggle()
+            }}
+            className="base-dropdown-trigger-wrapper"
+          >
+            {trigger}
+          </div>
+        )
+      ) : null}
 
       {isOpen && createPortal(
         <div

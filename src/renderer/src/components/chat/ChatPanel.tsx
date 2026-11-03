@@ -347,6 +347,17 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   }, [agentId, refreshVariants, loadContextInfo])
 
   useEffect(() => {
+    const onComposerInsert = (e: Event) => {
+      const detail = (e as CustomEvent<{ agentId: string; text: string }>).detail
+      if (detail?.agentId === agentId && typeof detail.text === 'string') {
+        chatInputRef.current?.insertText(detail.text)
+      }
+    }
+    window.addEventListener('meow:composer-insert', onComposerInsert)
+    return () => window.removeEventListener('meow:composer-insert', onComposerInsert)
+  }, [agentId])
+
+  useEffect(() => {
     if (pendingPrompt && pendingPrompt.promptType === 'permission') {
       promptRef.current?.focus()
     }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
   Terminal,
+  SquareTerminal,
   Code,
   FileText,
   FolderSymlink,
@@ -22,6 +23,9 @@ interface Props {
   background?: boolean
   native?: boolean
   active?: boolean
+  terminalOpen?: boolean
+  isDraft?: boolean
+  onToggleTerminal?: () => void
   onStop: () => void
   onRestart: () => void
   onInject: (text: string) => void
@@ -42,6 +46,9 @@ export default function PaneHeader({
   cwd,
   native = false,
   active = false,
+  terminalOpen = false,
+  isDraft = false,
+  onToggleTerminal,
   onStop,
   onRestart,
   onInject,
@@ -54,6 +61,9 @@ export default function PaneHeader({
   const [injecting, setInjecting] = useState(false)
   const [prompt, setPrompt] = useState('')
   const [confirmRemove, setConfirmRemove] = useState(false)
+
+  const isMac = typeof window !== 'undefined' && window.api?.platform === 'darwin'
+  const shortcutLabel = isMac ? 'Cmd+`' : 'Ctrl+`'
 
   const close = () => setMenuOpen(false)
 
@@ -75,6 +85,17 @@ export default function PaneHeader({
       />
       <span className="pane-title">{name}</span>
       <span className="pane-actions">
+        {onToggleTerminal && (
+          <button
+            className={`icon-btn ${terminalOpen ? 'active' : ''}`}
+            title={isDraft ? 'Terminals unavailable in draft sessions' : `Toggle terminal (${shortcutLabel})`}
+            aria-label="Toggle terminal"
+            disabled={isDraft}
+            onClick={onToggleTerminal}
+          >
+            <SquareTerminal size={14} aria-hidden="true" />
+          </button>
+        )}
         {injecting && (
           <input
             className="input inject-input"

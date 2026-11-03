@@ -29,6 +29,8 @@ The React UI layer (renderer process). Everything the user sees: the sessions of
 | `files/FilesTree.tsx` | Lazy tree of the overlay — lists dotfiles and `node_modules`, name filter, `?`-prefixed content search (`path:line` hits), background refresh on context changes. |
 | `file-content/FileContentView.tsx` | Toolbar + body of a file (CodeMirror syntax-highlighted editor with line numbers and live auto-indent, rendered markdown preview toggle for `.md`, Save button with `● Unsaved` state, `Ctrl+S`/`Cmd+S` keyboard shortcut, Copy, Open in VS Code), shared by the popup `FileViewer` window and the overlay tab. |
 | `git/` | Redesigned Git viewer popup window with resizable sidebars: Changes tab (staged/unstaged file list, file search filter, status badges, diff view toggle), History tab (commit list with search filter, author avatars, compare mode, commit detail card, diff view), Blame tab (workspace file tree, line blame annotations), and branch switcher dropdown with search filter and branch creation. |
+| `terminal/TerminalDock.tsx` | Session terminal dock with tabs, add/close/rename/restart, process cap error banner, and height resize handle. |
+| `terminal/TerminalView.tsx` | xterm.js instance with FitAddon, buffer-before-attach data stream, resize observer, and right-click context menu (send selection/tail to chat). |
 | `chat/` | The native-agent chat UI — see its own AGENTS.md. |
 | `settings/` | Settings dialog + tabs — see its own AGENTS.md. |
 

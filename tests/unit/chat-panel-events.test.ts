@@ -702,4 +702,47 @@ describe('ChatPanel todo card', () => {
     act(() => onEvent?.({ type: 'todo-updated', agentId: 'agent-1', todos: [] }))
     expect(container.querySelector('.chat-todo')).toBeNull()
   })
+
+  it('handles meow:composer-insert event to insert text into the composer', async () => {
+    const api = new Proxy({}, {
+      get: (_target, key) => {
+        if (key === 'listChatTranscript') return async () => ({ items: [], hasMore: false })
+        if (key === 'onChatEvent') return () => () => {}
+        if (key === 'getAgentVariants' || key === 'getChatTodos' || key === 'listCommands' || key === 'listModels') {
+          return async () => []
+        }
+        if (key === 'getContextInfo') return async () => ({ limit: 128000, compactThreshold: 100000, sessionCost: 0 })
+        if (key === 'isChatRunning') return async () => false
+        if (key === 'getPendingPrompt') return async () => null
+        return async () => undefined
+      }
+    }) as Window['api']
+    Object.defineProperty(window, 'api', { configurable: true, value: api })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => { root?.render(createElement(ChatPanel, { agentId: 'agent-1', cwd: 'C:\\repo' })) })
+
+    // Dispatch custom event for another agent — should be ignored
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('meow:composer-insert', {
+          detail: { agentId: 'other-agent', text: 'ignored text' }
+        })
+      )
+    })
+    const textarea = container.querySelector<HTMLTextAreaElement>('textarea')!
+    expect(textarea.value).toBe('')
+
+    // Dispatch custom event for agent-1 — should insert text
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('meow:composer-insert', {
+          detail: { agentId: 'agent-1', text: '```\necho "hello"\n```' }
+        })
+      )
+    })
+    expect(textarea.value).toBe('```\necho "hello"\n```')
+  })
 })

@@ -7,6 +7,8 @@ import { parseCommandInput } from './parseCommandInput'
 export interface ChatInputHandle {
   /** Opens the native file picker to attach images (driven by the composer's "+" menu). */
   openFilePicker(): void
+  /** Inserts text at current caret (or replaces selection) without submitting. */
+  insertText(text: string): void
 }
 
 interface Props {
@@ -59,7 +61,26 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useImperativeHandle(ref, () => ({
-    openFilePicker: () => fileInputRef.current?.click()
+    openFilePicker: () => fileInputRef.current?.click(),
+    insertText: (text: string) => {
+      const el = fieldRef.current
+      if (!el) return
+      const start = el.selectionStart ?? el.value.length
+      const end = el.selectionEnd ?? el.value.length
+      const val = el.value
+      const before = val.slice(0, start)
+      const after = val.slice(end)
+      const needsLeadingNewline = before.length > 0 && !before.endsWith('\n')
+      const needsTrailingNewline = after.length > 0 && !after.startsWith('\n')
+      const insertion = `${needsLeadingNewline ? '\n' : ''}${text}${needsTrailingNewline ? '\n' : ''}`
+      const nextVal = before + insertion + after
+      el.value = nextVal
+      setHasText(nextVal.trim().length > 0)
+      const newPos = start + insertion.length
+      el.selectionStart = newPos
+      el.selectionEnd = newPos
+      el.focus()
+    }
   }), [])
   const selectedRef = useRef<HTMLButtonElement | null>(null)
   const fileSelectedRef = useRef<HTMLButtonElement | null>(null)

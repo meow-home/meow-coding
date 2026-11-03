@@ -1,10 +1,11 @@
-import { useCallback } from 'react'
-import type { ImageAttachment } from '@shared/types'
+import { useCallback, useEffect, useState } from 'react'
+import { DRAFT_SESSION_ID, type ImageAttachment } from '@shared/types'
 import type { PaneModel } from '../App'
 import PaneHeader from './PaneHeader'
 import ChatPanel from './chat/ChatPanel'
 import ChatErrorBoundary from './chat/ChatErrorBoundary'
 import type { SubagentOverlayItem } from './chat/SubagentOverlay'
+import TerminalDock from './terminal/TerminalDock'
 
 interface Props {
   pane: PaneModel
@@ -18,9 +19,21 @@ interface Props {
   onOpenSubagent?: (item: SubagentOverlayItem) => void
 }
 
+function getInitialTerminalOpen(agentId: string): boolean {
+  try {
+    return localStorage.getItem(`meow.terminal.open.${agentId}`) === 'true'
+  } catch {
+    return false
+  }
+}
+
 export default function Pane({ pane, background, active, onFocus, onRemove, onSendDraftMessage, onOpenFiles, onOpenProcesses, onOpenSubagent }: Props) {
   const id = pane.agent.id
   const native = pane.agent.kind === 'native'
+  const isDraft = id === DRAFT_SESSION_ID
+
+  const [terminalOpen, setTerminalOpen] = useState<boolean>(() => getInitialTerminalOpen(id))
+
   // Stable callbacks so App-level re-renders (git poll, agent state) don't
   // cascade past the memoized ChatPanel into the chat feed.
   const handleStop = useCallback(() => {
@@ -38,6 +51,43 @@ export default function Pane({ pane, background, active, onFocus, onRemove, onSe
     void window.api.setAgentBackground(id, !background)
   }, [id, background])
 
+  const handleToggleTerminal = useCallback(() => {
+    if (isDraft) return
+    setTerminalOpen((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem(`meow.terminal.open.${id}`, String(next))
+      } catch {}
+      return next
+    })
+  }, [id, isDraft])
+
+  const handleCloseTerminal = useCallback(() => {
+    setTerminalOpen(false)
+    try {
+      localStorage.setItem(`meow.terminal.open.${id}`, 'false')
+    } catch {}
+  }, [id])
+
+  useEffect(() => {
+    if (!active || isDraft) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === '`') {
+        const target = e.target as HTMLElement | null
+        const isInputOrTextarea =
+          !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')
+        const isXtermHelper = !!target?.classList?.contains('xterm-helper-textarea')
+        if (isInputOrTextarea && !isXtermHelper) {
+          return
+        }
+        e.preventDefault()
+        handleToggleTerminal()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [active, isDraft, handleToggleTerminal])
+
   return (
     <div className={`pane ${background ? 'backgrounded' : ''} ${active ? 'active' : ''} status-${pane.state.status}`} onClick={onFocus}>
       <PaneHeader
@@ -46,6 +96,9 @@ export default function Pane({ pane, background, active, onFocus, onRemove, onSe
         cwd={pane.agent.cwd}
         native={native}
         active={active}
+        terminalOpen={terminalOpen}
+        isDraft={isDraft}
+        onToggleTerminal={handleToggleTerminal}
         onStop={handleStop}
         onRestart={handleRestart}
         onInject={handleInject}
@@ -74,6 +127,13 @@ export default function Pane({ pane, background, active, onFocus, onRemove, onSe
             onOpenSubagent={onOpenSubagent}
           />
         </ChatErrorBoundary>
+        {!isDraft && (
+          <TerminalDock
+            agentId={id}
+            visible={active && !background && terminalOpen}
+            onClose={handleCloseTerminal}
+          />
+        )}
       </div>
     </div>
   )
