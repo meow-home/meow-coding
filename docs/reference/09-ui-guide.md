@@ -220,14 +220,13 @@ Chat conventions:
   (`stepBubbleIdRef`), and a `tool-start` flushes the pending rAF buffer before appending its row —
   a step streams reasoning, announces a tool call, then keeps streaming, so without both the tool row
   lands mid-thought and the rest of the SAME thought opens a second bubble after it (one thought
-  reading as two, the second one cut). The thinking note is a **margin note**, not a card: no
-  box, no fill — just a `--hairline-strong` rule down its left edge, a `Thought` label, a mono word
-  count, and a caret. It is an aside about the answer, so it must not compete with the two surfaces
-  that *are* cards (the opened tool cluster's step list and the error card); the rule is what ties it to the assistant
-  bubble it belongs to. The count is words, not tokens — the renderer has no tokenizer, and a
-  guessed `≈N tokens` would contradict the real number in the context readout. It stays visible
-  when the note opens (a header that reflows on toggle reads as a glitch) and a mono `Show` hint
-  fades in on hover/focus only, so the collapsed feed stays quiet. Empty assistant messages (no text / reasoning / images)
+  reading as two, the second one cut). A loose thinking note (a thought that never meets a tool)
+  is **chrome-less, like a tool-cluster header**: no box, no fill, no left rule — just a `Thought`
+  label, a mono word count, and a trailing caret, so it reads as the same pattern as the
+  `Ran a command` line instead of a third row style. The count is words, not tokens — the renderer
+  has no tokenizer, and a guessed `≈N tokens` would contradict the real number in the context
+  readout. It stays visible when the note opens (a header that reflows on toggle reads as a
+  glitch). Empty assistant messages (no text / reasoning / images)
   are dropped entirely from the rendered feed — the agent's loop persists these between tool
   batches (`if (textBuffer || calls.length > 0 || reasoningBuffer)` in
   `src/main/agent/loop.ts`), and without that drop the stored transcript would scatter otherwise-
@@ -273,9 +272,14 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
 `src/renderer/src/styles.css` — one file, CSS variables only.
 
 - Root font size 13px; sizes `--fs-xs` 10px … `--fs-lg` 16px.
+- `--fs-mono-scale` (0.9) compensates for the mono face reading ~10% larger than the UI face at
+  equal px (taller x-height/cap height). Mono that shares a row with UI text multiplies its size by
+  it — e.g. `.tool-call-summary` (the tool-call args line) is
+  `calc(var(--fs-md) * var(--fs-mono-scale))` so it sits optically level with the thought/prose text
+  around it. Pure code surfaces (outputs, diffs, logs) keep their own `--fs-*` size.
 - Two hairline weights: `--hairline` (the default 1px edge — card borders, separators) and
-  `--hairline-strong` (one step up, for rules that must read as a *deliberate* edge: the thinking
-  note's gutter rule, `.theme-card-btn:hover`). A border drawn with an
+  `--hairline-strong` (one step up, for rules that must read as a *deliberate* edge:
+  `.theme-card-btn:hover`). A border drawn with an
   undefined token silently computes to `0px`, so a rule that "doesn't show up" is usually a missing
   variable rather than a specificity problem.
 - Fonts: `--font-ui` (Segoe UI Variable / system-ui) for all UI text (including tool call headers, chat feed metadata, subagent status badges, prompt option marks, and context popover counts), reserving `--font-mono`

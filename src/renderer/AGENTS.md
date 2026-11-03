@@ -27,7 +27,8 @@ React renderer (no direct Node/Electron access).
 - `src/styles.css` — VSCode Dark+ palette (default) with a Light+ variant activated via
   `[data-theme="light"]` on `<html>`. All colors use CSS variables so theme switching is a single
   attribute flip. Spacing on a 4px scale, controls use Tailwind default sizes. Font: UI sans (Segoe UI
-  Variable/system-ui) for all text, mono (JetBrains Mono) for terminal/data/code labels.
+  Variable/system-ui) for all text, mono (JetBrains Mono) for terminal/data/code labels. Mono sharing a
+  row with UI text is scaled by `--fs-mono-scale` (it reads larger at equal px).
   Theme toggle lives in the Sidebar footer dropdown menu (Sun/Moon icon). Theme preference is
   persisted in `localStorage` (`meow.theme`), default is `dark`.
 - `src/theme.ts` — shared theme helpers: `applyTheme` (set `data-theme` on `<html>` from

@@ -168,10 +168,9 @@ const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, c
           {reasoning ? (
             <details className="chat-reasoning">
               <summary>
-                <ChevronRight className="chat-reasoning-caret" size={14} aria-hidden="true" />
                 <span className="chat-reasoning-label">Thought</span>
                 <span className="chat-reasoning-meta">{countWords(reasoning)} words</span>
-                <span className="chat-reasoning-hint">Show</span>
+                <ChevronRight className="chat-reasoning-caret" size={14} aria-hidden="true" />
               </summary>
               <div className="chat-reasoning-text">{reasoning}</div>
             </details>
