@@ -9,35 +9,18 @@ interface TerminalViewProps {
   agentId: string
 }
 
+// The terminal is always dark (--terminal-* tokens are not overridden by the light theme),
+// so the theme is read once and never follows a data-theme flip.
 function getTerminalTheme() {
-  if (typeof window === 'undefined') {
-    return {
-      background: '#0a0a0b',
-      foreground: '#ffffff',
-      cursor: '#ffffff',
-      selectionBackground: 'rgba(0, 122, 204, 0.35)',
-      fontFamily: 'monospace'
-    }
-  }
-  const isLight = document.documentElement.getAttribute('data-theme') === 'light'
   const style = window.getComputedStyle(document.documentElement)
-  const bg = style.getPropertyValue('--bg-chat').trim() || (isLight ? '#ffffff' : '#0a0a0b')
-  const fg =
-    style.getPropertyValue('--chat-text').trim() ||
-    style.getPropertyValue('--text').trim() ||
-    (isLight ? '#1e1e1e' : '#ffffff')
-  const cursor =
-    style.getPropertyValue('--text').trim() ||
-    (isLight ? '#1e1e1e' : '#ffffff')
-  const fontMono = style.getPropertyValue('--font-mono').trim() || 'monospace'
-  const selectionBg = isLight ? 'rgba(0, 102, 184, 0.25)' : 'rgba(0, 122, 204, 0.35)'
-
+  const background = style.getPropertyValue('--terminal-bg').trim() || '#0a0a0b'
+  const foreground = style.getPropertyValue('--terminal-fg').trim() || '#e5e5e5'
   return {
-    background: bg,
-    foreground: fg,
-    cursor,
-    selectionBackground: selectionBg,
-    fontFamily: fontMono
+    background,
+    foreground,
+    cursor: foreground,
+    selectionBackground: 'rgba(0, 122, 204, 0.35)',
+    fontFamily: style.getPropertyValue('--font-mono').trim() || 'monospace'
   }
 }
 
@@ -74,33 +57,6 @@ export default function TerminalView({ terminalId, agentId }: TerminalViewProps)
       try {
         fitAddon.fit()
       } catch {}
-    }
-
-    const updateTheme = () => {
-      const t = getTerminalTheme()
-      term.options.fontFamily = t.fontFamily
-      term.options.theme = {
-        background: t.background,
-        foreground: t.foreground,
-        cursor: t.cursor,
-        selectionBackground: t.selectionBackground
-      }
-    }
-
-    let themeObserver: MutationObserver | null = null
-    if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined') {
-      themeObserver = new MutationObserver((mutations) => {
-        for (const m of mutations) {
-          if (m.type === 'attributes' && m.attributeName === 'data-theme') {
-            updateTheme()
-            break
-          }
-        }
-      })
-      themeObserver.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ['data-theme']
-      })
     }
 
     const dataDisposable = term.onData((data) => {
@@ -161,7 +117,6 @@ export default function TerminalView({ terminalId, agentId }: TerminalViewProps)
       disposed = true
       if (resizeTimer) clearTimeout(resizeTimer)
       resizeObserver?.disconnect()
-      themeObserver?.disconnect()
       unlistenData()
       dataDisposable.dispose()
       void window.api.terminalDetach(terminalId).catch(() => {})

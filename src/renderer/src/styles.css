@@ -46,6 +46,9 @@
   --bg-code: #0a0a0b;
   --code-text: #ffb454;
   --bg-chat: #0a0a0b;
+  /* Session terminals stay dark in every theme; the light block does not override these. */
+  --terminal-bg: #0a0a0b;
+  --terminal-fg: #e5e5e5;
   --bg-bubble: #161618;
   --bg-bubble-user: #1a3a5c;
   --chat-text: #ffffff;
@@ -4862,7 +4865,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .terminal-error-text { flex: 1; min-width: 0; }
 .terminal-overlay-body {
   flex: 1; min-height: 0; position: relative; overflow: hidden;
-  background: var(--bg-chat); border-radius: 0;
+  background: var(--terminal-bg); border-radius: 0;
 }
 .terminal-view-container {
   width: 100%; height: 100%; padding: 0.333333rem 0.666667rem;
@@ -4870,3 +4873,6 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 }
 .terminal-view-host { width: 100%; height: 100%; overflow: hidden; border-radius: 0; }
 .terminal-view-host .xterm { height: 100%; }
+/* xterm.css paints the viewport #000; it shows below the last row when the height is not a whole number of rows. */
+.terminal-view-host .xterm,
+.terminal-view-host .xterm .xterm-viewport { background-color: var(--terminal-bg); }

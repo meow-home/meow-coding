@@ -75,7 +75,7 @@ The session terminal is a right-hand panel (`TerminalOverlay`) hosting interacti
 - **Layout**: Uses the Files panel chrome — `.files-overlay` card, `.files-head` title bar (`TERMINAL`, Restart when the selected tab exited, `+` new terminal, expand/restore, close) and `.files-tabs` / `.files-tab` chip tabs with a status dot, exit code, double-click rename and close. Docked, it joins the shared `.right-panels-grid` next to Files, Processes and Subagent panels (auto rows/columns, shared resizer); expanded (`full`), it overlays the whole pane area like Files. The chat keeps its full height.
 - **Mount gating**: Only one terminal panel exists and its xterm is created only for the selected tab, so hidden sessions never allocate xterm instances. Removing the session closes the panel.
 - **Context menu & clipboard**: Right-clicking the terminal view opens a context menu with Copy, Paste, Clear Buffer, and "Send Selection to Chat". "Send Selection to Chat" dispatches a `meow:composer-insert` custom window event containing the formatted selection (```text ... ```), which `ChatInput.tsx` listens for and appends to the composer.
-- **Theme sync**: Resolves runtime CSS variables (`--bg-chat`, `--chat-text`, `--text`, `--font-mono`) and dynamically updates xterm options on theme changes via `MutationObserver` on `data-theme`.
+- **Always dark**: The terminal ignores the app theme. Its colors come from `--terminal-bg` / `--terminal-fg` (defined once on `:root`, never overridden by `[data-theme="light"]`) plus `--font-mono`, read once when the xterm is created. `styles.css` paints `.terminal-overlay-body`, `.xterm` and `.xterm-viewport` with `--terminal-bg`, because `xterm.css` paints the viewport `#000` and it shows below the last row.
 
 ## 9.3 `App.tsx` — the state hub
 
@@ -149,7 +149,7 @@ is dismissible (no install button, "Later" only).
 | Component | Responsibility |
 |---|---|
 | `TerminalOverlay.tsx` | Right-hand session terminal panel (Files panel chrome, joins the right-panels grid): tab list, tab renames, new tab (`+`), close tab (`×`), restart exited tab, expand/restore, close. |
-| `TerminalView.tsx` | Individual xterm.js instance: fit addon, IPC data/resize/exit event subscriptions, theme variable sync, right-click context menu (Copy, Paste, Clear, Send to Chat via `meow:composer-insert`). |
+| `TerminalView.tsx` | Individual xterm.js instance: fit addon, IPC data/resize/exit event subscriptions, always-dark `--terminal-*` theme, right-click context menu (Copy, Paste, Clear, Send to Chat via `meow:composer-insert`). |
 
 ### Dialogs
 
