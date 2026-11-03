@@ -5,6 +5,7 @@ import path from 'node:path'
 import { PtyManager } from '../../src/main/pty-manager'
 import { gitBashPath } from '../../src/main/agent/tools/bash'
 import { resolveTerminalShell } from '../../src/main/terminal-shell'
+import { hasOutputLine } from './terminal-output'
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'echo-agent.js')
 
@@ -167,9 +168,7 @@ describe('PtyManager terminal session', () => {
         const t = setTimeout(() => reject(new Error(`timeout waiting for TERM_OK; got: ${data.join('')}`)), 15000)
         let retryTicks = 0
         const check = () => {
-          // The shell echoes the typed command too; only a line that is exactly
-          // TERM_OK proves the command ran.
-          if (/\nTERM_OK\r?\n/.test(data.join(''))) {
+          if (hasOutputLine(data.join(''), 'TERM_OK')) {
             clearTimeout(t)
             resolve()
           } else {

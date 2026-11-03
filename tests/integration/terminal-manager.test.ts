@@ -8,6 +8,7 @@ import { TerminalStore } from '../../src/main/terminal-store'
 import { resolveTerminalShell } from '../../src/main/terminal-shell'
 import { gitBashPath } from '../../src/main/agent/tools/bash'
 import type { TerminalDataEvent, TerminalsChangedEvent } from '../../src/shared/ipc'
+import { hasOutputLine } from './terminal-output'
 
 describe('TerminalManager integration', () => {
   it('manages terminal lifecycle with a dedicated PTY manager without affecting other PTY instances', async () => {
@@ -63,8 +64,7 @@ describe('TerminalManager integration', () => {
         let retryTicks = 0
         const check = () => {
           const allOutput = emittedData.filter(e => e.id === created.id).map(e => e.data).join('')
-          // Echoed command alone must not pass; only a newline-bounded TERM_OK
-          if (/\nTERM_OK\r?\n/.test(allOutput)) {
+          if (hasOutputLine(allOutput, 'TERM_OK')) {
             clearTimeout(timeout)
             resolve()
           } else {

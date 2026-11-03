@@ -2,7 +2,9 @@
 
 - `unit/` — pure logic tests (Vitest, `node` environment). One file per module: `<name>.test.ts` / `<name>.test.tsx`.
 - `integration/` — real integration tests: `pty-manager.test.ts` (ConPTY), `agent-stream-overlap.test.ts`,
-  `browser/bridge-flow.test.ts`.
+  `browser/bridge-flow.test.ts`, `terminal-manager.test.ts`. Shell-output assertions use `hasOutputLine`
+  (`terminal-output.ts`): it strips ANSI control sequences first, since Linux bash emits a bracketed-paste
+  toggle (`\x1b[?2004l\r`) right before command output.
 - `e2e/` — Playwright for Electron: smoke, chat, prompt, composer, context-footer, scrollbar, selectors, menus, and session terminal panel tests that launch the app.
 - `fixtures/` — fake CLI (`echo-agent.js`) spawned in place of a real agent + `mock-lsp-server.js`.
 
