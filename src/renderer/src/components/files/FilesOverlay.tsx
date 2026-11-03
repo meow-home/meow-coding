@@ -11,6 +11,26 @@ import { baseName } from './file-path'
 export const FILES_MIN_WIDTH = 320
 export const FILES_MAX_WIDTH = 900
 export const FILES_DEFAULT_WIDTH = 420
+export const FILES_SIDE_MIN_WIDTH = 160
+// The editor side keeps at least this much room when the tree is dragged wider.
+export const FILES_MAIN_MIN_WIDTH = 160
+const SIDE_WIDTH_KEY = 'meow.files.sideWidth'
+
+function loadSideWidth(): number | null {
+  try {
+    const v = Number(localStorage.getItem(SIDE_WIDTH_KEY))
+    return Number.isFinite(v) && v >= FILES_SIDE_MIN_WIDTH ? v : null
+  } catch {
+    return null
+  }
+}
+
+function saveSideWidth(width: number | null): void {
+  try {
+    if (width === null) localStorage.removeItem(SIDE_WIDTH_KEY)
+    else localStorage.setItem(SIDE_WIDTH_KEY, String(Math.round(width)))
+  } catch {}
+}
 
 interface Props {
   projectPath: string
@@ -36,6 +56,39 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
   const filterRef = useRef<HTMLInputElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const sideRef = useRef<HTMLDivElement>(null)
+  // null = the CSS default (42% docked, 20rem expanded) until the user drags the splitter.
+  const [sideWidth, setSideWidth] = useState<number | null>(loadSideWidth)
+
+  const startSideDrag = useCallback((e: React.MouseEvent) => {
+    const side = sideRef.current
+    const body = bodyRef.current
+    if (!side || !body) return
+    e.preventDefault()
+    const startX = e.clientX
+    const startWidth = side.getBoundingClientRect().width
+    let latest: number | null = null
+    const onMove = (ev: MouseEvent) => {
+      const max = Math.max(FILES_SIDE_MIN_WIDTH, body.getBoundingClientRect().width - FILES_MAIN_MIN_WIDTH)
+      latest = Math.min(max, Math.max(FILES_SIDE_MIN_WIDTH, startWidth + ev.clientX - startX))
+      setSideWidth(latest)
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.classList.remove('col-resizing')
+      if (latest !== null) saveSideWidth(latest)
+    }
+    document.body.classList.add('col-resizing')
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [])
+
+  const resetSideWidth = useCallback(() => {
+    setSideWidth(null)
+    saveSideWidth(null)
+  }, [])
 
   const startDrag = useCallback((e: React.MouseEvent) => {
     if (!onWidthChange || width === undefined) return
@@ -176,8 +229,21 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
           </button>
         </div>
       </div>
-      <div className="files-body">
-        <div className="files-side">
+      <div className="files-body" ref={bodyRef}>
+        <div
+          className="files-side"
+          ref={sideRef}
+          style={sideWidth !== null ? { flexBasis: sideWidth, maxWidth: `calc(100% - ${FILES_MAIN_MIN_WIDTH}px)` } : undefined}
+        >
+          <div
+            className="files-side-resizer"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize file tree"
+            title="Drag to resize, double-click to reset"
+            onMouseDown={startSideDrag}
+            onDoubleClick={resetSideWidth}
+          />
           <div className="files-filter">
             <Search size={13} aria-hidden="true" />
             <input

@@ -3974,7 +3974,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .files-head-actions { display: flex; align-items: center; gap: 0.166667rem; -webkit-app-region: no-drag; }
 .files-body { flex: 1; min-height: 0; display: flex; }
 .files-side {
-  flex: 0 0 20rem; min-width: 0; display: flex; flex-direction: column;
+  flex: 0 0 20rem; min-width: 0; display: flex; flex-direction: column; position: relative;
   border-right: 0.083333rem solid var(--hairline); background: var(--bg-sidebar);
   border-radius: 0;
 }
@@ -3998,6 +3998,12 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
   color: var(--text-faint); font-family: var(--font-mono); font-size: var(--fs-xs);
 }
+.files-side-resizer {
+  position: absolute; right: -0.25rem; top: 0; bottom: 0; width: 0.5rem;
+  cursor: col-resize; z-index: 5; border-radius: 0;
+}
+.files-side-resizer:hover { background: var(--accent-dim); }
+body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-select: none; }
 .files-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 /* 30px bar, 22px chips: the 4px padding insets the tabs from every edge and the
    gap separates them, so no hairline divider is needed between tabs. */
