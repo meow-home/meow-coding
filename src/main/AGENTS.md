@@ -6,7 +6,10 @@ handlers and the app lifecycle.
 ## Key files
 
 - `index.ts` — `MainApp` coordinates everything: setState, forwards `agent:state`/`git:status` events
-  to the renderer; `registerIpcHandlers`; window lifecycle; `before-quit` → `pty.stopAll()`.
+  to the renderer; `registerIpcHandlers`; window lifecycle; `before-quit` → `terminals.flush()`,
+  `Promise.allSettled([terminals.stopAll(), pty.stopAll()])`.
+  Composes `TerminalManager` (`userData/terminals`, dedicated `PtyManager`, `resolveTerminalShell` via `meow.json`)
+  and exposes session terminal IPC channels; cleans up terminals on `agent:remove` before workspace removal.
   Composes the delegation runtime: owns the `SessionDelegationStore` (`userData/delegations.json`) +
   `SessionDelegationService`, passes the narrow `delegation` adapter (create/peers) into `MeowAgentManager`,
   starts the service on ready, suspends+flushes on quit, drives `notifyAgentAvailable` on each turn
@@ -62,8 +65,13 @@ handlers and the app lifecycle.
   `ensureAgent(agent)` awaits registration of a native session (used by external delegation for
   projects that were never opened).
 - `pty-manager.ts` — node-pty wrapper, emits `data`/`exit` events. `buildSpawnCommand` wraps non-`.exe`
-  commands through `cmd.exe` on Windows (ConPTY cannot spawn `.cmd` shims directly). Uses `tree-kill`
-  to kill the entire process tree on stop.
+  commands through `cmd.exe` on Windows (ConPTY cannot spawn `.cmd` shims directly). `startTerminal` spawns
+  session terminals directly without shim wrapping; `writeRaw` sends raw terminal input without
+  newline rewriting. Uses `tree-kill` to kill the entire process tree on stop.
+- `terminal-shell.ts` — `resolveTerminalShell`: resolves shell executable, launch arguments, and tab display name for session terminals (configured shell if exists, then Windows Git Bash/PowerShell, or POSIX `SHELL`/bash).
+- `terminal-buffer.ts` — `ScrollbackBuffer`: in-memory scrollback buffer with byte cap and UTF-16 surrogate safety; `OutputBatcher`: coalesces terminal output chunks within a time window or flushes synchronously on size threshold.
+- `terminal-store.ts` — `TerminalStore`: persists session terminal metadata (`userData/terminals/<agentId>/index.json`) and scrollback logs (`<termId>.log`) via `writeFileAtomic`, prunes stale log files on save, and tolerates missing or corrupt index files.
+- `terminal-manager.ts` — `TerminalManager`: orchestrates session terminal lifecycles (`create`, `list`, `attach`, `detach`, `write`, `resize`, `rename`, `restart`, `kill`, `removeSession`, `flush`, `stopAll`) with max 8 terminals per session cap, dedicated `PtyManager` instance, scrollback buffering (512 KiB cap), output batching (16ms / 64 KiB), periodic running-session persistence (30s), and generational tracking to guard against late exit events.
 - `workspace-store.ts` — CRUD on `JsonStore<T>` (`userData/workspaces.json`); `list()` returns session summaries newest-first.
 - `session-delegation-store.ts` — durable `SessionDelegation[]` store for session-to-session delegation
   (`userData/delegations.json`): revision-checked/idempotent transitions, post-terminal `deliveredAt`/`wakeAt`
@@ -135,7 +143,9 @@ handlers and the app lifecycle.
 - Unit: `tests/unit/` — one test file per module: pty-spawn-command,
   window-chrome, updater, models-catalog, model-variants, notification-service, file-suggest,
   file-watcher, git-status-service, alert-service, atomic-write, json-store, project-encode, log-manager,
-  workspace-store, meow-agent-manager, ipc-contract, ...
+  workspace-store, meow-agent-manager, ipc-contract, terminal-shell, terminal-buffer, terminal-store,
+  terminal-manager, ...
 - Integration: `tests/integration/pty-manager.test.ts` (real spawn via ConPTY, uses fixture CLI),
+  `tests/integration/terminal-manager.test.ts` (session terminal lifecycle via dedicated PTY),
   `agent-stream-overlap.test.ts`, `browser/bridge-flow.test.ts`.
 - Run: `npm run typecheck`, `npm test`.

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { Channels } from '../../src/shared/ipc'
-import type { AgentApi, BrowserStatusEvent, AgentStateEvent, GitStatusEvent, ChatEvent } from '../../src/shared/ipc'
+import type { AgentApi, BrowserStatusEvent, AgentStateEvent, GitStatusEvent, ChatEvent, TerminalDataEvent, TerminalsChangedEvent } from '../../src/shared/ipc'
 import type { BrowserStatusInfo } from '../../src/shared/browser-types'
-import type { AgentConfig, ChatMessage, MeowSettings } from '../../src/shared/types'
+import type { AgentConfig, ChatMessage, MeowSettings, TerminalInfo } from '../../src/shared/types'
 
 describe('IPC contract', () => {
   it('defines all channels used by the preload api', () => {
@@ -34,6 +34,7 @@ describe('IPC contract', () => {
       'openBrowserInstallGuide', 'openBrowserExtensionFolder', 'openBrowserChromeExtensions',
       'getBrowserConsoleLogs', 'getBrowserNetworkLogs', 'onBrowserStatus', 'onBrowserOpenInstallGuide',
       'getExternalApiStatus', 'setExternalApiEnabled', 'regenerateExternalApiToken', 'installClaudeSkill', 'copyExternalApiToken', 'onExternalApiStatus',
+      'terminalList', 'terminalCreate', 'terminalAttach', 'terminalDetach', 'terminalWrite', 'terminalResize', 'terminalRename', 'terminalRestart', 'terminalKill', 'onTerminalData', 'onTerminalsChanged',
       'onWorkspaceChanged'
     ]
     const api: AgentApi = {
@@ -134,6 +135,17 @@ describe('IPC contract', () => {
       installClaudeSkill: async () => '',
       copyExternalApiToken: async () => {},
       onExternalApiStatus: () => () => {},
+      terminalList: async () => [],
+      terminalCreate: async () => ({ id: 'term_1', agentId: 'a1', title: 'term', shell: 'bash', cwd: '/p', cols: 80, rows: 24, status: 'running', exitCode: null }),
+      terminalAttach: async () => ({ scrollback: '' }),
+      terminalDetach: async () => {},
+      terminalWrite: async () => {},
+      terminalResize: async () => {},
+      terminalRename: async () => {},
+      terminalRestart: async () => ({ id: 'term_1', agentId: 'a1', title: 'term', shell: 'bash', cwd: '/p', cols: 80, rows: 24, status: 'running', exitCode: null }),
+      terminalKill: async () => {},
+      onTerminalData: () => () => {},
+      onTerminalsChanged: () => () => {},
       onWorkspaceChanged: () => () => {},
       platform: 'win32',
       minimizeWindow: async () => {},
@@ -257,15 +269,30 @@ describe('IPC contract', () => {
     expect(Channels.GitCompareCommits).toBe('git:compare-commits')
     expect(Channels.GitGetBlame).toBe('git:get-blame')
     expect(Channels.GitGetFileHistory).toBe('git:get-file-history')
+    expect(Channels.TerminalList).toBe('terminal:list')
+    expect(Channels.TerminalCreate).toBe('terminal:create')
+    expect(Channels.TerminalAttach).toBe('terminal:attach')
+    expect(Channels.TerminalDetach).toBe('terminal:detach')
+    expect(Channels.TerminalWrite).toBe('terminal:write')
+    expect(Channels.TerminalResize).toBe('terminal:resize')
+    expect(Channels.TerminalRename).toBe('terminal:rename')
+    expect(Channels.TerminalRestart).toBe('terminal:restart')
+    expect(Channels.TerminalKill).toBe('terminal:kill')
+    expect(Channels.EventTerminalData).toBe('terminal:data')
+    expect(Channels.EventTerminalsChanged).toBe('terminal:changed')
   })
 
   it('types event payloads without runtime error', () => {
     const s: AgentStateEvent = { agentId: 'a1', state: {} as never }
     const gNull: GitStatusEvent = { projectPath: '/p', git: null }
     const g: GitStatusEvent = { projectPath: '/p', git: { branch: 'main', dirtyCount: 0 } }
+    const tData: TerminalDataEvent = { id: 'term_1', data: 'hello' }
+    const tChanged: TerminalsChangedEvent = { agentId: 'a1', terminals: [] }
     expect(s.agentId).toBe('a1')
     expect(g.git.branch).toBe('main')
     expect(gNull.git).toBeNull()
+    expect(tData.id).toBe('term_1')
+    expect(tChanged.agentId).toBe('a1')
   })
 
   it('onBrowserStatus delivers the raw BrowserStatusInfo, not a wrapper', () => {

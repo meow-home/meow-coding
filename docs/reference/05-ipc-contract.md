@@ -98,6 +98,20 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `AgentGetContext` | `agent:get-context` | `getContextInfo(agentId): ContextInfo` |
 | `AgentSetBackground` | `agent:set-background` | `setAgentBackground(agentId, background)` |
 | `PtyStart` / `PtyStop` / `PtyRestart` | `pty:start` / `pty:stop` / `pty:restart` | `startAgent` / `stopAgent` / `restartAgent` |
+
+### Session terminals
+
+| Key | Channel | Method |
+|---|---|---|
+| `TerminalList` | `terminal:list` | `terminalList(agentId): TerminalInfo[]` |
+| `TerminalCreate` | `terminal:create` | `terminalCreate(agentId, opts?): TerminalInfo` |
+| `TerminalAttach` | `terminal:attach` | `terminalAttach(id): { scrollback: string }` |
+| `TerminalDetach` | `terminal:detach` | `terminalDetach(id)` |
+| `TerminalWrite` | `terminal:write` | `terminalWrite(id, data)` |
+| `TerminalResize` | `terminal:resize` | `terminalResize(id, cols, rows)` |
+| `TerminalRename` | `terminal:rename` | `terminalRename(id, userTitle: string \| null)` |
+| `TerminalRestart` | `terminal:restart` | `terminalRestart(id): TerminalInfo` |
+| `TerminalKill` | `terminal:kill` | `terminalKill(id)` |
 | `PtyInject` | `pty:inject` | `injectPrompt(agentId, text)` — writes `text + '\n'` |
 | `LogPath` / `LogOpen` | `log:path` / `log:open` | `getLogPath` / `openLog` |
 | `SystemLog` | `system-log:write` | `writeSystemLog(level: LogLevel, message)` — the renderer sends the log to main, which writes it to the per-day file |
@@ -191,6 +205,8 @@ captured in preload).
 | `EventContextChanged` | `context:changed` | `ContextChangedEvent { projectPath, files }` | `onContextChanged` |
 | `EventChat` | `chat:event` | `ChatEvent` | `onChatEvent` |
 | `EventArtifactsChanged` | `artifacts:changed` | `ArtifactsChangedEvent { projectPath, artifacts }` | `onArtifactsChanged` |
+| `EventTerminalData` | `terminal:data` | `TerminalDataEvent { id, data }` | `onTerminalData` |
+| `EventTerminalsChanged` | `terminal:changed` | `TerminalsChangedEvent { agentId, terminals }` | `onTerminalsChanged` |
 | `EventBrowserStatus` | `browser:status` | `BrowserStatusInfo` | `onBrowserStatus` |
 | `EventBrowserOpenInstallGuide` | `browser:install-guide` | `BrowserInstallGuideEvent { extensionDir }` | `onBrowserOpenInstallGuide` |
 | `EventPromptState` | `prompt:state-changed` | `PromptStateEvent { projectPath, agentId, pending }` — fires when an agent starts (`pending: true`) or stops (`pending: false`) waiting on user input | `onPromptState` |

@@ -3,8 +3,8 @@ import { Channels } from '../shared/ipc'
 
 ipcRenderer.setMaxListeners(100)
 import type { ArtifactsChangedEvent } from '../shared/ipc'
-import type { ChatEvent, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, TranscriptWindowOpts, UpdaterStatusEvent } from '../shared/types'
-import type { ActivateAgentEvent, AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, GitStatusEvent, PromptStateEvent, WindowMaximizedChangeEvent, WorkspaceChangedEvent } from '../shared/ipc'
+import type { ChatEvent, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, TerminalCreateOptions, TranscriptWindowOpts, UpdaterStatusEvent } from '../shared/types'
+import type { ActivateAgentEvent, AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, GitStatusEvent, PromptStateEvent, TerminalDataEvent, TerminalsChangedEvent, WindowMaximizedChangeEvent, WorkspaceChangedEvent } from '../shared/ipc'
 import type { BrowserStatusInfo } from '../shared/browser-types'
 import type { ExternalApiStatus } from '../shared/external-api-types'
 
@@ -207,7 +207,23 @@ const api: AgentApi = {
   onBackgroundProcData: (cb: (e: { id: string; chunk: string }) => void) =>
     subscribe(Channels.EventBackgroundProcData, cb),
   onBackgroundProcExit: (cb: (e: { id: string; exitCode: number | null }) => void) =>
-    subscribe(Channels.EventBackgroundProcExit, cb)
+    subscribe(Channels.EventBackgroundProcExit, cb),
+  terminalList: (agentId: string) => ipcRenderer.invoke(Channels.TerminalList, agentId),
+  terminalCreate: (agentId: string, opts?: TerminalCreateOptions) =>
+    ipcRenderer.invoke(Channels.TerminalCreate, agentId, opts),
+  terminalAttach: (id: string) => ipcRenderer.invoke(Channels.TerminalAttach, id),
+  terminalDetach: (id: string) => ipcRenderer.invoke(Channels.TerminalDetach, id),
+  terminalWrite: (id: string, data: string) => ipcRenderer.invoke(Channels.TerminalWrite, id, data),
+  terminalResize: (id: string, cols: number, rows: number) =>
+    ipcRenderer.invoke(Channels.TerminalResize, id, cols, rows),
+  terminalRename: (id: string, userTitle: string | null) =>
+    ipcRenderer.invoke(Channels.TerminalRename, id, userTitle),
+  terminalRestart: (id: string) => ipcRenderer.invoke(Channels.TerminalRestart, id),
+  terminalKill: (id: string) => ipcRenderer.invoke(Channels.TerminalKill, id),
+  onTerminalData: (cb: (e: TerminalDataEvent) => void) =>
+    subscribe(Channels.EventTerminalData, cb),
+  onTerminalsChanged: (cb: (e: TerminalsChangedEvent) => void) =>
+    subscribe(Channels.EventTerminalsChanged, cb)
 }
 
 contextBridge.exposeInMainWorld('api', api)

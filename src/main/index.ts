@@ -6,9 +6,13 @@ import os from 'node:os'
 import path from 'node:path'
 import { createJsonStore } from './json-store'
 import { resetToSingleSession } from './fresh-start'
-import { migrateUnlimitedSteps } from './agent/config'
+import { loadMeowConfig, migrateUnlimitedSteps } from './agent/config'
 import { WorkspaceStore } from './workspace-store'
 import { PtyManager } from './pty-manager'
+import { TerminalManager } from './terminal-manager'
+import { TerminalStore } from './terminal-store'
+import { resolveTerminalShell } from './terminal-shell'
+import { gitBashPath } from './agent/tools/bash'
 import { LogManager } from './log-manager'
 import { SystemLogger } from './system-logger'
 import { GitStatusService } from './git-status-service'
@@ -58,7 +62,7 @@ import { ExternalApiManager } from './external-api/manager'
 import { ExternalDelegationFacade } from './external-api/facade'
 import { Channels } from '../shared/ipc'
 import { formatLogArg, safeJson } from '../shared/log-helpers'
-import type { AgentState, Command, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, ProjectSearchHit, PromptResponse, SessionDelegation, TranscriptWindowOpts, Workspace, WorkspaceRuntime } from '../shared/types'
+import type { AgentState, Command, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, ProjectSearchHit, PromptResponse, SessionDelegation, TerminalCreateOptions, TranscriptWindowOpts, Workspace, WorkspaceRuntime } from '../shared/types'
 
 let win: BrowserWindow | null = null
 let isQuitting = false
@@ -122,6 +126,31 @@ export class MainApp {
   pty = new PtyManager()
   logs = new LogManager(path.join(app.getPath('userData'), 'logs'))
   systemLogger = new SystemLogger(path.join(app.getPath('userData'), 'logs'))
+  terminals = new TerminalManager({
+    pty: new PtyManager(),
+    store: new TerminalStore(
+      path.join(app.getPath('userData'), 'terminals'),
+      { warn: (msg: string) => this.systemLogger.log('WARN', 'main', msg) }
+    ),
+    resolveShell: () =>
+      resolveTerminalShell({
+        platform: process.platform,
+        env: process.env,
+        configured: loadMeowConfig(path.join(app.getPath('userData'), 'meow.json')).terminal,
+        gitBash: gitBashPath,
+        exists: existsSync
+      }),
+    emitData: (e) => {
+      if (win && !win.isDestroyed()) {
+        win.webContents.send(Channels.EventTerminalData, e)
+      }
+    },
+    emitChanged: (e) => {
+      if (win && !win.isDestroyed()) {
+        win.webContents.send(Channels.EventTerminalsChanged, e)
+      }
+    }
+  })
   git = new GitStatusService()
   gitSvc = new GitService()
   alerts = new AlertService()
@@ -901,6 +930,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.AgentRemove, async (_e, projectPath: string, agentId: string) => {
     mainApp.meowAgent.removeAgent(agentId)
     await mainApp.delegationService.handleAgentRemoved(agentId)
+    await mainApp.terminals.removeSession(agentId)
     await mainApp.pty.stop(agentId)
     mainApp.workspaces.removeAgent(projectPath, agentId)
     mainApp.clearState(agentId)
@@ -1044,6 +1074,24 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.ExternalApiRegenerateToken, () => mainApp.externalApi.regenerateToken())
   ipcMain.handle(Channels.ExternalApiInstallClaudeSkill, () => mainApp.externalApi.installClaudeSkill())
   ipcMain.handle(Channels.ExternalApiCopyToken, () => clipboard.writeText(mainApp.externalApi.getToken()))
+
+  ipcMain.handle(Channels.TerminalList, (_e, agentId: string) => mainApp.terminals.list(agentId))
+  ipcMain.handle(Channels.TerminalCreate, (_e, agentId: string, opts?: TerminalCreateOptions) => {
+    const ws = mainApp.findWorkspaceByAgent(agentId)
+    if (!ws) throw new Error('[meow] Unknown session: ' + agentId)
+    const agent = ws.agents.find(a => a.id === agentId)
+    const defaultCwd = agent?.cwd || ws.projectPath
+    return mainApp.terminals.create(agentId, defaultCwd, opts)
+  })
+  ipcMain.handle(Channels.TerminalAttach, (_e, id: string) => mainApp.terminals.attach(id))
+  ipcMain.handle(Channels.TerminalDetach, (_e, id: string) => mainApp.terminals.detach(id))
+  ipcMain.handle(Channels.TerminalWrite, (_e, id: string, data: string) => mainApp.terminals.write(id, data))
+  ipcMain.handle(Channels.TerminalResize, (_e, id: string, cols: number, rows: number) =>
+    mainApp.terminals.resize(id, cols, rows))
+  ipcMain.handle(Channels.TerminalRename, (_e, id: string, userTitle: string | null) =>
+    mainApp.terminals.rename(id, userTitle))
+  ipcMain.handle(Channels.TerminalRestart, (_e, id: string) => mainApp.terminals.restart(id))
+  ipcMain.handle(Channels.TerminalKill, (_e, id: string) => mainApp.terminals.kill(id))
 }
 
 app.whenReady().then(async () => {
@@ -1151,6 +1199,9 @@ app.on('before-quit', (event) => {
   event.preventDefault()
   cleaningUp = true
   isQuitting = true
+  try {
+    mainApp.terminals.flush()
+  } catch {}
   mainApp.stopGitPoll()
   mainApp.delegationService.suspend()
   void mainApp.externalApi.stop()
@@ -1163,8 +1214,7 @@ app.on('before-quit', (event) => {
   }).then(() => {
     tray?.dispose()
     tray = null
-    mainApp.pty
-      .stopAll()
+    Promise.allSettled([mainApp.terminals.stopAll(), mainApp.pty.stopAll()])
       .finally(() => app.exit(0))
   })
 })

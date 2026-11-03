@@ -3,7 +3,7 @@ import type {
   BackgroundProcInfo, ConnectionAccount, ContextChangedEvent, ContextInfo, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload, ImageContentResult, MonitorInfo,
   GitActionResult, GitBlameLine, GitBranch, GitCommit, GitDiffResult, GitStatus, GitStatusDetail,
   ImageAttachment, LogLevel, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PendingPromptInfo, ProjectSearchHit, PromptResponse,
-  StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts,
+  StatsSummary, TerminalCreateOptions, TerminalInfo, TodoItem, TranscriptWindow, TranscriptWindowOpts,
   UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 import type { BrowserStatusInfo, TrustedExtension } from './browser-types'
@@ -142,12 +142,25 @@ export const Channels = {
   FilesOpenSystem: 'files:open-system',
   ArtifactsList: 'artifacts:list',
   ArtifactsClear: 'artifacts:clear',
-  EventArtifactsChanged: 'artifacts:changed'
+  EventArtifactsChanged: 'artifacts:changed',
+  TerminalList: 'terminal:list',
+  TerminalCreate: 'terminal:create',
+  TerminalAttach: 'terminal:attach',
+  TerminalDetach: 'terminal:detach',
+  TerminalWrite: 'terminal:write',
+  TerminalResize: 'terminal:resize',
+  TerminalRename: 'terminal:rename',
+  TerminalRestart: 'terminal:restart',
+  TerminalKill: 'terminal:kill',
+  EventTerminalData: 'terminal:data',
+  EventTerminalsChanged: 'terminal:changed'
 } as const
 
 export interface AgentStateEvent { agentId: string; state: AgentState }
 export interface GitStatusEvent { projectPath: string; git: GitStatus | null }
 export interface AgentConfigEvent { agentId: string; config: AgentConfig }
+export interface TerminalDataEvent { id: string; data: string }
+export interface TerminalsChangedEvent { agentId: string; terminals: TerminalInfo[] }
 export interface WindowMaximizedChangeEvent { maximized: boolean }
 export type BrowserStatusEvent = BrowserStatusInfo
 
@@ -317,6 +330,17 @@ export interface AgentApi {
   onExternalApiStatus(cb: (s: ExternalApiStatus) => void): () => void
   onWorkspaceChanged(cb: (e: WorkspaceChangedEvent) => void): () => void
   onBrowserOpenInstallGuide(cb: (e: BrowserInstallGuideEvent) => void): () => void
+  terminalList(agentId: string): Promise<TerminalInfo[]>
+  terminalCreate(agentId: string, opts?: TerminalCreateOptions): Promise<TerminalInfo>
+  terminalAttach(id: string): Promise<{ scrollback: string }>
+  terminalDetach(id: string): Promise<void>
+  terminalWrite(id: string, data: string): Promise<void>
+  terminalResize(id: string, cols: number, rows: number): Promise<void>
+  terminalRename(id: string, userTitle: string | null): Promise<void>
+  terminalRestart(id: string): Promise<TerminalInfo>
+  terminalKill(id: string): Promise<void>
+  onTerminalData(cb: (e: TerminalDataEvent) => void): () => void
+  onTerminalsChanged(cb: (e: TerminalsChangedEvent) => void): () => void
 }
 
 export interface WorkspaceChangedEvent {
