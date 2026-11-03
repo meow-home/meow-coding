@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TerminalInfo } from '@shared/types'
-import TerminalDock from '../../src/renderer/src/components/terminal/TerminalDock'
+import TerminalOverlay from '../../src/renderer/src/components/terminal/TerminalOverlay'
 import TerminalView from '../../src/renderer/src/components/terminal/TerminalView'
 import Pane from '../../src/renderer/src/components/Pane'
 
@@ -77,7 +77,7 @@ vi.mock('@xterm/addon-fit', () => {
 
 vi.mock('@xterm/xterm/css/xterm.css', () => ({}))
 
-describe('TerminalDock & TerminalView', () => {
+describe('TerminalOverlay & TerminalView', () => {
   let root: Root | null = null
   let container: HTMLDivElement | null = null
   let terminalDataListener: ((data: { id: string; data: string }) => void) | null = null
@@ -144,43 +144,53 @@ describe('TerminalDock & TerminalView', () => {
     document.documentElement.removeAttribute('data-theme')
   })
 
-  it('renders null and does not list terminals when visible is false', async () => {
-    await act(async () => {
-      root?.render(
-        createElement(TerminalDock, {
-          agentId: 'agent-1',
-          visible: false,
-          onClose: vi.fn()
-        })
-      )
-    })
-
-    expect(container?.innerHTML).toBe('')
-    expect(window.api.terminalList).not.toHaveBeenCalled()
-  })
-
-  it('non-active pane mounts no TerminalView', async () => {
-    localStorage.setItem('meow.terminal.open.agent-inactive', 'true')
-
+  it('a pane never mounts a terminal itself; the panel lives in the right-hand grid', async () => {
     await act(async () => {
       root?.render(
         createElement(Pane, {
           pane: {
-            agent: { id: 'agent-inactive', name: 'Agent', templateId: 'meow', cwd: '/test' } as any,
+            agent: { id: 'agent-1', name: 'Agent', templateId: 'meow', cwd: '/test' } as any,
             state: { status: 'idle' } as any,
             git: null
           },
           background: false,
-          active: false,
+          active: true,
+          terminalOpen: true,
           onFocus: vi.fn(),
-          onRemove: vi.fn()
+          onRemove: vi.fn(),
+          onToggleTerminal: vi.fn()
         })
       )
     })
 
-    expect(container?.querySelector('.terminal-dock')).toBeNull()
+    expect(container?.querySelector('.terminal-overlay')).toBeNull()
     expect(container?.querySelector('.terminal-view-container')).toBeNull()
     expect(window.api.terminalList).not.toHaveBeenCalled()
+  })
+
+  it('Ctrl+backquote in the active pane toggles the terminal panel', async () => {
+    const onToggleTerminal = vi.fn()
+    await act(async () => {
+      root?.render(
+        createElement(Pane, {
+          pane: {
+            agent: { id: 'agent-1', name: 'Agent', templateId: 'meow', cwd: '/test' } as any,
+            state: { status: 'idle' } as any,
+            git: null
+          },
+          background: false,
+          active: true,
+          onFocus: vi.fn(),
+          onRemove: vi.fn(),
+          onToggleTerminal
+        })
+      )
+    })
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: '`', ctrlKey: true }))
+    })
+    expect(onToggleTerminal).toHaveBeenCalledTimes(1)
   })
 
   it('auto-creates a terminal when opened with 0 terminals', async () => {
@@ -188,9 +198,10 @@ describe('TerminalDock & TerminalView', () => {
 
     await act(async () => {
       root?.render(
-        createElement(TerminalDock, {
+        createElement(TerminalOverlay, {
           agentId: 'agent-1',
-          visible: true,
+          full: false,
+          onToggleFull: vi.fn(),
           onClose: vi.fn()
         })
       )
@@ -208,9 +219,10 @@ describe('TerminalDock & TerminalView', () => {
 
     await act(async () => {
       root?.render(
-        createElement(TerminalDock, {
+        createElement(TerminalOverlay, {
           agentId: 'agent-1',
-          visible: true,
+          full: false,
+          onToggleFull: vi.fn(),
           onClose: vi.fn()
         })
       )
@@ -231,9 +243,10 @@ describe('TerminalDock & TerminalView', () => {
 
     await act(async () => {
       root?.render(
-        createElement(TerminalDock, {
+        createElement(TerminalOverlay, {
           agentId: 'agent-1',
-          visible: true,
+          full: false,
+          onToggleFull: vi.fn(),
           onClose: vi.fn()
         })
       )
@@ -256,9 +269,10 @@ describe('TerminalDock & TerminalView', () => {
 
     await act(async () => {
       root?.render(
-        createElement(TerminalDock, {
+        createElement(TerminalOverlay, {
           agentId: 'agent-1',
-          visible: true,
+          full: false,
+          onToggleFull: vi.fn(),
           onClose: vi.fn()
         })
       )
@@ -281,9 +295,10 @@ describe('TerminalDock & TerminalView', () => {
 
     await act(async () => {
       root?.render(
-        createElement(TerminalDock, {
+        createElement(TerminalOverlay, {
           agentId: 'agent-1',
-          visible: true,
+          full: false,
+          onToggleFull: vi.fn(),
           onClose: vi.fn()
         })
       )
@@ -306,9 +321,10 @@ describe('TerminalDock & TerminalView', () => {
 
     await act(async () => {
       root?.render(
-        createElement(TerminalDock, {
+        createElement(TerminalOverlay, {
           agentId: 'agent-1',
-          visible: true,
+          full: false,
+          onToggleFull: vi.fn(),
           onClose: vi.fn()
         })
       )
@@ -316,7 +332,7 @@ describe('TerminalDock & TerminalView', () => {
 
     const restartBtn = container?.querySelector<HTMLButtonElement>('.terminal-restart-btn')
     expect(restartBtn).toBeTruthy()
-    expect(restartBtn?.textContent).toContain('Restart')
+    expect(restartBtn?.getAttribute('aria-label')).toBe('Restart terminal')
 
     await act(async () => {
       restartBtn?.click()
@@ -335,9 +351,10 @@ describe('TerminalDock & TerminalView', () => {
 
     await act(async () => {
       root?.render(
-        createElement(TerminalDock, {
+        createElement(TerminalOverlay, {
           agentId: 'agent-1',
-          visible: true,
+          full: false,
+          onToggleFull: vi.fn(),
           onClose: vi.fn()
         })
       )

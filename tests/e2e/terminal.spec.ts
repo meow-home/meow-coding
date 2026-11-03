@@ -7,7 +7,7 @@ function cleanupDir(dir: string): void {
   rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
 }
 
-test('session terminal dock opens, executes commands, persists across session switch, and closes', async () => {
+test('session terminal panel opens, executes commands, persists across session switch, and closes', async () => {
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
   const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
 

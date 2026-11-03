@@ -1,38 +1,29 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect } from 'react'
 import { DRAFT_SESSION_ID, type ImageAttachment } from '@shared/types'
 import type { PaneModel } from '../App'
 import PaneHeader from './PaneHeader'
 import ChatPanel from './chat/ChatPanel'
 import ChatErrorBoundary from './chat/ChatErrorBoundary'
 import type { SubagentOverlayItem } from './chat/SubagentOverlay'
-import TerminalDock from './terminal/TerminalDock'
 
 interface Props {
   pane: PaneModel
   background: boolean
   active: boolean
+  terminalOpen?: boolean
   onFocus: () => void
   onRemove: () => void
   onSendDraftMessage?: (textAndImages: { text: string; images?: ImageAttachment[] }) => void
   onOpenFiles?: () => void
   onOpenProcesses?: () => void
+  onToggleTerminal?: () => void
   onOpenSubagent?: (item: SubagentOverlayItem) => void
 }
 
-function getInitialTerminalOpen(agentId: string): boolean {
-  try {
-    return localStorage.getItem(`meow.terminal.open.${agentId}`) === 'true'
-  } catch {
-    return false
-  }
-}
-
-export default function Pane({ pane, background, active, onFocus, onRemove, onSendDraftMessage, onOpenFiles, onOpenProcesses, onOpenSubagent }: Props) {
+export default function Pane({ pane, background, active, terminalOpen = false, onFocus, onRemove, onSendDraftMessage, onOpenFiles, onOpenProcesses, onToggleTerminal, onOpenSubagent }: Props) {
   const id = pane.agent.id
   const native = pane.agent.kind === 'native'
   const isDraft = id === DRAFT_SESSION_ID
-
-  const [terminalOpen, setTerminalOpen] = useState<boolean>(() => getInitialTerminalOpen(id))
 
   // Stable callbacks so App-level re-renders (git poll, agent state) don't
   // cascade past the memoized ChatPanel into the chat feed.
@@ -52,25 +43,11 @@ export default function Pane({ pane, background, active, onFocus, onRemove, onSe
   }, [id, background])
 
   const handleToggleTerminal = useCallback(() => {
-    if (isDraft) return
-    setTerminalOpen((prev) => {
-      const next = !prev
-      try {
-        localStorage.setItem(`meow.terminal.open.${id}`, String(next))
-      } catch {}
-      return next
-    })
-  }, [id, isDraft])
-
-  const handleCloseTerminal = useCallback(() => {
-    setTerminalOpen(false)
-    try {
-      localStorage.setItem(`meow.terminal.open.${id}`, 'false')
-    } catch {}
-  }, [id])
+    if (!isDraft) onToggleTerminal?.()
+  }, [isDraft, onToggleTerminal])
 
   useEffect(() => {
-    if (!active || isDraft) return
+    if (!active || isDraft || !onToggleTerminal) return
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === '`') {
         const target = e.target as HTMLElement | null
@@ -86,7 +63,7 @@ export default function Pane({ pane, background, active, onFocus, onRemove, onSe
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [active, isDraft, handleToggleTerminal])
+  }, [active, isDraft, onToggleTerminal, handleToggleTerminal])
 
   return (
     <div className={`pane ${background ? 'backgrounded' : ''} ${active ? 'active' : ''} status-${pane.state.status}`} onClick={onFocus}>
@@ -98,7 +75,7 @@ export default function Pane({ pane, background, active, onFocus, onRemove, onSe
         active={active}
         terminalOpen={terminalOpen}
         isDraft={isDraft}
-        onToggleTerminal={handleToggleTerminal}
+        onToggleTerminal={onToggleTerminal ? handleToggleTerminal : undefined}
         onStop={handleStop}
         onRestart={handleRestart}
         onInject={handleInject}
@@ -127,13 +104,6 @@ export default function Pane({ pane, background, active, onFocus, onRemove, onSe
             onOpenSubagent={onOpenSubagent}
           />
         </ChatErrorBoundary>
-        {!isDraft && (
-          <TerminalDock
-            agentId={id}
-            visible={active && !background && terminalOpen}
-            onClose={handleCloseTerminal}
-          />
-        )}
       </div>
     </div>
   )

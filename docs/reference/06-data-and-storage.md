@@ -414,8 +414,6 @@ Everything else: $ARGUMENTS
 | `meow.rightpanel.width` | number, clamped to 240–600 |
 | `meow.files.width` | number, docked Files overlay width (320–900px, default 420px) |
 | `meow.processes.width` | number, docked Processes overlay width (320–900px, default 420px) |
-| `meow.terminal.height` | number, session terminal dock height (120–600px, default 260px) |
-| `meow.terminal.open.<agentId>` | `'1'` / `'0'`, per-session dock open/closed visibility state |
 | `meow.sidebar.expanded` | JSON map of project path → expanded (bool) |
 | `meow.activeSessionByPath` | JSON map of project path → active session id |
 

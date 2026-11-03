@@ -68,12 +68,12 @@ condition summary. Selecting a shell streams its output live in the right column
 (`backgroundProcSubscribe`/`unsubscribe` + `onBackgroundProcData`/`onBackgroundProcExit`) and only shells the
 panel is watching are forwarded to the renderer.
 
-### Session terminal dock
+### Session terminal panel
 
-Each session pane embeds an optional bottom terminal dock (`TerminalDock`) hosting interactive shell tabs powered by xterm.js (`TerminalView`) and dedicated `PtyManager` processes in the main process.
-- **Toggle & shortcut**: Toggled via `Ctrl+\`` (`Cmd+\`` on macOS) or the Terminal button in `PaneHeader`. Dock open state per session is persisted in `localStorage` under `meow.terminal.open.<agentId>`.
-- **Dock layout & resizing**: Rendered below the chat panel inside `Pane.tsx`. It features a top tab bar with a `+` new tab button, individual terminal tabs with close `×` buttons, status indicators, and an action bar (Restart button when exited, split placeholder, minimize/close buttons). Height can be resized via its top resizer handle (clamped between 120px and 600px, default 260px) and is persisted in `localStorage` as `meow.terminal.height`.
-- **Active pane gating**: Terminal views mount only when `active && !background && terminalOpen` to prevent hidden xterm allocation or leaks in background panes.
+The session terminal is a right-hand panel (`TerminalOverlay`) hosting interactive shell tabs powered by xterm.js (`TerminalView`) and dedicated `PtyManager` processes in the main process.
+- **Toggle & shortcut**: Toggled via `Ctrl+\`` (`Cmd+\`` on macOS) in the active pane or the Terminal button in `PaneHeader`. `App` owns `terminalOpenFor` (the session the panel shows, or `null`) and `terminalFull`; toggling from another session switches the panel to that session. It is not persisted.
+- **Layout**: Uses the Files panel chrome — `.files-overlay` card, `.files-head` title bar (`TERMINAL`, Restart when the selected tab exited, `+` new terminal, expand/restore, close) and `.files-tabs` / `.files-tab` chip tabs with a status dot, exit code, double-click rename and close. Docked, it joins the shared `.right-panels-grid` next to Files, Processes and Subagent panels (auto rows/columns, shared resizer); expanded (`full`), it overlays the whole pane area like Files. The chat keeps its full height.
+- **Mount gating**: Only one terminal panel exists and its xterm is created only for the selected tab, so hidden sessions never allocate xterm instances. Removing the session closes the panel.
 - **Context menu & clipboard**: Right-clicking the terminal view opens a context menu with Copy, Paste, Clear Buffer, and "Send Selection to Chat". "Send Selection to Chat" dispatches a `meow:composer-insert` custom window event containing the formatted selection (```text ... ```), which `ChatInput.tsx` listens for and appends to the composer.
 - **Theme sync**: Resolves runtime CSS variables (`--bg-chat`, `--chat-text`, `--text`, `--font-mono`) and dynamically updates xterm options on theme changes via `MutationObserver` on `data-theme`.
 
@@ -148,7 +148,7 @@ is dismissible (no install button, "Later" only).
 
 | Component | Responsibility |
 |---|---|
-| `TerminalDock.tsx` | Bottom dock container for session terminal tabs: tab list, tab renames, new tab (`+`), close tab (`×`), restart exited tab, dock resize handle, dock close/toggle. |
+| `TerminalOverlay.tsx` | Right-hand session terminal panel (Files panel chrome, joins the right-panels grid): tab list, tab renames, new tab (`+`), close tab (`×`), restart exited tab, expand/restore, close. |
 | `TerminalView.tsx` | Individual xterm.js instance: fit addon, IPC data/resize/exit event subscriptions, theme variable sync, right-click context menu (Copy, Paste, Clear, Send to Chat via `meow:composer-insert`). |
 
 ### Dialogs

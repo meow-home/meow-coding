@@ -14,6 +14,7 @@ import TitleBar from './components/TitleBar'
 import FilesOverlay, { FILES_DEFAULT_WIDTH, FILES_MAX_WIDTH, FILES_MIN_WIDTH } from './components/files/FilesOverlay'
 import ProcessesOverlay, { PROCESSES_DEFAULT_WIDTH, PROCESSES_MAX_WIDTH, PROCESSES_MIN_WIDTH } from './components/processes/ProcessesOverlay'
 import SubagentOverlay, { type SubagentOverlayItem } from './components/chat/SubagentOverlay'
+import TerminalOverlay from './components/terminal/TerminalOverlay'
 import SettingsDialog, { type TabId } from './components/settings/SettingsDialog'
 import BrowserDialog from './components/BrowserDialog'
 import InstallGuideDialog from './components/InstallGuideDialog'
@@ -34,7 +35,7 @@ export const MAX_KEEP_ALIVE = 5
 // `.workspace-hidden`; the app toggles which one is visible by swapping the
 // `workspace-active` wrapper, so hidden ChatPanels keep streaming events.
 function WorkspaceView({
-  runtime, backgrounds, activeSessionByPath, onActiveChange, onRemovePane, onSendDraftMessage, onOpenFiles, onOpenProcesses, onOpenSubagent
+  runtime, backgrounds, activeSessionByPath, onActiveChange, onRemovePane, onSendDraftMessage, onOpenFiles, onOpenProcesses, terminalOpenFor, onToggleTerminal, onOpenSubagent
 }: {
   runtime: WorkspaceRuntime
   backgrounds: Record<string, boolean>
@@ -44,6 +45,8 @@ function WorkspaceView({
   onSendDraftMessage: (path: string, text: string, images?: ImageAttachment[]) => void
   onOpenFiles: (id: string) => void
   onOpenProcesses: (id: string) => void
+  terminalOpenFor: string | null
+  onToggleTerminal: (id: string) => void
   onOpenSubagent: (item: SubagentOverlayItem) => void
 }) {
   const draftPane: PaneModel = useMemo(() => ({
@@ -96,6 +99,8 @@ function WorkspaceView({
         onSendDraftMessage={textAndImages => onSendDraftMessage(runtime.workspace.projectPath, textAndImages.text, textAndImages.images)}
         onOpenFiles={() => onOpenFiles(runtime.workspace.projectPath)}
         onOpenProcesses={onOpenProcesses}
+        terminalOpenFor={terminalOpenFor}
+        onToggleTerminal={onToggleTerminal}
         onOpenSubagent={onOpenSubagent}
       />
       <BackgroundPanel
@@ -185,6 +190,12 @@ export default function App() {
     return Number.isFinite(w) && w >= PROCESSES_MIN_WIDTH && w <= PROCESSES_MAX_WIDTH ? w : PROCESSES_DEFAULT_WIDTH
   })
   useEffect(() => { localStorage.setItem('meow.processes.width', String(processesWidth)) }, [processesWidth])
+  const [terminalOpenFor, setTerminalOpenFor] = useState<string | null>(null)
+  const [terminalFull, setTerminalFull] = useState(false)
+  const handleToggleTerminal = useCallback((agentId: string) => {
+    setTerminalFull(false)
+    setTerminalOpenFor(cur => (cur === agentId ? null : agentId))
+  }, [])
 
   const [openSubagents, setOpenSubagents] = useState<SubagentOverlayItem[]>([])
   const [subagentFullTaskId, setSubagentFullTaskId] = useState<string | null>(null)
@@ -228,6 +239,15 @@ export default function App() {
       onWidthChange={setProcessesWidth}
       onToggleFull={() => setProcessesFull(v => !v)}
       onClose={() => setProcessesOpenFor(null)}
+    />
+  ) : null
+  const terminalPanel = terminalOpenFor ? (
+    <TerminalOverlay
+      key={terminalOpenFor}
+      agentId={terminalOpenFor}
+      full={terminalFull}
+      onToggleFull={() => setTerminalFull(v => !v)}
+      onClose={() => setTerminalOpenFor(null)}
     />
   ) : null
   const renderSubagentPanel = (item: SubagentOverlayItem) => (
@@ -704,6 +724,7 @@ export default function App() {
   // Pane header menu + background panel — both funnel through WorkspaceView's
   // `onRemovePane`, so they share the same guard.
   const handleRemovePane = useCallback((path: string, id: string) => {
+    setTerminalOpenFor(cur => (cur === id ? null : cur))
     void removeSessionGuarded(path, id)
   }, [removeSessionGuarded])
 
@@ -797,7 +818,7 @@ export default function App() {
             onReorder={handleReorderWorkspaces}
           />
         )}
-        <main className={((filesOpenFor ? 1 : 0) + (processesOpenFor ? 1 : 0) + openSubagents.length) > 0 ? 'main files-open' : 'main'}>
+        <main className={((filesOpenFor ? 1 : 0) + (processesOpenFor ? 1 : 0) + (terminalOpenFor ? 1 : 0) + openSubagents.length) > 0 ? 'main files-open' : 'main'}>
           {/* Each panel renders in one of two places: expanded (`full`) panels are
               direct children of `.main` so they overlay the whole pane area, the
               docked ones share the right-hand grid below. Defined once here and
@@ -814,6 +835,8 @@ export default function App() {
                   onSendDraftMessage={onSendDraftMessage}
                   onOpenFiles={projectPath => { setFilesFull(false); setFilesOpenFor(projectPath) }}
                   onOpenProcesses={agentId => { setProcessesFull(false); setProcessesOpenFor(agentId) }}
+                  terminalOpenFor={terminalOpenFor}
+                  onToggleTerminal={handleToggleTerminal}
                   onOpenSubagent={handleOpenSubagent}
                 />
               </div>
@@ -834,6 +857,8 @@ export default function App() {
                     onSendDraftMessage={onSendDraftMessage}
                     onOpenFiles={projectPath => { setFilesFull(false); setFilesOpenFor(projectPath) }}
                     onOpenProcesses={agentId => { setProcessesFull(false); setProcessesOpenFor(agentId) }}
+                    terminalOpenFor={terminalOpenFor}
+                    onToggleTerminal={handleToggleTerminal}
                     onOpenSubagent={handleOpenSubagent}
                   />
                 </div>
@@ -841,11 +866,13 @@ export default function App() {
           </div>
           {filesPanel && filesFull && filesPanel}
           {processesPanel && processesFull && processesPanel}
+          {terminalPanel && terminalFull && terminalPanel}
           {openSubagents.filter(subItem => subItem.taskId === subagentFullTaskId).map(renderSubagentPanel)}
           {(() => {
             const dockedCount =
               (filesOpenFor && !filesFull ? 1 : 0) +
               (processesOpenFor && !processesFull ? 1 : 0) +
+              (terminalOpenFor && !terminalFull ? 1 : 0) +
               openSubagents.filter(subItem => subItem.taskId !== subagentFullTaskId).length
             if (dockedCount === 0) return null
             const rows = Math.ceil(Math.sqrt(dockedCount))
@@ -863,6 +890,7 @@ export default function App() {
                 >
                   {filesPanel && !filesFull && filesPanel}
                   {processesPanel && !processesFull && processesPanel}
+                  {terminalPanel && !terminalFull && terminalPanel}
                   {openSubagents.filter(subItem => subItem.taskId !== subagentFullTaskId).map(renderSubagentPanel)}
                 </div>
               </div>

@@ -84,7 +84,7 @@ straight to the code.
 | Artifacts | Lists `.md` files agents created/edited; the file watcher filters spurious events by comparing `(mtime, size)` | `artifact-store.ts`, `file-watcher.ts` |
 | Git viewer | Separate window: changes, diff, history, blame, branch switcher, stash/discard | `git-viewer.ts`, `components/git/` |
 | File viewer | Separate window with syntax highlighting and image preview (png, jpg, gif, webp, bmp, ico, avif); non-previewable binaries open with the system app | `file-viewer.ts`, `FileViewer.tsx` |
-| Session terminals | Bottom dock per session hosting interactive shells via xterm.js and dedicated node-pty instances; survives session switching | `terminal-manager.ts`, `components/terminal/TerminalDock.tsx` |
+| Session terminals | Right-hand terminal panel per session (Files-style chrome, joins the right-panels grid) hosting interactive shells via xterm.js and dedicated node-pty instances; survives session switching | `terminal-manager.ts`, `components/terminal/TerminalOverlay.tsx` |
 
 ### Platform & desktop
 

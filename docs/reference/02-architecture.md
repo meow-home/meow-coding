@@ -188,7 +188,7 @@ renders events.
 ## 2.7b Data flow: session terminals
 
 ```
-renderer: TerminalDock / TerminalView
+renderer: TerminalOverlay / TerminalView
    → window.api.terminalCreate(agentId, opts)       [Channels.TerminalCreate]
    → TerminalManager.create()
         ├ checks 8 terminals/session cap

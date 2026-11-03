@@ -13,13 +13,15 @@ interface Props {
   onSendDraftMessage?: (textAndImages: { text: string; images?: ImageAttachment[] }) => void
   onOpenFiles?: (id: string) => void
   onOpenProcesses?: (id: string) => void
+  terminalOpenFor?: string | null
+  onToggleTerminal?: (id: string) => void
   onOpenSubagent?: (item: SubagentOverlayItem) => void
 }
 
 // All sessions stay mounted (hidden when inactive) so a hidden session keeps
 // streaming/running — switching never stops another. The hiding is CSS only
 // (the `hidden` attribute on the slot), never an unmount or a key change.
-export default function SessionPanes({ panes, activeId, onActiveChange, backgrounds, onRemove, onSendDraftMessage, onOpenFiles, onOpenProcesses, onOpenSubagent }: Props) {
+export default function SessionPanes({ panes, activeId, onActiveChange, backgrounds, onRemove, onSendDraftMessage, onOpenFiles, onOpenProcesses, terminalOpenFor, onToggleTerminal, onOpenSubagent }: Props) {
   useEffect(() => {
     if (panes.length === 0) return
     if (activeId && panes.some(p => p.agent.id === activeId)) return
@@ -36,11 +38,13 @@ export default function SessionPanes({ panes, activeId, onActiveChange, backgrou
             pane={pane}
             background={Boolean(backgrounds[pane.agent.id])}
             active={pane.agent.id === active?.agent.id}
+            terminalOpen={terminalOpenFor === pane.agent.id}
             onFocus={() => onActiveChange(pane.agent.id)}
             onRemove={() => onRemove(pane.agent.id)}
             onSendDraftMessage={onSendDraftMessage}
             onOpenFiles={onOpenFiles ? () => onOpenFiles(pane.agent.id) : undefined}
             onOpenProcesses={onOpenProcesses ? () => onOpenProcesses(pane.agent.id) : undefined}
+            onToggleTerminal={onToggleTerminal ? () => onToggleTerminal(pane.agent.id) : undefined}
             onOpenSubagent={onOpenSubagent}
           />
         </div>

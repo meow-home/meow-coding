@@ -10,7 +10,7 @@ vocabulary is "session".
 
 - Electron 41 + electron-vite 5 + React 19 + TypeScript (strict).
 - PTY: `@lydell/node-pty` (runtime parked, still shipped); terminal UI: `@xterm/xterm` +
-  `@xterm/addon-fit` — used by the session terminal dock.
+  `@xterm/addon-fit` — used by the session terminal panel.
 - Test: Vitest (unit + integration), Playwright (e2e).
 
 ## Structure
