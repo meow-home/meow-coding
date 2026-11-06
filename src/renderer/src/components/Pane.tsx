@@ -10,6 +10,7 @@ interface Props {
   pane: PaneModel
   background: boolean
   active: boolean
+  gitBranch?: string | null
   terminalOpen?: boolean
   onFocus: () => void
   onRemove: () => void
@@ -20,7 +21,7 @@ interface Props {
   onOpenSubagent?: (item: SubagentOverlayItem) => void
 }
 
-export default function Pane({ pane, background, active, terminalOpen = false, onFocus, onRemove, onSendDraftMessage, onOpenFiles, onOpenProcesses, onToggleTerminal, onOpenSubagent }: Props) {
+export default function Pane({ pane, background, active, gitBranch, terminalOpen = false, onFocus, onRemove, onSendDraftMessage, onOpenFiles, onOpenProcesses, onToggleTerminal, onOpenSubagent }: Props) {
   const id = pane.agent.id
   const native = pane.agent.kind === 'native'
   const isDraft = id === DRAFT_SESSION_ID
@@ -96,6 +97,7 @@ export default function Pane({ pane, background, active, terminalOpen = false, o
           <ChatPanel
             agentId={id}
             cwd={pane.agent.cwd}
+            gitBranch={gitBranch}
             mode={pane.agent.mode ?? 'build'}
             variant={pane.agent.variant}
             onModeChange={handleModeChange}

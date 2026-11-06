@@ -1262,21 +1262,55 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   .chat-running { animation: none; }
   .chat-retry { animation: none; }
 }
-.chat-queue { display: flex; flex-direction: column; gap: 0.333333rem; padding: 0.333333rem 0; }
-.chat-queue-item {
-  display: flex; align-items: center; gap: 0.666667rem;
-  background: var(--bg-raised); border: 0.083333rem dashed var(--accent-border);
-  border-radius: var(--radius);
-  padding: 0.333333rem 0.75rem; font-size: var(--fs-md); max-width: 92%;
+/* Queued messages — a card above the composer, not a transcript row: it belongs
+   to the input it will fill, so it must not scroll away with the feed. Header
+   keeps the count (collapsed, it is the only sign work is waiting); each row
+   carries send-now / edit / remove, dimmed until hover so the arrow stays
+   discoverable without three bright icons per row. */
+.chat-queue {
+  border: 0.083333rem solid var(--hairline); border-radius: 0.833333rem;
+  background: var(--bg-panel); padding: 0.166667rem 0.25rem 0.25rem;
 }
-.chat-queue-badge {
-  flex: 0 0 auto; font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--yellow); border: 0.083333rem solid var(--yellow); padding: 0 0.416667rem; border-radius: 83.25rem;
+.chat-queue-head {
+  appearance: none; width: 100%; background: none; border: none; cursor: pointer;
+  display: flex; align-items: center; gap: 0.416667rem;
+  min-height: 2.166667rem; padding: 0 0.416667rem; border-radius: 0.5rem;
+  color: var(--text); font-family: var(--font-ui); text-align: left;
 }
-.chat-queue-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; color: var(--text); }
-.chat-queue-text:hover { color: var(--accent); }
-.chat-queue-remove { appearance: none; background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 1.166667rem; padding: 0.166667rem; border-radius: var(--radius-sm); }
-.chat-queue-remove:hover { color: var(--red); }
+.chat-queue-head:hover { background: var(--bg-hover); }
+.chat-queue-title { font-size: var(--fs-base); font-weight: var(--fw-semibold); color: var(--text-strong); flex: 0 0 auto; }
+.chat-queue-count {
+  flex: 0 0 auto; min-width: 1.416667rem; height: 1.416667rem; padding: 0 0.25rem;
+  border-radius: 999px; background: var(--bg-active); color: var(--text-dim);
+  font-family: var(--font-mono); font-size: var(--fs-xs);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.chat-queue-sub { font-size: var(--fs-sm); color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-queue-caret { flex: 0 0 auto; margin-left: auto; color: var(--text-faint); transition: transform 120ms ease; }
+.chat-queue.collapsed .chat-queue-caret { transform: rotate(-90deg); }
+.chat-queue-rows { display: flex; flex-direction: column; }
+.chat-queue-row {
+  display: flex; align-items: center; gap: 0.416667rem;
+  min-height: 2.5rem; padding: 0 0.416667rem; border-radius: 0.5rem;
+}
+.chat-queue-row + .chat-queue-row { border-top: 0.083333rem solid var(--hairline); border-radius: 0; }
+.chat-queue-row:hover { background: var(--bg-hover); }
+.chat-queue-row-text {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--fs-md); color: var(--text-dim);
+}
+.chat-queue-row:hover .chat-queue-row-text { color: var(--text); }
+.chat-queue-actions { display: flex; align-items: center; gap: 0.083333rem; opacity: 0.55; transition: opacity 120ms ease; }
+.chat-queue-row:hover .chat-queue-actions,
+.chat-queue-row:focus-within .chat-queue-actions { opacity: 1; }
+.chat-queue-action {
+  width: 1.833333rem; height: 1.833333rem; padding: 0; appearance: none;
+  background: none; border: none; border-radius: 0.333333rem; color: var(--text-faint);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.chat-queue-action:hover { background: var(--bg-active); color: var(--text); }
+.chat-queue-action.send-now:hover { background: var(--accent-dim); color: var(--accent-strong); }
+.chat-queue-action.remove:hover { color: var(--red); }
 
 /* Tool call card — Compact Micro-Bar */
 .tool-call {
@@ -1542,42 +1576,71 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 /* Full panel width, inset by the lane as padding: the composer surface still reaches the panel edges,
    while its children (input card, footer) land on the lane column. */
 .chat-composer { max-width: 100%; display: flex; flex-direction: column; gap: 0.5rem; padding-block: 0.833333rem 1rem; padding-inline: var(--chat-inset); background: var(--bg-chat); }
+
+/* The composer is ONE card (Claude/Codex shape): the auto-growing field on top,
+   then a single bottom row carrying every control — add menu, model picker on the
+   left; effort variant and the send/stop button on the right. The footer line
+   underneath the card carries workspace, branch, context and mode. */
 .chat-input {
-  display: flex; flex-direction: column; gap: 0.5rem;
-  border: 0.083333rem solid var(--hairline); background: var(--bg-chat);
-  padding: 0.666667rem 0.833333rem; transition: border-color 150ms ease, box-shadow 150ms ease;
-  border-radius: var(--radius);
+  position: relative;
+  display: flex; flex-direction: column;
+  border: 0.083333rem solid var(--hairline-strong); background: var(--bg-raised);
+  border-radius: 1.166667rem;
+  padding: 0.416667rem 0.416667rem 0.333333rem;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
 }
-.chat-input:focus-within { border-color: var(--accent-border); box-shadow: 0 0 0 0.083333rem var(--focus-ring); }
-.chat-input-main { display: flex; flex-direction: column; gap: 0.333333rem; min-width: 0; }
-/* The field and its button share one row, so the button is always inside the card
-   at its right edge and the text can never render underneath it. */
-.chat-input-row { display: flex; align-items: flex-end; gap: 0.5rem; }
+.chat-input:focus-within { border-color: var(--accent-border); box-shadow: 0 0 0 0.25rem var(--focus-ring); }
 .chat-input-field {
-  flex: 1; min-width: 0; resize: none; background: transparent; color: var(--text);
-  border: none; padding: 0.5rem 0.333333rem;
+  width: 100%; min-width: 0; resize: none; background: transparent; color: var(--text);
+  border: none; padding: 0.416667rem 0.5rem 0.5rem;
   font-family: var(--font-ui); font-size: 1rem; user-select: text; line-height: 1.5;
   /* Grow with the content up to 8 lines, then scroll inside the card instead of
      pushing the transcript off screen. */
-  field-sizing: content; max-height: 13rem; overflow-y: auto;
+  field-sizing: content; max-height: calc(8 * 1.5rem + 0.916667rem); overflow-y: auto;
 }
 .chat-input-field:focus, .chat-input-field:focus-visible { outline: none; }
 .chat-input-field::placeholder { color: var(--text-faint); }
-/* Square icon button in the row's trailing slot. `align-items: flex-end` pins it to
-   the row's bottom once the field grows; the 3px bottom margin lifts the 24px box so
-   its centre matches the 18px first line box's centre at rest. */
+.chat-input-bar { display: flex; align-items: center; gap: 0.166667rem; min-width: 0; }
+.chat-input-bar-right { margin-left: auto; display: flex; align-items: center; gap: 0.083333rem; min-width: 0; }
+/* Round button at the card's trailing edge: Send, Stop, or Save edit. */
 .chat-input-send, .chat-input-stop {
-  flex: 0 0 auto; width: 2rem; height: 2rem; padding: 0; margin-bottom: 0.25rem;
+  flex: 0 0 auto; width: 2.5rem; height: 2.5rem; padding: 0; margin-left: 0.166667rem;
   display: inline-flex; align-items: center; justify-content: center; line-height: 0;
-  appearance: none; border: none; border-radius: var(--radius-sm);
-  color: #fff; cursor: pointer; transition: background 120ms ease;
+  appearance: none; border: none; border-radius: 50%;
+  color: #fff; cursor: pointer; transition: background 120ms ease, color 120ms ease;
 }
-.chat-input-send { background: var(--accent); }
+.chat-input-send { background: var(--bg-active); color: var(--text-faint); }
 .chat-input-send:hover:not(:disabled) { background: var(--accent-strong); }
-.chat-input-send:disabled { background: var(--accent-dim); color: var(--text-faint); cursor: default; }
+.chat-input-send:disabled { background: var(--bg-active); color: var(--text-faint); cursor: default; }
 .chat-input-stop { background: var(--red); }
 .chat-input-stop:hover { background: #ff7479; }
-.chat-input-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+/* Card-bar variants of the shared pickers: no pill, no fill — the card already
+   draws the frame, so a second border inside it would read as a nested control. */
+.chat-input-bar .model-trigger,
+.chat-input-bar .dropdown-trigger {
+  height: 2.333333rem; max-width: 20rem; padding: 0 0.5rem; gap: 0.333333rem;
+  background: transparent; border-color: transparent; color: var(--text-dim);
+  font-size: var(--fs-base); border-radius: 0.666667rem;
+}
+.chat-input-bar .model-trigger:hover,
+.chat-input-bar .dropdown-trigger:hover { background: var(--bg-hover); border-color: transparent; color: var(--text); }
+.chat-input-bar .dropdown-caret { width: 12px; height: 12px; }
+.chat-input-bar .model-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* "Editing a queued message" banner: the composer is in save mode, and the
+   field holds a message that is still sitting in the queue. */
+.chat-input-editing {
+  display: flex; align-items: center; gap: 0.333333rem;
+  margin: 0 0.25rem 0.333333rem; padding: 0.166667rem 0.416667rem;
+  border-radius: 0.5rem; background: var(--accent-dim); color: var(--accent-strong);
+  font-size: var(--fs-sm);
+}
+.chat-input-editing-cancel {
+  margin-left: auto; appearance: none; background: none; border: none;
+  color: var(--accent-strong); cursor: pointer; font-size: 1.166667rem; line-height: 1;
+  padding: 0 0.166667rem; border-radius: var(--radius-sm);
+}
+.chat-input-editing-cancel:hover { color: var(--text); }
+.chat-input-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.166667rem 0.25rem 0.25rem; }
 .chat-image-chip { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0.5rem 0.25rem 0.25rem; background: var(--bg-panel); border: 0.083333rem solid var(--hairline); border-radius: var(--radius); font-size: var(--fs-sm); }
 .chat-mention-chip { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0.666667rem; background: var(--bg-panel); border: 0.083333rem solid var(--hairline); border-radius: var(--radius); font-size: var(--fs-sm); font-family: var(--font-mono); }
 .chat-mention-name { color: var(--accent); }
@@ -2661,34 +2724,46 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .diff-line.add { background: rgba(74, 222, 159, 0.1); color: var(--green); }
 .diff-sign { flex: 0 0 auto; }
 
-/* Composer footer: context on the left, mode/model/variant selectors on the right.
-   position relative + z-index lifts the footer above the input so the context
-   hover popover (which opens upward over the input) is never painted behind it. */
-.chat-footer { display: flex; align-items: center; gap: 0.5rem; min-width: 0; position: relative; z-index: 10; }
-.chat-footer-context { flex: 1; min-width: 0; display: flex; align-items: center; }
-.chat-footer-controls { display: flex; align-items: center; gap: 0.333333rem; margin-left: auto; min-width: 0; }
+/* Composer footer: the quiet line under the card. Workspace + branch on the
+   left, context readout + mode on the right — the model and effort pickers live
+   inside the card now, so this row carries state, not controls.
+   position relative + z-index lifts it above the input so the context hover
+   popover (which opens upward over the card) is never painted behind it. */
+.chat-footer {
+  display: flex; align-items: center; gap: 0.25rem; min-width: 0;
+  position: relative; z-index: 10; padding-inline: 0.166667rem;
+}
+.chat-footer-project-group { display: flex; align-items: center; gap: 0.083333rem; min-width: 0; }
+.chat-footer-project {
+  display: inline-flex; align-items: center; gap: 0.333333rem;
+  height: 1.666667rem; padding: 0 0.416667rem; color: var(--text-faint);
+  font-size: var(--fs-sm); min-width: 0;
+}
+.chat-footer-project-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 12rem; }
+.chat-footer-sep { flex: 0 0 auto; width: 0.083333rem; height: 0.916667rem; background: var(--hairline); }
+.chat-footer-branch {
+  appearance: none; background: none; border: none; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 0.333333rem;
+  height: 1.666667rem; padding: 0 0.416667rem; border-radius: 0.333333rem;
+  color: var(--text-faint); font-family: var(--font-mono); font-size: var(--fs-xs);
+}
+.chat-footer-branch:hover { background: var(--bg-hover); color: var(--text-dim); }
+.chat-footer-controls { display: flex; align-items: center; gap: 0.166667rem; margin-left: auto; min-width: 0; }
 
-.chat-footer .dropdown-trigger,
-.chat-footer .model-trigger {
+.chat-footer .dropdown-trigger {
   padding: 0.25rem 0.5rem;
   font-size: var(--fs-sm);
   gap: 0.25rem;
   background: transparent;
   border-color: transparent;
 }
-.chat-footer .dropdown-trigger:hover,
-.chat-footer .model-trigger:hover {
+.chat-footer .dropdown-trigger:hover {
   background: var(--bg-hover);
   border-color: transparent;
 }
-.chat-footer .dropdown-trigger .dropdown-caret,
-.chat-footer .model-trigger .dropdown-caret {
+.chat-footer .dropdown-trigger .dropdown-caret {
   width: 12px;
   height: 12px;
-}
-.chat-footer .context-ring {
-  width: 1.666667rem;
-  height: 1.666667rem;
 }
 
 .model-picker { position: relative; display: inline-flex; }
@@ -2875,7 +2950,6 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   contain: layout paint; will-change: transform;
   font-family: var(--font-ui);
 }
-.chat-input { position: relative; }
 .command-item {
   text-align: left; display: flex; flex-direction: column; gap: 0.166667rem;
   padding: 0.5rem 0.833333rem; border: none; background: transparent; color: var(--text); cursor: pointer;

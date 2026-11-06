@@ -86,6 +86,7 @@ export const Channels = {
   EventActivateAgent: 'agent:activate',
   ChatQueueRemove: 'chat:queue-remove',
   ChatQueueEdit: 'chat:queue-edit',
+  ChatQueueSendNow: 'chat:queue-send-now',
   SettingsGet: 'settings:get',
   SettingsSave: 'settings:save',
   CommandList: 'commands:list',
@@ -290,6 +291,7 @@ export interface AgentApi {
   onActivateAgent(cb: (e: ActivateAgentEvent) => void): () => void
   removeQueued(agentId: string, id: string): Promise<void>
   editQueued(agentId: string, id: string, text: string): Promise<void>
+  sendQueuedNow(agentId: string, id: string): Promise<void>
   getSettings(): Promise<MeowSettings>
   saveSettings(settings: MeowSettings): Promise<MeowSettings>
   listCommands(projectPath: string): Promise<Command[]>

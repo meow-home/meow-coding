@@ -54,7 +54,7 @@ straight to the code.
 | Permissions | Per-tool `allow` / `ask` / `deny` with wildcard patterns, "always allow" persistence, and a read-only **plan mode** | `agent/permission.ts`, `agent/saved-permissions.ts` |
 | Sessions | Create / switch / rename / delete per agent; auto-titled from the first user message; transcript persisted | `agent/session.ts` |
 | Undo / redo | Per-turn file snapshots; undo restores files *and* truncates the transcript; redo re-applies both | `agent/snapshot.ts`, `MeowAgentManager.undo/redo` |
-| Message queue & steering | Messages sent while a turn runs are queued (max 5) and injected at the next step boundary, resetting the step budget | `MeowAgentManager.enqueueMessage`, `loop.ts` `takeSteers` |
+| Message queue & steering | Messages sent while a turn runs are queued (max 5) and injected at the next step boundary, resetting the step budget; send-now promotes one to the head and aborts the turn so it starts immediately | `MeowAgentManager.enqueueMessage` / `sendQueuedNow`, `loop.ts` `takeSteers` |
 | Context compaction | When the context limit is approached, LLM summarization of the older head with a verbatim tail; hard truncation as a last resort; also runs while idle | `agent/compact.ts` |
 | Cost & token accounting | Per-message tokens, per-session cost, per-model aggregate, cache-read/write aware | `agent/usage.ts`, `agent/token.ts`, `Channels.StatsGet` |
 | Subagents | `task` tool spawns an isolated agent with its own context, narrowed permissions, optional dedicated model, resumable sessions, and background execution | `agent/tools/task.ts`, `agent/subagent-roles.ts` |

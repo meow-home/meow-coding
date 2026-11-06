@@ -41,7 +41,10 @@ handlers and the app lifecycle.
   (including the idle auto-compactor, which sets `compacting`), emitting a `notice`
   `[meow] Compaction already in progress.` and returning; its `finally` releases `running`/the
   controller only when the controller is still its own (so a `stop()` followed by a new turn is not
-  clobbered). When it ends with the slot free it calls the `onAgentAvailable` dep (wired in `index.ts`
+  clobbered). `sendQueuedNow(agentId, id)` (the composer's send-now) promotes that message to the head
+  of the queue, re-emits `queue-updated`, then reuses `stopAndDrain` when a turn is running (else
+  `drainQueue`) — routing it through the abort path is what lets the aborted turn's tool results
+  settle before the new turn appends its user message. When it ends with the slot free it calls the `onAgentAvailable` dep (wired in `index.ts`
   to `delegationService.notifyAgentAvailable`), since an idle compaction emits no `done`/`error`.
   Bridges background shells to the renderer for the Processes overlay: owns a `procSubscriptions` set and, on
   construction, forwards a shell's `data`/`exit` only while it is subscribed (`backgroundProcsList(agentId)`,

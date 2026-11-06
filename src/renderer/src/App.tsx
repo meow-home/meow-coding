@@ -95,6 +95,7 @@ function WorkspaceView({
         activeId={activeId}
         onActiveChange={id => onActiveChange(runtime.workspace.projectPath, id)}
         backgrounds={backgrounds}
+        gitBranch={runtime.git?.branch ?? null}
         onRemove={id => onRemovePane(runtime.workspace.projectPath, id)}
         onSendDraftMessage={textAndImages => onSendDraftMessage(runtime.workspace.projectPath, textAndImages.text, textAndImages.images)}
         onOpenFiles={() => onOpenFiles(runtime.workspace.projectPath)}

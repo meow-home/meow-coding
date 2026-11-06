@@ -134,6 +134,7 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `ChatRespondPrompt` | `chat:respond-prompt` | `respondPrompt(agentId, promptId, resp: PromptResponse)` |
 | `PromptStatesList` | `prompt:states-list` | `listPromptStates(): PromptStateSummary[]` — `{ projectPath, agentIds }` per project with agents currently waiting on a permission/question prompt (seeds the sidebar badges on startup) |
 | `ChatQueueRemove` / `ChatQueueEdit` | `chat:queue-remove` / `chat:queue-edit` | `removeQueued` / `editQueued` |
+| `ChatQueueSendNow` | `chat:queue-send-now` | `sendQueuedNow(agentId, id)` — promotes the message to the head of the queue and runs `stopAndDrain`, so it starts now instead of steering into the current turn |
 
 ### Providers, connections, settings
 

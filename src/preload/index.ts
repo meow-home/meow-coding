@@ -152,6 +152,8 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.ChatQueueRemove, agentId, id),
   editQueued: (agentId: string, id: string, text: string) =>
     ipcRenderer.invoke(Channels.ChatQueueEdit, agentId, id, text),
+  sendQueuedNow: (agentId: string, id: string) =>
+    ipcRenderer.invoke(Channels.ChatQueueSendNow, agentId, id),
   getSettings: () => ipcRenderer.invoke(Channels.SettingsGet),
   saveSettings: (settings: MeowSettings) => ipcRenderer.invoke(Channels.SettingsSave, settings),
   listCommands: (projectPath: string) => ipcRenderer.invoke(Channels.CommandList, projectPath),

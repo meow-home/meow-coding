@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { AlertCircle, Check, ChevronDown, ChevronRight, Copy, RotateCw, X } from 'lucide-react'
+import { AlertCircle, ArrowRight, Check, ChevronDown, ChevronRight, Copy, Folder, GitBranch, Pencil, RotateCw, Trash2, X } from 'lucide-react'
 import type { AgentMode, ChatDelegationMeta, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ImageAttachment, QuestionOption, QueuedMessage, TodoItem, ToolCallData } from '@shared/types'
 import { DRAFT_SESSION_ID } from '@shared/types'
 import { isExternalPeer } from '@shared/external-api-types'
@@ -7,15 +7,12 @@ import { appendStreamDelta } from '@shared/text'
 import { contextTokens } from '@shared/usage'
 import ChatInput from './ChatInput'
 import type { ChatInputHandle } from './ChatInput'
-import AddMenu from './AddMenu'
 import { useChatScroll } from './useChatScroll'
 import { buildQuestionAnswer } from './questionAnswer'
 import ToolCallCard from './ToolCallCard'
 import ToolCluster, { type ClusterStep } from './ToolCluster'
 import TodoCard from './TodoCard'
 import MarkdownText from './MarkdownText'
-import ModelPicker from './ModelPicker'
-import VariantPicker from './VariantPicker'
 import ModePicker from './ModePicker'
 import ContextFooter from './ContextFooter'
 import SubagentOverlay, { SUBAGENT_DEFAULT_WIDTH, type SubagentOverlayItem } from './SubagentOverlay'
@@ -222,6 +219,8 @@ const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, c
 interface Props {
   agentId: string
   cwd: string
+  /** Current git branch of the project (null when the project is not a repo). */
+  gitBranch?: string | null
   mode?: AgentMode
   variant?: string
   onModeChange?: (mode: AgentMode) => void
@@ -244,7 +243,7 @@ function RetryCountdown({ id, attempt, maxAttempts, delayMs, unbounded }: { id: 
   )
 }
 
-function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVariantChange, onSendDraftMessage, onOpenSubagent }: Props) {
+function ChatPanel({ agentId, cwd, gitBranch, mode = 'build', variant, onModeChange, onVariantChange, onSendDraftMessage, onOpenSubagent }: Props) {
   const [items, setItems] = useState<FeedItem[]>([])
   const [running, setRunning] = useState(false)
   const [currentMode, setCurrentMode] = useState<AgentMode>(mode)
@@ -275,6 +274,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const [queue, setQueue] = useState<QueuedMessage[]>([])
   const queueRef = useRef<QueuedMessage[]>([])
   const [editTarget, setEditTarget] = useState<QueuedMessage | null>(null)
+  const [queueCollapsed, setQueueCollapsed] = useState(false)
   const [liveTaskId, setLiveTaskId] = useState<string | null>(null)
   const [subagentFull, setSubagentFull] = useState(false)
   const [subagentWidth, setSubagentWidth] = useState<number>(() => {
@@ -917,6 +917,44 @@ if (e.type === 'usage') {
     void window.api.stopChat(agentId)
   }, [agentId])
 
+  const handleVariantChange = useCallback((v: string) => {
+    setCurrentVariant(v)
+    onVariantChange?.(v === '' ? undefined : v)
+  }, [onVariantChange])
+
+  // Queue row actions: send now (interrupt the turn), edit, remove.
+  const sendQueuedNow = useCallback((id: string) => {
+    void window.api.sendQueuedNow(agentId, id)
+  }, [agentId])
+
+  const editQueuedMessage = useCallback((q: QueuedMessage) => {
+    setEditTarget({ ...q, text: q.displayText ?? q.text })
+  }, [])
+
+  const removeQueuedMessage = useCallback((id: string) => {
+    void window.api.removeQueued(agentId, id)
+  }, [agentId])
+
+  const openGitView = useCallback(() => {
+    void window.api.gitOpenViewer(cwd)
+  }, [cwd])
+
+  const handleEditSubmit = useCallback((id: string, text: string) => {
+    void window.api.editQueued(agentId, id, text)
+    setEditTarget(null)
+  }, [agentId])
+
+  const handleEditCancel = useCallback(() => setEditTarget(null), [])
+
+  // Alt+Enter in the composer: send the message at the head of the queue now.
+  // Reads the ref so the callback stays stable for the memoized ChatInput.
+  const handleSendQueuedNow = useCallback(() => {
+    const first = queueRef.current[0]
+    if (first) void window.api.sendQueuedNow(agentId, first.id)
+  }, [agentId])
+
+  const projectName = cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd
+
   const handleUndo = useCallback(() => {
     void window.api.undoChat(agentId).then(ok => {
       if (ok) {
@@ -1222,23 +1260,6 @@ if (e.type === 'usage') {
           )
         })}
         {running && <div className="chat-running">Meow is working…</div>}
-        {queue.length > 0 && (
-          <div className="chat-queue">
-            {queue.map(q => (
-              <div key={q.id} className="chat-queue-item">
-                <span className="chat-queue-badge">queued</span>
-                <span className="chat-queue-text" onClick={() => setEditTarget({ ...q, text: q.displayText ?? q.text })} title="Edit">{q.displayText ?? q.text}</span>
-                <button
-                  className="chat-queue-remove"
-                  aria-label={`remove queued ${q.displayText ?? q.text}`}
-                  onClick={() => void window.api.removeQueued(agentId, q.id)}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
         {todos.length > 0 && <TodoCard todos={todos} />}
         {pendingPrompt && (
           <div className="chat-prompt" ref={pendingPrompt.promptType === 'permission' ? promptRef : undefined}
@@ -1395,38 +1416,97 @@ if (e.type === 'usage') {
       )}
       </div>
       <div className="chat-composer">
+        {queue.length > 0 && (
+          <div className={`chat-queue ${queueCollapsed ? 'collapsed' : ''}`}>
+            <button
+              className="chat-queue-head"
+              aria-expanded={!queueCollapsed}
+              title={queueCollapsed ? 'Show queued messages' : 'Hide queued messages'}
+              onClick={() => setQueueCollapsed(v => !v)}
+            >
+              <span className="chat-queue-title">Queued Messages</span>
+              <span className="chat-queue-count">{queue.length}</span>
+              <span className="chat-queue-sub">Sends after agent finishes working</span>
+              <ChevronDown size={14} className="chat-queue-caret" aria-hidden="true" />
+            </button>
+            {!queueCollapsed && (
+              <div className="chat-queue-rows">
+                {queue.map(q => {
+                  const label = q.displayText ?? q.text
+                  return (
+                    <div key={q.id} className="chat-queue-row">
+                      <span className="chat-queue-row-text" title={label}>{label}</span>
+                      <span className="chat-queue-actions">
+                        <button
+                          className="chat-queue-action send-now"
+                          title="Send now — interrupts the running turn"
+                          aria-label={`Send now: ${label}`}
+                          onClick={() => sendQueuedNow(q.id)}
+                        >
+                          <ArrowRight size={14} aria-hidden="true" />
+                        </button>
+                        <button
+                          className="chat-queue-action edit"
+                          title="Edit"
+                          aria-label={`Edit queued message: ${label}`}
+                          onClick={() => editQueuedMessage(q)}
+                        >
+                          <Pencil size={13} aria-hidden="true" />
+                        </button>
+                        <button
+                          className="chat-queue-action remove"
+                          title="Remove"
+                          aria-label={`Remove queued message: ${label}`}
+                          onClick={() => removeQueuedMessage(q.id)}
+                        >
+                          <Trash2 size={13} aria-hidden="true" />
+                        </button>
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
         <ChatInput
           ref={chatInputRef}
           agentId={agentId}
           running={running}
           mode={currentMode}
           commands={commands}
+          variant={currentVariant}
+          variants={availableVariants}
           editTarget={editTarget}
+          queuedCount={queue.length}
           onSubmit={send}
-          onEditSubmit={(id, text) => {
-            void window.api.editQueued(agentId, id, text)
-            setEditTarget(null)
-          }}
-          onEditCancel={() => setEditTarget(null)}
+          onEditSubmit={handleEditSubmit}
+          onEditCancel={handleEditCancel}
           onStop={handleStop}
+          onVariantChange={handleVariantChange}
+          onSendQueuedNow={handleSendQueuedNow}
         />
         <div className="chat-footer">
-          <div className="chat-footer-context">
-            <AddMenu onAddFiles={() => chatInputRef.current?.openFilePicker()} />
-            <ModePicker value={currentMode} onChange={switchMode} />
+          <div className="chat-footer-project-group">
+            <span className="chat-footer-project" title={cwd}>
+              <Folder size={13} aria-hidden="true" />
+              <span className="chat-footer-project-name">{projectName}</span>
+            </span>
+            {gitBranch && (
+              <>
+                <span className="chat-footer-sep" aria-hidden="true" />
+                <button
+                  className="chat-footer-branch"
+                  title={`On ${gitBranch} — open the Git view`}
+                  onClick={openGitView}
+                >
+                  <GitBranch size={13} aria-hidden="true" />
+                  <span className="chat-footer-branch-name">{gitBranch}</span>
+                </button>
+              </>
+            )}
           </div>
           <div className="chat-footer-controls">
-            <ModelPicker agentId={agentId} />
-            {availableVariants.length > 0 && (
-              <VariantPicker
-                variants={availableVariants}
-                value={currentVariant}
-                onChange={v => {
-                  setCurrentVariant(v)
-                  onVariantChange?.(v === '' ? undefined : v)
-                }}
-              />
-            )}
             <ContextFooter
               tokens={contextUsed}
               limit={contextLimit}
@@ -1434,6 +1514,7 @@ if (e.type === 'usage') {
               cost={sessionCost}
               sessionTokens={sessionTokens}
             />
+            <ModePicker value={currentMode} onChange={switchMode} />
           </div>
         </div>
       </div>

@@ -1036,6 +1036,8 @@ export function registerIpcHandlers(): void {
     mainApp.meowAgent.removeQueued(agentId, id))
   ipcMain.handle(Channels.ChatQueueEdit, (_e, agentId: string, id: string, text: string) =>
     mainApp.meowAgent.editQueued(agentId, id, text))
+  ipcMain.handle(Channels.ChatQueueSendNow, (_e, agentId: string, id: string) =>
+    mainApp.meowAgent.sendQueuedNow(agentId, id))
   ipcMain.handle(Channels.SettingsGet, () => mainApp.meowAgent.getSettings())
   ipcMain.handle(Channels.SettingsSave, (_e, settings: MeowSettings) =>
     mainApp.meowAgent.saveSettings(settings))

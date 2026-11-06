@@ -529,6 +529,29 @@ export class MeowAgentManager {
     this.emit({ type: 'message-removed', agentId, messageId: id })
   }
 
+  /**
+   * "Send now" on a queued message: promote it to the head of the queue and
+   * start it immediately, aborting the running turn — the same path as Stop
+   * followed by a send, so the aborted turn's tool results still settle before
+   * the next turn appends its user message (see `runTurn`). Without this, a
+   * queued message only steers into the running turn at its next loop step, or
+   * starts once the turn ends.
+   */
+  async sendQueuedNow(agentId: string, id: string): Promise<void> {
+    const q = this.queues.get(agentId)
+    if (!q) return
+    const idx = q.findIndex(m => m.id === id)
+    if (idx < 0) return
+    if (idx > 0) {
+      const [msg] = q.splice(idx, 1)
+      q.unshift(msg)
+      this.queues.set(agentId, q)
+      this.emitQueue(agentId)
+    }
+    if (this.running.has(agentId)) await this.stopAndDrain(agentId)
+    else await this.drainQueue(agentId)
+  }
+
   editQueued(agentId: string, id: string, text: string): void {
     const q = this.queues.get(agentId) ?? []
     const idx = q.findIndex(m => m.id === id)

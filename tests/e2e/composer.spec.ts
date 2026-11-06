@@ -101,13 +101,14 @@ async function openProject(window: Page): Promise<void> {
   await expect(window.locator('.session-panes')).toBeVisible()
 }
 
-const PLACEHOLDER_IDLE = 'Type a message... (/ for commands)'
+const PLACEHOLDER_IDLE = 'Ask anything, @ to mention, / for actions'
 const PLACEHOLDER_RUNNING = 'Processing...'
 const USAGE = { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }
 
 /**
  * The height the card must have with a single-line field: its own border +
- * padding around a textarea whose box is its padding plus exactly one line box.
+ * padding, a textarea whose box is its padding plus exactly one line box, and
+ * the control bar underneath (measured live — the round send button sets it).
  * Derived from the live computed styles, because the root font-size is
  * user-configurable. If the field renders more than one line, the measured card
  * height exceeds this and the assertion that compares them fails.
@@ -116,11 +117,12 @@ function oneLineCardHeight(card: Locator): Promise<number> {
   return card.evaluate(el => {
     const cs = getComputedStyle(el)
     const field = el.querySelector('.chat-input-field')!
+    const bar = el.querySelector('.chat-input-bar')!
     const fs = getComputedStyle(field)
     const border = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth)
     const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)
     const fieldBox = parseFloat(fs.paddingTop) + parseFloat(fs.paddingBottom) + parseFloat(fs.lineHeight)
-    return Math.round(border + pad + fieldBox)
+    return Math.round(border + pad + fieldBox + bar.getBoundingClientRect().height)
   })
 }
 
@@ -133,7 +135,7 @@ function rootFontSize(window: Page): Promise<number> {
   return window.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize))
 }
 
-test('the composer card is one line tall, with the send button inside its right edge', async () => {
+test('the composer is one card: the field on top, every control on one bottom row', async () => {
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
   const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
   try {
@@ -143,18 +145,30 @@ test('the composer card is one line tall, with the send button inside its right 
       await openProject(window)
       const card = window.locator('.chat-input')
       const send = card.locator('.chat-input-send')
-
-      // The toolbar line is gone — that was the whole reason the empty card was
-      // two text rows tall.
-      await expect(card.locator('.chat-input-toolbar')).toHaveCount(0)
+      const bar = card.locator('.chat-input-bar')
+      const field = card.locator('.chat-input-field')
 
       await expect(send).toBeVisible()
       await expect(send).toHaveAttribute('aria-label', 'Send')
       await expect(send).toBeDisabled()
 
+      // The add menu, the model picker, the effort variant and the send button
+      // all live inside the card's single control row.
+      await expect(bar.locator('.add-dropdown')).toHaveCount(1)
+      await expect(bar.locator('.model-picker')).toHaveCount(1)
+      await expect(bar.locator('.chat-input-send')).toHaveCount(1)
+      // Nothing was left behind in the footer row.
+      await expect(window.locator('.chat-footer .model-picker')).toHaveCount(0)
+
       const cardBox = (await card.boundingBox())!
       const sendBox = (await send.boundingBox())!
+      const barBox = (await bar.boundingBox())!
+      const fieldBox = (await field.boundingBox())!
       expect(Math.round(cardBox.height)).toBe(await oneLineCardHeight(card))
+
+      // The bar sits below the field, inside the card's frame.
+      expect(barBox.y).toBeGreaterThanOrEqual(fieldBox.y + fieldBox.height - 1)
+      expect(barBox.y + barBox.height).toBeLessThanOrEqual(cardBox.y + cardBox.height)
 
       // Inside the frame, at its right edge, inset by the card's padding *and* its
       // border (the box is border-box, so the content edge sits one border further in).
@@ -163,17 +177,15 @@ test('the composer card is one line tall, with the send button inside its right 
         return parseFloat(cs.paddingRight) + parseFloat(cs.borderRightWidth)
       })
       expect(cardBox.x + cardBox.width - (sendBox.x + sendBox.width)).toBeCloseTo(inset, 0)
-      // The button is 2rem square, so it scales with the user-configurable root.
+      // The button is a 2.5rem circle, so it scales with the user-configurable root.
       const rem = await rootFontSize(window)
-      expect(sendBox.width).toBeCloseTo(2 * rem, 0)
-      expect(sendBox.height).toBeCloseTo(2 * rem, 0)
+      expect(sendBox.width).toBeCloseTo(2.5 * rem, 0)
+      expect(sendBox.height).toBeCloseTo(2.5 * rem, 0)
+      const radius = await send.evaluate(el => getComputedStyle(el).borderRadius)
+      expect(radius).toContain('50%')
 
-      // Centred on the single text line at rest.
-      const lineCenter = await card.locator('.chat-input-field').evaluate(el => {
-        const cs = getComputedStyle(el)
-        return el.getBoundingClientRect().top + parseFloat(cs.paddingTop) + parseFloat(cs.lineHeight) / 2
-      })
-      expect(Math.abs((sendBox.y + sendBox.height / 2) - lineCenter)).toBeLessThanOrEqual(1)
+      // Vertically centred in the bar, not on the text line.
+      expect(Math.abs((sendBox.y + sendBox.height / 2) - (barBox.y + barBox.height / 2))).toBeLessThanOrEqual(1)
     } finally {
       await app.close()
     }
@@ -338,8 +350,8 @@ test('while a turn runs the button becomes stop, and Enter still queues', async 
       // stay writable while the button is Stop.
       await field.fill('queued while running')
       await field.press('Enter')
-      await expect(window.locator('.chat-queue-item')).toHaveCount(1)
-      await expect(window.locator('.chat-queue-text')).toHaveText('queued while running')
+      await expect(window.locator('.chat-queue-row')).toHaveCount(1)
+      await expect(window.locator('.chat-queue-row-text')).toHaveText('queued while running')
       await expect(field).toHaveValue('')
 
       // The mock never releases, so the turn is still in flight and the slot is
@@ -376,10 +388,10 @@ test('editing a queued message while running swaps stop for a save button', asyn
       // became the running turn itself.
       await field.fill('queued text')
       await field.press('Enter')
-      await expect(window.locator('.chat-queue-item')).toHaveCount(1)
+      await expect(window.locator('.chat-queue-row')).toHaveCount(1)
 
-      // Clicking the queued row loads it into the composer for editing.
-      await window.locator('.chat-queue-text').click()
+      // The pencil on a queued row loads it into the composer for editing.
+      await window.locator('.chat-queue-action.edit').click()
       await expect(field).toHaveValue('queued text')
       // Editing is not "running": the slot is Send, not Stop, even though a turn
       // is in flight.
@@ -391,7 +403,7 @@ test('editing a queued message while running swaps stop for a save button', asyn
 
       await field.fill('edited while running')
       await send.click()
-      await expect(window.locator('.chat-queue-text')).toHaveText('edited while running')
+      await expect(window.locator('.chat-queue-row-text')).toHaveText('edited while running')
 
       // The edit is saved, so edit mode ends and the turn's Stop comes back.
       await expect(card.locator('.chat-input-stop')).toBeVisible()
@@ -410,6 +422,48 @@ test('editing a queued message while running swaps stop for a save button', asyn
 // into its own turn. If the composer stayed in edit mode for it, the next Enter
 // called editQueued() on a message that no longer existed: the field cleared and
 // nothing was sent, so the message looked like it had vanished.
+// The queue's arrow is "send now": it promotes that message to the head of the
+// queue and aborts the running turn, so it starts immediately instead of being
+// steered into the current turn at its next step (or waiting for it to end).
+test('send now starts a queued message immediately instead of waiting for the turn', async () => {
+  const { server, port, firstCall } = await startGatedMockLlm({ content: 'held answer', usage: USAGE })
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    seedWorkspaces(userData, project)
+    seedMeowConfig(userData, port)
+    const { app, window } = await launch(userData)
+    try {
+      await openProject(window)
+      const card = window.locator('.chat-input')
+      const field = card.locator('.chat-input-field')
+
+      await field.fill('first turn')
+      await field.press('Enter')
+      await firstCall
+
+      await field.fill('queued text')
+      await field.press('Enter')
+      await expect(window.locator('.chat-queue-row')).toHaveCount(1)
+      await expect(window.locator('.chat-msg.user').last()).toContainText('first turn')
+
+      // The mock never answers, so only send-now can get this message into the
+      // transcript while the app is still "running".
+      await window.locator('.chat-queue-action.send-now').click()
+      await expect(window.locator('.chat-queue-row')).toHaveCount(0)
+      await expect(window.locator('.chat-msg.user').last()).toContainText('queued text')
+      // The next turn is in flight again (the second request is held too).
+      await expect(card.locator('.chat-input-stop')).toBeVisible()
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+    server.close()
+  }
+})
+
 test('removing a queued message being edited leaves the composer clean and sends the next message', async () => {
   const { server, port, firstCall, release } = await startGatedMockLlm({ content: 'held answer', usage: USAGE })
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
@@ -429,13 +483,13 @@ test('removing a queued message being edited leaves the composer clean and sends
 
       await field.fill('queued text')
       await field.press('Enter')
-      await expect(window.locator('.chat-queue-item')).toHaveCount(1)
+      await expect(window.locator('.chat-queue-row')).toHaveCount(1)
 
       // Load the queued message into the composer, then remove it from the queue.
-      await window.locator('.chat-queue-text').click()
+      await window.locator('.chat-queue-action.edit').click()
       await expect(field).toHaveValue('queued text')
-      await window.locator('.chat-queue-remove').click()
-      await expect(window.locator('.chat-queue-item')).toHaveCount(0)
+      await window.locator('.chat-queue-action.remove').click()
+      await expect(window.locator('.chat-queue-row')).toHaveCount(0)
 
       // Edit mode ended with the removal: the composer is empty again and the
       // slot is Stop (the turn is still in flight), not Save edit.
@@ -479,11 +533,11 @@ test('a queued message being edited that drains into a turn does not swallow the
 
       await field.fill('queued text')
       await field.press('Enter')
-      await expect(window.locator('.chat-queue-item')).toHaveCount(1)
+      await expect(window.locator('.chat-queue-row')).toHaveCount(1)
 
       // Edit the queued message, then let the turn end so the queue drains while
       // the composer is still in edit mode for that message.
-      await window.locator('.chat-queue-text').click()
+      await window.locator('.chat-queue-action.edit').click()
       await expect(field).toHaveValue('queued text')
       release()
 
@@ -497,7 +551,7 @@ test('a queued message being edited that drains into a turn does not swallow the
       // of being swallowed by the stale edit target.
       await field.fill('after the drain')
       await field.press('Enter')
-      await expect(window.locator('.chat-queue-text')).toHaveText('after the drain')
+      await expect(window.locator('.chat-queue-row-text')).toHaveText('after the drain')
       await expect(field).toHaveValue('')
     } finally {
       await app.close()

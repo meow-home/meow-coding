@@ -1,7 +1,10 @@
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { AgentMode, Command, FileSuggestion, ImageAttachment } from '@shared/types'
-import { CornerDownLeft, Square } from 'lucide-react'
+import { ArrowRight, Check, Pencil, Square } from 'lucide-react'
+import AddMenu from './AddMenu'
+import ModelPicker from './ModelPicker'
+import VariantPicker from './VariantPicker'
 import { parseCommandInput } from './parseCommandInput'
 
 export interface ChatInputHandle {
@@ -16,11 +19,18 @@ interface Props {
   running: boolean
   mode: AgentMode
   commands: Command[]
+  variant: string
+  variants: string[]
   editTarget?: { id: string; text: string } | null
+  /** Queued messages waiting behind the running turn (enables Alt+Enter). */
+  queuedCount: number
   onSubmit(text: string, images: ImageAttachment[]): void
   onEditSubmit?(id: string, text: string): void
   onEditCancel?(): void
   onStop(): void
+  onVariantChange?(v: string): void
+  /** Send the first queued message now instead of waiting for the turn to end. */
+  onSendQueuedNow?(): void
 }
 
 const MAX_MENU_ITEMS = 12
@@ -55,7 +65,8 @@ const CommandMenuItem = memo(function CommandMenuItem({
 })
 
 const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
-  agentId, running, mode, commands, editTarget, onSubmit, onEditSubmit, onEditCancel, onStop
+  agentId, running, mode, commands, variant, variants, editTarget, queuedCount,
+  onSubmit, onEditSubmit, onEditCancel, onStop, onVariantChange, onSendQueuedNow
 }: Props, ref) {
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -338,95 +349,126 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
           ))}
         </div>
       )}
-      <div className="chat-input-main">
-        {images.length > 0 && (
-          <div className="chat-input-chips">
-            {images.map(img => (
-              <span key={img.id} className="chat-image-chip">
-                {img.dataUrl
-                  ? <img src={img.dataUrl} alt={img.name} className="chat-image-thumb" />
-                  : <span className="chat-image-thumb chat-image-thumb-empty" />}
-                <span className="chat-image-name">{img.name}</span>
-                <button
-                  className="chat-image-remove"
-                  aria-label={`remove ${img.name}`}
-                  onClick={() => removeImage(img.id)}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-        {mentions.length > 0 && (
-          <div className="chat-input-chips">
-            {mentions.map(path => (
-              <span key={path} className="chat-mention-chip">
-                <span className="chat-mention-name">@{path}</span>
-                <button
-                  className="chat-image-remove"
-                  aria-label={`remove @${path}`}
-                  onClick={() => removeMention(path)}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-        <div className="chat-input-row">
-          <textarea
-            ref={fieldRef}
-            className={`chat-input-field mode-${mode}`}
-            placeholder={running ? 'Processing...' : 'Type a message... (/ for commands)'}
-            rows={1}
-            onInput={e => onInput((e.target as HTMLTextAreaElement).value)}
-            onPaste={e => {
-              const files = Array.from(e.clipboardData.items)
-                .map(item => item.getAsFile())
-                .filter((f): f is File => f !== null)
-              if (files.length > 0) {
-                e.preventDefault()
-                addImageFiles(files)
-              }
-            }}
-            onDrop={e => {
-              const files = Array.from(e.dataTransfer.files)
-              if (files.length > 0) {
-                e.preventDefault()
-                addImageFiles(files)
-              }
-            }}
-            onKeyDown={e => {
-              if (menu.open && filtered.length > 0) {
-                if (e.key === 'ArrowDown') { e.preventDefault(); move(1); return }
-                if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); return }
-                if (e.key === 'Tab') { e.preventDefault(); onPick(filtered[selectedIndex < 0 ? 0 : selectedIndex].name); return }
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  onPick(filtered[selectedIndex < 0 ? 0 : selectedIndex].name)
-                  return
-                }
-              }
-              if (fileMenu.open && fileMenu.items.length > 0) {
-                if (e.key === 'ArrowDown') { e.preventDefault(); moveFile(1); return }
-                if (e.key === 'ArrowUp') { e.preventDefault(); moveFile(-1); return }
-                if (e.key === 'Tab' || e.key === 'Enter') {
-                  e.preventDefault()
-                  pickFile(fileMenu.items[fileMenu.selected] ?? fileMenu.items[0])
-                  return
-                }
-              }
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                submit()
-              }
-              if (e.key === 'Escape') {
-                setMenu(prev => (prev.open ? { open: false, prefix: '' } : prev))
-                closeFileMenu()
-              }
-            }}
-          />
+      {editTarget && (
+        <div className="chat-input-editing">
+          <Pencil size={12} aria-hidden="true" />
+          <span>Editing a queued message</span>
+          <button
+            className="chat-input-editing-cancel"
+            title="Cancel edit (Esc)"
+            aria-label="Cancel edit"
+            onClick={onEditCancel}
+          >
+            ×
+          </button>
+        </div>
+      )}
+      {images.length > 0 && (
+        <div className="chat-input-chips">
+          {images.map(img => (
+            <span key={img.id} className="chat-image-chip">
+              {img.dataUrl
+                ? <img src={img.dataUrl} alt={img.name} className="chat-image-thumb" />
+                : <span className="chat-image-thumb chat-image-thumb-empty" />}
+              <span className="chat-image-name">{img.name}</span>
+              <button
+                className="chat-image-remove"
+                aria-label={`remove ${img.name}`}
+                onClick={() => removeImage(img.id)}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {mentions.length > 0 && (
+        <div className="chat-input-chips">
+          {mentions.map(path => (
+            <span key={path} className="chat-mention-chip">
+              <span className="chat-mention-name">@{path}</span>
+              <button
+                className="chat-image-remove"
+                aria-label={`remove @${path}`}
+                onClick={() => removeMention(path)}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <textarea
+        ref={fieldRef}
+        className={`chat-input-field mode-${mode}`}
+        placeholder={running ? 'Processing...' : 'Ask anything, @ to mention, / for actions'}
+        rows={1}
+        onInput={e => onInput((e.target as HTMLTextAreaElement).value)}
+        onPaste={e => {
+          const files = Array.from(e.clipboardData.items)
+            .map(item => item.getAsFile())
+            .filter((f): f is File => f !== null)
+          if (files.length > 0) {
+            e.preventDefault()
+            addImageFiles(files)
+          }
+        }}
+        onDrop={e => {
+          const files = Array.from(e.dataTransfer.files)
+          if (files.length > 0) {
+            e.preventDefault()
+            addImageFiles(files)
+          }
+        }}
+        onKeyDown={e => {
+          if (menu.open && filtered.length > 0) {
+            if (e.key === 'ArrowDown') { e.preventDefault(); move(1); return }
+            if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); return }
+            if (e.key === 'Tab') { e.preventDefault(); onPick(filtered[selectedIndex < 0 ? 0 : selectedIndex].name); return }
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              onPick(filtered[selectedIndex < 0 ? 0 : selectedIndex].name)
+              return
+            }
+          }
+          if (fileMenu.open && fileMenu.items.length > 0) {
+            if (e.key === 'ArrowDown') { e.preventDefault(); moveFile(1); return }
+            if (e.key === 'ArrowUp') { e.preventDefault(); moveFile(-1); return }
+            if (e.key === 'Tab' || e.key === 'Enter') {
+              e.preventDefault()
+              pickFile(fileMenu.items[fileMenu.selected] ?? fileMenu.items[0])
+              return
+            }
+          }
+          // Alt+Enter sends the next queued message now, without reaching for
+          // the queue card's arrow.
+          if (e.key === 'Enter' && e.altKey && queuedCount > 0 && onSendQueuedNow) {
+            e.preventDefault()
+            onSendQueuedNow()
+            return
+          }
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            submit()
+          }
+          if (e.key === 'Escape') {
+            if (editTarget && !menu.open && !fileMenu.open) {
+              e.preventDefault()
+              onEditCancel?.()
+              return
+            }
+            setMenu(prev => (prev.open ? { open: false, prefix: '' } : prev))
+            closeFileMenu()
+          }
+        }}
+      />
+      <div className="chat-input-bar">
+        <AddMenu onAddFiles={() => fileInputRef.current?.click()} />
+        <ModelPicker agentId={agentId} />
+        <div className="chat-input-bar-right">
+          {variants.length > 0 && (
+            <VariantPicker variants={variants} value={variant} onChange={v => onVariantChange?.(v)} />
+          )}
           {showSend && (
             <button
               className="chat-input-send"
@@ -436,7 +478,9 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               onMouseDown={e => e.preventDefault()}
               onClick={submit}
             >
-              <CornerDownLeft size={14} aria-hidden="true" />
+              {editTarget
+                ? <Check size={15} aria-hidden="true" />
+                : <ArrowRight size={15} aria-hidden="true" />}
             </button>
           )}
           {showStop && (

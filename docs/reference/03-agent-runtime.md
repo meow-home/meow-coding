@@ -353,6 +353,13 @@ message that was already injected removes its bubble everywhere.
 `stopAndDrain` (what the Stop button calls) aborts the turn but **keeps the queue** and immediately
 starts the next queued message.
 
+**Send now** (`sendQueuedNow`, `Channels.ChatQueueSendNow`) is the same two steps on purpose: it moves
+the clicked message to the head of the queue, re-emits `queue-updated`, then calls `stopAndDrain` when a
+turn is running (or `drainQueue` when the agent is idle). Going through the abort path — instead of
+starting a second turn beside the running one — is what lets the aborted turn's tool results settle
+before the new turn appends its user message. Without a click, a queued message keeps the old
+behaviour: `takeSteers()` injects it at the next loop step, or it runs once the turn ends.
+
 ## 3.8 Context compaction
 
 `src/main/agent/compact.ts` + `SessionRunner.compactIfOverThreshold`.
