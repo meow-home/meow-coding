@@ -1,5 +1,4 @@
-import { memo, useCallback, useState } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { memo, useCallback } from 'react'
 import { contextLevel, contextPercent } from '@shared/usage'
 import type { ContextSection } from '@shared/types'
 import BaseDropdown from '../common/BaseDropdown'
@@ -29,7 +28,6 @@ function formatPercent(tokens: number, limit: number | null): string {
 }
 
 export default memo(function ContextFooter({ tokens, limit, compactThreshold, cost, sessionTokens, sections, onOpen }: Props) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const pctUsed = tokens === null ? null : contextPercent(tokens, limit)
   const remaining = pctUsed === null ? null : Math.max(0, 100 - pctUsed)
   const level = tokens === null ? 'normal' : contextLevel(tokens, compactThreshold)
@@ -55,10 +53,6 @@ export default memo(function ContextFooter({ tokens, limit, compactThreshold, co
   const handleOpenChange = useCallback((open: boolean) => {
     if (open) onOpen?.()
   }, [onOpen])
-
-  const toggleRow = useCallback((label: string) => {
-    setExpanded(current => ({ ...current, [label]: !current[label] }))
-  }, [])
 
   return (
     <BaseDropdown
@@ -143,50 +137,16 @@ export default memo(function ContextFooter({ tokens, limit, compactThreshold, co
               </div>
             )}
             <div className="context-breakdown-rows">
-              {rows.map(row => {
-                const isOpen = expanded[row.label] === true
-                const hasItems = Boolean(row.items && row.items.length > 0)
-                return (
-                  <div key={row.label} className="context-section">
-                    {hasItems ? (
-                      <button
-                        type="button"
-                        className="context-section-head"
-                        onClick={() => toggleRow(row.label)}
-                        aria-expanded={isOpen}
-                      >
-                        <ChevronRight className="context-section-caret" size={12} aria-hidden="true" />
-                        <span className={`context-section-dot ctx-${row.kind}`} aria-hidden="true" />
-                        <span className="context-section-label">{row.label}</span>
-                        <span className="context-section-count">{row.items!.length}</span>
-                        <span className="context-section-tokens">{row.tokens.toLocaleString()}</span>
-                        <span className="context-section-pct">{formatPercent(row.tokens, limit)}</span>
-                      </button>
-                    ) : (
-                      <div className="context-section-head static">
-                        <span className="context-section-caret-space" aria-hidden="true" />
-                        <span className={`context-section-dot ctx-${row.kind}`} aria-hidden="true" />
-                        <span className="context-section-label">{row.label}</span>
-                        <span className="context-section-tokens">{row.tokens.toLocaleString()}</span>
-                        <span className="context-section-pct">{formatPercent(row.tokens, limit)}</span>
-                      </div>
-                    )}
-                    {hasItems && isOpen && (
-                      <div className="context-section-items">
-                        {row.items!.map(item => (
-                          <div key={item.label} className="context-section-item">
-                            <span className="context-item-label" title={item.label}>{item.label}</span>
-                            <span className="context-section-tokens">{item.tokens.toLocaleString()}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+              {rows.map(row => (
+                <div key={row.label} className="context-section-head">
+                  <span className={`context-section-dot ctx-${row.kind}`} aria-hidden="true" />
+                  <span className="context-section-label">{row.label}</span>
+                  <span className="context-section-tokens">{row.tokens.toLocaleString()}</span>
+                  <span className="context-section-pct">{formatPercent(row.tokens, limit)}</span>
+                </div>
+              ))}
               {free !== null && (
-                <div className="context-section-head static context-free">
-                  <span className="context-section-caret-space" aria-hidden="true" />
+                <div className="context-section-head context-free">
                   <span className="context-section-dot ctx-free" aria-hidden="true" />
                   <span className="context-section-label">Free space</span>
                   <span className="context-section-tokens">{free.toLocaleString()}</span>

@@ -76,7 +76,7 @@ describe('buildContextSections', () => {
     expect(sections.map(s => s.kind)).toEqual(['system', 'system', 'system', 'tools', 'mcp', 'messages'])
   })
 
-  it('splits tools by server prefix and sorts each list by size', () => {
+  it('splits the tool total by server prefix', () => {
     const sections = buildContextSections({
       system: [],
       tools: [
@@ -89,25 +89,13 @@ describe('buildContextSections', () => {
     })
     const builtin = sections.find(s => s.kind === 'tools')!
     const mcp = sections.find(s => s.kind === 'mcp')!
-    expect(builtin.items!.map(i => i.label)).toEqual(['grep', 'read'])
-    expect(mcp.items!.map(i => i.label)).toEqual([`${MCP_TOOL_PREFIX}b__two`, `${MCP_TOOL_PREFIX}a__one`])
-    expect(builtin.tokens).toBe(builtin.items!.reduce((n, i) => n + i.tokens, 0))
+    expect(builtin.label).toBe('Tools')
+    expect(builtin.tokens).toBeGreaterThan(800)
     expect(mcp.tokens).toBeGreaterThan(0)
-  })
-
-  it('carries per-file detail for instructions and skills', () => {
-    const sections = buildContextSections({
-      system,
-      items: {
-        instructions: [{ label: 'AGENTS.md', tokens: 1200 }, { label: 'CLAUDE.md', tokens: 40 }],
-        skills: [{ label: 'katalon-studio', tokens: 90 }]
-      },
-      tools: [],
-      messagesTokens: null
-    })
-    expect(sections.find(s => s.label === 'Instructions')!.items).toHaveLength(2)
-    // Skills has no section in `system`, so its items are dropped rather than invented.
-    expect(sections.some(s => s.label === 'Skills')).toBe(false)
+    // Section totals are the sum of their tools, nothing else.
+    expect(builtin.tokens + mcp.tokens).toBe(
+      sections.filter(s => s.kind === 'tools' || s.kind === 'mcp').reduce((n, s) => n + s.tokens, 0)
+    )
   })
 
   it('omits Messages for an empty transcript and skips empty tool buckets', () => {

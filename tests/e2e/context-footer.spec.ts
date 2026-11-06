@@ -271,10 +271,14 @@ test('the context readout is an icon button that opens the request breakdown', a
       )
       expect(rowLines.every(n => n === 1)).toBe(true)
 
-      // The breakdown names what fills the window, including the tool list.
+      // The breakdown is one total per bucket — no drill-down rows.
       await expect(panel).toContainText('System prompt')
       await expect(panel).toContainText('Messages')
       await expect(panel).toContainText('Free space')
+      expect(await panel.locator('.context-section-head').count()).toBeGreaterThanOrEqual(4)
+      await expect(panel.locator('button.context-section-head')).toHaveCount(0)
+      await expect(panel.locator('.context-section-items')).toHaveCount(0)
+
       const bar = panel.locator('.context-bar-seg')
       expect(await bar.count()).toBeGreaterThanOrEqual(4)
 
@@ -285,14 +289,6 @@ test('the context readout is an icon button that opens the request breakdown', a
       expect(panelBox.y).toBeGreaterThanOrEqual(0)
       const viewport = await window.evaluate(() => window.innerHeight)
       expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(viewport)
-
-      // Tools expands into one line per definition.
-      const toolsRow = panel.locator('button.context-section-head', { hasText: 'Tools' })
-      await toolsRow.click()
-      await expect(toolsRow).toHaveAttribute('aria-expanded', 'true')
-      const items = panel.locator('.context-section-items')
-      await expect(items).toBeVisible()
-      await expect(items).toContainText('read')
     } finally {
       await app.close()
     }

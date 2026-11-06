@@ -280,8 +280,7 @@ interface MessageTokens { input; output; total; reasoning?; cacheRead?; cacheWri
 interface ContextInfo   { limit: number|null; compactThreshold: number|null; sessionCost: number;
                           sections?: ContextSection[]; estimatedTotal?: number|null }
 type ContextSectionKind = 'system'|'tools'|'mcp'|'messages'
-interface ContextSectionItem { label: string; tokens: number }
-interface ContextSection { kind: ContextSectionKind; label: string; tokens: number; items?: ContextSectionItem[] }
+interface ContextSection { kind: ContextSectionKind; label: string; tokens: number }
 interface PromptResponse{ allow: boolean; text?: string; always?: boolean }
 
 interface ModelRef { provider; model; accountId?; accountLabel?; variants?: string[] }

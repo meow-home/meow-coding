@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
-import path from 'node:path'
 import type { ChatDelegationMeta, ChatErrorItem, ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, ContextSection, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, NotificationsSettings, PendingPromptInfo, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts, UsageSummary } from '../shared/types'
 import { DRAFT_SESSION_ID, type AgentConfig, type AgentMode, type ArtifactEntry, type CatalogProviderSummary, type Command, type ModelRef, type SubagentType } from '../shared/types'
 import {
@@ -37,7 +36,7 @@ import { loadMemoryIndex, memoryDir, memoryRulesText } from './agent/memory'
 import { buildSystemPrompt, buildTurnReminder, systemPromptSections } from './agent/prompt'
 import { buildContextSections, sumTokens, type ToolLike } from './agent/context-report'
 import { toLlmMessages } from './agent/message'
-import { estimateTokens, estimateUsage } from './agent/token'
+import { estimateUsage } from './agent/token'
 import { referenceHints } from './agent/references'
 import { suggestFiles } from './file-suggest'
 import { SnapshotStore } from './agent/snapshot'
@@ -1195,16 +1194,6 @@ ${content}` : content
         }))
     return buildContextSections({
       system,
-      items: {
-        instructions: instructions.map(file => ({
-          label: path.basename(file.path),
-          tokens: estimateTokens(file.content)
-        })),
-        skills: skills.map(skill => ({
-          label: skill.name,
-          tokens: estimateTokens(skillListText([skill]))
-        }))
-      },
       memoryIndex: memoryIndex?.lines.join('\n'),
       tools,
       messagesTokens

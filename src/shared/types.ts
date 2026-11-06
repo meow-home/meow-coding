@@ -135,17 +135,10 @@ export interface MessageTokens {
 /** Bucket a context section belongs to — the renderer colours by this. */
 export type ContextSectionKind = 'system' | 'tools' | 'mcp' | 'messages'
 
-/** One expandable line inside a section (a tool, an instruction file, a skill). */
-export interface ContextSectionItem {
-  label: string
-  tokens: number
-}
-
 export interface ContextSection {
   kind: ContextSectionKind
   label: string
   tokens: number
-  items?: ContextSectionItem[]
 }
 
 export interface ContextInfo {

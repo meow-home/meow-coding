@@ -350,11 +350,11 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   The panel opens with the three summary rows (`context` / `tokens` / `cost`, `white-space: nowrap`) and
   then the **breakdown**: a stacked `.context-bar` (one segment per bucket, plus free space) over one row
   per bucket — `System prompt`, `Instructions`, `Memory`, `Memory index`, `Skills`, `Mode`, `Tools`,
-  `MCP tools`, `Messages`, `Free space` — each with its token count and share of the window. Rows that
-  carry detail (`Tools`, `MCP tools`, instruction files, skills) are expandable to one line per tool or
-  file, sorted largest first. The rows are estimates (`estimateTokens`, 3.5 chars/token, the compaction
-  measure) while the header count is the provider-reported usage; the bar is scaled so the estimated
-  buckets fill exactly the used span and free space closes it at the window limit. Colours come from the
+  `MCP tools`, `Messages`, `Free space` — each with its token count and share of the window. Rows are
+  totals only, with no drill-down: per-tool and per-file detail was removed on request. The numbers are
+  estimates (`estimateTokens`, 3.5 chars/token, the compaction measure) while the header count is the
+  provider-reported usage; the bar is scaled so the estimated buckets fill exactly the used span and
+  free space closes it at the window limit. Colours come from the
   `--ctx-system` / `--ctx-tools` / `--ctx-mcp` / `--ctx-messages` / `--ctx-free` tokens (dark + light).
   The panel refreshes when it opens, so the breakdown reflects the transcript as it is now.
 - **The composer is one card, so its controls live in a bar, not in a toolbar row beside the field.**
