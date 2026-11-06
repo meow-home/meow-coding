@@ -177,10 +177,10 @@ test('the composer is one card: the field on top, every control on one bottom ro
         return parseFloat(cs.paddingRight) + parseFloat(cs.borderRightWidth)
       })
       expect(cardBox.x + cardBox.width - (sendBox.x + sendBox.width)).toBeCloseTo(inset, 0)
-      // The button is a 2.5rem circle, so it scales with the user-configurable root.
+      // The button is a 2.25rem circle, so it scales with the user-configurable root.
       const rem = await rootFontSize(window)
-      expect(sendBox.width).toBeCloseTo(2.5 * rem, 0)
-      expect(sendBox.height).toBeCloseTo(2.5 * rem, 0)
+      expect(sendBox.width).toBeCloseTo(2.25 * rem, 0)
+      expect(sendBox.height).toBeCloseTo(2.25 * rem, 0)
       const radius = await send.evaluate(el => getComputedStyle(el).borderRadius)
       expect(radius).toContain('50%')
 

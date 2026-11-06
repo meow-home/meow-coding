@@ -479,13 +479,13 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               onClick={submit}
             >
               {editTarget
-                ? <Check size={15} aria-hidden="true" />
-                : <ArrowRight size={15} aria-hidden="true" />}
+                ? <Check size={14} aria-hidden="true" />
+                : <ArrowRight size={14} aria-hidden="true" />}
             </button>
           )}
           {showStop && (
             <button className="chat-input-stop" title="Stop" aria-label="Stop" onClick={onStop}>
-              <Square size={12} fill="currentColor" aria-hidden="true" />
+              <Square size={11} fill="currentColor" aria-hidden="true" />
             </button>
           )}
         </div>
