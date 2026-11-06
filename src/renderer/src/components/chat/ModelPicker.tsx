@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import type { ModelRef } from '@shared/types'
 import { DRAFT_SESSION_ID } from '@shared/types'
+import BaseDropdown from '../common/BaseDropdown'
 
 interface Props {
   agentId: string
@@ -19,7 +20,6 @@ export default function ModelPicker({ agentId }: Props) {
   const [models, setModels] = useState<ModelRef[]>([])
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
-  const rootRef = useRef<HTMLDivElement>(null)
 
   const refresh = useCallback(() => {
     void window.api.getAgentModel(agentId).then(setCurrent)
@@ -41,15 +41,6 @@ export default function ModelPicker({ agentId }: Props) {
   useEffect(() => {
     if (open) refresh()
   }, [open, refresh])
-
-  useEffect(() => {
-    const onDocClick = (e: MouseEvent) => {
-      const target = e.target as Node
-      if (!rootRef.current?.contains(target)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onDocClick)
-    return () => document.removeEventListener('mousedown', onDocClick)
-  }, [])
 
   const groups = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -82,50 +73,59 @@ export default function ModelPicker({ agentId }: Props) {
   }
 
   return (
-    <div className="model-picker" ref={rootRef}>
-      <button
-        className="model-trigger"
-        title="Switch model"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => { refresh(); setSearch(''); setOpen(v => !v) }}
-      >
-        <span className="model-label">{label}</span>
-        <ChevronDown size={14} className="dropdown-caret" aria-hidden="true" />
-      </button>
-      {open && (
-        <div className="model-menu">
-          <input
-            className="input model-search"
-            placeholder="Search model..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-          <div className="model-list">
-            {groups.length === 0 && !error && <span className="model-empty">No providers configured</span>}
-            {error && <span className="model-error">{error}</span>}
-            {groups.map(group => (
-              <div key={group.key} className="model-group">
-                <div className="model-group-head">{group.label}</div>
-                {group.models.map(m => (
-                  <button
-                    key={group.key + '/' + m.model}
-                    className={`model-item ${current?.provider === m.provider && current?.model === m.model && current?.accountId === m.accountId ? 'active' : ''}`}
-                    onClick={() => pick(m)}
-                  >
-                    <span className="menu-item-label">{m.model}</span>
-                    <span className="menu-item-check">
-                      {current?.provider === m.provider &&
-                        current?.model === m.model &&
-                        current?.accountId === m.accountId && <Check size={16} aria-hidden="true" />}
-                    </span>
-                  </button>
-                ))}
-              </div>
+    <BaseDropdown
+      open={open}
+      onOpenChange={next => {
+        setOpen(next)
+        if (next) {
+          refresh()
+          setSearch('')
+        }
+      }}
+      placement="bottom-start"
+      containerClassName="model-picker"
+      menuClassName="model-menu"
+      trigger={(
+        <button
+          className="model-trigger"
+          title="Switch model"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+        >
+          <span className="model-label">{label}</span>
+          <ChevronDown size={14} className="dropdown-caret" aria-hidden="true" />
+        </button>
+      )}
+    >
+      <input
+        className="input model-search"
+        placeholder="Search model..."
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+      />
+      <div className="model-list">
+        {groups.length === 0 && !error && <span className="model-empty">No providers configured</span>}
+        {error && <span className="model-error">{error}</span>}
+        {groups.map(group => (
+          <div key={group.key} className="model-group">
+            <div className="model-group-head">{group.label}</div>
+            {group.models.map(m => (
+              <button
+                key={group.key + '/' + m.model}
+                className={`model-item ${current?.provider === m.provider && current?.model === m.model && current?.accountId === m.accountId ? 'active' : ''}`}
+                onClick={() => pick(m)}
+              >
+                <span className="menu-item-label">{m.model}</span>
+                <span className="menu-item-check">
+                  {current?.provider === m.provider &&
+                    current?.model === m.model &&
+                    current?.accountId === m.accountId && <Check size={16} aria-hidden="true" />}
+                </span>
+              </button>
             ))}
           </div>
-        </div>
-      )}
-    </div>
+        ))}
+      </div>
+    </BaseDropdown>
   )
 }

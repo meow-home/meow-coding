@@ -2817,9 +2817,11 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .variant-item.active { background: var(--menu-active); color: var(--accent); }
 .variant-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .model-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Portaled to <body> by BaseDropdown (position/z-index come from its inline style), so the
+   menu is never clipped by the pane's `overflow: hidden` when the picker sits near the left
+   edge of the composer card. */
 .model-menu {
-  position: absolute; bottom: calc(100% + 0.333333rem); right: 0; z-index: 40;
-  width: 25rem; max-height: 28.333333rem;
+  width: 25rem; max-width: calc(100vw - 1rem); max-height: 28.333333rem;
   background: var(--bg-chat); border: 0.083333rem solid var(--hairline);
   border-radius: var(--menu-radius);
   box-shadow: var(--shadow-3);

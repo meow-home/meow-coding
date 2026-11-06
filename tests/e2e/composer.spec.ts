@@ -195,6 +195,52 @@ test('the composer is one card: the field on top, every control on one bottom ro
   }
 })
 
+// The picker sits at the card's LEFT edge now, so a menu anchored to the trigger
+// (25rem wide) overflows the pane — and `.pane` is `overflow: hidden`, which cut
+// the menu off at the sidebar's edge. It is portaled to <body> through
+// BaseDropdown instead, so neither the pane nor the sidebar can clip it.
+test('the model menu is portaled, so a narrow pane never clips it', async () => {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    seedWorkspaces(userData, project)
+    const { app, window } = await launch(userData)
+    try {
+      await app.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()[0].setSize(560, 620)
+      })
+      await openProject(window)
+      await window.locator('.model-trigger').click()
+      const menu = window.locator('.model-menu')
+      await expect(menu).toBeVisible()
+
+      const menuBox = (await menu.boundingBox())!
+      const viewport = await window.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }))
+      expect(menuBox.x).toBeGreaterThanOrEqual(0)
+      expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(viewport.width)
+      expect(menuBox.y).toBeGreaterThanOrEqual(0)
+      expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(viewport.height)
+
+      // Nothing overlaps it: the element at the menu's centre is inside the menu.
+      expect(await menu.evaluate(el => {
+        const r = el.getBoundingClientRect()
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+        return hit === el || el.contains(hit)
+      })).toBe(true)
+      // Portaled out of the pane (that is what escapes `overflow: hidden`).
+      expect(await menu.evaluate(el => el.parentElement === document.body)).toBe(true)
+
+      await window.keyboard.press('Escape')
+      await expect(menu).toHaveCount(0)
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+  }
+})
+
 test('the input grows with the text, caps at eight lines and shrinks back', async () => {
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
   const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))

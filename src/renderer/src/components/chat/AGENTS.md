@@ -20,7 +20,7 @@ pushed from main over IPC (`window.api.onChatEvent`).
 | `DiffView.tsx` | Inline diff view for edit tool calls. |
 | `ContextFooter.tsx` | Context readout — a 24 × 24 icon-button ring (20px, 2.5px stroke, `--radius-xs`, `--bg-hover` on hover). Hover-only: no click handler. Hovering shows a popover with session tokens in/out + cost. |
 | `TodoCard.tsx` | The session todo list as a transcript row: `ChatPanel` renders it after the feed rows and right above the pending prompt, so it scrolls with the feed (not sticky). Neutral hairline card: `Tasks` header + `done/total`, one row per todo with a Lucide mark (`Check` / spinning `Loader2` / `Circle` / `X`); the in-progress task spins and its text pulses (both off under `prefers-reduced-motion`). The header toggles a collapsed state that keeps naming the active task. Hidden when the list is empty. Memoized. |
-| `ModelPicker.tsx` | Model selector for the agent. |
+| `ModelPicker.tsx` | Model selector for the agent: a searchable, grouped list (account-scoped models group under the account label). Built on `BaseDropdown`, so its menu is portaled to `document.body` — it sits at the composer bar's left edge and a 25rem in-flow menu would be clipped by the pane's `overflow: hidden`. |
 | `VariantPicker.tsx` | Variant selector (reasoning effort etc.) for the agent using BaseSelect. |
 | `ModePicker.tsx` | Build/Plan mode selector in the composer footer using BaseSelect. |
 | `Dropdown.tsx` | Reusable popup dropdown wrapping BaseDropdown for action menus (used by AddMenu). `align` picks which menu edge lines up with the trigger: `'right'` by default, `'left'` for a trigger at the container's left edge. |

@@ -173,7 +173,7 @@ is dismissible (no install button, "Later" only).
 | `highlight.ts` | Shiki syntax highlighting |
 | `ContextFooter.tsx` | Context readout — a 24 × 24 icon-button ring; hovering shows a popover with session tokens in/out + cost. Hover-only, not clickable |
 | `BaseModal.tsx` | Base modal overlay portaled to `document.body` with backdrop click, Escape key, and size modifiers |
-| `BaseDropdown.tsx` / `Dropdown.tsx` | Base popover component with auto-flip / smart positioning & model / variant / build-plan mode selection |
+| `BaseDropdown.tsx` / `Dropdown.tsx` | Base popover component with auto-flip / smart positioning (portaled to `document.body`, so a pane's `overflow: hidden` cannot clip it) & model / variant / build-plan mode selection |
 | `parseCommandInput.ts` | `parseCommandInput(raw) → { isCommand, prefix }` for the `/` menu |
 | `questionAnswer.ts` | `buildQuestionAnswer` for permission/question responses |
 
@@ -321,8 +321,15 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   sets it; `ModelPicker` and `GitBranchSwitcher` set it on their own buttons).
 - **Menus anchor to the trigger's edge by default (`BaseDropdown.tsx`) with auto-flip and auto max-height overflow scrolling**. The sidebar rows and the composer's right-hand pickers hug their
   container's right edge, so right-aligning keeps the menu inside it. A trigger at the container's
-  *left* edge (the composer's "+" add menu) must align the menu's **left** edge instead: right-aligning
-  there pushed the 158px menu 134px outside the composer card, over the transcript.
+  *left* edge (the composer's "+" add menu, and the model picker in the card's bottom bar) must align
+  the menu's **left** edge instead: right-aligning there pushed the 158px menu 134px outside the
+  composer card, over the transcript.
+- **A menu that can overflow the pane must be portaled, not absolutely positioned.** `.pane` is
+  `overflow: hidden`, so an in-flow menu is cut at the pane's edge — the model picker's 25rem menu
+  anchored to a trigger near the card's left edge was sliced off at the sidebar. `ModelPicker` now
+  goes through `BaseDropdown` (portal to `document.body`, `position: fixed`, `z-index: 9999`, left
+  clamped to the viewport) and `.model-menu` carries only metrics — no `position`/`z-index` of its
+  own. Pinned by the "model menu is portaled" case in `tests/e2e/composer.spec.ts`.
 - **A selected selector row** is `background: var(--bg-active)` + accent label + a trailing tick, never a
   left accent bar. Rows are `[.menu-item-label][.menu-item-check]`: the label grows and ellipsizes, the
   check column is a fixed `var(--menu-icon)` (16px) and is rendered on **every** row (empty when
