@@ -12,21 +12,36 @@ export interface BuildSystemPromptArgs {
 export const PRECEDENCE_NOTE =
   'Precedence: project instructions (AGENTS.md/CLAUDE.md) > memory > skills > base system prompt.'
 
+/** Which part of the prompt a section is, so callers can label it for the user. */
+export type SystemPromptSectionKey = 'system' | 'instructions' | 'memory' | 'skills' | 'mode'
+
+export interface SystemPromptSection {
+  key: SystemPromptSectionKey
+  /** Heading the model sees (`# <title>`). */
+  title: string
+  text: string
+}
+
+// The labeled sections in prompt order, empty ones dropped (e.g. build mode has
+// no mode note). Exported so the context readout can measure each part with the
+// exact text the model receives instead of re-deriving it.
+export function systemPromptSections(a: BuildSystemPromptArgs): SystemPromptSection[] {
+  const sections: SystemPromptSection[] = [
+    { key: 'system', title: 'Identity & how to work', text: a.baseSystemPrompt.trim() },
+    { key: 'instructions', title: 'Project instructions', text: a.instructionText.trim() },
+    { key: 'memory', title: 'Memory', text: a.memoryRules.trim() },
+    { key: 'skills', title: 'Skills', text: a.skillsText.trim() },
+    { key: 'mode', title: 'Mode & permissions', text: a.modeNote.trim() }
+  ]
+  return sections.filter(s => s.text !== '')
+}
+
 // Static harness prompt: labeled sections, assembled once per run so an edited
 // AGENTS.md or a new skill lands on the next turn while the provider still
-// caches the stable prefix. Empty sections are dropped (e.g. build mode has no
-// mode note); the precedence note always closes the prompt.
+// caches the stable prefix; the precedence note always closes the prompt.
 export function buildSystemPrompt(a: BuildSystemPromptArgs): string {
-  const sections: Array<[string, string]> = [
-    ['Identity & how to work', a.baseSystemPrompt.trim()],
-    ['Project instructions', a.instructionText.trim()],
-    ['Memory', a.memoryRules.trim()],
-    ['Skills', a.skillsText.trim()],
-    ['Mode & permissions', a.modeNote.trim()]
-  ]
-  const body = sections
-    .filter(([, content]) => content !== '')
-    .map(([title, content]) => `# ${title}\n\n${content}`)
+  const body = systemPromptSections(a)
+    .map(s => `# ${s.title}\n\n${s.text}`)
     .join('\n\n')
   return `${body}\n\n${PRECEDENCE_NOTE}`
 }

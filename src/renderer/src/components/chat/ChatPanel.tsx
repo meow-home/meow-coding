@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AlertCircle, ArrowRight, Check, ChevronDown, ChevronRight, Copy, Folder, GitBranch, Pencil, RotateCw, Trash2, X } from 'lucide-react'
-import type { AgentMode, ChatDelegationMeta, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ImageAttachment, QuestionOption, QueuedMessage, TodoItem, ToolCallData } from '@shared/types'
+import type { AgentMode, ChatDelegationMeta, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ContextSection, ImageAttachment, QuestionOption, QueuedMessage, TodoItem, ToolCallData } from '@shared/types'
 import { DRAFT_SESSION_ID } from '@shared/types'
 import { isExternalPeer } from '@shared/external-api-types'
 import { appendStreamDelta } from '@shared/text'
@@ -268,6 +268,7 @@ function ChatPanel({ agentId, cwd, gitBranch, mode = 'build', variant, onModeCha
   const [sessionTokens, setSessionTokens] = useState<{ input: number; output: number } | null>(null)
   const [contextLimit, setContextLimit] = useState<number | null>(null)
   const [compactThreshold, setCompactThreshold] = useState<number | null>(null)
+  const [contextSections, setContextSections] = useState<ContextSection[]>([])
   const [commands, setCommands] = useState<Command[]>([])
   const [todos, setTodos] = useState<TodoItem[]>([])
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
@@ -332,6 +333,7 @@ function ChatPanel({ agentId, cwd, gitBranch, mode = 'build', variant, onModeCha
       setContextLimit(info.limit)
       setCompactThreshold(info.compactThreshold)
       setSessionCost(info.sessionCost)
+      setContextSections(info.sections ?? [])
     })
   }, [agentId])
 
@@ -1513,6 +1515,8 @@ if (e.type === 'usage') {
               compactThreshold={compactThreshold}
               cost={sessionCost}
               sessionTokens={sessionTokens}
+              sections={contextSections}
+              onOpen={loadContextInfo}
             />
             <ModePicker value={currentMode} onChange={switchMode} />
           </div>

@@ -132,10 +132,30 @@ export interface MessageTokens {
   cacheWrite?: number
 }
 
+/** Bucket a context section belongs to — the renderer colours by this. */
+export type ContextSectionKind = 'system' | 'tools' | 'mcp' | 'messages'
+
+/** One expandable line inside a section (a tool, an instruction file, a skill). */
+export interface ContextSectionItem {
+  label: string
+  tokens: number
+}
+
+export interface ContextSection {
+  kind: ContextSectionKind
+  label: string
+  tokens: number
+  items?: ContextSectionItem[]
+}
+
 export interface ContextInfo {
   limit: number | null
   compactThreshold: number | null
   sessionCost: number
+  /** Estimated composition of the next request; absent for a draft session. */
+  sections?: ContextSection[]
+  /** Sum of `sections`, i.e. what the whole request is estimated to cost. */
+  estimatedTotal?: number | null
 }
 
 export interface ImageAttachment {

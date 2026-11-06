@@ -115,7 +115,10 @@ test('context footer shows real token usage, persists across reload, resets on n
     await expect(window.locator('.chat-panel')).toBeVisible()
 
     // No messages yet -> placeholder, not a stale number.
-    await expect(pane(window).locator('.context-footer-wrap')).toContainText('—')
+    await pane(window).locator('.context-ring').click()
+    await expect(window.locator('.context-panel')).toContainText('—')
+    await window.keyboard.press('Escape')
+    await expect(window.locator('.context-panel')).toHaveCount(0)
 
     await window.locator('.chat-input-field').fill('hello meow')
     await window.locator('.chat-input-field').press('Enter')
@@ -123,9 +126,10 @@ test('context footer shows real token usage, persists across reload, resets on n
 
     // The readout lives in `.context-footer-wrap`; the level class is on
     // `.context-ring` (`.context-footer` itself no longer exists).
-    const footer = pane(window).locator('.context-footer-wrap')
-    await expect(footer).toContainText('4,231')
-    await expect(footer).toContainText('(98% left)')
+    await pane(window).locator('.context-ring').click()
+    const panel = window.locator('.context-panel')
+    await expect(panel).toContainText('4,231')
+    await expect(panel).toContainText('(98% left)')
     await expect(pane(window).locator('.context-ring')).not.toHaveClass(/warn|danger/)
 
     await app.close()
@@ -140,12 +144,15 @@ test('context footer shows real token usage, persists across reload, resets on n
     // Same user data: the sidebar restores its persisted expanded state, so the
     // session list is already open — just reselect the session to open its panes.
     await window.locator('.session-list .session-row').first().click()
-    await expect(pane(window).locator('.context-footer-wrap')).toContainText('4,231')
+    await pane(window).locator('.context-ring').click()
+    await expect(window.locator('.context-panel')).toContainText('4,231')
+    await window.keyboard.press('Escape')
 
     // New session (the sidebar project row's "+") -> creating it makes it the
     // active session, so the footer is back to the placeholder.
     await window.getByRole('button', { name: 'new session E2E Project', exact: true }).click()
-    await expect(pane(window).locator('.context-footer-wrap')).toContainText('—')
+    await pane(window).locator('.context-ring').click()
+    await expect(window.locator('.context-panel')).toContainText('—')
 
     await app.close()
   } finally {
@@ -155,7 +162,7 @@ test('context footer shows real token usage, persists across reload, resets on n
   }
 })
 
-test('context footer turns danger and shows the compacting note past the auto-compact threshold', async () => {
+test('context footer turns danger past the auto-compact threshold', async () => {
   const { server, port } = await startMockLlm([
     { content: 'near limit', usage: { prompt_tokens: 900, completion_tokens: 100, total_tokens: 1000 } }
   ])
@@ -185,7 +192,8 @@ test('context footer turns danger and shows the compacting note past the auto-co
       await expect(window.locator('.chat-msg.assistant').last()).toContainText('near limit')
 
       await expect(pane(window).locator('.context-ring')).toHaveClass(/danger/)
-      await expect(pane(window).locator('.context-footer-wrap')).toContainText('compacting soon')
+      await pane(window).locator('.context-ring').click()
+      await expect(window.locator('.context-panel')).toContainText('(9% left)')
     } finally {
       await app.close()
     }
@@ -196,68 +204,7 @@ test('context footer turns danger and shows the compacting note past the auto-co
   }
 })
 
-test('the context readout is a 24x24 icon button with a hover background', async () => {
-  const { server, port } = await startMockLlm([
-    { content: 'unused', usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 } }
-  ])
-  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
-  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
-  try {
-    seedUserData(userData, project, {
-      provider: { mock: { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}`, models: ['mock-model'] } },
-      model: 'mock',
-      maxContextTokens: 200000,
-      compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000 }
-    })
-
-    const app = await electron.launch({
-      args: ['.'],
-      env: { ...process.env as Record<string, string>, MEOW_USER_DATA: userData }
-    })
-    const window = await app.firstWindow()
-    try {
-      await expect(window.locator('.project-row')).toBeVisible()
-      await window.locator('.project-toggle').click()
-      await window.locator('.session-list .session-row').first().click()
-      await expect(window.locator('.chat-panel')).toBeVisible()
-
-      const ring = pane(window).locator('.context-ring')
-      await expect(ring).toBeVisible()
-
-      // The box is the icon-button square (was 30x30), matching the sidebar buttons.
-      const box = await ring.boundingBox()
-      expect(Math.round(box!.width)).toBe(24)
-      expect(Math.round(box!.height)).toBe(24)
-      expect(await ring.evaluate(e => getComputedStyle(e).borderRadius)).toBe('3px')
-
-      // The ring shrank with the box so the arc keeps its clearance inside it.
-      const svg = await ring.locator('svg').boundingBox()
-      expect(Math.round(svg!.width)).toBe(20)
-      expect(Math.round(svg!.height)).toBe(20)
-
-      // A readout, not a button: transparent at rest, hover lifts it, cursor stays default.
-      expect(await ring.evaluate(e => getComputedStyle(e).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
-      const bgHover = await resolveVar(window, '--bg-hover')
-      // Move the pointer onto the ring explicitly: `locator.hover()` retargets to
-      // the element's own center and races the pane's mount animation, which made
-      // this assertion flaky when the whole file ran in one worker.
-      await window.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
-      await expect.poll(() => ring.evaluate(e => getComputedStyle(e).backgroundColor)).toBe(bgHover)
-      await expect(ring).toHaveCSS('cursor', 'default')
-    } finally {
-      await app.close()
-    }
-  } finally {
-    cleanupDir(userData)
-    cleanupDir(project)
-    server.close()
-  }
-})
-
-test('the context popover is wider than the 200px floor and keeps its rows on one line', async () => {
-  // Realistic counts (a real session's ~145k prompt tokens): with short content
-  // the popover's width is decided by its min-width floor, not by the text, so
-  // this fixture is what makes the 216px assertion meaningful.
+test('the context readout is an icon button that opens the request breakdown', async () => {
   const { server, port } = await startMockLlm([
     { content: 'hi there', usage: { prompt_tokens: 145503, completion_tokens: 431, total_tokens: 145934 } }
   ])
@@ -282,63 +229,70 @@ test('the context popover is wider than the 200px floor and keeps its rows on on
       await window.locator('.session-list .session-row').first().click()
       await expect(window.locator('.chat-panel')).toBeVisible()
 
-      // A real turn, so the popover carries its longest rows (tokens in/out).
+      const ring = pane(window).locator('.context-ring')
+      await expect(ring).toBeVisible()
+      await expect(ring).toHaveAttribute('aria-expanded', 'false')
+
+      // Same box as the sidebar icon buttons (2rem at the 13px root font).
+      const box = await ring.boundingBox()
+      expect(Math.round(box!.width)).toBe(26)
+      expect(Math.round(box!.height)).toBe(26)
+      expect(await ring.evaluate(e => getComputedStyle(e).borderRadius)).toBe('3.25px')
+
+      // The arc keeps its clearance inside the box (SIZE/STROKE in ContextFooter).
+      const svg = await ring.locator('svg').boundingBox()
+      expect(Math.round(svg!.width)).toBe(16)
+      expect(Math.round(svg!.height)).toBe(16)
+
+      // A button now: it opens the panel, and hover lifts its box.
+      expect(await ring.evaluate(e => getComputedStyle(e).cursor)).toBe('pointer')
+      const bgHover = await resolveVar(window, '--bg-hover')
+      await window.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
+      await expect.poll(() => ring.evaluate(e => getComputedStyle(e).backgroundColor)).toBe(bgHover)
+
+      // A real turn first, so the breakdown has a transcript to attribute.
       await window.locator('.chat-input-field').fill('hello meow')
       await window.locator('.chat-input-field').press('Enter')
       await expect(window.locator('.chat-msg.assistant').last()).toContainText('hi there')
 
-      const popover = pane(window).locator('.context-footer-popover')
-      const wrapBox = await pane(window).locator('.context-footer-wrap').boundingBox()
-      await window.mouse.move(wrapBox!.x + wrapBox!.width / 2, wrapBox!.y + wrapBox!.height / 2)
-      await expect(popover).toBeVisible()
+      await ring.click()
+      await expect(ring).toHaveAttribute('aria-expanded', 'true')
 
-      // Wider than the old 200px floor, and nothing is clipped horizontally.
-      // (Measured before this change: 200px exactly — the floor, not the text.)
-      const metrics = await popover.evaluate(e => ({ w: e.offsetWidth, scroll: e.scrollWidth, client: e.clientWidth }))
-      expect(metrics.w).toBeGreaterThanOrEqual(216)
-      expect(metrics.scroll).toBeLessThanOrEqual(metrics.client + 1)
+      // Portaled to <body> (BaseDropdown), so it is NOT inside the pane slot.
+      const panel = window.locator('.context-panel')
+      await expect(panel).toBeVisible()
+      await expect(panel.locator('.context-popover-row').first()).toContainText('145,934')
+      await expect(panel.locator('.context-popover-row').first()).toContainText('(27% left)')
+      await expect(panel.locator('.context-popover-row').nth(1)).toContainText(' in / ')
 
-      // Guard, not a fix: with short values the box is already content-driven and
-      // does not wrap, but `width: max-content` alone stops applying the moment an
-      // ancestor is clamped — so assert the rows can never break. A range over the
-      // row is useless here — the row is a flex container, so each span is
-      // blockified and the range reports one rect per span, not per line. Measure
-      // the TEXT NODES instead: a range over a text node yields one rect per line
-      // fragment, so stacked (wrapped) lines are visible. Fragments whose vertical
-      // spans overlap belong to the same line (the label uses the UI font and the
-      // value the mono font, so their tops differ even on one line).
-      const rowLines = await window.locator('.context-popover-row').evaluateAll(rows =>
-        rows.map(row => {
-          const rects: DOMRect[] = []
-          const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT)
-          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-            if (!node.nodeValue?.trim()) continue
-            const range = document.createRange()
-            range.selectNodeContents(node)
-            rects.push(...Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0))
-          }
-          rects.sort((a, b) => a.top - b.top)
-          let lines = 0
-          let lineBottom = -Infinity
-          for (const r of rects) {
-            if (r.top >= lineBottom - 1) {
-              lines++
-              lineBottom = r.bottom
-            } else {
-              lineBottom = Math.max(lineBottom, r.bottom)
-            }
-          }
-          return lines
-        })
+      // Header rows never wrap: each stays one line.
+      const rowLines = await panel.locator('.context-popover-row').evaluateAll(rows =>
+        rows.map(row => row.getClientRects().length)
       )
-      expect(rowLines.length).toBeGreaterThan(0)
-      expect(rowLines, `lines per row: ${JSON.stringify(rowLines)}`).toEqual(rowLines.map(() => 1))
+      expect(rowLines.every(n => n === 1)).toBe(true)
 
-      // The mechanism, stated explicitly so a later edit cannot silently undo it.
-      const nowrap = await window.locator('.context-popover-row').evaluateAll(rows =>
-        rows.map(row => getComputedStyle(row).whiteSpace)
-      )
-      expect(nowrap.every(v => v === 'nowrap')).toBe(true)
+      // The breakdown names what fills the window, including the tool list.
+      await expect(panel).toContainText('System prompt')
+      await expect(panel).toContainText('Messages')
+      await expect(panel).toContainText('Free space')
+      const bar = panel.locator('.context-bar-seg')
+      expect(await bar.count()).toBeGreaterThanOrEqual(4)
+
+      // 20rem wide and fully inside the window: the panel opens above the ring,
+      // so it must never be pushed off the top or clipped by the composer.
+      const panelBox = (await panel.boundingBox())!
+      expect(Math.round(panelBox.width)).toBe(260)
+      expect(panelBox.y).toBeGreaterThanOrEqual(0)
+      const viewport = await window.evaluate(() => window.innerHeight)
+      expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(viewport)
+
+      // Tools expands into one line per definition.
+      const toolsRow = panel.locator('button.context-section-head', { hasText: 'Tools' })
+      await toolsRow.click()
+      await expect(toolsRow).toHaveAttribute('aria-expanded', 'true')
+      const items = panel.locator('.context-section-items')
+      await expect(items).toBeVisible()
+      await expect(items).toContainText('read')
     } finally {
       await app.close()
     }

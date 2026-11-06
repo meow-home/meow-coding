@@ -342,15 +342,21 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   take the shared metrics but deliberately have no icons or dividers: the model picker is a
   searchable, sectioned list where an icon column is noise. `.command-item` is excluded from the
   family — it stacks a name + description and would clip at 32px.
-- **The chat context readout is an icon button.** `ContextFooter`'s ring sits in a 24 × 24 box with
-  `--radius-xs`, transparent at rest and `--bg-hover` while `.context-footer-wrap` is hovered, holding
-  a 20px SVG with a 2.5px stroke (the ratio of the original 30px / 3px ring). It shares the
-  `.icon-btn` *look* but not its class: the readout sits in a container that owns its hover, and it is
-  deliberately not clickable (`cursor: default`, no tabindex).
-  Its hover popover is content-width by contract: `width: max-content` with a `min-width: 216px` floor
-  (200px before) and `white-space: nowrap` rows. With short values the floor decides the box — measured
-  exactly 200px, which is why the floor is a real, testable change — and the explicit `max-content`
-  keeps the width from depending on shrink-to-fit resolution for `position: absolute; right: 0`.
+- **The chat context readout is a button that opens the context panel.** `ContextFooter`'s ring sits in a
+  2rem (26px at the 13px root) box with `--radius-xs`, transparent at rest and `--bg-hover` while
+  hovered or open (`aria-expanded`), holding a 16px SVG with a 2px stroke. It shares the `.icon-btn`
+  *look* but not its class; the click opens a 20rem panel through `BaseDropdown` (`placement="top-end"`,
+  portaled to `<body>`), so the breakdown can be tall without being clipped by the composer or the pane.
+  The panel opens with the three summary rows (`context` / `tokens` / `cost`, `white-space: nowrap`) and
+  then the **breakdown**: a stacked `.context-bar` (one segment per bucket, plus free space) over one row
+  per bucket — `System prompt`, `Instructions`, `Memory`, `Memory index`, `Skills`, `Mode`, `Tools`,
+  `MCP tools`, `Messages`, `Free space` — each with its token count and share of the window. Rows that
+  carry detail (`Tools`, `MCP tools`, instruction files, skills) are expandable to one line per tool or
+  file, sorted largest first. The rows are estimates (`estimateTokens`, 3.5 chars/token, the compaction
+  measure) while the header count is the provider-reported usage; the bar is scaled so the estimated
+  buckets fill exactly the used span and free space closes it at the window limit. Colours come from the
+  `--ctx-system` / `--ctx-tools` / `--ctx-mcp` / `--ctx-messages` / `--ctx-free` tokens (dark + light).
+  The panel refreshes when it opens, so the breakdown reflects the transcript as it is now.
 - **The composer is one card, so its controls live in a bar, not in a toolbar row beside the field.**
   `.chat-input` is a column: edit banner, chips, the field, then `.chat-input-bar` (add menu, model
   picker, right group with variant picker + the round send/stop button). The field's `max-height` is

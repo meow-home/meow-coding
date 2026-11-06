@@ -41,6 +41,7 @@ commands, references, compaction and usage accounting. Orchestrated by `MeowAgen
 | `sampling.ts` | `resolveSampling(modelId, overrides?, { antiRepetition? })`: publisher sampling presets by model family plus `meow.json` `sampling` overrides, for the OpenAI-compatible branch only; unmatched models get nothing; `antiRepetition` adds `frequencyPenalty` ≥ `ANTI_REPETITION_FREQUENCY_PENALTY` (0.5) to a matched model. |
 | `truncation.ts` | `TruncationStore`: truncation state per session. |
 | `usage.ts` | `calcCost` / `EMPTY_USAGE` / price-based cost accounting. |
+| `context-report.ts` | Measures what the next request costs, for the UI's context panel: `systemSectionTokens` (a rendered `# <title>` prompt section), `toolDefinitionTokens` (name + description + JSON schema, zod converted with `z.toJSONSchema` so a zod tool is not counted as `{}`), `isMcpToolName` (`mcp__` prefix), and `buildContextSections` (system sections → memory index → built-in tools → MCP tools → messages, each with expandable per-item detail, sorted largest first). Pure + unit-tested. |
 | `token.ts` | Token estimation/counting helpers (`estimateTokens`, `estimateUsage`, `charsForTokens`); inline image data URLs are charged a flat cost, not their base64 length. |
 | `apply-patch.ts` | Unified-diff parser + applier (the `apply-patch` tool backend). |
 | `plugin.ts` | Loads user tools from `userData/tools`. |

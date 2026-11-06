@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
-import type { ChatDelegationMeta, ChatErrorItem, ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, NotificationsSettings, PendingPromptInfo, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts, UsageSummary } from '../shared/types'
+import path from 'node:path'
+import type { ChatDelegationMeta, ChatErrorItem, ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, ContextSection, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, NotificationsSettings, PendingPromptInfo, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts, UsageSummary } from '../shared/types'
 import { DRAFT_SESSION_ID, type AgentConfig, type AgentMode, type ArtifactEntry, type CatalogProviderSummary, type Command, type ModelRef, type SubagentType } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, resolveApiKey, settingsToConfig, writeMeowConfig,
@@ -33,7 +34,10 @@ import { loadUserTools } from './agent/plugin'
 import { instructionsText, loadInstructions } from './agent/instructions'
 import { snapshotEnvironment } from './agent/env'
 import { loadMemoryIndex, memoryDir, memoryRulesText } from './agent/memory'
-import { buildSystemPrompt, buildTurnReminder } from './agent/prompt'
+import { buildSystemPrompt, buildTurnReminder, systemPromptSections } from './agent/prompt'
+import { buildContextSections, sumTokens, type ToolLike } from './agent/context-report'
+import { toLlmMessages } from './agent/message'
+import { estimateTokens, estimateUsage } from './agent/token'
 import { referenceHints } from './agent/references'
 import { suggestFiles } from './file-suggest'
 import { SnapshotStore } from './agent/snapshot'
@@ -71,6 +75,16 @@ const COMPACTION_IN_PROGRESS = '[meow] Compaction already in progress.'
 const RETRY_TURN_PROMPT =
   '<system-reminder>\nThe previous turn failed with an error. Continue from where you stopped, ' +
   'without repeating what you already wrote.\n</system-reminder>'
+
+// The plan-mode paragraph of the system prompt. Shared by the runner (which
+// sends it) and the context readout (which measures it), so the two cannot drift.
+function modeNoteFor(mode: AgentMode): string {
+  return mode === 'plan'
+    ? '\n\nYou are in PLAN MODE: read-only analysis. Do NOT create, edit, or delete files. ' +
+      'write/edit/apply-patch/revert/git/todowrite tools are unavailable, and do NOT use the bash tool ' +
+      'to modify the filesystem either. Produce a plan or analysis instead.'
+    : ''
+}
 
 const TURN_END_REASONS: ReadonlySet<string> = new Set<TurnEndReason>(['max-steps', 'stuck', 'length', 'refusal'])
 
@@ -165,6 +179,10 @@ export class MeowAgentManager {
   // wakeDelegationSource correlate final text and touched files.
   private activeRuns = new Map<string, ActiveRun>()
   private tools: Map<string, ToolDefinition>
+  // The tool map last handed to each agent's runner (built-in + user + MCP plus
+  // the per-runner task/delegate_session/revert/lsp tools), kept so the context
+  // readout measures exactly what the next request carries.
+  private runnerTools = new Map<string, Map<string, ToolDefinition>>()
   private modes = new Map<string, AgentMode>()
   private mcp!: McpManager
   private cachedMcpOutputMaxTokens: number | undefined = undefined
@@ -447,6 +465,7 @@ export class MeowAgentManager {
     this.registrationVersion.set(agentId, (this.registrationVersion.get(agentId) ?? 0) + 1)
     this.stop(agentId)
     this.runners.delete(agentId)
+    this.runnerTools.delete(agentId)
     this.agents.delete(agentId)
     this.resolved.delete(agentId)
     this.activeSessions.delete(agentId)
@@ -1129,11 +1148,67 @@ ${content}` : content
     const compactThreshold = cfg.compaction.auto && limit
       ? usableContextTokens(limit, compaction.buffer, outputTokens)
       : null
+    const sections = await this.buildContextSections(agent, resolved, cfg, compaction)
     return {
       limit,
       compactThreshold,
-      sessionCost: this.deps.store.getUsage(this.activeSessionId(agentId)).cost
+      sessionCost: this.deps.store.getUsage(this.activeSessionId(agentId)).cost,
+      sections,
+      estimatedTotal: sumTokens(sections)
     }
+  }
+
+  // Estimated composition of the next request — the system prompt it is built
+  // from, the tool definitions it carries, and the transcript it replays. Mirrors
+  // what the runner assembles (same prompt sections, same tool map, same
+  // toLlmMessages options), so the readout can attribute the context to buckets.
+  private async buildContextSections(
+    agent: AgentConfig,
+    resolved: ResolvedAgentConfig,
+    cfg: MeowConfig,
+    compaction: ReturnType<typeof resolveCompactionSettings>
+  ): Promise<ContextSection[]> {
+    const mode = this.modes.get(agent.id) ?? agent.mode ?? 'build'
+    const instructions = loadInstructions(agent.cwd)
+    const skills = collectSkills(agent.cwd, this.deps.userSkillsDir, this.deps.builtinSkillsDir)
+    const memoryEnabled = cfg.agents[agent.name]?.memory !== false
+    const system = systemPromptSections({
+      baseSystemPrompt: resolved.systemPrompt,
+      modeNote: modeNoteFor(mode),
+      instructionText: instructionsText(instructions),
+      skillsText: skillListText(skills),
+      memoryRules: memoryEnabled ? memoryRulesText(agent.cwd) : ''
+    })
+    const memoryIndex = memoryEnabled ? await loadMemoryIndex(agent.cwd) : undefined
+    const toolMap = this.runnerTools.get(agent.id) ?? this.tools
+    const tools: ToolLike[] = [...toolMap.values()].map(t => ({
+      name: t.name,
+      description: t.description,
+      schema: t.schema
+    }))
+    const items = this.deps.store.get(this.runSessionId(agent.id))?.items ?? []
+    const messagesTokens = items.length === 0
+      ? null
+      : estimateUsage(toLlmMessages(items, {
+          toolOutputMaxChars: compaction.toolOutputMaxChars,
+          keepFullTurns: compaction.tailTurns
+        }))
+    return buildContextSections({
+      system,
+      items: {
+        instructions: instructions.map(file => ({
+          label: path.basename(file.path),
+          tokens: estimateTokens(file.content)
+        })),
+        skills: skills.map(skill => ({
+          label: skill.name,
+          tokens: estimateTokens(skillListText([skill]))
+        }))
+      },
+      memoryIndex: memoryIndex?.lines.join('\n'),
+      tools,
+      messagesTokens
+    })
   }
 
   getProviderModels(): ModelRef[] {
@@ -1693,13 +1768,10 @@ ${content}` : content
     runnerTools.set('delegate_session', delegateTool)
     runnerTools.set('revert', revertTool)
     if (cfg.lsp.enabled && this.deps.lsp) runnerTools.set('lsp', createLspTool(this.deps.lsp))
+    this.runnerTools.set(agent.id, runnerTools)
     const mode = agent.mode ?? 'build'
     this.modes.set(agent.id, mode)
-    const modeNote = mode === 'plan'
-      ? '\n\nYou are in PLAN MODE: read-only analysis. Do NOT create, edit, or delete files. ' +
-        'write/edit/apply-patch/revert/git/todowrite tools are unavailable, and do NOT use the bash tool ' +
-        'to modify the filesystem either. Produce a plan or analysis instead.'
-      : ''
+    const modeNote = modeNoteFor(mode)
     const memoryEnabled = cfg.agents[agent.name]?.memory !== false
     const agentMemoryDir = memoryEnabled ? memoryDir(agent.cwd) : undefined
     const isCodex = resolved.provider === 'codex' && Boolean(agent.accountId)

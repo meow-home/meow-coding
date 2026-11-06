@@ -403,6 +403,13 @@ if usedTokens < usable → return
 The provider count is trusted because it includes the system prompt and tool definitions, but it
 lags behind tool outputs appended after the last response — hence the `max`.
 
+The same split is what the UI's context panel reports (`agent/context-report.ts`, fed by
+`MeowAgentManager.getContextInfo`): the system prompt measured section by section
+(`systemPromptSections`, one line per labeled part), the memory index, every tool definition
+(`toolDefinitionTokens` — name + description + JSON schema, zod converted via `z.toJSONSchema` so a
+zod tool is not counted as `{}`), the built-in and MCP buckets split on the `mcp__` prefix, and the
+transcript via `estimateUsage(toLlmMessages(items, opts))` with the same compaction options.
+
 ### Ladder
 
 1. **LLM summarization** (`compact`) — always summary-first once the threshold is crossed:
