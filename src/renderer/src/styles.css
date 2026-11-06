@@ -1589,7 +1589,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   padding: 0.416667rem 0.416667rem 0.333333rem;
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
-.chat-input:focus-within { border-color: var(--accent-border); box-shadow: 0 0 0 0.25rem var(--focus-ring); }
+.chat-input:focus-within { border-color: var(--accent-border); box-shadow: 0 0 0 0.125rem var(--focus-ring); }
 .chat-input-field {
   width: 100%; min-width: 0; resize: none; background: transparent; color: var(--text);
   border: none; padding: 0.416667rem 0.5rem 0.5rem;
