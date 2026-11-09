@@ -123,7 +123,7 @@ function labelOf(params: Record<string, unknown>): string {
 
 const SENSITIVE_TARGET = `function(){
   const el = this;
-  if (!(el instanceof HTMLInputElement)) return null;
+  if (!el || typeof el.getAttribute !== 'function') return null;
   const type = (el.getAttribute('type') || '').toLowerCase();
   if (type === 'password') return 'password';
   const tokens = (el.getAttribute('autocomplete') || '').toLowerCase().split(/\\s+/).filter(Boolean);

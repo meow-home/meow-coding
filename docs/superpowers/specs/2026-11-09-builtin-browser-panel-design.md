@@ -273,7 +273,9 @@ below are added inside `EmbeddedBrowser`. The plan-mode `'browser_*': 'ask'` rul
   `browser_handoff`. The check runs before the site-approval prompt and again inside the command; a check that fails
   for any other reason refuses (fail closed). The ref map keeps no field values, and the snapshot drops the value text
   Chromium puts under a text-entry field.
-- `browser_read` never outputs field values: `axTreeToSnapshot` emits only role and name.
+- `browser_read` never outputs field values: `axTreeToSnapshot` emits role and name only, and drops the value text
+  Chromium puts under a plaintext-editable node (any role, so `input`, `textarea` and plaintext contenteditable are
+  covered) while rich text and select options stay readable.
 - New tool `browser_handoff({ reason, tabId? })` sets `user` state with the reason in the banner and blocks until the
   user presses **I'm signed in** or the call is aborted. It returns whether the page's origin changed, and never its
   content. Entering the hold makes the tab the panel's active tab, fires a panel request and raises the existing

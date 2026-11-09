@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { axTreeToSnapshot, mergeFrameAxTrees } from '../../../src/shared/browser-ax-snapshot'
-import type { AxNodeLike } from '../../../src/shared/browser-ax-snapshot'
+import type { AxNodeLike, AxNodeProperty } from '../../../src/shared/browser-ax-snapshot'
 
 function axn(
   nodeId: string,
@@ -12,7 +12,8 @@ function axn(
     name: opts.name,
     backendDOMNodeId: opts.backendDOMNodeId,
     childIds: opts.childIds,
-    ignored: opts.ignored
+    ignored: opts.ignored,
+    properties: opts.properties
   }
 }
 
@@ -57,6 +58,27 @@ describe('axTreeToSnapshot', () => {
     const { tree } = axTreeToSnapshot(nodes, { maxNodes: 0 })
     expect(JSON.stringify(tree)).not.toContain('secret-ac')
     expect(tree[0].children?.[0]).toEqual({ role: 'textbox', name: 'Card', ref: 'r1' })
+  })
+
+  it('drops plaintext value children and keeps rich text and select options', () => {
+    const prop = (name: string, value: unknown): AxNodeProperty => ({ name, value: { value } })
+    const nodes: AxNodeLike[] = [
+      axn('1', { role: role('rootwebarea'), childIds: ['2', '3', '4', '5'] }),
+      axn('2', { role: role('textbox'), name: name('Card'), backendDOMNodeId: 12, childIds: ['20'], properties: [prop('editable', 'plaintext')] }),
+      axn('20', { role: role('statictext'), name: name('secret-ac') }),
+      axn('3', { role: role('generic'), backendDOMNodeId: 13, childIds: ['30'], properties: [prop('editable', 'richtext')] }),
+      axn('30', { role: role('statictext'), name: name('Hello') }),
+      axn('4', { role: role('combobox'), name: name('Month'), backendDOMNodeId: 14, childIds: ['40'] }),
+      axn('40', { role: role('option'), name: name('01'), backendDOMNodeId: 15 }),
+      axn('5', { role: role('combobox'), name: name('Combo'), backendDOMNodeId: 16, childIds: ['50'], properties: [prop('editable', 'plaintext')] }),
+      axn('50', { role: role('statictext'), name: name('typed') })
+    ]
+    const { tree } = axTreeToSnapshot(nodes, { mode: 'full', maxNodes: 0 })
+    const json = JSON.stringify(tree)
+    expect(json).not.toContain('secret-ac')
+    expect(json).not.toContain('typed')
+    expect(json).toContain('Hello')
+    expect(json).toContain('01')
   })
 
   it('skips ignored nodes', () => {

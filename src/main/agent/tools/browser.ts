@@ -153,8 +153,9 @@ export function createBrowserTools(router: BrowserRouterLike): ToolDefinition[] 
         'every element on one indented line as `role "name" [ref]` (anchors <a> are role "link", plus ' +
         'button, textbox, checkbox, ... — the snapshot is complete, never truncated). ' +
         SNAPSHOT_UNTRUSTED_NOTICE + ' ' +
-        'Returns the file path, node count and a preview. Read the file (with the file read tool, in ' +
-        'chunks if large) to see every element, then click/type/select using the [ref] shown.',
+        'Returns the file path, node count and a preview. The values of form fields are not shown. ' +
+        'Read the file (with the file read tool, in chunks if large) to see every element, then ' +
+        'click/type/select using the [ref] shown.',
       schema: z.object({
         mode: z.enum(['interactive', 'full']).optional().describe('interactive (default) refs interactive elements; full refs every element.'),
         tabId: z.number().int().optional().describe('Optional tab id to snapshot; defaults to the active/visible tab.')

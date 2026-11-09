@@ -1,5 +1,10 @@
 import type { SnapshotNode, BrowserReadMode } from './browser-types'
 
+export interface AxNodeProperty {
+  name?: string
+  value?: { value?: unknown } | string | number | boolean
+}
+
 export interface AxNodeLike {
   nodeId: string
   ignored?: boolean
@@ -7,6 +12,7 @@ export interface AxNodeLike {
   name?: { value?: string } | string
   backendDOMNodeId?: number
   childIds?: string[]
+  properties?: AxNodeProperty[]
 }
 
 export interface AxSnapshotRef {
@@ -77,12 +83,25 @@ const INTERACTIVE_ROLES = new Set([
 ])
 const SKIPPED_ROLES = new Set(['generic', 'none', 'presentation'])
 const TEXT_ROLES = new Set(['text', 'statictext', 'inlinetextbox'])
-// A text-entry field's AX children are its value. The snapshot carries only role
-// and name, so those children are dropped (both browsers use this module).
+// A plaintext field's AX children are its value, so they are dropped. Chromium
+// reports `editable: plaintext` on inputs, textareas and contenteditable
+// plaintext-only; rich text is page content and keeps its children. A text-entry
+// role with no editable property still drops (fail closed).
 const VALUE_TEXT_ROLES = new Set(['textbox', 'searchbox', 'spinbutton'])
 
 function axString(v: { value?: string } | string | undefined): string {
   return typeof v === 'string' ? v : (v?.value ?? '')
+}
+
+function axProperty(node: AxNodeLike, name: string): unknown {
+  for (const property of node.properties ?? []) {
+    if (property.name !== name) continue
+    const value = property.value
+    return typeof value === 'object' && value !== null && 'value' in value
+      ? (value as { value?: unknown }).value
+      : value
+  }
+  return undefined
 }
 
 export function axTreeToSnapshot(
@@ -130,8 +149,10 @@ export function axTreeToSnapshot(
 
     count++
 
+    const editable = axProperty(n, 'editable')
+    const dropValueChildren = editable === 'plaintext' || (editable === undefined && VALUE_TEXT_ROLES.has(role))
     const children: SnapshotNode[] = []
-    for (const childId of VALUE_TEXT_ROLES.has(role) ? [] : n.childIds ?? []) {
+    for (const childId of dropValueChildren ? [] : n.childIds ?? []) {
       if (maxNodes > 0 && count >= maxNodes) break
       const c = byId.get(childId)
       if (!c) continue

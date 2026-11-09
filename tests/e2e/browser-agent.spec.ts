@@ -29,7 +29,7 @@ function conversationText(body: unknown): string {
 function refFor(body: unknown, label: string): string {
   const text = conversationText(body)
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const matches = [...text.matchAll(new RegExp(`(?:button|link|textbox) "${escaped}" \\[(r\\d+)\\]`, 'g'))]
+  const matches = [...text.matchAll(new RegExp(`(?:button|link|textbox|combobox) "${escaped}" \\[(r\\d+)\\]`, 'g'))]
   if (matches.length === 0) {
     console.error(`[e2e] no snapshot ref for "${label}"; conversation tail:
 ${text.slice(-5000)}`)
@@ -132,6 +132,10 @@ function startFixtureServer(host = '127.0.0.1'): Promise<{ server: http.Server; 
       <button id="approve" onclick="window.__approve=(window.__approve||0)+1;document.title='approve:'+window.__approve">Approve button</button>
       <input id="pw" type="password" aria-label="Password" value="hunter2-secret">
       <input id="ac" type="text" aria-label="Card" autocomplete="current-password" value="secret-ac">
+      <select id="cardselect" aria-label="Card month" autocomplete="cc-exp-month">
+        <option>01</option><option>02</option>
+      </select>
+      <div id="note" contenteditable="true" aria-label="Note">Hello <b>rich</b> text</div>
       <script>
         window.__clicks = 0
         window.__keys = 0
@@ -519,6 +523,7 @@ test('password and payment fields are refused by ref and selector without a prom
     { toolCall: { name: 'browser_type', args: { selector: '#pw', text: 'x' } } },
     { toolCall: { name: 'browser_type', args: (body: unknown) => ({ ref: refFor(body, 'Card'), text: 'x' }) } },
     { toolCall: { name: 'browser_type', args: { selector: '#ac', text: 'x' } } },
+    { toolCall: { name: 'browser_select', args: (body: unknown) => ({ ref: refFor(body, 'Card month'), value: '02' }) } },
     { toolCall: { name: 'browser_read', args: { mode: 'full' } } },
     { toolCall: { name: 'browser_list_tabs', args: {} } },
     {
@@ -540,7 +545,7 @@ test('password and payment fields are refused by ref and selector without a prom
       await window.locator('.chat-input-field').fill('fill the form')
       await window.locator('.chat-input-field').press('Enter')
       const final = window.locator('.chat-msg.assistant').last()
-      await expect(final).toContainText('refusals=4', { timeout: 55000 })
+      await expect(final).toContainText('refusals=5', { timeout: 55000 })
       // The refusal runs before site approval: no prompt was ever shown.
       expect(await window.locator('.chat-prompt').count()).toBe(0)
 
@@ -552,6 +557,10 @@ test('password and payment fields are refused by ref and selector without a prom
         const text = readFileSync(path.join(snapshotDir, file), 'utf-8')
         expect(text).not.toContain('hunter2-secret')
         expect(text).not.toContain('secret-ac')
+        // Rich text is page content, not a form value; select options stay readable.
+        expect(text).toContain('Hello')
+        expect(text).toContain('rich')
+        expect(text).toContain('01')
       }
     } finally {
       await app.close()

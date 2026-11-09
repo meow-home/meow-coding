@@ -210,9 +210,11 @@ Every session gets its own tabs inside the app window and the agent drives them 
   are exempt, lookalikes are not. The prompt runs in the `approval` state, outside the command clock, and settles
   on abort or tab close.
 - **Sensitive fields** (`cdp-commands.ts`): `type`/`select` refuse a password input or an `autocomplete` token
-  `current-password`, `new-password`, `one-time-code` or `cc-*` (case-insensitive) before the approval prompt and
-  again inside the command; the error points at `browser_handoff`. A failed check refuses. Snapshots drop the value
-  text Chromium exposes under a text-entry field.
+  `current-password`, `new-password`, `one-time-code` or `cc-*` (case-insensitive, on any element, so a
+  `<select autocomplete="cc-exp-month">` is refused too) before the approval prompt and again inside the command;
+  the error points at `browser_handoff`. A failed check refuses. Snapshots drop the value text Chromium exposes
+  under a plaintext-editable node (inputs, textareas, plaintext contenteditable) while rich text and select options
+  stay readable.
 - **Handoff** (`browser_handoff`): the agent hands the tab to the user for sign-in, passwords, payment details or
   CAPTCHAs. The tab enters `user` with the reason, the shield hides and the queue holds with no command timeout; the
   tool returns only `{ originChanged }`. Entering the hold makes that tab the panel's active tab, fires a panel
