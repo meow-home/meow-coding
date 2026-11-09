@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Notification, screen, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Notification, screen, session, shell } from 'electron'
 import { spawn } from 'node:child_process'
 import { existsSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { stat, writeFile } from 'node:fs/promises'
@@ -58,7 +58,7 @@ import { createChromeLauncher, ensureExtensionInstalled } from './browser/chrome
 import { ChromeBackend } from './browser/chrome-backend'
 import { BrowserRouter } from './browser/browser-router'
 import { EmbeddedBrowser } from './browser/embedded-browser'
-import { createElectronTabHost, hardenBrowserPartition, reattachBrowserTabs } from './browser/electron-tab-host'
+import { PARTITION, createElectronTabHost, hardenBrowserPartition, reattachBrowserTabs } from './browser/electron-tab-host'
 import { TrustedExtensionStore } from './browser/trusted-store'
 import type { TrustedExtension } from '../shared/browser-types'
 import { ExternalApiConfigFile } from './external-api/config-file'
@@ -177,7 +177,13 @@ export class MainApp {
     snapshotDir: path.join(app.getPath('userData'), 'browser-snapshots'),
     hasWindow: () => !!win && !win.isDestroyed(),
     // Re-read meow.json per call so a settings change applies without a restart.
-    siteApproval: () => loadMeowConfig(path.join(app.getPath('userData'), 'meow.json')).browser?.siteApproval ?? 'ask'
+    siteApproval: () => loadMeowConfig(path.join(app.getPath('userData'), 'meow.json')).browser?.siteApproval ?? 'ask',
+    getZoomFactor: () => (win && !win.isDestroyed() ? win.webContents.getZoomFactor() : 1),
+    clearData: async () => {
+      const partition = session.fromPartition(PARTITION)
+      await partition.clearStorageData()
+      await partition.clearCache()
+    }
   })
   browserRouter = new BrowserRouter({
     backends: {
@@ -1095,6 +1101,30 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.BrowserOpenChromeExtensions, () => mainApp.browserLauncher.openChrome())
   ipcMain.handle(Channels.BrowserGetConsoleLogs, (_e, limit?: number) => mainApp.browserBridge.getConsoleLogs(limit))
   ipcMain.handle(Channels.BrowserGetNetworkLogs, (_e, limit?: number) => mainApp.browserBridge.getNetworkLogs(limit))
+  ipcMain.handle(Channels.BrowserTabsList, (_e, agentId: string) => mainApp.embeddedBrowser.listTabs(agentId))
+  ipcMain.handle(Channels.BrowserTabCreate, (_e, agentId: string, url?: string) =>
+    mainApp.embeddedBrowser.createUserTab(agentId, url))
+  ipcMain.handle(Channels.BrowserTabClose, (_e, tabId: number) => mainApp.embeddedBrowser.closeTabFromUser(tabId))
+  ipcMain.handle(Channels.BrowserTabActivate, (_e, agentId: string, tabId: number) =>
+    mainApp.embeddedBrowser.activateTab(agentId, tabId))
+  ipcMain.handle(Channels.BrowserTabNavigate, (_e, tabId: number, url: string) =>
+    mainApp.embeddedBrowser.navigateFromUser(tabId, url))
+  ipcMain.handle(Channels.BrowserTabHistory, (_e, tabId: number, action: 'back' | 'forward' | 'reload' | 'stop') =>
+    mainApp.embeddedBrowser.historyFromUser(tabId, action))
+  ipcMain.handle(Channels.BrowserTabLogs, (_e, tabId: number, kind: 'console' | 'network', limit?: number) =>
+    mainApp.embeddedBrowser.logsFromUser(tabId, kind, limit))
+  ipcMain.handle(Channels.BrowserTakeOver, (_e, tabId: number) => mainApp.embeddedBrowser.takeOver(tabId))
+  ipcMain.handle(Channels.BrowserHandBack, (_e, tabId: number) => mainApp.embeddedBrowser.handBack(tabId))
+  ipcMain.handle(Channels.BrowserPanelAttach, (_e, agentId: string, bounds: { x: number; y: number; width: number; height: number }) =>
+    mainApp.embeddedBrowser.attach(agentId, bounds))
+  ipcMain.handle(Channels.BrowserPanelDetach, () => mainApp.embeddedBrowser.detach())
+  ipcMain.handle(Channels.BrowserPanelSetBounds, (_e, bounds: { x: number; y: number; width: number; height: number }) =>
+    mainApp.embeddedBrowser.setBounds(bounds))
+  ipcMain.handle(Channels.BrowserPanelFreeze, () => mainApp.embeddedBrowser.freeze())
+  ipcMain.handle(Channels.BrowserPanelHideFrozen, (_e, generation: number) =>
+    mainApp.embeddedBrowser.hideFrozen(generation))
+  ipcMain.handle(Channels.BrowserPanelUnfreeze, () => mainApp.embeddedBrowser.unfreeze())
+  ipcMain.handle(Channels.BrowserClearData, () => mainApp.embeddedBrowser.clearData())
   ipcMain.handle(Channels.ExternalApiGetStatus, () => mainApp.externalApi.getStatus())
   ipcMain.handle(Channels.ExternalApiSetEnabled, (_e, enabled: boolean) => mainApp.externalApi.setEnabled(enabled))
   ipcMain.handle(Channels.ExternalApiRegenerateToken, () => mainApp.externalApi.regenerateToken())
@@ -1126,6 +1156,12 @@ app.whenReady().then(async () => {
   // A handoff in a session the user is not looking at still needs their attention.
   mainApp.embeddedBrowser.onHandoffRequest((agentId, _tabId, reason) => {
     mainApp.meowAgent.notifyInputNeeded(agentId, reason)
+  })
+  mainApp.embeddedBrowser.onTabsChanged((agentId, tabs, activeTabId) => {
+    win?.webContents.send(Channels.EventBrowserTabsChanged, { agentId, tabs, activeTabId })
+  })
+  mainApp.embeddedBrowser.onPanelRequest((agentId) => {
+    win?.webContents.send(Channels.EventBrowserPanelRequest, { agentId })
   })
   mainApp.systemLogger.prune(7)
   mainApp.meowAgent.truncationCleanup()

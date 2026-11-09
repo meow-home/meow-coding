@@ -4,8 +4,8 @@ import { Channels } from '../shared/ipc'
 ipcRenderer.setMaxListeners(100)
 import type { ArtifactsChangedEvent } from '../shared/ipc'
 import type { ChatEvent, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, TerminalCreateOptions, TranscriptWindowOpts, UpdaterStatusEvent } from '../shared/types'
-import type { ActivateAgentEvent, AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, GitStatusEvent, PromptStateEvent, TerminalDataEvent, TerminalsChangedEvent, WindowMaximizedChangeEvent, WorkspaceChangedEvent } from '../shared/ipc'
-import type { BrowserStatusInfo } from '../shared/browser-types'
+import type { ActivateAgentEvent, AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, BrowserPanelBounds, BrowserPanelFreezeResult, BrowserPanelRequestEvent, BrowserShortcutEvent, BrowserTabsChangedEvent, GitStatusEvent, PromptStateEvent, TerminalDataEvent, TerminalsChangedEvent, WindowMaximizedChangeEvent, WorkspaceChangedEvent } from '../shared/ipc'
+import type { BrowserStatusInfo, BrowserTabInfo } from '../shared/browser-types'
 import type { ExternalApiStatus } from '../shared/external-api-types'
 
 function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
@@ -187,6 +187,36 @@ const api: AgentApi = {
   getBrowserConsoleLogs: (limit?: number) => ipcRenderer.invoke(Channels.BrowserGetConsoleLogs, limit),
   getBrowserNetworkLogs: (limit?: number) => ipcRenderer.invoke(Channels.BrowserGetNetworkLogs, limit),
   onBrowserStatus: (cb: (info: BrowserStatusInfo) => void) => subscribe(Channels.EventBrowserStatus, cb),
+  browserTabsList: (agentId: string) => ipcRenderer.invoke(Channels.BrowserTabsList, agentId) as Promise<BrowserTabInfo[]>,
+  browserTabCreate: (agentId: string, url?: string) =>
+    ipcRenderer.invoke(Channels.BrowserTabCreate, agentId, url) as Promise<BrowserTabInfo>,
+  browserTabClose: (tabId: number) => ipcRenderer.invoke(Channels.BrowserTabClose, tabId),
+  browserTabActivate: (agentId: string, tabId: number) =>
+    ipcRenderer.invoke(Channels.BrowserTabActivate, agentId, tabId),
+  browserTabNavigate: (tabId: number, url: string) =>
+    ipcRenderer.invoke(Channels.BrowserTabNavigate, tabId, url),
+  browserTabHistory: (tabId: number, action: 'back' | 'forward' | 'reload' | 'stop') =>
+    ipcRenderer.invoke(Channels.BrowserTabHistory, tabId, action),
+  browserTabLogs: (tabId: number, kind: 'console' | 'network', limit?: number) =>
+    ipcRenderer.invoke(Channels.BrowserTabLogs, tabId, kind, limit),
+  browserTakeOver: (tabId: number) => ipcRenderer.invoke(Channels.BrowserTakeOver, tabId),
+  browserHandBack: (tabId: number) => ipcRenderer.invoke(Channels.BrowserHandBack, tabId),
+  browserPanelAttach: (agentId: string, bounds: BrowserPanelBounds) =>
+    ipcRenderer.invoke(Channels.BrowserPanelAttach, agentId, bounds),
+  browserPanelDetach: () => ipcRenderer.invoke(Channels.BrowserPanelDetach),
+  browserPanelSetBounds: (bounds: BrowserPanelBounds) =>
+    ipcRenderer.invoke(Channels.BrowserPanelSetBounds, bounds),
+  browserPanelFreeze: () => ipcRenderer.invoke(Channels.BrowserPanelFreeze) as Promise<BrowserPanelFreezeResult | null>,
+  browserPanelHideFrozen: (generation: number) =>
+    ipcRenderer.invoke(Channels.BrowserPanelHideFrozen, generation),
+  browserPanelUnfreeze: () => ipcRenderer.invoke(Channels.BrowserPanelUnfreeze),
+  browserClearData: () => ipcRenderer.invoke(Channels.BrowserClearData),
+  onBrowserTabsChanged: (cb: (e: BrowserTabsChangedEvent) => void) =>
+    subscribe(Channels.EventBrowserTabsChanged, cb),
+  onBrowserPanelRequest: (cb: (e: BrowserPanelRequestEvent) => void) =>
+    subscribe(Channels.EventBrowserPanelRequest, cb),
+  onBrowserShortcut: (cb: (e: BrowserShortcutEvent) => void) =>
+    subscribe(Channels.EventBrowserShortcut, cb),
   getExternalApiStatus: () => ipcRenderer.invoke(Channels.ExternalApiGetStatus),
   setExternalApiEnabled: (enabled: boolean) => ipcRenderer.invoke(Channels.ExternalApiSetEnabled, enabled),
   regenerateExternalApiToken: () => ipcRenderer.invoke(Channels.ExternalApiRegenerateToken),

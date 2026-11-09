@@ -6,7 +6,7 @@ Shared contract between main / preload / renderer.
   BackgroundProcInfo, MonitorInfo, ChatErrorItem, ...).
   JSON-serializable only: **no** classes, no functions, no Node/Electron imports.
 - `log-helpers.ts` — pure helpers `formatLogArg`/`safeJson`/`formatConsoleArgs` dùng cho system logger (main + renderer). `formatConsoleArgs` interpolates printf-style `%s`/`%d`/`%o`/`%c` console arguments (React/devtools log `console.error('%s', message, stack)`), so renderer log lines carry the real message + stack instead of literal `%s`.
-- `ipc.ts` — `Channels` (all channel strings) + `AgentApi` (API interface) + event payload types
+- `ipc.ts` — `Channels` (all channel strings) + `AgentApi` (API interface) + event payload types, including the built-in browser tab/panel channels and their push events
   (`AgentStateEvent`, `GitStatusEvent`).
 - `image.ts` — image extension list (`IMAGE_EXTENSIONS`) and MIME mapping helper (`imageMimeType`).
 - `browser-types.ts` — types specific to the browser bridge and the built-in browser (extension approval, snapshot, `BrowserTabInfo` / `BrowserTabControl`).

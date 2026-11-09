@@ -178,6 +178,23 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `ExternalApiInstallClaudeSkill` | `external-api:install-claude-skill` | `installClaudeSkill(): string` — writes `~/.claude/skills/meow-delegate/SKILL.md`, returns the written path |
 | `ExternalApiCopyToken` | `external-api:copy-token` | `copyExternalApiToken(): void` — main writes the token to the system clipboard; the token never crosses IPC |
 
+### Browser tabs & panel (built-in)
+
+| Key | Channel | Method |
+|---|---|---|
+| `BrowserTabsList` | `browser-tab:list` | `browserTabsList(agentId): BrowserTabInfo[]` |
+| `BrowserTabCreate` | `browser-tab:create` | `browserTabCreate(agentId, url?): BrowserTabInfo` — a user tab (`agentCreated: false`), same 8/8 caps |
+| `BrowserTabClose` | `browser-tab:close` | `browserTabClose(tabId)` — always works; in-flight commands settle as `tab closed` |
+| `BrowserTabActivate` | `browser-tab:activate` | `browserTabActivate(agentId, tabId)` — shows the tab in the panel, never changes the agent's working tab |
+| `BrowserTabNavigate` | `browser-tab:navigate` | `browserTabNavigate(tabId, url)` — http(s) only; rejects with `Meow is using this tab: take over first` in `agent`/`approval` |
+| `BrowserTabHistory` | `browser-tab:history` | `browserTabHistory(tabId, 'back'\|'forward'\|'reload'\|'stop')` — same guard |
+| `BrowserTabLogs` | `browser-tab:logs` | `browserTabLogs(tabId, 'console'\|'network', limit?)` — the drawer path (includes entries captured during a hold); unknown tab → `[]` |
+| `BrowserTakeOver` / `BrowserHandBack` | `browser-tab:take-over` / `browser-tab:hand-back` | `browserTakeOver(tabId)` / `browserHandBack(tabId)` — no-ops for an unknown or just-closed id |
+| `BrowserPanelAttach` / `BrowserPanelDetach` | `browser-panel:attach` / `browser-panel:detach` | `browserPanelAttach(agentId, bounds)` / `browserPanelDetach()` — one on-screen tab per app |
+| `BrowserPanelSetBounds` | `browser-panel:set-bounds` | `browserPanelSetBounds(bounds)` — CSS px, scaled by the window zoom factor |
+| `BrowserPanelFreeze` / `BrowserPanelHideFrozen` / `BrowserPanelUnfreeze` | `browser-panel:freeze` / `browser-panel:hide-frozen` / `browser-panel:unfreeze` | `browserPanelFreeze(): { generation, image: string \| null } \| null`, `browserPanelHideFrozen(generation)`, `browserPanelUnfreeze()` — the generation guard makes a stale hide a no-op |
+| `BrowserClearData` | `browser-panel:clear-data` | `browserClearData()` — clears the `persist:meow-browser` storage and cache |
+
 ### App & window
 
 | Key | Channel | Method |
@@ -210,6 +227,9 @@ captured in preload).
 | `EventTerminalsChanged` | `terminal:changed` | `TerminalsChangedEvent { agentId, terminals }` | `onTerminalsChanged` |
 | `EventBrowserStatus` | `browser:status` | `BrowserStatusInfo` | `onBrowserStatus` |
 | `EventBrowserOpenInstallGuide` | `browser:install-guide` | `BrowserInstallGuideEvent { extensionDir }` | `onBrowserOpenInstallGuide` |
+| `EventBrowserTabsChanged` | `browser-tab:changed` | `BrowserTabsChangedEvent { agentId, tabs, activeTabId }` | `onBrowserTabsChanged` |
+| `EventBrowserPanelRequest` | `browser-panel:request` | `BrowserPanelRequestEvent { agentId }` | `onBrowserPanelRequest` |
+| `EventBrowserShortcut` | `browser-panel:shortcut` | `BrowserShortcutEvent { action }` | `onBrowserShortcut` |
 | `EventPromptState` | `prompt:state-changed` | `PromptStateEvent { projectPath, agentId, pending }` — fires when an agent starts (`pending: true`) or stops (`pending: false`) waiting on user input | `onPromptState` |
 | `EventActivateAgent` | `agent:activate` | `ActivateAgentEvent { projectPath, agentId }` — sent when the user clicks an OS notification; the renderer opens that workspace and activates the agent's session | `onActivateAgent` |
 | `EventUpdaterStatus` | `updater:status` | `UpdaterStatusEvent` | `onUpdaterStatus` |

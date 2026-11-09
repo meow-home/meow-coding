@@ -6,7 +6,7 @@ import type {
   StatsSummary, TerminalCreateOptions, TerminalInfo, TodoItem, TranscriptWindow, TranscriptWindowOpts,
   UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from './types'
-import type { BrowserStatusInfo, TrustedExtension } from './browser-types'
+import type { BrowserStatusInfo, BrowserTabInfo, TrustedExtension } from './browser-types'
 import type { ExternalApiStatus } from './external-api-types'
 
 export const Channels = {
@@ -128,6 +128,25 @@ export const Channels = {
   BrowserGetConsoleLogs: 'browser:get-console-logs',
   BrowserGetNetworkLogs: 'browser:get-network-logs',
   EventBrowserStatus: 'browser:status',
+  BrowserTabsList: 'browser-tab:list',
+  BrowserTabCreate: 'browser-tab:create',
+  BrowserTabClose: 'browser-tab:close',
+  BrowserTabActivate: 'browser-tab:activate',
+  BrowserTabNavigate: 'browser-tab:navigate',
+  BrowserTabHistory: 'browser-tab:history',
+  BrowserTabLogs: 'browser-tab:logs',
+  BrowserTakeOver: 'browser-tab:take-over',
+  BrowserHandBack: 'browser-tab:hand-back',
+  BrowserPanelAttach: 'browser-panel:attach',
+  BrowserPanelDetach: 'browser-panel:detach',
+  BrowserPanelSetBounds: 'browser-panel:set-bounds',
+  BrowserPanelFreeze: 'browser-panel:freeze',
+  BrowserPanelHideFrozen: 'browser-panel:hide-frozen',
+  BrowserPanelUnfreeze: 'browser-panel:unfreeze',
+  BrowserClearData: 'browser-panel:clear-data',
+  EventBrowserTabsChanged: 'browser-tab:changed',
+  EventBrowserPanelRequest: 'browser-panel:request',
+  EventBrowserShortcut: 'browser-panel:shortcut',
   ExternalApiGetStatus: 'external-api:get-status',
   ExternalApiSetEnabled: 'external-api:set-enabled',
   ExternalApiRegenerateToken: 'external-api:regenerate-token',
@@ -167,6 +186,32 @@ export type BrowserStatusEvent = BrowserStatusInfo
 
 export interface BrowserInstallGuideEvent {
   extensionDir: string
+}
+
+export interface BrowserPanelBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface BrowserPanelFreezeResult {
+  generation: number
+  image: string | null
+}
+
+export interface BrowserTabsChangedEvent {
+  agentId: string
+  tabs: BrowserTabInfo[]
+  activeTabId: number | null
+}
+
+export interface BrowserPanelRequestEvent {
+  agentId: string
+}
+
+export interface BrowserShortcutEvent {
+  action: 'toggle-terminal' | 'toggle-browser' | 'focus-url'
 }
 
 export interface ArtifactsChangedEvent {
@@ -324,6 +369,25 @@ export interface AgentApi {
   getBrowserConsoleLogs(limit?: number): Promise<unknown[]>
   getBrowserNetworkLogs(limit?: number): Promise<unknown[]>
   onBrowserStatus(cb: (info: BrowserStatusInfo) => void): () => void
+  browserTabsList(agentId: string): Promise<BrowserTabInfo[]>
+  browserTabCreate(agentId: string, url?: string): Promise<BrowserTabInfo>
+  browserTabClose(tabId: number): Promise<void>
+  browserTabActivate(agentId: string, tabId: number): Promise<void>
+  browserTabNavigate(tabId: number, url: string): Promise<void>
+  browserTabHistory(tabId: number, action: 'back' | 'forward' | 'reload' | 'stop'): Promise<void>
+  browserTabLogs(tabId: number, kind: 'console' | 'network', limit?: number): Promise<unknown[]>
+  browserTakeOver(tabId: number): Promise<void>
+  browserHandBack(tabId: number): Promise<void>
+  browserPanelAttach(agentId: string, bounds: BrowserPanelBounds): Promise<void>
+  browserPanelDetach(): Promise<void>
+  browserPanelSetBounds(bounds: BrowserPanelBounds): Promise<void>
+  browserPanelFreeze(): Promise<BrowserPanelFreezeResult | null>
+  browserPanelHideFrozen(generation: number): Promise<void>
+  browserPanelUnfreeze(): Promise<void>
+  browserClearData(): Promise<void>
+  onBrowserTabsChanged(cb: (e: BrowserTabsChangedEvent) => void): () => void
+  onBrowserPanelRequest(cb: (e: BrowserPanelRequestEvent) => void): () => void
+  onBrowserShortcut(cb: (e: BrowserShortcutEvent) => void): () => void
   getExternalApiStatus(): Promise<ExternalApiStatus>
   setExternalApiEnabled(enabled: boolean): Promise<ExternalApiStatus>
   regenerateExternalApiToken(): Promise<ExternalApiStatus>

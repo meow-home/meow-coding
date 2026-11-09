@@ -66,7 +66,7 @@ function fakeHost(cdp: CdpClient): {
     setShield: (shield) => { state.shields.push({ ...shield }) },
     setBounds: () => {},
     setVisible: () => {},
-    setOffscreenMetrics: async () => {},
+    setOnScreen: async () => {},
     capture: async () => 'data:image/png;base64,',
     destroy: () => { state.destroyed = true }
   }
@@ -361,7 +361,8 @@ describe('BrowserTab dialogs', () => {
     const cdp = new FakeCdp()
     cdp.responses['Runtime.evaluate'] = { result: { value: true } }
     const tab = makeTab(cdp)
-    // idle: Electron shows its own dialog, nothing is auto-answered or noted.
+    // On screen, idle: Electron shows its own dialog, nothing is auto-answered.
+    await tab.setOnScreen(true)
     cdp.emit('Page.javascriptDialogOpening', { type: 'confirm', message: 'sure?' })
     await tick()
     expect(cdp.calls.filter(c => c.method === 'Page.handleJavaScriptDialog')).toEqual([])
@@ -376,6 +377,19 @@ describe('BrowserTab dialogs', () => {
     tab.handBack()
     const resumed = await tab.run('scroll', { direction: 'down' })
     expect((resumed as { data?: { notice?: string } }).data?.notice ?? '').not.toContain('dialog (')
+    tab.destroy()
+  })
+
+  it('auto-answers an off-screen idle dialog so an unseen page cannot pop one', async () => {
+    const cdp = new FakeCdp()
+    cdp.responses['Runtime.evaluate'] = { result: { value: true } }
+    const tab = makeTab(cdp)
+    await tab.setOnScreen(false)
+    cdp.emit('Page.javascriptDialogOpening', { type: 'confirm', message: 'sure?' })
+    await tick()
+    expect(cdp.calls.filter(c => c.method === 'Page.handleJavaScriptDialog')).toEqual([
+      { method: 'Page.handleJavaScriptDialog', params: { accept: false } }
+    ])
     tab.destroy()
   })
 })

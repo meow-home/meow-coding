@@ -225,18 +225,27 @@ Every session gets its own tabs inside the app window and the agent drives them 
   while the user's drawer reads the full buffers. A request is marked from the moment it starts, so a
   sign-in POST sent during a hold stays private even when its response arrives after hand-back.
 - **Dialogs** (`browser-tab.ts`): while the agent owns the tab, `alert`/`beforeunload` are accepted and
-  `confirm` is dismissed, and the next tool output names the dialog. While the user owns it, Electron's
-  native `alert`/`confirm` stays for the user and nothing is recorded for the agent. Electron shows no
-  dialog and emits no CDP event for `prompt()`, so a page's `prompt()` call never returns (navigate
-  away to recover).
-- **Shield** (`electron-tab-host.ts`): a second transparent `WebContentsView`, created lazily on the
-  first agent command, sits directly above the page with the same bounds and draws the `#1f9cf0` ring,
-  cursor and label from an inline document. It is shown only in `agent`/`approval`, blocks keys through
-  `before-input-event`, never takes focus, and is destroyed with the tab. A drawing error never fails a
-  command.
-- **Limits**: 8 tabs per session, 8 per app (spike S4: ~123 MB of working set per tab). A shield adds
-  a renderer: 8 shields cost +615 MB on top of 875 MB for the 8 pages in a local measurement, so they
-  are created only for tabs the agent actually drives.
+  `confirm` is dismissed, and the next tool output names the dialog. On screen, a `user`/`idle` dialog
+  stays with Electron's native `alert`/`confirm` and nothing is recorded for the agent; off screen the
+  agent rule applies too, except while the user holds the tab, so an unseen page cannot pop an OS
+  dialog. Electron shows no dialog and emits no CDP event for `prompt()`, so a page's `prompt()` call
+  never returns (navigate away to recover).
+- **Shield** (`electron-tab-host.ts`): a second transparent `WebContentsView` above the page with the
+  same bounds, drawing the `#1f9cf0` ring, cursor and label from an inline document. The logical shield
+  state is per tab (`agent`/`approval` only); the physical view exists **only while the tab is on
+  screen**, is created when the tab goes on screen with the shield up and destroyed when it leaves. It
+  blocks keys through `before-input-event`, never takes focus, and is destroyed with the tab. A drawing
+  error never fails a command.
+- **Limits**: 8 tabs per session, 8 per app (spike S4: ~123 MB of working set per tab). Only the
+  on-screen tab pays for a shield renderer: 8 agent-controlled tabs with one on screen measured 956 MB
+  (9 renderers) versus 875 MB for the same tabs without shields; keeping 8 physical shields alive cost
+  1490 MB (16 renderers) in the earlier measurement.
+- **Panel IPC** (`EmbeddedBrowser`): `browserTabsList`, `browserTabCreate` (user tab, no panel request),
+  `browserTabActivate`, `browserTabNavigate`/`browserTabHistory` (http(s) only, rejected while the agent
+  holds the tab), `browserTabLogs` (the drawer path), `browserTakeOver`/`browserHandBack`,
+  `browserPanelAttach`/`Detach`/`SetBounds` (CSS px × window zoom), `browserPanelFreeze`/`HideFrozen`/
+  `Unfreeze` (generation guard) and `browserClearData`. Push events: tabs changed, panel request and the
+  shortcut channel.
 - **Not implemented yet**: the panel UI and the occlusion freeze. Treat the built-in browser as unfinished until
   those land.
 - Chrome remains available with `browser_start({ target: 'chrome' })`; the bridge rules in 8.3 are

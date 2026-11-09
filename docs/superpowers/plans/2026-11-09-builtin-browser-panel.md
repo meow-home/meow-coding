@@ -70,7 +70,7 @@ export interface TabHost {
   setShield(state: { visible: boolean; target?: { x: number; y: number; w: number; h: number; label: string } }): void
   setBounds(bounds: { x: number; y: number; width: number; height: number }): void
   setVisible(visible: boolean): void
-  setOffscreenMetrics(enabled: boolean): Promise<void> // Emulation.setDeviceMetricsOverride on / cleared
+  setOnScreen(onScreen: boolean, bounds?): Promise<void> // panel placement, viewport metrics, physical shield
   capture(): Promise<string>          // data URL from view.webContents.capturePage(), retried
   destroy(): void
 }
@@ -104,7 +104,7 @@ Every agent command passes these steps in this order, inside the tab's FIFO queu
 | `BrowserPanelAttach: 'browser-panel:attach'` | `browserPanelAttach(agentId, bounds)` | `void` |
 | `BrowserPanelDetach: 'browser-panel:detach'` | `browserPanelDetach()` | `void` |
 | `BrowserPanelSetBounds: 'browser-panel:set-bounds'` | `browserPanelSetBounds(bounds)` | `void` |
-| `BrowserPanelFreeze: 'browser-panel:freeze'` | `browserPanelFreeze()` | `{ generation: number; image: string } \| null` (view stays visible) |
+| `BrowserPanelFreeze: 'browser-panel:freeze'` | `browserPanelFreeze()` | `{ generation: number; image: string \| null } \| null` (null = nothing on screen; a failed capture still returns a generation; view stays visible) |
 | `BrowserPanelHideFrozen: 'browser-panel:hide-frozen'` | `browserPanelHideFrozen(generation)` | `void` (ignored if the generation is stale) |
 | `BrowserPanelUnfreeze: 'browser-panel:unfreeze'` | `browserPanelUnfreeze()` | `void` (bumps the generation, shows the view) |
 | `BrowserClearData: 'browser-panel:clear-data'` | `browserClearData()` | `void` |
@@ -239,7 +239,7 @@ review if any gate fails.
       - `will-navigate`, `will-redirect`, `will-frame-navigate` allow `http:`, `https:`, `about:blank` only.
       - `render-process-gone` → crashed state.
       - Attached to `getWindow().contentView` at `DEFAULT_VIEW_BOUNDS`, outside the visible area, with
-        `setOffscreenMetrics(true)` (`Emulation.setDeviceMetricsOverride` 1280×800, scale 1), per spec §5.3.
+        `setOnScreen(false)` (`Emulation.setDeviceMetricsOverride` 1280×800, scale 1), per spec §5.3.
       - The shield document (Task 7) and page capture use `view.webContents.capturePage()`, retried on failure;
         `win.capturePage()` excludes child views.
 - [ ] `hardenBrowserPartition()` in the same file, run once at app ready: permission request and check handlers deny
@@ -310,8 +310,8 @@ review if any gate fails.
 - [ ] `registerIpcHandlers` delegates to `EmbeddedBrowser`. `BrowserTabNavigate` validates the scheme in main.
 - [ ] Forward `onTabsChanged` and `onPanelRequest` to `win.webContents`.
 - [ ] Panel methods on `EmbeddedBrowser`: `attach(agentId, bounds)`, `detach()`, `setBounds(bounds)`, `freeze()`,
-      `hideFrozen(generation)`, `unfreeze()`. Only the panel's active tab is on screen, with `setOffscreenMetrics(false)`;
-      `detach` and tab switches return the others to the no-panel placement with `setOffscreenMetrics(true)`.
+      `hideFrozen(generation)`, `unfreeze()`. Only the panel's active tab is on screen, with `setOnScreen(true, bounds)`;
+      `detach` and tab switches return the others to the no-panel placement with `setOnScreen(false)`.
 - [ ] Unit-test the generation guard: an `unfreeze` during a pending `freeze` leaves the view visible, and a stale
       `hideFrozen` is ignored.
 - [ ] **Physical shield only for the on-screen tab.** Task 7 measured about 77 MB per shield (+615 MB at 8 tabs), and an

@@ -23,7 +23,8 @@ export interface TabHost {
   setShield(state: { visible: boolean; target?: { x: number; y: number; w: number; h: number; label: string } }): void
   setBounds(bounds: { x: number; y: number; width: number; height: number }): void
   setVisible(visible: boolean): void
-  setOffscreenMetrics(enabled: boolean): Promise<void> // Emulation.setDeviceMetricsOverride on / cleared
+  /** Panel visibility: placement, viewport metrics and the physical shield view. */
+  setOnScreen(onScreen: boolean, bounds?: { x: number; y: number; width: number; height: number }): Promise<void>
   capture(): Promise<string>          // data URL from view.webContents.capturePage(), retried
   destroy(): void
 }
@@ -127,6 +128,7 @@ export class BrowserTab {
   private readonly timers: BrowserTabTimers
   private readonly siteApprovals: SiteApprovals
   private control: BrowserTabControl = 'idle'
+  private onScreen = false
   private holdReason: string | undefined
   private leaseTimer: unknown = null
   private crashed = false
@@ -347,6 +349,20 @@ export class BrowserTab {
     if (!found.nodeId) return { ok: false, error: `selector not found: ${selector}` }
     const sensitive = await commands.isSensitiveTarget(this.host.cdp, { nodeId: found.nodeId })
     return sensitive ? commands.sensitiveFieldError(name) : { ok: true }
+  }
+
+  /** The panel shows this tab; the host handles the physical side. */
+  async setOnScreen(onScreen: boolean, bounds?: { x: number; y: number; width: number; height: number }): Promise<void> {
+    this.onScreen = onScreen
+    await this.host.setOnScreen(onScreen, bounds)
+  }
+
+  setBounds(bounds: { x: number; y: number; width: number; height: number }): void {
+    this.host.setBounds(bounds)
+  }
+
+  setVisible(visible: boolean): void {
+    this.host.setVisible(visible)
   }
 
   toInfo(): BrowserTabInfo {
@@ -624,10 +640,13 @@ export class BrowserTab {
         break
       }
       case 'Page.javascriptDialogOpening': {
-        // The agent's dialogs are auto-answered so a page cannot block a turn. In
-        // user/idle the dialog belongs to the user: Electron shows its own native
-        // alert/confirm and nothing is recorded for the agent.
-        if (this.control !== 'agent' && this.control !== 'approval') break
+        // The agent's dialogs are auto-answered so a page cannot block a turn. On
+        // screen, user/idle dialogs belong to the user (Electron shows its own
+        // alert/confirm). Off screen the agent rule applies so an unseen page cannot
+        // pop an OS dialog — except while the user holds the tab.
+        const autoAnswer = this.control === 'agent' || this.control === 'approval'
+          || (!this.onScreen && this.control !== 'user')
+        if (!autoAnswer) break
         const type = String(p.type ?? 'alert')
         const message = String(p.message ?? '')
         const accept = type === 'alert' || type === 'beforeunload'

@@ -101,6 +101,8 @@ export class ElectronTabHost implements TabHost {
   private shieldVisible = false
   private shieldTarget: ShieldTarget | null = null
   private shieldLoaded = false
+  private onScreen = false
+  private onScreenBounds: { x: number; y: number; width: number; height: number } | null = null
 
   constructor(deps: ElectronTabHostDeps) {
     this.deps = deps
@@ -150,12 +152,12 @@ export class ElectronTabHost implements TabHost {
     }
     try {
       win.contentView.addChildView(this.view)
-      this.view.setBounds(DEFAULT_VIEW_BOUNDS)
+      this.view.setBounds(this.onScreen ? (this.onScreenBounds ?? DEFAULT_VIEW_BOUNDS) : DEFAULT_VIEW_BOUNDS)
       this.view.setVisible(true)
       if (this.shield && !this.shield.webContents.isDestroyed()) {
         // Re-added after the page so it stays directly above it.
         win.contentView.addChildView(this.shield)
-        this.shield.setBounds(DEFAULT_VIEW_BOUNDS)
+        this.shield.setBounds(this.view.getBounds())
         this.shield.setVisible(this.shieldVisible)
       }
       this.attachedWindow = win
@@ -218,6 +220,7 @@ export class ElectronTabHost implements TabHost {
   }
 
   setShield(state: { visible: boolean; target?: ShieldTarget }): void {
+    // The logical state is per tab; the physical view only exists on screen.
     this.shieldVisible = state.visible
     this.shieldTarget = state.target ?? null
     if (!state.visible) {
@@ -225,10 +228,42 @@ export class ElectronTabHost implements TabHost {
       this.applyShieldState()
       return
     }
+    if (!this.onScreen) return
     const shield = this.ensureShield()
     if (!shield) return
     shield.setBounds(this.view.getBounds())
     shield.setVisible(true)
+    this.applyShieldState()
+  }
+
+  /**
+   * The tab is the panel's visible tab (or not). On screen: the panel bounds and a
+   * real viewport, plus the shield view if the agent's shield is up. Off screen: the
+   * background placement, the 1280×800 override, and no shield view.
+   */
+  async setOnScreen(onScreen: boolean, bounds?: { x: number; y: number; width: number; height: number }): Promise<void> {
+    await this.ready
+    if (this.readyError) throw new Error(this.readyError)
+    this.onScreen = onScreen
+    if (onScreen && bounds) this.onScreenBounds = bounds
+    if (!this.attachedWindow) this.attach()
+    if (onScreen) {
+      this.view.setBounds(bounds ?? this.onScreenBounds ?? DEFAULT_VIEW_BOUNDS)
+      this.view.setVisible(true)
+      await this.clearOffscreenMetrics()
+      if (this.shieldVisible) {
+        const shield = this.ensureShield()
+        if (shield) {
+          shield.setBounds(this.view.getBounds())
+          shield.setVisible(true)
+        }
+      }
+    } else {
+      this.view.setBounds(DEFAULT_VIEW_BOUNDS)
+      this.view.setVisible(true)
+      this.destroyShieldView()
+      await this.applyOffscreenMetrics()
+    }
     this.applyShieldState()
   }
 
@@ -239,27 +274,8 @@ export class ElectronTabHost implements TabHost {
 
   setVisible(visible: boolean): void {
     this.view.setVisible(visible)
-    // Restoring the host restores the shield only while it should be up.
-    this.shield?.setVisible(visible && this.shieldVisible)
-  }
-
-  async setOffscreenMetrics(enabled: boolean): Promise<void> {
-    await this.ready
-    const wc = this.view.webContents
-    try {
-      if (enabled) {
-        await wc.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
-          width: DEFAULT_VIEW_BOUNDS.width,
-          height: DEFAULT_VIEW_BOUNDS.height,
-          deviceScaleFactor: 1,
-          mobile: false
-        })
-      } else {
-        await wc.debugger.sendCommand('Emulation.clearDeviceMetricsOverride')
-      }
-    } catch {
-      // No debugger (not attached yet or detached): the next command reports it.
-    }
+    // Restoring the host restores the shield only while it should be up on screen.
+    this.shield?.setVisible(visible && this.shieldVisible && this.onScreen)
   }
 
   async capture(): Promise<string> {
@@ -359,8 +375,48 @@ export class ElectronTabHost implements TabHost {
     wc.on('did-stop-loading', changed)
   }
 
+  private destroyShieldView(): void {
+    const shield = this.shield
+    if (!shield) return
+    this.shield = null
+    this.shieldLoaded = false
+    try {
+      this.attachedWindow?.contentView.removeChildView(shield)
+    } catch {
+      // window or shield already gone
+    }
+    try {
+      shield.webContents.close()
+    } catch {
+      // already closed
+    }
+  }
+
+  private async applyOffscreenMetrics(): Promise<void> {
+    const wc = this.view.webContents
+    try {
+      await wc.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
+        width: DEFAULT_VIEW_BOUNDS.width,
+        height: DEFAULT_VIEW_BOUNDS.height,
+        deviceScaleFactor: 1,
+        mobile: false
+      })
+    } catch {
+      // No debugger (not attached yet or detached): the next command reports it.
+    }
+  }
+
+  private async clearOffscreenMetrics(): Promise<void> {
+    const wc = this.view.webContents
+    try {
+      await wc.debugger.sendCommand('Emulation.clearDeviceMetricsOverride')
+    } catch {
+      // No debugger: the next command reports it.
+    }
+  }
+
   private ensureShield(): WebContentsView | null {
-    if (this.destroyed) return null
+    if (this.destroyed || !this.onScreen) return null
     if (this.shield && !this.shield.webContents.isDestroyed()) return this.shield
     const shield = new WebContentsView({
       webPreferences: {
@@ -430,12 +486,8 @@ export class ElectronTabHost implements TabHost {
     for (const domain of DEBUGGER_DOMAINS) {
       await wc.debugger.sendCommand(`${domain}.enable`)
     }
-    await wc.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
-      width: DEFAULT_VIEW_BOUNDS.width,
-      height: DEFAULT_VIEW_BOUNDS.height,
-      deviceScaleFactor: 1,
-      mobile: false
-    })
+    if (this.onScreen) await this.clearOffscreenMetrics()
+    else await this.applyOffscreenMetrics()
     this.readyError = null
   }
 

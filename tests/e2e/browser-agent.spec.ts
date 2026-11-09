@@ -332,6 +332,7 @@ interface ShieldInspection {
   sameBounds: boolean
   shieldVisible: boolean
   shieldUrl: string
+  pageBounds: { x: number; y: number; width: number; height: number }
   pageClicks: number
   pageKeys: number
 }
@@ -344,7 +345,7 @@ function inspectShield(app: ElectronApp, fixtureUrl: string): Promise<ShieldInsp
     const page = children.find(c => c.webContents?.getURL().startsWith(fixture))
     const shield = children.find(c => c.webContents?.getURL().startsWith('data:text/html'))
     if (!page || !shield || !page.webContents || !shield.webContents) {
-      throw new Error(`browser views not found (${children.length} children)`)
+      throw new Error(`browser views not found (${children.length} children: ${children.map(c => c.webContents?.getURL() ?? 'none').join(' | ')})`)
     }
     const pageWc = page.webContents
     const shieldWc = shield.webContents
@@ -366,32 +367,51 @@ function inspectShield(app: ElectronApp, fixtureUrl: string): Promise<ShieldInsp
         sameBounds,
         shieldVisible: shield.getVisible(),
         shieldUrl: shieldWc.getURL().slice(0, 24),
+        pageBounds: page.getBounds(),
         pageClicks: counters.clicks,
         pageKeys: counters.keys
       }))
   }, fixtureUrl)
 }
 
-function shieldVisibility(app: ElectronApp): Promise<{ childCount: number; visible: boolean }> {
+function shieldVisibility(app: ElectronApp): Promise<{ childCount: number; visible: boolean; shieldUrl: string }> {
   return app.evaluate(({ BrowserWindow }) => {
     const win = BrowserWindow.getAllWindows()[0]
     const children = win.contentView.children as unknown as ShieldViewLike[]
     const shield = children.find(c => c.webContents?.getURL().startsWith('data:text/html'))
-    return { childCount: children.length, visible: shield ? shield.getVisible() : false }
+    return {
+      childCount: children.length,
+      visible: shield ? shield.getVisible() : false,
+      shieldUrl: shield?.webContents?.getURL() ?? ''
+    }
   })
 }
 
 test('the shield covers the page while the agent works and is destroyed with the session', async () => {
   const { server: fixture, url } = await startFixtureServer()
+  const attachRect = { x: 100, y: 100, width: 600, height: 400 }
   let appRef: ElectronApp | null = null
+  let windowRef: Page | null = null
+  let sessionId = ''
   let probe: ShieldInspection | null = null
+  let beforeAttach: { childCount: number; visible: boolean } | null = null
   const { server: llm, port } = await startMockLlm([
     { toolCall: { name: 'browser_navigate', args: { url } } },
     {
       toolCall: {
         name: 'browser_list_tabs',
         args: async () => {
-          if (!appRef) throw new Error('app not launched')
+          if (!appRef || !windowRef || !sessionId) throw new Error('app not launched')
+          // With no panel there is no shield view at all (it is created on screen).
+          beforeAttach = await shieldVisibility(appRef)
+          await windowRef.evaluate(async ({ id, rect }) => {
+            await (window as unknown as {
+              api: { browserPanelAttach(agentId: string, b: typeof rect): Promise<void> }
+            }).api.browserPanelAttach(id, rect)
+          }, { id: sessionId, rect: attachRect })
+          // The shield document loads asynchronously after the view is created.
+          await expect.poll(async () => (await shieldVisibility(appRef!)).shieldUrl, { timeout: 10000 })
+            .toContain('data:text/html')
           probe = await inspectShield(appRef, url)
           return {}
         }
@@ -409,14 +429,25 @@ test('the shield covers the page while the agent works and is destroyed with the
 
     const { app, window } = await launch(userData)
     appRef = app
+    windowRef = window
+    sessionId = (await window.evaluate(async (projectPath) => {
+      const api = (window as unknown as {
+        api: { listWorkspaces(): Promise<Array<{ projectPath: string; sessions?: Array<{ id: string }> }>> }
+      }).api
+      const list = await api.listWorkspaces()
+      return list.find(ws => ws.projectPath === projectPath)?.sessions?.[0]?.id ?? null
+    }, project)) ?? ''
+    expect(sessionId).toBeTruthy()
     try {
       await window.locator('.chat-input-field').fill('show the shield')
       await window.locator('.chat-input-field').press('Enter')
       await expect(window.locator('.chat-msg.assistant').last()).toContainText('shield probe done', { timeout: 55_000 })
 
+      expect(beforeAttach).toMatchObject({ childCount: 1, visible: false })
       const seen = probe as ShieldInspection | null
       expect(seen, 'shield probe did not run').not.toBeNull()
       expect(seen!.childCount).toBe(2)
+      expect(seen!.pageBounds).toEqual(attachRect)
       expect(seen!.shieldAbove).toBe(true)
       expect(seen!.sameBounds).toBe(true)
       expect(seen!.shieldVisible).toBe(true)
@@ -428,14 +459,6 @@ test('the shield covers the page while the agent works and is destroyed with the
       await expect.poll(async () => (await shieldVisibility(app)).visible).toBe(false)
 
       // Deleting the session destroys both renderers.
-      const sessionId = await window.evaluate(async (projectPath) => {
-        const api = (window as unknown as {
-          api: { listWorkspaces(): Promise<Array<{ projectPath: string; sessions?: Array<{ id: string }> }>> }
-        }).api
-        const list = await api.listWorkspaces()
-        return list.find(ws => ws.projectPath === projectPath)?.sessions?.[0]?.id ?? null
-      }, project)
-      expect(sessionId).toBeTruthy()
       await window.evaluate(async ({ projectPath, agentId }) => {
         await (window as unknown as { api: { removeAgent(p: string, a: string): Promise<void> } })
           .api.removeAgent(projectPath, agentId)

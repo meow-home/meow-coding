@@ -37,6 +37,10 @@ class FakeHost implements TabHost {
   readonly cdp = new FakeCdp()
   loaded: string[] = []
   destroyed = false
+  onScreen = false
+  bounds: { x: number; y: number; width: number; height: number } = { x: 0, y: 0, width: 0, height: 0 }
+  visible = true
+  captureImpl: (() => Promise<string>) | null = null
 
   constructor() {
     this.id = FakeHost.nextId++
@@ -62,13 +66,22 @@ class FakeHost implements TabHost {
 
   setShield(): void {}
 
-  setBounds(): void {}
+  setBounds(bounds: { x: number; y: number; width: number; height: number }): void {
+    this.bounds = { ...bounds }
+  }
 
-  setVisible(): void {}
+  setVisible(visible: boolean): void {
+    this.visible = visible
+  }
 
-  async setOffscreenMetrics(): Promise<void> {}
+  async setOnScreen(onScreen: boolean, bounds?: { x: number; y: number; width: number; height: number }): Promise<void> {
+    this.onScreen = onScreen
+    if (bounds) this.bounds = { ...bounds }
+    this.visible = true
+  }
 
   async capture(): Promise<string> {
+    if (this.captureImpl) return this.captureImpl()
     return 'data:image/png;base64,'
   }
 
@@ -96,7 +109,11 @@ afterEach(() => {
   if (dir) rmSync(dir, { recursive: true, force: true })
 })
 
-function makeBrowser(options: { hasWindow?: () => boolean } = {}): {
+function makeBrowser(options: {
+  hasWindow?: () => boolean
+  getZoomFactor?: () => number
+  clearData?: () => Promise<void>
+} = {}): {
   browser: EmbeddedBrowser
   hosts: FakeHost[]
   callbacks: HostCallbacks[]
@@ -375,5 +392,176 @@ describe('EmbeddedBrowser logs', () => {
     expect(browser.getConsoleLogs(call('a'), undefined, firstId)).toEqual([{ level: 'log', text: 'from first' }])
     expect(browser.getNetworkLogs(call('a'))).toEqual([])
     expect(browser.getConsoleLogs(call('nobody'))).toEqual([])
+  })
+})
+
+describe('EmbeddedBrowser panel', () => {
+  async function twoTabs(options: { getZoomFactor?: () => number; clearData?: () => Promise<void> } = {}): Promise<{
+    browser: EmbeddedBrowser
+    hosts: FakeHost[]
+    requests: string[]
+  }> {
+    const { browser, hosts } = makeBrowser(options)
+    const requests: string[] = []
+    browser.onPanelRequest(agentId => requests.push(agentId))
+    await browser.execute('openTab', { url: 'http://127.0.0.1:3000/1' }, call('a'))
+    await browser.execute('openTab', { url: 'http://127.0.0.1:3000/2' }, call('a'))
+    requests.length = 0
+    return { browser, hosts, requests }
+  }
+
+  it('attaches the working tab with zoomed bounds, updates bounds and detaches', async () => {
+    const { browser, hosts } = await twoTabs({ getZoomFactor: () => 2 })
+    await browser.attach('a', { x: 10, y: 20, width: 300, height: 200 })
+    expect(hosts[1].onScreen).toBe(true)
+    expect(hosts[1].bounds).toEqual({ x: 20, y: 40, width: 600, height: 400 })
+    expect(hosts[0].onScreen).toBe(false)
+
+    await browser.setBounds({ x: 0, y: 0, width: 100, height: 50 })
+    expect(hosts[1].bounds).toEqual({ x: 0, y: 0, width: 200, height: 100 })
+
+    await browser.detach()
+    expect(hosts[1].onScreen).toBe(false)
+    expect(hosts[1].visible).toBe(true)
+  })
+
+  it('activateTab swaps the on-screen tab without changing the working tab', async () => {
+    const { browser, hosts } = await twoTabs()
+    await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 })
+    await browser.activateTab('a', hosts[0].id)
+    expect(hosts[0].onScreen).toBe(true)
+    expect(hosts[1].onScreen).toBe(false)
+
+    // The agent's untargeted command still drives the working tab (the second one).
+    expect((await browser.execute('navigate', { url: 'http://127.0.0.1:3000/3' }, call('a'))).ok).toBe(true)
+    expect(hosts[1].loaded).toContain('http://127.0.0.1:3000/3')
+    expect(hosts[0].loaded).not.toContain('http://127.0.0.1:3000/3')
+  })
+
+  it('a user-created tab becomes the panel tab without a panel request', async () => {
+    const { browser, hosts, requests } = await twoTabs()
+    await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 })
+    const created = await browser.createUserTab('a', 'http://127.0.0.1:3000/user')
+    const host = hosts[hosts.length - 1]
+    expect(host.onScreen).toBe(true)
+    expect(host.loaded).toContain('http://127.0.0.1:3000/user')
+    expect(created.control).toBe('idle')
+    expect(requests).toEqual([])
+  })
+
+  it('an agent-created tab does not yank the panel off the user tab', async () => {
+    const { browser, hosts } = await twoTabs()
+    await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 })
+    await browser.activateTab('a', hosts[0].id)
+    expect((await browser.execute('openTab', { url: 'http://127.0.0.1:3000/agent' }, call('a'))).ok).toBe(true)
+    expect(hosts[0].onScreen).toBe(true)
+    expect(hosts[2].onScreen).toBe(false)
+  })
+
+  it('enforces the tab cap for user tabs with the cap message', async () => {
+    const { browser } = await twoTabs()
+    for (let i = 2; i < 8; i++) await browser.createUserTab('a')
+    await expect(browser.createUserTab('a')).rejects.toThrow('per session')
+  })
+
+  it('guards user navigation and history while the agent works', async () => {
+    const { browser, hosts } = await twoTabs()
+    const tabId = hosts[0].id
+    await expect(browser.navigateFromUser(tabId, 'file:///C:/secret.txt')).rejects.toThrow('invalid url')
+    await expect(browser.navigateFromUser(tabId, 'not a url')).rejects.toThrow('invalid url')
+
+    // The agent's lease makes the tab its own.
+    expect((await browser.execute('scroll', { direction: 'down', tabId }, call('a'))).ok).toBe(true)
+    await expect(browser.navigateFromUser(tabId, 'http://127.0.0.1:3000/next')).rejects.toThrow(
+      'Meow is using this tab: take over first'
+    )
+    expect(() => browser.historyFromUser(tabId, 'reload')).toThrow('Meow is using this tab: take over first')
+
+    browser.takeOver(tabId)
+    await browser.navigateFromUser(tabId, 'http://127.0.0.1:3000/next')
+    expect(hosts[0].loaded).toContain('http://127.0.0.1:3000/next')
+    expect(() => browser.historyFromUser(tabId, 'bogus' as never)).toThrow('invalid history action')
+  })
+
+  it('the drawer log path includes entries the agent path hides', async () => {
+    const { browser, hosts } = await twoTabs()
+    const tabId = hosts[0].id
+    browser.takeOver(tabId)
+    hosts[0].cdp.emit('Runtime.consoleAPICalled', { type: 'log', args: [{ value: 'during hold' }] })
+    expect(browser.logsFromUser(tabId, 'console')).toEqual([{ level: 'log', text: 'during hold' }])
+    expect(browser.getConsoleLogs(call('a'))).toEqual([])
+    expect(browser.logsFromUser(999_999, 'console')).toEqual([])
+  })
+
+  it('freeze/hide/unfreeze honors the generation guard', async () => {
+    const { browser, hosts } = await twoTabs()
+    await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 })
+    const frozen = await browser.freeze()
+    expect(frozen?.image).toBe('data:image/png;base64,')
+    browser.hideFrozen(frozen!.generation)
+    expect(hosts[1].visible).toBe(false)
+
+    browser.unfreeze()
+    expect(hosts[1].visible).toBe(true)
+    // A stale hide is ignored.
+    browser.hideFrozen(frozen!.generation)
+    expect(hosts[1].visible).toBe(true)
+  })
+
+  it('an unfreeze during a pending capture wins', async () => {
+    const { browser, hosts } = await twoTabs()
+    await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 })
+    let resolveCapture!: (value: string) => void
+    hosts[1].captureImpl = () => new Promise<string>(resolve => { resolveCapture = resolve })
+    const pending = browser.freeze()
+    browser.unfreeze()
+    resolveCapture('data:image/png;base64,AA')
+    const frozen = await pending
+    expect(frozen?.image).toBe('data:image/png;base64,AA')
+    browser.hideFrozen(frozen!.generation)
+    expect(hosts[1].visible).toBe(true)
+  })
+
+  it('a failed capture still returns a generation', async () => {
+    const { browser, hosts } = await twoTabs()
+    await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 })
+    hosts[1].captureImpl = async () => { throw new Error('capture failed') }
+    const frozen = await browser.freeze()
+    expect(frozen?.image).toBeNull()
+    expect(typeof frozen?.generation).toBe('number')
+  })
+
+  it('setBounds during a freeze is applied without showing the view', async () => {
+    const { browser, hosts } = await twoTabs()
+    await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 })
+    const frozen = await browser.freeze()
+    browser.hideFrozen(frozen!.generation)
+    await browser.setBounds({ x: 5, y: 6, width: 70, height: 80 })
+    expect(hosts[1].bounds).toEqual({ x: 5, y: 6, width: 70, height: 80 })
+    expect(hosts[1].visible).toBe(false)
+  })
+
+  it('a tab switch or detach during a freeze leaves the views correct', async () => {
+    const { browser, hosts } = await twoTabs()
+    await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 })
+    const frozen = await browser.freeze()
+    browser.hideFrozen(frozen!.generation)
+    await browser.activateTab('a', hosts[0].id)
+    expect(hosts[0].onScreen).toBe(true)
+    expect(hosts[0].visible).toBe(true)
+    expect(hosts[1].visible).toBe(true)
+
+    const frozen2 = await browser.freeze()
+    browser.hideFrozen(frozen2!.generation)
+    await browser.detach()
+    expect(hosts[0].onScreen).toBe(false)
+    expect(hosts[0].visible).toBe(true)
+  })
+
+  it('clearData delegates to the partition dep', async () => {
+    let cleared = 0
+    const { browser } = await twoTabs({ clearData: async () => { cleared++ } })
+    await browser.clearData()
+    expect(cleared).toBe(1)
   })
 })
