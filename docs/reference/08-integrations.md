@@ -85,7 +85,9 @@ Behavior:
 ## 8.3 Chrome browser bridge
 
 Lets the agent drive the user's **real** Chrome profile — logged-in sessions, real extensions, real
-cookies — instead of a throwaway automation profile.
+cookies — instead of a throwaway automation profile. This is the **opt-in** backend now
+(`browser_start({ target: 'chrome' })` or `browser.backend: "chrome"` in `meow.json`); the built-in
+browser below is the default.
 
 ```
 BrowserBridge (main)                    Meow Browser Bridge (Chrome MV3 extension)
@@ -171,6 +173,35 @@ This runs automatically via `predev` / `prebuild` / `predist*`.
 
 **Design constraint:** the bridge runs on the user's real Chrome profile. Do **not** add a
 per-project profile.
+
+## 8.3b Built-in browser (default backend)
+
+Every session gets its own tabs inside the app window and the agent drives them with the same
+`browser_*` tools — no extension, no pairing and no Chrome profile.
+
+- **Host** (`src/main/browser/electron-tab-host.ts`): one sandboxed `WebContentsView` per tab
+  (`sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`, no preload) on the
+  `persist:meow-browser` partition with `backgroundThrottling: false`. It is attached to the main
+  window's `contentView` at 1280×800, outside the visible area, with
+  `Emulation.setDeviceMetricsOverride` — spike S2 showed that a plain off-screen view has a 0×0
+  viewport in a visible window and every click misses. The debugger is attached with `Page`,
+  `Runtime`, `Network`, `Log`, `DOM` and `Accessibility` enabled.
+- **Hardening** (`hardenBrowserPartition`): permission requests and checks deny everything except
+  `clipboard-sanitized-write`; navigation is limited to `http:`, `https:` and `about:blank`;
+  `window.open` on an http(s) URL becomes a new tab of the same session; downloads are cancelled while
+  the agent controls the tab (control state arrives with the shield work — until then nothing is
+  cancelled).
+- **Commands** (`src/main/browser/browser-tab.ts` + `cdp-commands.ts`): `read` (snapshot file),
+  `click` (content-quad centre via `Input.dispatchMouseEvent`), `type` (`Input.insertText` after
+  selecting the content), `select`, `scroll`, `waitFor`, `navigate`, `reload` and `closeTab`, all
+  through one FIFO queue per tab with a 30 s command timeout. Console and network events are
+  ring-buffered (200 entries each).
+- **Limits**: 8 tabs per session, 8 per app (spike S4: ~123 MB of working set per tab).
+- **Not implemented yet**: site approval, password-field refusal, `browser_handoff`, the panel UI, the
+  shield and the occlusion freeze. Treat the built-in browser as unfinished: a page can be driven
+  without an approval prompt and a password field can be typed into.
+- Chrome remains available with `browser_start({ target: 'chrome' })`; the bridge rules in 8.3 are
+  unchanged.
 
 ## 8.4 OfficeCLI
 

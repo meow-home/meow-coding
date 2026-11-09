@@ -43,7 +43,8 @@ export function createBrowserTools(router: BrowserRouterLike): ToolDefinition[] 
     {
       name: 'browser_navigate',
       description:
-        'Open a URL in a new tab of this session\'s browser. Never navigates or hijacks an existing tab. ' +
+        'Open a URL in this session\'s browser. The built-in browser navigates the working tab (creating one when ' +
+        'the session has none); Chrome opens a new background tab and never reuses an existing one. ' +
         'Returns a tabId for other browser_* tools.',
       schema: z.object({
         url: z.string().describe('The http(s) URL to open.')
@@ -180,7 +181,10 @@ export function createBrowserTools(router: BrowserRouterLike): ToolDefinition[] 
     },
     {
       name: 'browser_switch_tab',
-      description: 'Activate a tab by its id (from browser_list_tabs) without focusing the browser window.',
+      description:
+        'Activate a tab by its id (from browser_list_tabs). The built-in browser makes it the agent\'s working tab ' +
+        'without changing the tab the user has selected in the panel; Chrome activates the Chrome tab without ' +
+        'focusing the window.',
       schema: z.object({
         tabId: z.number().describe('Tab id to activate.')
       }),
@@ -208,26 +212,28 @@ export function createBrowserTools(router: BrowserRouterLike): ToolDefinition[] 
       name: 'browser_console',
       description: 'Return recent browser console logs (errors, warnings, page messages). ' + SNAPSHOT_UNTRUSTED_NOTICE,
       schema: z.object({
-        limit: z.number().int().positive().max(200).optional()
+        limit: z.number().int().positive().max(200).optional(),
+        tabId: z.number().int().optional().describe('Optional tab id; defaults to the working tab. Chrome ignores it.')
       }),
       async run(input, ctx): Promise<ToolRunResult> {
         const call = callFor(ctx)
         if (!call) return { error: NO_CONTEXT }
-        const { limit } = input as unknown as { limit?: number }
-        return { output: JSON.stringify(router.backendFor(call.ownerId).getConsoleLogs(call, limit), null, 2) }
+        const { limit, tabId } = input as unknown as { limit?: number; tabId?: number }
+        return { output: JSON.stringify(router.backendFor(call.ownerId).getConsoleLogs(call, limit, tabId), null, 2) }
       }
     },
     {
       name: 'browser_network',
       description: 'Return recent network requests observed on the page (method, url, status). ' + SNAPSHOT_UNTRUSTED_NOTICE,
       schema: z.object({
-        limit: z.number().int().positive().max(200).optional()
+        limit: z.number().int().positive().max(200).optional(),
+        tabId: z.number().int().optional().describe('Optional tab id; defaults to the working tab. Chrome ignores it.')
       }),
       async run(input, ctx): Promise<ToolRunResult> {
         const call = callFor(ctx)
         if (!call) return { error: NO_CONTEXT }
-        const { limit } = input as unknown as { limit?: number }
-        return { output: JSON.stringify(router.backendFor(call.ownerId).getNetworkLogs(call, limit), null, 2) }
+        const { limit, tabId } = input as unknown as { limit?: number; tabId?: number }
+        return { output: JSON.stringify(router.backendFor(call.ownerId).getNetworkLogs(call, limit, tabId), null, 2) }
       }
     },
     {

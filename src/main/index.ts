@@ -57,6 +57,8 @@ import { BrowserBridge } from './browser/bridge'
 import { createChromeLauncher, ensureExtensionInstalled } from './browser/chrome-launcher'
 import { ChromeBackend } from './browser/chrome-backend'
 import { BrowserRouter } from './browser/browser-router'
+import { EmbeddedBrowser } from './browser/embedded-browser'
+import { createElectronTabHost, hardenBrowserPartition, reattachBrowserTabs } from './browser/electron-tab-host'
 import { TrustedExtensionStore } from './browser/trusted-store'
 import type { TrustedExtension } from '../shared/browser-types'
 import { ExternalApiConfigFile } from './external-api/config-file'
@@ -170,10 +172,18 @@ export class MainApp {
     getWindow: () => win,
     extensionDir: path.join(app.getPath('userData'), 'browser-extension')
   })
+  embeddedBrowser = new EmbeddedBrowser({
+    createHost: (ownerId, callbacks) => createElectronTabHost({ getWindow: () => win, callbacks }),
+    snapshotDir: path.join(app.getPath('userData'), 'browser-snapshots'),
+    hasWindow: () => !!win && !win.isDestroyed()
+  })
   browserRouter = new BrowserRouter({
-    backends: { chrome: new ChromeBackend({ bridge: this.browserBridge, launcher: this.browserLauncher }) },
+    backends: {
+      builtin: this.embeddedBrowser,
+      chrome: new ChromeBackend({ bridge: this.browserBridge, launcher: this.browserLauncher })
+    },
     // Re-read meow.json on every resolution so a settings save applies without a restart.
-    defaultBackend: () => loadMeowConfig(path.join(app.getPath('userData'), 'meow.json')).browser?.backend ?? 'chrome'
+    defaultBackend: () => loadMeowConfig(path.join(app.getPath('userData'), 'meow.json')).browser?.backend ?? 'builtin'
   })
   vault = new Vault(path.join(app.getPath('userData'), 'connections', 'vault.json'))
   connections = new ConnectionsManager({
@@ -761,6 +771,8 @@ function createWindow(): void {
   win.on('closed', () => {
     win = null
   })
+  // Tabs outlive the window; re-add their views to the new contentView.
+  reattachBrowserTabs()
   win.on('close', (event) => {
     // Closing the window hides it to the tray so agents keep running; real
     // quit only happens through tray Exit / Cmd+Q (isQuitting set by
@@ -938,6 +950,8 @@ export function registerIpcHandlers(): void {
     mainApp.meowAgent.removeAgent(agentId)
     await mainApp.delegationService.handleAgentRemoved(agentId)
     await mainApp.terminals.removeSession(agentId)
+    mainApp.embeddedBrowser.removeSession(agentId)
+    mainApp.browserRouter.forget(agentId)
     await mainApp.pty.stop(agentId)
     mainApp.workspaces.removeAgent(projectPath, agentId)
     mainApp.clearState(agentId)
@@ -1105,6 +1119,7 @@ export function registerIpcHandlers(): void {
 
 app.whenReady().then(async () => {
   if (!gotTheLock) return // secondary instance — already quitting
+  hardenBrowserPartition({ controlOf: id => mainApp.embeddedBrowser.controlOf(id) })
   mainApp.systemLogger.prune(7)
   mainApp.meowAgent.truncationCleanup()
   await mainApp.browserBridge.start().catch(err => {
@@ -1220,6 +1235,8 @@ app.on('before-quit', (event) => {
     return mainApp.connections.dispose()
   }).then(() => {
     return mainApp.browserBridge.close()
+  }).then(() => {
+    mainApp.embeddedBrowser.closeAll()
   }).then(() => {
     tray?.dispose()
     tray = null

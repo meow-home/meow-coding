@@ -705,9 +705,9 @@ describe('mcpOutput config', () => {
 })
 
 describe('browser config', () => {
-  it('defaults to chrome and ask while the built-in backend is absent', () => {
+  it('defaults to the built-in backend and ask', () => {
     const cfg = loadMeowConfig(file)
-    expect(cfg.browser).toEqual({ backend: 'chrome', siteApproval: 'ask' })
+    expect(cfg.browser).toEqual({ backend: 'builtin', siteApproval: 'ask' })
   })
 
   it('keeps a valid choice through load and a settings round trip', () => {
@@ -722,7 +722,7 @@ describe('browser config', () => {
 
   it('normalizes invalid values to the defaults', () => {
     writeFileSync(file, JSON.stringify({ browser: { backend: 'firefox', siteApproval: 'always' } }))
-    expect(loadMeowConfig(file).browser).toEqual({ backend: 'chrome', siteApproval: 'ask' })
+    expect(loadMeowConfig(file).browser).toEqual({ backend: 'builtin', siteApproval: 'ask' })
   })
 
   it('does not erase the choice when a settings save omits browser', () => {

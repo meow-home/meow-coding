@@ -23,7 +23,7 @@ vocabulary is "session".
 - `src/shared` — shared types + IPC contract. **DO NOT** import Node/Electron here.
 - `src/browser-extension` — Chrome MV3 extension (built separately with esbuild → `out/browser-extension`,
   copy to `userData/browser-extension/` to Load unpacked on a real Chrome profile).
-- `src/main/browser` — BrowserBridge (local WS server + extension approval) + Chrome launcher/install guide.
+- `src/main/browser` — built-in browser (Electron tab host, `EmbeddedBrowser`, CDP commands) + backend router + BrowserBridge (local WS server + extension approval) + Chrome launcher/install guide.
 
 Alias `@shared` → `src/shared` (configured in electron.vite.config.ts, vitest.config.ts, tsconfig).
 
@@ -63,6 +63,9 @@ Alias `@shared` → `src/shared` (configured in electron.vite.config.ts, vitest.
 - Agent exits must be handled: kill the entire process tree (`tree-kill`), no orphan processes.
 - Browser bridge: only bind `127.0.0.1` (do not expose to the network), an approved extension id required before accepting
   commands; runs on the user's **real** Chrome profile — do not create a separate profile per project.
+- Built-in browser: the default backend. Its cookies live in the `persist:meow-browser` Chromium partition under
+  `userData/Partitions/` — that is **not** a Chrome profile and must never be pointed at the user's Chrome data. The
+  bridge rules above are unchanged for the Chrome backend.
 - Custom subagent roles live in `.meow/agents/*.md` (project) or `userData/agents/*.md` (user);
   frontmatter takes `name`, `description`, `tools`, `model`, `deny`, `ask`. There is no `allow` key —
   a role file can only narrow what the user's own permission rules already grant.

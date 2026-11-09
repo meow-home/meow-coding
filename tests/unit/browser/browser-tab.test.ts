@@ -30,15 +30,18 @@ class FakeCdp implements CdpClient {
   }
 }
 
-function fakeHost(cdp: CdpClient): { host: TabHost; state: { url: string; title: string; destroyed: boolean } } {
-  const state = { url: 'https://example.com/', title: 'Example', destroyed: false }
+function fakeHost(cdp: CdpClient): {
+  host: TabHost
+  state: { url: string; title: string; destroyed: boolean; history: string[] }
+} {
+  const state = { url: 'https://example.com/', title: 'Example', destroyed: false, history: [] as string[] }
   const host: TabHost = {
     id: 42,
     cdp,
     getUrl: () => state.url,
     getTitle: () => state.title,
     loadUrl: async (url) => { state.url = url },
-    history: () => {},
+    history: (action) => { state.history.push(action) },
     navState: () => ({ loading: false, canGoBack: true, canGoForward: false }),
     setShield: () => {},
     setBounds: () => {},
@@ -342,9 +345,36 @@ describe('BrowserTab lifecycle', () => {
     expect((await tab.run('scroll', { direction: 'down' })).ok).toBe(true)
   })
 
-  it('rejects tab-manager commands it does not own', async () => {
-    const tab = makeTab(new FakeCdp())
-    expect(errorOf(await tab.run('navigate', { url: 'https://x' }))).toBe('unsupported command: navigate')
+  it('navigates through the host and reports the tab id, url and title', async () => {
+    const cdp = new FakeCdp()
+    const { host, state } = fakeHost(cdp)
+    const tab = new BrowserTab(host, { agentId: 'agent-1', snapshotDir: dir })
+    const result = await tab.run('navigate', { url: 'https://example.org/' })
+    expect(result).toEqual({
+      ok: true,
+      data: { tabId: 42, url: 'https://example.org/', title: 'Example' }
+    })
+    expect(state.url).toBe('https://example.org/')
+  })
+
+  it('reloads through the host and rejects commands the browser owns', async () => {
+    const cdp = new FakeCdp()
+    const { host, state } = fakeHost(cdp)
+    const tab = new BrowserTab(host, { agentId: 'agent-1', snapshotDir: dir })
+    expect(await tab.run('reload')).toEqual({ ok: true })
+    expect(state.history).toEqual(['reload'])
+    expect(errorOf(await tab.run('openTab', { url: 'https://x' }))).toBe('unsupported command: openTab')
+  })
+
+  it('settles an in-flight command when the tab is destroyed', async () => {
+    const cdp = new FakeCdp()
+    cdp.onSend = (method) => (method === 'Runtime.evaluate' ? new Promise<void>(() => {}) : undefined)
+    const { host } = fakeHost(cdp)
+    const tab = new BrowserTab(host, { agentId: 'agent-1', snapshotDir: dir })
+    const pending = tab.run('scroll', { direction: 'down' })
+    await tick()
+    tab.destroy()
+    expect(await pending).toEqual({ ok: false, error: 'tab closed' })
   })
 
   it('destroys the host and stops listening', () => {

@@ -284,30 +284,33 @@ Examples: `["create","report.docx"]`,
 ## 4.3 Browser tools (`browser_*`)
 
 Registered when a browser router is wired in (`createDefaultTools({ browser: { router } })`).
-All default to `allow` via the `browser_*` wildcard rule. The router resolves one backend per session;
-today that is Chrome, which requires a paired extension — see
-[08 — Browser bridge](08-integrations.md#83-chrome-browser-bridge). A call with no session identity
-(`snapshotAgentId ?? agentId`) returns `browser: no session context`.
+All default to `allow` via the `browser_*` wildcard rule. The router picks a backend per session: the
+**built-in browser** by default ([08 — Built-in browser](08-integrations.md#83b-built-in-browser-default-backend)),
+or Chrome after `browser_start({ target: 'chrome' })` / `browser.backend: "chrome"` in `meow.json`
+([08 — Chrome browser bridge](08-integrations.md#83-chrome-browser-bridge), needs a paired extension).
+A call with no session identity (`snapshotAgentId ?? agentId`) returns `browser: no session context`.
 
 | Tool | Input | Behavior |
 |---|---|---|
-| `browser_start` | `{ target?: builtin\|chrome }` | Ensure the browser is ready. The built-in backend returns immediately; Chrome opens, shows the extension install steps, and waits for the user to approve the extension in Meow. `target` switches the session's backend first; a target that is not available in this build returns an error and keeps the previous one. |
-| `browser_navigate` | `{ url, ... }` | Opens the URL in a **new tab** of the session's browser. Never hijacks an existing tab. Returns a `tabId`. |
-| `browser_open_tab` | `{ url, ... }` | Same, without switching the visible tab. |
+| `browser_start` | `{ target?: builtin\|chrome }` | Ensure the browser is ready. Built-in returns immediately; Chrome opens, shows the extension install steps, and waits for the user to approve the extension in Meow. `target` switches the session's backend first; a target that is not available in this build returns an error and keeps the previous one. |
+| `browser_navigate` | `{ url, ... }` | Built-in: navigates the working tab (creating one when the session has none). Chrome: opens a new background tab and never reuses an existing one. Returns a `tabId`. |
+| `browser_open_tab` | `{ url, ... }` | Opens a new tab of the session's browser without switching the visible tab. |
 | `browser_click` | `{ ref? , selector?, x?, y? }` | Click by snapshot ref (preferred), CSS selector, or viewport coordinates. |
 | `browser_type` | `{ ref?, selector?, text, ... }` | Type into an input/textarea/select. |
 | `browser_select` | `{ ref?, selector?, value }` | Select an option in a `<select>`. |
 | `browser_scroll` | `{ direction?: up\|down\|top\|bottom, selector? }` | Scroll or bring an element into view. |
 | `browser_read` | `{ tabId?, mode? }` | Snapshot the page into a Playwright-MCP-style structure file: one indented line per element as `role "name" [ref]`. The file and the preview start with a notice that the content comes from a web page and is data, not instructions. Refs feed the other tools. |
-| `browser_list_tabs` | `{}` | id, title, url, active, window and tab-group info. |
-| `browser_switch_tab` | `{ tabId }` | Activate a tab without focusing the browser window. |
+| `browser_list_tabs` | `{}` | Built-in: the session's tabs (`id`, `url`, `title`, `loading`, `crashed`, `control`). Chrome: id, title, url, active, window and tab-group info. |
+| `browser_switch_tab` | `{ tabId }` | Built-in: makes it the agent's working tab without changing the tab the user selected in the panel. Chrome: activates the Chrome tab without focusing the window. |
 | `browser_close_tab` | `{ tabId }` | Close a tab. |
-| `browser_console` | `{ limit? ≤200 }` | Recent console logs. |
-| `browser_network` | `{ limit? ≤200 }` | Recent network requests (method, url, status). |
+| `browser_console` | `{ limit? ≤200, tabId? }` | Recent console logs; built-in reads the working tab's buffer unless `tabId` is given. Chrome ignores `tabId`. |
+| `browser_network` | `{ limit? ≤200, tabId? }` | Recent network requests (method, url, status), same `tabId` rule. |
 | `browser_wait_for` | `{ selector, timeoutMs? }` | Poll until a CSS selector exists. |
 
-Commands time out after 30s at the bridge level. When the Chrome backend is not paired, every command
-returns `browser not connected — run browser_start first`.
+Built-in commands run through one FIFO queue per tab and time out after 30 s; a `tabId` from another
+session is rejected with `no such tab`. Site approval and password-field refusal are not implemented
+yet (see 8.3b). Chrome commands time out after 30 s at the bridge level; when the Chrome backend is
+not paired, every command returns `browser not connected — run browser_start first`.
 
 ## 4.4 MCP tools
 

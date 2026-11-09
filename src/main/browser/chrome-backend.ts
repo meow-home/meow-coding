@@ -27,11 +27,11 @@ export class ChromeBackend implements BrowserBackend {
     return this.deps.bridge.execute(name, params, timeoutMs)
   }
 
-  getConsoleLogs(_call: BrowserCall, limit?: number): unknown[] {
+  getConsoleLogs(_call: BrowserCall, limit?: number, _tabId?: number): unknown[] {
     return this.deps.bridge.getConsoleLogs(limit)
   }
 
-  getNetworkLogs(_call: BrowserCall, limit?: number): unknown[] {
+  getNetworkLogs(_call: BrowserCall, limit?: number, _tabId?: number): unknown[] {
     return this.deps.bridge.getNetworkLogs(limit)
   }
 }

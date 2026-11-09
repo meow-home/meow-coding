@@ -83,6 +83,8 @@ export class BrowserTab {
   private readonly dialogNotes: string[] = []
   private control: BrowserTabControl = 'idle'
   private crashed = false
+  private closed = false
+  private readonly lifetime = new AbortController()
   private queue: Promise<unknown> = Promise.resolve()
   private unsubscribe: (() => void) | null = null
 
@@ -125,6 +127,8 @@ export class BrowserTab {
       let timer: ReturnType<typeof setTimeout> | null = null
       const signal = call?.signal
 
+      const lifetime = this.lifetime.signal
+
       function finish(result: BrowserCommandResult): void {
         if (settled) return
         settled = true
@@ -133,6 +137,7 @@ export class BrowserTab {
           timer = null
         }
         signal?.removeEventListener('abort', onAbort)
+        lifetime.removeEventListener('abort', onClosed)
         resolve(result)
       }
 
@@ -140,11 +145,20 @@ export class BrowserTab {
         finish({ ok: false, error: `browser command aborted: ${name}` })
       }
 
+      function onClosed(): void {
+        finish({ ok: false, error: 'tab closed' })
+      }
+
+      if (this.closed) {
+        onClosed()
+        return
+      }
       if (signal?.aborted) {
         onAbort()
         return
       }
       signal?.addEventListener('abort', onAbort, { once: true })
+      lifetime.addEventListener('abort', onClosed, { once: true })
       timer = setTimeout(() => finish({ ok: false, error: `browser command timed out: ${name}` }), timeoutMs)
       this.dispatch(name, params).then(
         // A late result from an abandoned command is dropped without decorating
@@ -187,15 +201,32 @@ export class BrowserTab {
     this.refs.clear()
   }
 
+  /** Settles any in-flight command, then detaches and closes the page. */
   destroy(): void {
+    if (this.closed) return
+    this.closed = true
+    this.lifetime.abort('tab closed')
     this.unsubscribe?.()
     this.unsubscribe = null
     this.host.destroy()
   }
 
   private async dispatch(name: BrowserCommandName, params: Record<string, unknown>): Promise<BrowserCommandResult> {
+    if (this.closed) return { ok: false, error: 'tab closed' }
     if (this.crashed) return { ok: false, error: 'tab crashed; reload it' }
     switch (name) {
+      case 'navigate': {
+        const url = String(params.url ?? '')
+        if (!/^https?:\/\//i.test(url)) return { ok: false, error: `invalid url: ${url}` }
+        await this.host.loadUrl(url)
+        return { ok: true, data: { tabId: this.id, url: this.host.getUrl(), title: this.host.getTitle() } }
+      }
+      case 'reload':
+        this.host.history('reload')
+        return { ok: true }
+      case 'closeTab':
+        // The browser removes and destroys the tab after this command settles.
+        return { ok: true }
       case 'read':
         return commands.read(this.host.cdp, this.refs, {
           mode: params.mode as BrowserReadMode | undefined,

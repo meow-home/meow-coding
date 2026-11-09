@@ -3,6 +3,8 @@ import { readInteractiveTree } from '../../shared/browser-ax-snapshot'
 import type { CdpClient } from './browser-tab'
 import { writeSnapshotFile } from './snapshot-output'
 
+export const NAVIGATE_TIMEOUT_MS = 30_000
+
 // DOM.scrollIntoViewIfNeeded / DOM.getBoxModel / DOM.resolveNode accept either key.
 // A ref keeps the backend id from the snapshot: frontend nodeIds only exist after a
 // DOM.getDocument and are invalidated by the next one.

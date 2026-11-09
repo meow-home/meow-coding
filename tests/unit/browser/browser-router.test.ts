@@ -55,6 +55,17 @@ describe('BrowserRouter', () => {
     expect(router.backendFor('a')).toBe(chrome)
   })
 
+  it('forgets a removed session and falls back to the default', () => {
+    const chrome = backend('chrome')
+    const builtin = backend('builtin')
+    const router = new BrowserRouter({ backends: { chrome, builtin }, defaultBackend: () => 'chrome' })
+    router.select('a', 'builtin')
+    router.select('b', 'builtin')
+    router.forget('a')
+    expect(router.backendFor('a')).toBe(chrome)
+    expect(router.backendFor('b')).toBe(builtin)
+  })
+
   it('reads the default per call, so a settings change applies without a restart', () => {
     const chrome = backend('chrome')
     const builtin = backend('builtin')

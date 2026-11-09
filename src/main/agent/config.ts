@@ -149,9 +149,8 @@ export const DEFAULT_NOTIFICATIONS: NotificationsConfig = {
   needsInput: true,
   onDone: true
 }
-// Chrome stays the effective default until the built-in backend is wired in.
 export const DEFAULT_BROWSER_CONFIG: BrowserConfig = {
-  backend: 'chrome',
+  backend: 'builtin',
   siteApproval: 'ask'
 }
 

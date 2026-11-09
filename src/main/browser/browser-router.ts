@@ -25,6 +25,11 @@ export class BrowserRouter implements BrowserRouterLike {
     return this.default()
   }
 
+  /** Drop a removed session's sticky choice. */
+  forget(ownerId: string): void {
+    this.selections.delete(ownerId)
+  }
+
   select(ownerId: string, target: BrowserTarget): void {
     if (!this.deps.backends[target]) {
       throw new Error(

@@ -26,8 +26,8 @@ export interface BrowserCall {
 export interface BrowserBackend {
   start(call: BrowserCall): Promise<ToolRunResult>
   execute(name: BrowserCommandName, params: Record<string, unknown>, call: BrowserCall, timeoutMs?: number): Promise<BrowserCommandResult>
-  getConsoleLogs(call: BrowserCall, limit?: number): unknown[]
-  getNetworkLogs(call: BrowserCall, limit?: number): unknown[]
+  getConsoleLogs(call: BrowserCall, limit?: number, tabId?: number): unknown[]
+  getNetworkLogs(call: BrowserCall, limit?: number, tabId?: number): unknown[]
 }
 
 export interface BrowserRouterLike {

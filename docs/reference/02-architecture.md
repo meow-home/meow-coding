@@ -20,6 +20,7 @@ Meow Coding is three Electron processes plus two optional companions that connec
 │         │                                            │  ├ MeowAgentMgr   │ │
 │         │                                            │  ├ stores/services│ │
 │         │                                            │  ├ BrowserBridge  │ │
+│         │                                            │  ├ EmbeddedBrowser│ │
 │         │                                            │  ├ ConnectionsMgr │ │
 │         │                                            └───────────────────┘ │
 └─────────┼──────────────────────────────────────────────────┬───────┬───────┘
@@ -225,7 +226,8 @@ the modal from closing.
 
 1. Bail out if this is a secondary instance (single-instance lock).
 2. `truncationCleanup()` — drop truncation files older than 7 days.
-3. Start the `BrowserBridge` on `127.0.0.1:3927` and subscribe status → renderer.
+3. Start the `BrowserBridge` on `127.0.0.1:3927` and subscribe status → renderer; harden the built-in
+   browser partition (`hardenBrowserPartition`: permissions, navigation, downloads).
 4. `ConnectionsManager.init()` — if Codex accounts exist, start the cliproxy sidecar and refresh tokens.
 5. `ensureExtensionInstalled()` — copy the built Chrome extension into `userData/browser-extension`.
 6. One-time **destructive** v0.37 model switch (`fresh-start.ts`): every project is reset to exactly one
@@ -251,6 +253,7 @@ TerminalManager.flush()
                                  flush sessions, close MCP, dispose LSP)
  → ConnectionsManager.dispose() (stop the cliproxy sidecar, remove its runtime dir)
  → BrowserBridge.close()
+ → EmbeddedBrowser.closeAll()   (detach the debugger, drop the view, close every tab's webContents)
  → TrayManager.dispose()
  → Promise.allSettled([TerminalManager.stopAll(), PtyManager.stopAll()]) (tree-kill every process tree)
  → app.exit(0)
