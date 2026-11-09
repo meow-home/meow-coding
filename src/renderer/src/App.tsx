@@ -271,18 +271,6 @@ export default function App() {
   // NOT sit inside `.right-panels-container`: that container is positioned (its resizer
   // anchors to it), and a positioned ancestor confines them to the docked column
   // instead of covering the chat pane.
-  const filesPanel = filesOpenFor ? (
-    <FilesOverlay
-      key={`files:${filesOpenFor}`}
-      projectPath={filesOpenFor}
-      full={filesFull}
-      width={filesWidth}
-      onWidthChange={setFilesWidth}
-      onToggleFull={() => setFilesFull(v => !v)}
-      onClose={requestCloseFiles}
-      onDirtyChange={setFilesDirty}
-    />
-  ) : null
   const processesPanel = processesOpenFor ? (
     <ProcessesOverlay
       agentId={processesOpenFor}
@@ -848,6 +836,21 @@ export default function App() {
 
   const activeRuntime = activePath ? (runtimes[activePath] ?? null) : null
   const activeSessionId = activePath ? (activeSessionByPath[activePath] ?? null) : null
+  // The editor gutter targets the panel's OWN project's session, never the active
+  // project's session when the panel is open over another project.
+  const filesPanel = filesOpenFor ? (
+    <FilesOverlay
+      key={`files:${filesOpenFor}`}
+      projectPath={filesOpenFor}
+      full={filesFull}
+      width={filesWidth}
+      onWidthChange={setFilesWidth}
+      onToggleFull={() => setFilesFull(v => !v)}
+      onClose={requestCloseFiles}
+      onDirtyChange={setFilesDirty}
+      agentId={activeSessionByPath[filesOpenFor] ?? null}
+    />
+  ) : null
   // Occlusion reasons owned by the app shell: another panel expanded over the
   // browser, or the panel's session no longer in the active project.
   const otherPanelExpanded = filesFull || processesFull || terminalFull || (subagentsShown && subagentsFull)

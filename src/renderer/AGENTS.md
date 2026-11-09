@@ -21,7 +21,8 @@ React renderer (no direct Node/Electron access).
   session), `SessionPanes`, `Pane`, `PaneHeader`, `EmptyState`,
   `StatusBar`, `TitleBar`, `BackgroundPanel`, `UpdateDialog`,
   `BrowserDialog`, `InstallGuideDialog`, `browser/` (the built-in browser panel: `BrowserOverlay`, `BrowserToolbar`, `BrowserControlBanner`, `BrowserViewport`, `normalizeUrlInput`), `files/` (the Files panel:
-  `FilesOverlay`, `FilesTree`, `file-path`, `tree-filter`, `file-icon`, `git-decorations`, `open-tabs`),
+  `FilesOverlay`, `FilesTree`, `file-path`, `tree-filter`, `file-icon`, `git-decorations`, `open-tabs`,
+  `line-send-gutter`),
   `processes/` (the Processes overlay: `ProcessesOverlay`),
   `file-content/FileContentView`, `chat/`, `settings/`.
 - `src/styles.css` — neutral charcoal dark palette (default; shell `#1a1a1a`, work area `#111315`, accent `#297aa3`/`#3995bc`) with a Light+ variant activated via

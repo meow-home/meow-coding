@@ -4240,6 +4240,17 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
    take the chat surface so the editor reads as part of the card. */
 :root:not([data-theme="light"]) .files-tab-pane .cm-editor,
 :root:not([data-theme="light"]) .files-tab-pane .cm-gutters { background: var(--bg-chat); }
+/* Send-line gutter (Files panel only): a small accent circle with a plus on the
+   hovered line's cell. It sits before the line numbers and reserves its width,
+   so neither the numbers nor the fold gutter shift when it appears. */
+.cm-line-send-gutter .cm-gutterElement { text-align: center; }
+.cm-line-send {
+  display: inline-block; width: 1.15rem; height: 1.15rem; border-radius: 50%;
+  background: var(--accent); color: #ffffff; font-size: var(--fs-xs);
+  line-height: 1.15rem; text-align: center; cursor: pointer; user-select: none;
+  opacity: 0; transition: opacity 80ms ease;
+}
+.cm-line-send-gutter .cm-gutterElement:hover .cm-line-send { opacity: 1; }
 /* 30px bar, 22px chips: the 4px padding insets the tabs from every edge and the
    gap separates them, so no hairline divider is needed between tabs. */
 .files-content { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 0; }

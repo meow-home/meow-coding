@@ -305,3 +305,44 @@ test('preview tabs are replaced, promoted and pinned', async () => {
     cleanupDir(project)
   }
 })
+
+test('the editor gutter sends a line to the chat composer', async () => {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    mkdirSync(path.join(project, 'src'), { recursive: true })
+    writeFileSync(path.join(project, 'src', 'index.ts'), 'export const answer = 42\nexport const other = 7\n')
+    seedWorkspaces(userData, project)
+    const { app, window } = await launch(userData)
+    try {
+      await openProject(window)
+      await openFilesPanel(window)
+      await window.locator('.files-tree-row', { hasText: 'src' }).click()
+      await window.locator('.files-tree-row', { hasText: 'index.ts' }).click()
+      await expect(window.locator('.cm-content')).toBeVisible()
+
+      // The send gutter is a dedicated column before the line numbers.
+      const send = (await window.locator('.cm-line-send-gutter').boundingBox())!
+      const numbers = (await window.locator('.cm-lineNumbers').boundingBox())!
+      expect(send.x + send.width).toBeLessThanOrEqual(numbers.x + 1)
+
+      // The `+` only shows on the hovered line's cell (the first cell is the
+      // hidden width spacer, so line 2 is the third one).
+      const cell = window.locator('.cm-line-send-gutter .cm-gutterElement').nth(2)
+      const marker = cell.locator('.cm-line-send')
+      await expect(marker).toHaveCSS('opacity', '0')
+      await cell.hover()
+      await expect(marker).toHaveCSS('opacity', '1')
+      await marker.click()
+
+      // The composer of the visible pane received the path, the line and the code.
+      await expect(window.locator('.pane-slot:not([hidden]) .chat-input-field'))
+        .toHaveValue('`src/index.ts:2`\n```ts\nexport const other = 7\n```')
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+  }
+})

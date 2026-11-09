@@ -28,6 +28,8 @@ interface Props {
   toolbarActions?: ReactNode
   /** When set, the toolbar renders there instead of inline: the Files panel's full-width bar. */
   toolbarHost?: HTMLElement | null
+  /** Extra editor extensions (the Files panel's send-line gutter); the popup passes none. */
+  extraExtensions?: Extension[]
   onDirtyChange?: (dirty: boolean) => void
 }
 
@@ -71,7 +73,7 @@ function getLanguageExtension(ext: string): Extension[] {
 
 // Toolbar + body of the file viewer, shared by the popup FileViewer window and
 // the Files overlay tab. The host supplies the flex container.
-export default function FileContentView({ path: filePath, root, active = true, hideFileActions = false, toolbarActions, toolbarHost, onDirtyChange }: Props) {
+export default function FileContentView({ path: filePath, root, active = true, hideFileActions = false, toolbarActions, toolbarHost, extraExtensions, onDirtyChange }: Props) {
   const [content, setContent] = useState<string | null>(null)
   const [editedContent, setEditedContent] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -87,7 +89,10 @@ export default function FileContentView({ path: filePath, root, active = true, h
   const isMarkdown = !isImage && (ext === 'md' || ext === 'markdown')
   const showsEditor = !isImage && !error && content !== null && !(isMarkdown && !showRawMd)
 
-  const extensions = useMemo(() => getLanguageExtension(ext), [ext])
+  const extensions = useMemo(
+    () => (extraExtensions ? [...getLanguageExtension(ext), ...extraExtensions] : getLanguageExtension(ext)),
+    [ext, extraExtensions]
+  )
 
   useEffect(() => {
     if (isImage) {

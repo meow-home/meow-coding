@@ -1,6 +1,6 @@
 # Files Panel Redesign Implementation Plan
 
-Status: pending execution
+Status: Tasks 1–4 done
 
 **Goal:** Implement [Files Panel Redesign — Design](../specs/2026-11-09-files-panel-redesign-design.md). Read
 the spec first; it holds the exact behavior and is not repeated here.

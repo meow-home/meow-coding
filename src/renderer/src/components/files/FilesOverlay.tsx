@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import type { Extension } from '@codemirror/state'
 import { beginOcclusion, endOcclusion } from '../common/useBrowserOcclusion'
 import PanelHeader from '../common/PanelHeader'
 import {
@@ -14,6 +15,8 @@ import {
   EMPTY_OPEN_TABS, activateTab, closeTabs, openTab, promoteTab, togglePinned,
   type OpenTabsState
 } from './open-tabs'
+import { languageLabel, lineSendGutter } from './line-send-gutter'
+import { projectRelativePath } from './git-decorations'
 import FileContentView from '../file-content/FileContentView'
 import { baseName } from './file-path'
 
@@ -64,9 +67,11 @@ interface Props {
   onToggleFull: () => void
   onClose: () => void
   onDirtyChange?: (dirty: boolean) => void
+  /** The panel's project's active session; null means no composer can receive a line. */
+  agentId?: string | null
 }
 
-export default function FilesOverlay({ projectPath, full, width, onWidthChange, onToggleFull, onClose, onDirtyChange }: Props) {
+export default function FilesOverlay({ projectPath, full, width, onWidthChange, onToggleFull, onClose, onDirtyChange, agentId = null }: Props) {
   const [query, setQuery] = useState('')
   const [tabState, setTabState] = useState<OpenTabsState>(EMPTY_OPEN_TABS)
   const { tabs, activeTab } = tabState
@@ -87,6 +92,28 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
   // columns: FileContentView portals its toolbar into this host.
   const [toolbarHost, setToolbarHost] = useState<HTMLElement | null>(null)
   const pendingFilterFocus = useRef(false)
+  // The send-line gutter reads its target on click, so switching sessions never
+  // rebuilds the editor (that would drop the undo history).
+  const sendTargetRef = useRef({ agentId, projectPath })
+  useEffect(() => { sendTargetRef.current = { agentId, projectPath } }, [agentId, projectPath])
+  const sendExtensionsRef = useRef(new Map<string, Extension[]>())
+
+  const sendExtensionsFor = (path: string): Extension[] | undefined => {
+    if (!agentId) return undefined
+    const cached = sendExtensionsRef.current.get(path)
+    if (cached) return cached
+    const created = [lineSendGutter(() => {
+      const target = sendTargetRef.current
+      if (!target.agentId) return null
+      return {
+        agentId: target.agentId,
+        relPath: projectRelativePath(target.projectPath, path),
+        lang: languageLabel(path)
+      }
+    })]
+    sendExtensionsRef.current.set(path, created)
+    return created
+  }
 
   useEffect(() => { saveTreeHidden(treeHidden) }, [treeHidden])
 
@@ -365,6 +392,7 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
                   hideFileActions
                   toolbarActions={tab.path === activeTab ? barActions : undefined}
                   toolbarHost={toolbarHost}
+                  extraExtensions={sendExtensionsFor(tab.path)}
                   onDirtyChange={dirty => handleDirtyChange(tab.path, dirty)}
                 />
               </div>
