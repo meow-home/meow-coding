@@ -75,7 +75,8 @@ export default function TerminalView({ terminalId, agentId, onOpenBrowser, onErr
     const linksDisposable = term.registerLinkProvider({
       provideLinks(row, callback) {
         const line = term.buffer.active.getLine(row - 1)?.translateToString(true) ?? ''
-        callback(findLoopbackLinks(line).map(link => ({
+        const continues = term.buffer.active.getLine(row)?.isWrapped === true
+        callback(findLoopbackLinks(line, continues).map(link => ({
           range: { start: { x: link.start + 1, y: row }, end: { x: link.end, y: row } },
           text: link.url,
           activate: () => {

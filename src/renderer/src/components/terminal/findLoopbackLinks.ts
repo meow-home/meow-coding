@@ -18,12 +18,13 @@ function trimTail(candidate: string): string {
 }
 
 /**
- * Loopback http(s) URLs in one terminal row. A URL wrapped across rows only has
- * its first part here, which fails to parse, so it produces no link (never a
- * wrong one). Columns are string indices; wide characters shift xterm cells, so
- * a row containing them may be off by one per wide character.
+ * Loopback http(s) URLs in one terminal row. A URL cut by a line wrap still parses
+ * (`http://localhost:5173/some/lo`), so with `continuesOnNextRow` a link reaching
+ * the end of the row is dropped rather than opening the wrong path. Columns are
+ * string indices; wide characters shift xterm cells, so a row containing them may
+ * be off by one per wide character.
  */
-export function findLoopbackLinks(line: string): LoopbackLink[] {
+export function findLoopbackLinks(line: string, continuesOnNextRow = false): LoopbackLink[] {
   const links: LoopbackLink[] = []
   CANDIDATE.lastIndex = 0
   let match: RegExpExecArray | null
@@ -31,6 +32,7 @@ export function findLoopbackLinks(line: string): LoopbackLink[] {
     const raw = match[0]
     const url = trimTail(raw)
     if (!url) continue
+    if (continuesOnNextRow && match.index + raw.length === line.length) continue
     try {
       const parsed = new URL(url)
       if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || !isLoopback(parsed.origin)) continue

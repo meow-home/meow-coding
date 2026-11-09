@@ -49,4 +49,13 @@ describe('findLoopbackLinks', () => {
     expect(findLoopbackLinks('http://localhost:5173/very/long')).toHaveLength(1)
     expect(findLoopbackLinks('very/long')).toHaveLength(0)
   })
+
+  it('drops a link cut by a line wrap instead of opening the wrong path', () => {
+    const row = 'Local: http://localhost:5173/some/lo'
+    expect(findLoopbackLinks(row).map(link => link.url)).toEqual(['http://localhost:5173/some/lo'])
+    expect(findLoopbackLinks(row, true)).toEqual([])
+    // A complete link earlier on a wrapping row is still fine.
+    const two = 'http://localhost:1/ then http://localhost:5173/some/lo'
+    expect(findLoopbackLinks(two, true).map(link => link.url)).toEqual(['http://localhost:1/'])
+  })
 })
