@@ -142,6 +142,7 @@ export const Channels = {
   BrowserPanelSetBounds: 'browser-panel:set-bounds',
   BrowserPanelFreeze: 'browser-panel:freeze',
   BrowserPanelHideFrozen: 'browser-panel:hide-frozen',
+  BrowserPanelHide: 'browser-panel:hide',
   BrowserPanelUnfreeze: 'browser-panel:unfreeze',
   BrowserClearData: 'browser-panel:clear-data',
   BrowserOpenExternal: 'browser-panel:open-external',
@@ -384,6 +385,7 @@ export interface AgentApi {
   browserPanelSetBounds(bounds: BrowserPanelBounds): Promise<void>
   browserPanelFreeze(): Promise<BrowserPanelFreezeResult | null>
   browserPanelHideFrozen(generation: number): Promise<void>
+  browserPanelHide(): Promise<void>
   browserPanelUnfreeze(): Promise<void>
   browserClearData(): Promise<void>
   browserOpenExternal(url: string): Promise<void>

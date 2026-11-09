@@ -380,3 +380,83 @@ test('a panel request for a session that is not active does not open the panel',
     llm.close()
   }
 })
+
+test('occlusion: menus and the resizer hide the native view, and it comes back', async () => {
+  const { server: fixture, url } = await startFixtureServer()
+  const { server: llm, port } = await startMockLlm([{ content: 'ok' }])
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  const shots = path.join(tmpdir(), 'meow-browser-panel-shots')
+  mkdirSync(shots, { recursive: true })
+  try {
+    seedUserData(userData, project, {
+      provider: { mock: { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}`, models: ['mock-model'] } },
+      model: 'mock'
+    })
+    const { app, window, sessionId } = await launch(userData)
+    try {
+      await window.evaluate(({ id, u }) => window.api.browserTabCreate(id, u), { id: sessionId, u: url })
+      await window.locator('.pane-header .icon-btn[aria-label="Toggle browser"]').click()
+      await expect(window.locator('.browser-overlay')).toBeVisible()
+      await expect.poll(async () => (await viewBounds(app, url))?.visible, { timeout: 15000 }).toBe(true)
+      await expectBounds(app, url, window)
+
+      const visible = async (): Promise<boolean | undefined> => (await viewBounds(app, url))?.visible
+
+      // Tab menu (a BaseDropdown over the page): visible, clickable, view hidden.
+      const tab = window.locator('.browser-tab').first()
+      await tab.click({ button: 'right' })
+      const menu = window.locator('.base-dropdown-menu')
+      await expect(menu).toBeVisible()
+      await expect.poll(visible, { timeout: 15000 }).toBe(false)
+      const dropdownBytes = await compositeShot(app, url, path.join(shots, 'browser-occlusion-dropdown.png'))
+      await menu.getByText('Reload', { exact: true }).click()
+      await expect(menu).toHaveCount(0)
+      await expect.poll(visible, { timeout: 15000 }).toBe(true)
+      await expectBounds(app, url, window)
+
+      // Rapid open/close ends visible.
+      for (let i = 0; i < 5; i++) {
+        await tab.click({ button: 'right' })
+        await expect(menu).toBeVisible()
+        await window.keyboard.press('Escape')
+        await expect(menu).toHaveCount(0)
+      }
+      await expect.poll(visible, { timeout: 15000 }).toBe(true)
+
+      // Resizer drag: hidden during, visible after, bounds updated.
+      const resizer = window.locator('.right-panels-resizer')
+      const box = await resizer.boundingBox()
+      expect(box).toBeTruthy()
+      const before = await viewportRect(window)
+      await window.mouse.move(box!.x + box!.width / 2, box!.y + 100)
+      await window.mouse.down()
+      await window.mouse.move(box!.x - 300, box!.y + 100, { steps: 6 })
+      await expect.poll(visible, { timeout: 15000 }).toBe(false)
+      await window.mouse.up()
+      await expect.poll(visible, { timeout: 15000 }).toBe(true)
+      await expectBounds(app, url, window)
+      const after = await viewportRect(window)
+      expect(after.width).toBeGreaterThan(before.width)
+
+      // Another panel expanded over the browser hides it; restoring shows it.
+      await window.keyboard.press('Control+`')
+      await expect(window.locator('.terminal-overlay')).toBeVisible({ timeout: 10000 })
+      await window.locator('.terminal-overlay .icon-btn[aria-label="Expand"]').click()
+      await expect.poll(visible, { timeout: 15000 }).toBe(false)
+      await window.locator('.terminal-overlay .icon-btn[aria-label="Restore size"]').click()
+      await expect.poll(visible, { timeout: 15000 }).toBe(true)
+      await expectBounds(app, url, window)
+      await window.keyboard.press('Control+`')
+
+      console.log('[e2e] occlusion screenshot', JSON.stringify({ file: path.join(shots, 'browser-occlusion-dropdown.png'), bytes: dropdownBytes }))
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+    fixture.close()
+    llm.close()
+  }
+})

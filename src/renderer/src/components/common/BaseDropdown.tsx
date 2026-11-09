@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { overlapsBrowserViewport, useBrowserOcclusion } from './useBrowserOcclusion'
 import { createPortal } from 'react-dom'
 import type { CSSProperties, ReactNode } from 'react'
 
@@ -117,6 +118,7 @@ export default function BaseDropdown({
   const triggerRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<CSSProperties | null>(null)
+  const [overlapsPanel, setOverlapsPanel] = useState(false)
 
   const toggle = () => {
     const next = !isOpen
@@ -167,6 +169,18 @@ export default function BaseDropdown({
       window.removeEventListener('scroll', updatePosition, true)
     }
   }, [isOpen, placement, offset, anchorPoint])
+
+  // Measure after the menu has its final fixed position; until then it does not
+  // count as occluding (one frame behind the page at most).
+  useLayoutEffect(() => {
+    if (!isOpen || !pos) {
+      setOverlapsPanel(false)
+      return
+    }
+    setOverlapsPanel(overlapsBrowserViewport(menuRef.current?.getBoundingClientRect() ?? null))
+  }, [isOpen, pos])
+
+  useBrowserOcclusion(isOpen && overlapsPanel, 'overlay')
 
   useEffect(() => {
     if (!isOpen) return

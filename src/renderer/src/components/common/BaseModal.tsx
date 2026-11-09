@@ -1,5 +1,6 @@
 import React, { useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { useBrowserOcclusion } from './useBrowserOcclusion'
 
 export interface BaseModalProps {
   title?: ReactNode
@@ -90,6 +91,7 @@ function BaseModalRoot({
   className = '',
   backdropClassName = ''
 }: BaseModalProps) {
+  useBrowserOcclusion(true, 'overlay')
   useEffect(() => {
     if (!closeOnEscape || !onClose) return
     const onKey = (e: KeyboardEvent) => {

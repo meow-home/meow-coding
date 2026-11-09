@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowUpRight, Code, Copy } from 'lucide-react'
+import { overlapsBrowserViewport, useBrowserOcclusion } from './common/useBrowserOcclusion'
 
 export interface FileMenuState {
   x: number
@@ -16,6 +17,17 @@ interface Props {
 
 export default function FileContextMenu({ menu, onClose, showCopyPath = false }: Props) {
   const ref = useRef<HTMLDivElement>(null)
+  const [overlapsPanel, setOverlapsPanel] = useState(false)
+
+  useLayoutEffect(() => {
+    if (!menu) {
+      setOverlapsPanel(false)
+      return
+    }
+    setOverlapsPanel(overlapsBrowserViewport(ref.current?.getBoundingClientRect() ?? null))
+  }, [menu])
+
+  useBrowserOcclusion(!!menu && overlapsPanel, 'overlay')
 
   useEffect(() => {
     if (!menu) return

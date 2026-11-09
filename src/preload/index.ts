@@ -209,6 +209,7 @@ const api: AgentApi = {
   browserPanelFreeze: () => ipcRenderer.invoke(Channels.BrowserPanelFreeze) as Promise<BrowserPanelFreezeResult | null>,
   browserPanelHideFrozen: (generation: number) =>
     ipcRenderer.invoke(Channels.BrowserPanelHideFrozen, generation),
+  browserPanelHide: () => ipcRenderer.invoke(Channels.BrowserPanelHide),
   browserPanelUnfreeze: () => ipcRenderer.invoke(Channels.BrowserPanelUnfreeze),
   browserClearData: () => ipcRenderer.invoke(Channels.BrowserClearData),
   browserOpenExternal: (url: string) => ipcRenderer.invoke(Channels.BrowserOpenExternal, url),

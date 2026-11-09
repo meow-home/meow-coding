@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { beginOcclusion, endOcclusion } from '../common/useBrowserOcclusion'
 import {
   ArrowUpRight, CircleX, Code, Copy, EllipsisVertical, Files, Folder,
   ListCollapse, Maximize2, Minimize2, RefreshCw, Search, X
@@ -75,11 +76,13 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
       setSideWidth(latest)
     }
     const onUp = () => {
+      endOcclusion('files-splitter')
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
       document.body.classList.remove('col-resizing')
       if (latest !== null) saveSideWidth(latest)
     }
+    beginOcclusion('files-splitter', 'overlay')
     document.body.classList.add('col-resizing')
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)

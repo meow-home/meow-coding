@@ -5022,6 +5022,7 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 .browser-banner.agent { color: var(--accent-strong); }
 .browser-banner.approval { color: var(--yellow); }
 .browser-viewport { position: relative; flex: 1; min-height: 0; background: var(--bg-chat); overflow: hidden; }
+.browser-frozen { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; pointer-events: none; user-select: none; }
 .browser-empty {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
   justify-content: center; gap: 8px; color: var(--text-dim);

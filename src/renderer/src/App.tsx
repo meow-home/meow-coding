@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { BrowserInstallGuideEvent } from '@shared/ipc'
 import type { BrowserStatusInfo } from '@shared/browser-types'
 import type {
@@ -20,6 +20,7 @@ import SettingsDialog, { type TabId } from './components/settings/SettingsDialog
 import BrowserDialog from './components/BrowserDialog'
 import InstallGuideDialog from './components/InstallGuideDialog'
 import UpdateDialog from './components/UpdateDialog'
+import { beginOcclusion, endOcclusion, overlapsBrowserViewport, useBrowserOcclusion } from './components/common/useBrowserOcclusion'
 import BaseModal from './components/common/BaseModal'
 import { AppActionsContext } from './app-actions'
 import { isLastSession } from './session-guard'
@@ -302,6 +303,7 @@ export default function App() {
   const rightPanelsDragRef = useRef<{ startX: number; startWidth: number } | null>(null)
   const startRightPanelsDrag = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
+    beginOcclusion('right-panels-resizer', 'overlay')
     rightPanelsDragRef.current = { startX: e.clientX, startWidth: rightPanelsWidth }
     const onMove = (ev: MouseEvent) => {
       if (!rightPanelsDragRef.current) return
@@ -311,6 +313,7 @@ export default function App() {
     }
     const onUp = () => {
       rightPanelsDragRef.current = null
+      endOcclusion('right-panels-resizer')
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
@@ -799,6 +802,24 @@ export default function App() {
   const appActions = useMemo(() => ({ addFolder: handleAddFolderDirect }), [handleAddFolderDirect])
 
   const activeRuntime = activePath ? (runtimes[activePath] ?? null) : null
+  // Occlusion reasons owned by the app shell: another panel expanded over the
+  // browser, or the panel's session no longer in the active project.
+  const otherPanelExpanded = filesFull || processesFull || terminalFull || subagentFullTaskId !== null
+  const browserPanelOffProject = !!browserOpenFor && !(activePath && (runtimes[activePath]?.agents.some(a => a.agentId === browserOpenFor) ?? false))
+  useBrowserOcclusion(otherPanelExpanded, 'cover')
+  useBrowserOcclusion(browserPanelOffProject, 'cover')
+  // The hover sidebar popover is not a BaseDropdown; it only matters when it
+  // reaches the panel (narrow windows).
+  const sidebarPopoverRef = useRef<HTMLDivElement>(null)
+  const [sidebarPopoverOverlaps, setSidebarPopoverOverlaps] = useState(false)
+  useLayoutEffect(() => {
+    if (!sidebarCollapsed || !sidebarHovered) {
+      setSidebarPopoverOverlaps(false)
+      return
+    }
+    setSidebarPopoverOverlaps(overlapsBrowserViewport(sidebarPopoverRef.current?.getBoundingClientRect() ?? null))
+  }, [sidebarCollapsed, sidebarHovered])
+  useBrowserOcclusion(sidebarCollapsed && sidebarHovered && sidebarPopoverOverlaps, 'overlay')
 
   return (
     <AppActionsContext.Provider value={appActions}>
@@ -812,6 +833,7 @@ export default function App() {
       {sidebarCollapsed && sidebarHovered && (
         <div
           className="sidebar-popover"
+          ref={sidebarPopoverRef}
           onMouseEnter={handleMouseEnterBrand}
           onMouseLeave={handleMouseLeaveBrand}
         >

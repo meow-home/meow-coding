@@ -287,6 +287,13 @@ export class EmbeddedBrowser implements BrowserBackend {
     return { generation, image }
   }
 
+  /** Hide without a capture: the placeholder is fully covered (panel/project). */
+  hide(): void {
+    this.panelGeneration++
+    this.panelHidden = true
+    this.onScreenEntry()?.tab.setVisible(false)
+  }
+
   hideFrozen(generation: number): void {
     if (generation !== this.panelGeneration) return
     const entry = this.onScreenEntry()

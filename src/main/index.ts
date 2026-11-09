@@ -1121,6 +1121,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.BrowserPanelSetBounds, (_e, bounds: { x: number; y: number; width: number; height: number }) =>
     mainApp.embeddedBrowser.setBounds(bounds))
   ipcMain.handle(Channels.BrowserPanelFreeze, () => mainApp.embeddedBrowser.freeze())
+  ipcMain.handle(Channels.BrowserPanelHide, () => mainApp.embeddedBrowser.hide())
   ipcMain.handle(Channels.BrowserPanelHideFrozen, (_e, generation: number) =>
     mainApp.embeddedBrowser.hideFrozen(generation))
   ipcMain.handle(Channels.BrowserPanelUnfreeze, () => mainApp.embeddedBrowser.unfreeze())

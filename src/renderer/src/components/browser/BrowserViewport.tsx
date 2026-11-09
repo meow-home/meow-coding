@@ -1,6 +1,14 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Plus, RotateCw } from 'lucide-react'
 import type { BrowserTabInfo } from '@shared/browser-types'
+import {
+  confirmFrozenImagePainted,
+  refreezeBrowserPanel,
+  setBrowserPanelAttached,
+  setBrowserViewportElement,
+  subscribeFrozenImage,
+  useBrowserOcclusion
+} from '../common/useBrowserOcclusion'
 
 interface Props {
   agentId: string
@@ -25,6 +33,12 @@ export default function BrowserViewport({ agentId, tab, onNewTab, onReloadCrash,
   const hostRef = useRef<HTMLDivElement>(null)
   const lastRect = useRef<Rect | null>(null)
   const frame = useRef(0)
+  const [frozenImage, setFrozenImage] = useState<string | null>(null)
+
+  // A crashed tab has no usable view: hide it as a cover reason so the message
+  // below is visible. Keeping it a reason means a menu closing while the tab is
+  // still crashed does not bring the view back.
+  useBrowserOcclusion(!!tab?.crashed, 'cover')
 
   // ResizeObserver misses position-only moves (a CSS transform, the panel's rise
   // animation, the grid re-laying out). Re-measure on animation/transition ends too.
@@ -49,6 +63,8 @@ export default function BrowserViewport({ agentId, tab, onNewTab, onReloadCrash,
     if (!el) return
     const initial = roundedRect(el)
     lastRect.current = initial
+    setBrowserViewportElement(el)
+    setBrowserPanelAttached(true)
     window.api.browserPanelAttach(agentId, initial).catch(err => {
       onError(err instanceof Error ? err.message : String(err))
     })
@@ -56,9 +72,19 @@ export default function BrowserViewport({ agentId, tab, onNewTab, onReloadCrash,
       lastRect.current = null
       if (frame.current) cancelAnimationFrame(frame.current)
       frame.current = 0
+      setBrowserViewportElement(null)
+      setBrowserPanelAttached(false)
       void window.api.browserPanelDetach().catch(() => {})
     }
   }, [agentId, onError])
+
+  useEffect(() => subscribeFrozenImage(setFrozenImage), [])
+
+  // Main shows the new tab when it is activated/created/handed off; re-freeze so
+  // an open overlay still covers the page.
+  useEffect(() => {
+    if (tab?.id != null) refreezeBrowserPanel()
+  }, [tab?.id])
 
   useEffect(() => {
     const el = hostRef.current
@@ -84,23 +110,26 @@ export default function BrowserViewport({ agentId, tab, onNewTab, onReloadCrash,
     schedule()
   }, [tab?.id, tab?.control, schedule])
 
-  // A crashed tab has no usable view: freeze it away so the message below is visible.
-  useEffect(() => {
-    let active = true
-    if (tab?.crashed) {
-      void window.api.browserPanelFreeze().then(frozen => {
-        if (active && frozen) window.api.browserPanelHideFrozen(frozen.generation).catch(() => {})
-      }).catch(() => {})
-    } else {
-      window.api.browserPanelUnfreeze().catch(() => {})
-    }
-    return () => {
-      active = false
-    }
-  }, [tab?.id, tab?.crashed])
-
   return (
     <div className="browser-viewport" ref={hostRef}>
+      {frozenImage && (
+        <img
+          className="browser-frozen"
+          src={frozenImage}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          onLoad={e => {
+            const img = e.currentTarget
+            void img
+              .decode()
+              .catch(() => {})
+              .then(() => {
+                requestAnimationFrame(() => requestAnimationFrame(() => confirmFrozenImagePainted()))
+              })
+          }}
+        />
+      )}
       {tab?.crashed && (
         <div className="browser-empty" role="alert">
           <div className="browser-empty-title">This tab crashed.</div>
