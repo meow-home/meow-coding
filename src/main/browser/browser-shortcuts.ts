@@ -44,6 +44,12 @@ export function matchBrowserShortcut(
   const mod = primary(input, platform)
   const shift = input.shift === true
   const alt = input.alt === true
+  // Alt+Left/Right is plain history navigation off darwin. Never Ctrl+Left/Right or
+  // Cmd+Left/Right: those move the caret by word or line inside a text field.
+  if (!isDarwin(platform) && alt && !shift && input.control !== true && input.meta !== true) {
+    if (input.key === 'ArrowLeft') return 'back'
+    if (input.key === 'ArrowRight') return 'forward'
+  }
   if (alt || (input.control === true && isDarwin(platform)) || (input.meta === true && !isDarwin(platform))) {
     return null
   }
@@ -56,8 +62,6 @@ export function matchBrowserShortcut(
   if (mod && !shift && key === 'r') return 'reload'
   if (key === 'f5') return 'reload'
   if (mod && shift && key === 'r') return 'reload'
-  if (mod && !shift && !alt && input.key === 'ArrowLeft') return 'back'
-  if (mod && !shift && !alt && input.key === 'ArrowRight') return 'forward'
   if (isDarwin(platform) && mod && !shift && input.key === '[') return 'back'
   if (isDarwin(platform) && mod && !shift && input.key === ']') return 'forward'
   return null

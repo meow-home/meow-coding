@@ -18,8 +18,12 @@ describe('matchBrowserShortcut', () => {
       expect(matchBrowserShortcut(input({ ...mod, key: 'r' }), platform)).toBe('reload')
       expect(matchBrowserShortcut(input({ ...mod, key: 'R', shift: true }), platform)).toBe('reload')
       expect(matchBrowserShortcut(input({ key: 'F5' }), platform)).toBe('reload')
-      expect(matchBrowserShortcut(input({ ...mod, key: 'ArrowLeft' }), platform)).toBe('back')
-      expect(matchBrowserShortcut(input({ ...mod, key: 'ArrowRight' }), platform)).toBe('forward')
+    })
+
+    it(`leaves the caret keys to the page on ${platform}`, () => {
+      // Ctrl+Left moves by word and Cmd+Left to the line start inside a text field.
+      expect(matchBrowserShortcut(input({ ...mod, key: 'ArrowLeft' }), platform)).toBeNull()
+      expect(matchBrowserShortcut(input({ ...mod, key: 'ArrowRight' }), platform)).toBeNull()
     })
 
     it(`ignores keyUp and auto-repeat on ${platform}`, () => {
@@ -43,6 +47,15 @@ describe('matchBrowserShortcut', () => {
     expect(matchBrowserShortcut(input({ control: true, shift: true, key: 'l' }), 'win32')).toBeNull()
     expect(matchBrowserShortcut(input({ control: true, alt: true, key: 'ArrowLeft' }), 'win32')).toBeNull()
     expect(matchBrowserShortcut(input({ control: true, key: 'r', shift: false }), 'win32')).toBe('reload')
+  })
+
+  it('uses Alt+Left/Right for history off darwin', () => {
+    for (const platform of ['win32', 'linux'] as const) {
+      expect(matchBrowserShortcut(input({ alt: true, key: 'ArrowLeft' }), platform)).toBe('back')
+      expect(matchBrowserShortcut(input({ alt: true, key: 'ArrowRight' }), platform)).toBe('forward')
+    }
+    expect(matchBrowserShortcut(input({ alt: true, shift: true, key: 'ArrowLeft' }), 'win32')).toBeNull()
+    expect(matchBrowserShortcut(input({ alt: true, key: 'ArrowLeft' }), 'darwin')).toBeNull()
   })
 
   it('adds the macOS bracket navigation', () => {
@@ -69,8 +82,15 @@ describe('decideBrowserShortcut', () => {
       .toEqual({ action: null, navigate: 'reload', preventDefault: true })
     expect(decideBrowserShortcut(input({ control: true, key: 'r' }), 'win32', true))
       .toEqual({ action: null, navigate: null, preventDefault: true })
-    expect(decideBrowserShortcut(input({ control: true, key: 'ArrowLeft' }), 'win32', true))
+    expect(decideBrowserShortcut(input({ alt: true, key: 'ArrowLeft' }), 'win32', true))
       .toEqual({ action: null, navigate: null, preventDefault: true })
+    expect(decideBrowserShortcut(input({ alt: true, key: 'ArrowLeft' }), 'win32', false))
+      .toEqual({ action: null, navigate: 'back', preventDefault: true })
+  })
+
+  it('does not swallow caret movement in a page field', () => {
+    expect(decideBrowserShortcut(input({ control: true, key: 'ArrowLeft' }), 'win32', false))
+      .toEqual({ action: null, navigate: null, preventDefault: false })
   })
 
   it('blocks Ctrl+W from closing the window', () => {
