@@ -1,6 +1,6 @@
 # Built-in Browser Panel — Design
 
-Date: 2026-11-09 · Status: draft
+Date: 2026-11-09 · Status: implemented on `feat/browser-panel`; manual checks in section 12 pending
 Mockup: [Meow Browser Panel](https://claude.ai/artifact/4eY5mBrnkKUET8dySoen1k) (boards 1, 2, 4, 5 are in scope; board 3 is deferred).
 Plan: [Built-in Browser Panel Implementation Plan](../plans/2026-11-09-builtin-browser-panel.md).
 Touches: new `src/main/browser/{browser-backend,chrome-backend,embedded-browser,electron-tab-host,browser-tab,browser-router,cdp-commands,snapshot-output,site-approval}.ts`,
@@ -430,6 +430,16 @@ shield drawing (Task 7), S1 and S3 on macOS and Linux, long-run memory, and `cap
 | Agent acquires an `idle` tab while the user is mid-interaction. | Accepted for v1; the shield appears and the user can Take over. Revisit using `input-event` if it is reported. |
 | Site approval is main-frame only, so a sensitive embedded iframe uses its parent's approval. | Accepted for v1 and documented. |
 | Bot checks may treat CDP-attached sessions or Electron's user agent differently. | Handoff and Chrome backend remain as alternatives; no evasion is attempted. |
+
+### Known limits after implementation
+
+- Site approval is main-frame only, and out-of-process iframes are missing from snapshots.
+- A page calling `prompt()` hangs at that call until it navigates away (Electron shows no dialog and no CDP event).
+- A `browser_handoff` raises the OS notification but no sidebar "needs input" badge, since badges come from pending prompts.
+- Terminal links can be off by one cell per wide character on a row, and a URL cut by a line wrap gets no link.
+- Popups count toward the 8-tab app cap, so a page opening many can use up tabs for every session.
+- Escape in the URL field does not return focus to the page.
+- Pick element (mockup board 3) and screenshots for the model remain out of scope.
 
 ## 13. Build order
 

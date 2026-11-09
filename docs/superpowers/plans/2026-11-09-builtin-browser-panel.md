@@ -1,6 +1,6 @@
 # Built-in Browser Panel Implementation Plan
 
-Status: pending review
+Status: Tasks 0–15 done on `feat/browser-panel`; Task 16 manual checks pending
 
 **Goal:** Give every session a browser in the right-panels grid that the agent drives through the existing
 `browser_*` tools, with no extension and no pairing. Spec:
@@ -154,39 +154,39 @@ review if any gate fails.
 
 ## Task 1: Move shared snapshot code
 
-- [ ] Move `src/browser-extension/ax-snapshot.ts` to `src/shared/browser-ax-snapshot.ts`, importing types from
+- [x] Move `src/browser-extension/ax-snapshot.ts` to `src/shared/browser-ax-snapshot.ts`, importing types from
       `./browser-types`. Update `background.ts` and both imports in `tests/unit/browser/ax-snapshot.test.ts`.
-- [ ] Add to the same module, parameterized by `send: (method, params) => Promise<unknown>`:
+- [x] Add to the same module, parameterized by `send: (method, params) => Promise<unknown>`:
       `collectFrameAx(send)`, `waitForPageSettle(send, timeoutMs?)`. Change `background.ts` to call them with a
       `chrome.debugger.sendCommand` closure.
-- [ ] Add to the same module `readInteractiveTree(send, mode)`, the settle → collect → merge → snapshot sequence now
+- [x] Add to the same module `readInteractiveTree(send, mode)`, the settle → collect → merge → snapshot sequence now
       inline in the extension's `read` case.
-- [ ] `src/main/browser/snapshot-output.ts`: `writeSnapshotFile(dir, tree): BrowserCommandResult`, moved from
+- [x] `src/main/browser/snapshot-output.ts`: `writeSnapshotFile(dir, tree): BrowserCommandResult`, moved from
       `BrowserBridge.saveSnapshot`. `bridge.ts` calls it.
-- [ ] Run `npm run build:extension`, `npx vitest run tests/unit/browser tests/integration/browser`, and
+- [x] Run `npm run build:extension`, `npx vitest run tests/unit/browser tests/integration/browser`, and
       `npm run typecheck` (it covers the extension project). No behavior change.
 
 ## Task 2: Backend contract, router, Chrome backend, config
 
-- [ ] `src/main/browser/browser-backend.ts`: `BrowserCall`, `BrowserBackend`, `BrowserRouterLike` from spec §4.1.
-- [ ] `src/main/browser/chrome-backend.ts`: wraps `BrowserBridgeLike` + `BrowserLauncherLike`. `start` contains today's
+- [x] `src/main/browser/browser-backend.ts`: `BrowserCall`, `BrowserBackend`, `BrowserRouterLike` from spec §4.1.
+- [x] `src/main/browser/chrome-backend.ts`: wraps `BrowserBridgeLike` + `BrowserLauncherLike`. `start` contains today's
       `browser_start` body; the rest delegate.
-- [ ] `src/main/browser/browser-router.ts`:
+- [x] `src/main/browser/browser-router.ts`:
       ```ts
       new BrowserRouter({ backends: { builtin?: BrowserBackend; chrome: BrowserBackend }, defaultBackend: () => 'builtin' | 'chrome' })
       ```
       While `builtin` is absent (until Task 5), it resolves to `chrome`. Selections are held per owner.
-- [ ] `tools/browser.ts`: `createBrowserTools(router)`. Each `run(input, ctx)` builds a `BrowserCall` through one helper:
+- [x] `tools/browser.ts`: `createBrowserTools(router)`. Each `run(input, ctx)` builds a `BrowserCall` through one helper:
       `ownerId = ctx.snapshotAgentId ?? ctx.agentId`. No owner returns `browser: no session context`.
-- [ ] `browser_start` gains `target?: 'builtin' | 'chrome'`. Rewrite tool descriptions so they are backend-neutral.
-- [ ] `tools/registry.ts`: `browser?: { router: BrowserRouterLike }`. `index.ts`: build the router in `MainApp`.
-- [ ] `config.ts`:
+- [x] `browser_start` gains `target?: 'builtin' | 'chrome'`. Rewrite tool descriptions so they are backend-neutral.
+- [x] `tools/registry.ts`: `browser?: { router: BrowserRouterLike }`. `index.ts`: build the router in `MainApp`.
+- [x] `config.ts`:
       - `MeowConfig.browser?: { backend?: 'builtin' | 'chrome'; siteApproval?: 'ask' | 'off' }` and `normalizeBrowser`
         (invalid values → defaults).
       - Call it in `mergeDefaults` and in `settingsToConfig` (`settings.browser ?? base.browser`).
       - Add to `configToSettings` and `MeowSettings` in `src/shared/types.ts`.
       - Until Task 5, the effective default stays `chrome`, so this commit changes nothing for users.
-- [ ] Tests:
+- [x] Tests:
       - `tests/unit/browser/agent-tools-browser.test.ts`: move to a fake router; add owner resolution from
         `snapshotAgentId` and the no-owner error. `ctx` in that file gains `agentId`.
       - New `tests/unit/browser/browser-router.test.ts`: default, sticky, per-owner isolation.
@@ -194,16 +194,16 @@ review if any gate fails.
 
 ## Task 3: Untrusted-content notice
 
-- [ ] `snapshot-output.ts`: first line of each file and preview states the content comes from a web page and is data,
+- [x] `snapshot-output.ts`: first line of each file and preview states the content comes from a web page and is data,
       not instructions.
-- [ ] Add the same statement to the `browser_read`, `browser_console` and `browser_network` descriptions.
-- [ ] New `tests/unit/browser/snapshot-output.test.ts`: the file and preview both start with the notice, and
+- [x] Add the same statement to the `browser_read`, `browser_console` and `browser_network` descriptions.
+- [x] New `tests/unit/browser/snapshot-output.test.ts`: the file and preview both start with the notice, and
       `{ path, size, nodeCount, preview }` is unchanged. `snapshotToText` stays as it is, so
       `tests/unit/browser/snapshot-format.test.ts` is untouched.
 
 ## Task 4: `BrowserTab` and CDP commands (no Electron)
 
-- [ ] `src/main/browser/cdp-commands.ts`, each a function of `(cdp, refs, params)`:
+- [x] `src/main/browser/cdp-commands.ts`, each a function of `(cdp, refs, params)`:
       - `read`: `readInteractiveTree`, stores `Map<ref, backendNodeId>`, `writeSnapshotFile`.
       - `click`: resolve ref, selector or `x`/`y`; `DOM.scrollIntoViewIfNeeded`; `DOM.getBoxModel` center;
         `Input.dispatchMouseEvent` `mousePressed` + `mouseReleased`.
@@ -211,26 +211,26 @@ review if any gate fails.
       - `select`: the value setter + `change` from the extension's `refAction`.
       - `scroll`, `waitFor`: `Runtime.evaluate`.
       - An unknown ref returns `snapshot stale: re-read the page (ref …)`, matching the extension.
-- [ ] `src/main/browser/browser-tab.ts`: `BrowserTab(host: TabHost)` with the FIFO queue; command dispatch; console and
+- [x] `src/main/browser/browser-tab.ts`: `BrowserTab(host: TabHost)` with the FIFO queue; command dispatch; console and
       network buffers from `Runtime.consoleAPICalled`, `Runtime.exceptionThrown`, `Log.entryAdded`,
       `Network.requestWillBeSent`, `Network.responseReceived`, `Network.loadingFailed`; ref invalidation on
       `Page.frameNavigated` for the main frame; `toInfo(): BrowserTabInfo`.
-- [ ] Dialogs: on `Page.javascriptDialogOpening`, accept `alert` and `beforeunload`, dismiss `confirm` and `prompt`
+- [x] Dialogs: on `Page.javascriptDialogOpening`, accept `alert` and `beforeunload`, dismiss `confirm` and `prompt`
       through `Page.handleJavaScriptDialog`, and queue a note for the next result.
-- [ ] Add `BrowserTabInfo` and `BrowserTabControl` to `src/shared/browser-types.ts`.
-- [ ] Tests, with a fake `CdpClient`:
+- [x] Add `BrowserTabInfo` and `BrowserTabControl` to `src/shared/browser-types.ts`.
+- [x] Tests, with a fake `CdpClient`:
       - `tests/unit/browser/cdp-commands.test.ts`: click coordinates from the box model, stale ref, type sequence.
       - `tests/unit/browser/browser-tab.test.ts`: FIFO order, ref invalidation, buffer caps, dialog handling.
 
 ## Task 5: `EmbeddedBrowser`, Electron host, wiring
 
-- [ ] `src/main/browser/embedded-browser.ts`, implementing `BrowserBackend`, with an injected
+- [x] `src/main/browser/embedded-browser.ts`, implementing `BrowserBackend`, with an injected
       `createHost(ownerId): TabHost`:
       - Tab creation and caps, per-owner working tab, `navigate`, `openTab`, `switchTab`, `closeTab`, `listTabs`.
       - `start` returns ready, stating the active backend.
       - `removeSession(agentId)`, `closeAll()`, `onTabsChanged`, `onPanelRequest`.
       - `onPanelRequest` fires only for tabs the agent created.
-- [ ] `src/main/browser/electron-tab-host.ts`:
+- [x] `src/main/browser/electron-tab-host.ts`:
       - Page `WebContentsView` with `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`, no preload,
         `PARTITION`, `backgroundThrottling: false`.
       - Debugger attached with `Page`, `Runtime`, `Network`, `Log`, `DOM`, `Accessibility` enabled; reattach once on an
@@ -242,157 +242,158 @@ review if any gate fails.
         `setOnScreen(false)` (`Emulation.setDeviceMetricsOverride` 1280×800, scale 1), per spec §5.3.
       - The shield document (Task 7) and page capture use `view.webContents.capturePage()`, retried on failure;
         `win.capturePage()` excludes child views.
-- [ ] `hardenBrowserPartition()` in the same file, run once at app ready: permission request and check handlers deny
+- [x] `hardenBrowserPartition()` in the same file, run once at app ready: permission request and check handlers deny
       all except clipboard write; `will-download` cancels while the tab's control is `agent` or `approval`.
-- [ ] `index.ts`:
+- [x] `index.ts`:
       - Construct `EmbeddedBrowser`; pass it as the `builtin` backend.
       - Default `browser.backend` is now `builtin`.
       - `embedded.removeSession(agentId)` in `Channels.AgentRemove`, beside `terminals.removeSession`.
       - `embedded.closeAll()` in `before-quit`, after `browserBridge.close()`.
       - Reattach tabs when `createWindow` runs again; commands return `browser unavailable: no app window` with none.
-- [ ] Tests:
+- [x] Tests:
       - `tests/unit/browser/embedded-browser.test.ts` with a fake host: caps, working-tab resolution, `removeSession`
         destroys hosts, panel request only for agent-created tabs.
       - New `tests/e2e/browser-agent.spec.ts`: copy the mock LLM from `question-echo.spec.ts`, script
         `browser_navigate` → `browser_read` → `browser_click` against a local fixture HTTP server whose button changes
         the page title, then assert via a final `browser_list_tabs` in the transcript. This proves goal 2 with no UI.
-- [ ] Docs: `docs/reference/02-architecture.md`, `04-tool-catalog.md`, `06-data-and-storage.md`, `08-integrations.md`;
+- [x] Docs: `docs/reference/02-architecture.md`, `04-tool-catalog.md`, `06-data-and-storage.md`, `08-integrations.md`;
       `src/main/AGENTS.md`, `src/main/agent/tools/AGENTS.md`, root `AGENTS.md`.
 
 ## Task 6: Control state
 
-- [ ] `BrowserTab`: the state machine from spec §6.1; `takeOver()`, `handBack()`, `releaseLease()`; lease with an
+- [x] `BrowserTab`: the state machine from spec §6.1; `takeOver()`, `handBack()`, `releaseLease()`; lease with an
       injected timer; waiters that settle on hand-back, abort or `USER_HOLD_TIMEOUT_MS`; ref clearing and the resume
       note on hand-back.
-- [ ] `EmbeddedBrowser.releaseOwner(agentId)`. Call it in the `done`/`error` branch of `meowAgent.setOnEvent` in
+- [x] `EmbeddedBrowser.releaseOwner(agentId)`. Call it in the `done`/`error` branch of `meowAgent.setOnEvent` in
       `index.ts`, beside `notifyAgentAvailable`.
-- [ ] Extend `browser-tab.test.ts` with fake timers: every transition, lease renewal and expiry, waiting with abort and
+- [x] Extend `browser-tab.test.ts` with fake timers: every transition, lease renewal and expiry, waiting with abort and
       timeout, FIFO preserved while the head waits, an in-flight command finishing before Take over applies.
 
 ## Task 7: Shield
 
-- [ ] `electron-tab-host.ts`: a second `WebContentsView` with `setBackgroundColor('#00000000')`, sandboxed, loading an
+- [x] `electron-tab-host.ts`: a second `WebContentsView` with `setBackgroundColor('#00000000')`, sandboxed, loading an
       inline `data:` document with the ring and cursor; added above the page; same bounds; `setShield` toggles
       visibility and updates geometry through `executeJavaScript`.
-- [ ] `BrowserTab`: show the shield in `agent` and `approval`, hide it otherwise. Resolve the target rect from the box
+- [x] `BrowserTab`: show the shield in `agent` and `approval`, hide it otherwise. Resolve the target rect from the box
       model and send it before dispatching a click or type.
-- [ ] `before-input-event` on the shield and page, shared with Task 13.
-- [ ] Extend `tests/e2e/browser-agent.spec.ts`: with the agent's lease held, a real mouse click at the fixture button
+- [x] `before-input-event` on the shield and page, shared with Task 13.
+- [x] Extend `tests/e2e/browser-agent.spec.ts`: with the agent's lease held, a real mouse click at the fixture button
       does not change the page; after the lease ends, it does. Use `app.evaluate` to find the view's bounds.
 
 ## Task 8: Site approval
 
-- [ ] `src/main/browser/site-approval.ts`: `isLoopback(origin)`, and
+- [x] `src/main/browser/site-approval.ts`: `isLoopback(origin)`, and
       `SiteApprovals { isAllowed(owner, origin); allow(owner, origin); clearOwner(owner) }`.
-- [ ] Pipeline step 4 in `BrowserTab.run`. Prompt via `call.ask` with header, tool, origin, target name and the three
+- [x] Pipeline step 4 in `BrowserTab.run`. Prompt via `call.ask` with header, tool, origin, target name and the three
       options from spec §7.1. `siteApproval: 'off'` skips it. Clear the owner's entries in `removeSession`.
-- [ ] `tests/unit/browser/site-approval.test.ts`: loopback forms including `*.localhost`, and lookalikes such as
+- [x] `tests/unit/browser/site-approval.test.ts`: loopback forms including `*.localhost`, and lookalikes such as
       `localhost.example.com` are **not** exempt. Tab-level: once vs session, deny, `null` ask, origin changed during
       the prompt, `off`.
 
 ## Task 9: Sensitive fields and `browser_handoff`
 
-- [ ] `cdp-commands.ts`: `isSensitiveTarget(cdp, nodeId)` via `Runtime.callFunctionOn`, checking `type === 'password'`
+- [x] `cdp-commands.ts`: `isSensitiveTarget(cdp, nodeId)` via `Runtime.callFunctionOn`, checking `type === 'password'`
       or `autocomplete` starting with `cc-`. Pipeline step 3 for `type` and `select`, by ref and by selector; the error
       names `browser_handoff`.
-- [ ] `BrowserCommandName` gains `handoff`. `BrowserTab.handoff(reason, call)` sets `user` with `holdReason`, blocks
+- [x] `BrowserCommandName` gains `handoff`. `BrowserTab.handoff(reason, call)` sets `user` with `holdReason`, blocks
       until hand-back or abort with no timeout, and returns `{ originChanged }`.
-- [ ] Chrome: `ChromeBackend` returns `browser_handoff is only available in the built-in browser`.
-- [ ] `tools/browser.ts`: register `browser_handoff`. Update the "registers all tools" test (now 15).
-- [ ] Check `components/chat/toolSummary.ts`: the category already matches via `startsWith('browser_')`. Add a
+- [x] Chrome: `ChromeBackend` returns `browser_handoff is only available in the built-in browser`.
+- [x] `tools/browser.ts`: register `browser_handoff`. Update the "registers all tools" test (now 15).
+- [x] Check `components/chat/toolSummary.ts`: the category already matches via `startsWith('browser_')`. Add a
       per-tool summary only if the existing fallback reads badly.
-- [ ] Tests: refusal by ref and selector, no approval prompt on refusal, handoff returns on hand-back and abort,
+- [x] Tests: refusal by ref and selector, no approval prompt on refusal, handoff returns on hand-back and abort,
       `originChanged`, and read output containing no field values with a fixture AX tree carrying a `value`.
 
 ## Task 10: IPC contract
 
-- [ ] Add every entry of the IPC table to `Channels`, `AgentApi` and preload.
-- [ ] `registerIpcHandlers` delegates to `EmbeddedBrowser`. `BrowserTabNavigate` validates the scheme in main.
-- [ ] Forward `onTabsChanged` and `onPanelRequest` to `win.webContents`.
-- [ ] Panel methods on `EmbeddedBrowser`: `attach(agentId, bounds)`, `detach()`, `setBounds(bounds)`, `freeze()`,
+- [x] Add every entry of the IPC table to `Channels`, `AgentApi` and preload.
+- [x] `registerIpcHandlers` delegates to `EmbeddedBrowser`. `BrowserTabNavigate` validates the scheme in main.
+- [x] Forward `onTabsChanged` and `onPanelRequest` to `win.webContents`.
+- [x] Panel methods on `EmbeddedBrowser`: `attach(agentId, bounds)`, `detach()`, `setBounds(bounds)`, `freeze()`,
       `hideFrozen(generation)`, `unfreeze()`. Only the panel's active tab is on screen, with `setOnScreen(true, bounds)`;
       `detach` and tab switches return the others to the no-panel placement with `setOnScreen(false)`.
-- [ ] Unit-test the generation guard: an `unfreeze` during a pending `freeze` leaves the view visible, and a stale
+- [x] Unit-test the generation guard: an `unfreeze` during a pending `freeze` leaves the view visible, and a stale
       `hideFrozen` is ignored.
-- [ ] **Physical shield only for the on-screen tab.** Task 7 measured about 77 MB per shield (+615 MB at 8 tabs), and an
+- [x] **Physical shield only for the on-screen tab.** Task 7 measured about 77 MB per shield (+615 MB at 8 tabs), and an
       off-screen tab receives no mouse input anyway; `before-input-event` already blocks keys. `control` and the logical
       shield state stay per tab. The shield view is created when the tab goes on screen with the shield up, and destroyed when
       the tab leaves the screen. Adjust the Task 7 e2e, which asserts a shield with no panel. Re-measure and record the result.
-- [ ] **Dialogs from off-screen tabs.** Task 7 left `alert`/`confirm` in `user`/`idle` to Electron's native dialog. On a tab that
+- [x] **Dialogs from off-screen tabs.** Task 7 left `alert`/`confirm` in `user`/`idle` to Electron's native dialog. On a tab that
       is not on screen, that pops up an OS dialog from a page the user is not looking at. An off-screen tab uses the agent rule
       (auto-answer) unless it is in `user` state, and an on-screen tab keeps the native dialog. Update spec §5.2.
-- [ ] `setBounds` multiplies by `win.webContents.getZoomFactor()`.
-- [ ] Update `tests/unit/ipc-contract.test.ts`. Unit-test attach, detach and bounds with a fake host.
-- [ ] Docs: `docs/reference/05-ipc-contract.md`.
+- [x] `setBounds` multiplies by `win.webContents.getZoomFactor()`.
+- [x] Update `tests/unit/ipc-contract.test.ts`. Unit-test attach, detach and bounds with a fake host.
+- [x] Docs: `docs/reference/05-ipc-contract.md`.
 
 ## Task 11: Panel UI
 
-- [ ] `components/browser/BrowserOverlay.tsx`, on the `TerminalOverlay` skeleton: `files-overlay` chrome, `full` /
+- [x] `components/browser/BrowserOverlay.tsx`, on the `TerminalOverlay` skeleton: `files-overlay` chrome, `full` /
       `docked`, tabs via `files-tab`, tab context menu via `BaseDropdown`, `+`, expand, close. Tab list from
       `browserTabsList` + `onBrowserTabsChanged`.
-- [ ] `BrowserToolbar.tsx`: back, forward, reload or stop, URL input, open externally. Bare hosts are normalized to
+- [x] `BrowserToolbar.tsx`: back, forward, reload or stop, URL input, open externally. Bare hosts are normalized to
       `https://`, loopback hosts to `http://`.
-- [ ] `BrowserControlBanner.tsx`: `agent` → **Take over**; `user` → **Hand back**, or **I'm signed in** with `holdReason`;
+- [x] `BrowserControlBanner.tsx`: `agent` → **Take over**; `user` → **Hand back**, or **I'm signed in** with `holdReason`;
       `approval` → the waiting message. Colors use existing tokens, per the mockup.
-- [ ] `BrowserViewport.tsx`: placeholder div; attach on mount, detach on unmount; `ResizeObserver` + window resize,
+- [x] `BrowserViewport.tsx`: placeholder div; attach on mount, detach on unmount; `ResizeObserver` + window resize,
       coalesced per animation frame. Empty state with a **New tab** button when there are no tabs.
-- [ ] `App.tsx`: `browserOpenFor`, `browserFull`, `handleToggleBrowser`; add the panel to the expanded and docked render
+- [x] `App.tsx`: `browserOpenFor`, `browserFull`, `handleToggleBrowser`; add the panel to the expanded and docked render
       paths, to `dockedCount`, and to `.main`'s open count. Place it before the terminal in the grid, so the two stack as
       in mockup board 2. `containerWidth` gains the `MIN_DOCKED_WIDTH` term; `meow.rightPanels.width` is not overwritten.
-- [ ] `onBrowserPanelRequest`: open only if that agent is the active session of the active project.
-- [ ] `PaneHeader.tsx` + `Pane.tsx`, passed through `SessionPanes.tsx`: Globe toggle beside the terminal button, disabled
+- [x] `onBrowserPanelRequest`: open only if that agent is the active session of the active project.
+- [x] `PaneHeader.tsx` + `Pane.tsx`, passed through `SessionPanes.tsx`: Globe toggle beside the terminal button, disabled
       for drafts, with an agent dot while the session has a tab in `agent` or `approval`.
-- [ ] CSS in `styles.css` (CRLF, see `src/renderer/AGENTS.md`). The grid's `.docked` selector list gains
+- [x] CSS in `styles.css` (CRLF, see `src/renderer/AGENTS.md`). The grid's `.docked` selector list gains
       `.browser-overlay`.
-- [ ] Docs: `docs/reference/09-ui-guide.md`, `src/renderer/AGENTS.md`, `src/renderer/src/components/AGENTS.md`.
-- [ ] New `tests/e2e/browser-panel.spec.ts`: toggle via the button, load the fixture, two tabs, reload, and the view's
+- [x] Docs: `docs/reference/09-ui-guide.md`, `src/renderer/AGENTS.md`, `src/renderer/src/components/AGENTS.md`.
+- [x] New `tests/e2e/browser-panel.spec.ts`: toggle via the button, load the fixture, two tabs, reload, and the view's
       bounds match the placeholder rect in docked and expanded states.
 
 ## Task 12: Occlusion
 
-- [ ] `components/common/useBrowserOcclusion.ts`: module-level counter. 0→1 calls `browserPanelFreeze`, publishes the
+- [x] `components/common/useBrowserOcclusion.ts`: module-level counter. 0→1 calls `browserPanelFreeze`, publishes the
       image to `BrowserViewport` through a small subscribe function, and after the `<img>` has decoded and painted calls
       `browserPanelHideFrozen(generation)`. Image first, then hide: S1 measured 69 ms and no gap, against 115 ms and a
       two-frame gap the other way round. 1→0 calls `browserPanelUnfreeze`, and a result arriving after that is dropped.
-- [ ] Call it from `BaseModal`, `BaseDropdown` (while `open`), and the `right-panels-resizer` drag in `App.tsx`.
+- [x] Call it from `BaseModal`, `BaseDropdown` (while `open`), and the `right-panels-resizer` drag in `App.tsx`.
       `common/AGENTS.md` records the rule.
-- [ ] Hide the view when another panel is expanded, and when the active project changes away from it.
-- [ ] Audit fixed overlays that do not use the common components and can overlap the panel, starting with
+- [x] Hide the view when another panel is expanded, and when the active project changes away from it.
+- [x] Audit fixed overlays that do not use the common components and can overlap the panel, starting with
       `.sidebar-popover` and context panels; add the hook where they can overlap.
-- [ ] `tests/e2e/browser-panel.spec.ts`: a `BaseDropdown` opened from the panel's tab menu is visible and clickable;
+- [x] `tests/e2e/browser-panel.spec.ts`: a `BaseDropdown` opened from the panel's tab menu is visible and clickable;
       `ConfirmDialog` is too; the view returns to the same bounds after closing.
 
 ## Task 13: Keyboard
 
-- [ ] `electron-tab-host.ts`: `before-input-event` on page and shield. Forward `` Ctrl/Cmd+` `` and `Ctrl/Cmd+Shift+B`
+- [x] `electron-tab-host.ts`: `before-input-event` on page and shield. Forward `` Ctrl/Cmd+` `` and `Ctrl/Cmd+Shift+B`
       through `EventBrowserShortcut`. Handle `Ctrl/Cmd+L`, `Ctrl/Cmd+R` and `Alt+Left/Right`. Call `preventDefault` on
       each, so `Ctrl+R` does not reach the default menu's reload.
-- [ ] Renderer: `onBrowserShortcut` runs the same handlers as the window listeners in `Pane.tsx`. Add
+- [x] Renderer: `onBrowserShortcut` runs the same handlers as the window listeners in `Pane.tsx`. Add
       `Ctrl/Cmd+Shift+B` beside the terminal shortcut.
-- [ ] Pure helper `matchBrowserShortcut(input, platform)` with `tests/unit/browser/browser-shortcuts.test.ts`.
-- [ ] `tests/e2e/browser-panel.spec.ts`: with focus in the page, `` Ctrl+` `` toggles the terminal.
+- [x] Pure helper `matchBrowserShortcut(input, platform)` with `tests/unit/browser/browser-shortcuts.test.ts`.
+- [x] `tests/e2e/browser-panel.spec.ts`: with focus in the page, `` Ctrl+` `` toggles the terminal.
 
 ## Task 14: Drawer and terminal links
 
-- [ ] `BrowserDrawer.tsx`: Console and Network tabs, polling `browserTabLogs` every 1.5 s only while open. **Send to chat**
+- [x] `BrowserDrawer.tsx`: Console and Network tabs, polling `browserTabLogs` every 1.5 s only while open. **Send to chat**
       dispatches the existing `meow:composer-insert` event with `{ agentId, text }`, as `TerminalView` does.
-- [ ] `TerminalView.tsx`: `registerLinkProvider` for loopback http(s) URLs only. Activation calls
+- [x] `TerminalView.tsx`: `registerLinkProvider` for loopback http(s) URLs only. Activation calls
       `browserTabCreate(agentId, url)` and opens the panel through a new `onOpenBrowser` prop from `TerminalOverlay`.
       Pure `findLoopbackLinks(line)` with a unit test, including lookalike hosts.
-- [ ] `tests/e2e/browser-panel.spec.ts`: drawer shows a fixture `console.error`.
-- [ ] `tests/e2e/terminal.spec.ts` is unchanged and still passes.
+- [x] `tests/e2e/browser-panel.spec.ts`: drawer shows a fixture `console.error`.
+- [x] `tests/e2e/terminal.spec.ts` is unchanged and still passes.
 
 ## Task 15: Settings, status bar, compatibility
 
-- [ ] `BrowserDialog.tsx`: `BaseSelect` for the default backend, through the existing settings get and save path;
+- [x] `BrowserDialog.tsx`: `BaseSelect` for the default backend, through the existing settings get and save path;
       **Clear browsing data** with `ConfirmDialog`, calling `browserClearData` (`session.clearStorageData`).
-- [ ] `StatusBar.tsx`: the pill shows the default backend. For `chrome`, it keeps today's bridge status.
-- [ ] Confirm `browser_start` output states the active backend.
-- [ ] Docs: `docs/reference/08-integrations.md` (both backends, and the limits in spec §7.3), `09-ui-guide.md`.
+- [x] `StatusBar.tsx`: the pill shows the default backend. For `chrome`, it keeps today's bridge status.
+- [x] Confirm `browser_start` output states the active backend.
+- [x] Docs: `docs/reference/08-integrations.md` (both backends, and the limits in spec §7.3), `09-ui-guide.md`.
 
 ## Task 16: Final verification
 
-- [ ] `npm run typecheck`, `npm test`, `npm run build && npm run e2e`.
+- [x] `npm run typecheck`, `npm test`, `npm run build && npm run e2e`. Unit: 1916 passed, 1 skipped. E2E: 56 passed, 11 failed. The same
+      11 fail on `master` (40 passed): `smoke` 3, `menus` 2, `selectors` 2, `sidebar-sessions` 3, and the flaky `composer` drain test.
 - [ ] Manual, in `npm run dev`: walk mockup boards 1, 2, 4 and 5 and record any difference in the spec.
 - [ ] Manual, from spec §12: flicker when opening a menu over the panel, the real resizer in the grid, and shield drawing
       quality. Long-run memory and macOS/Linux stay open until those builds ship.
