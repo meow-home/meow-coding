@@ -242,7 +242,7 @@ test('the panel toggles, drives a tab, switches tabs, reloads and matches the vi
       await expectBounds(app, url, window)
       await window.locator('.pane-header .icon-btn[aria-label="Toggle browser"]').click()
       await window.waitForTimeout(300)
-      console.log('[e2e] toggle close count', await window.locator('.browser-overlay').count())
+      await expect(window.locator('.browser-overlay')).toHaveCount(0)
       await window.locator('.pane-header .icon-btn[aria-label="Toggle browser"]').click()
       await window.waitForTimeout(300)
       const agentShot = await compositeShot(app, url, path.join(shots, 'browser-agent-banner.png'))

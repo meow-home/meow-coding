@@ -275,7 +275,9 @@ export default function App() {
   ) : null
   const browserPanel = browserOpenFor ? (
     <BrowserOverlay
-      key={browserOpenFor}
+      // Not the bare agent id: TerminalOverlay uses it in the same children array, and with
+      // duplicate keys React cannot find this fiber to delete when the panel closes.
+      key={`browser:${browserOpenFor}`}
       agentId={browserOpenFor}
       full={browserFull}
       onToggleFull={() => setBrowserFull(v => !v)}
