@@ -314,6 +314,13 @@ review if any gate fails.
       `detach` and tab switches return the others to the no-panel placement with `setOffscreenMetrics(true)`.
 - [ ] Unit-test the generation guard: an `unfreeze` during a pending `freeze` leaves the view visible, and a stale
       `hideFrozen` is ignored.
+- [ ] **Physical shield only for the on-screen tab.** Task 7 measured about 77 MB per shield (+615 MB at 8 tabs), and an
+      off-screen tab receives no mouse input anyway; `before-input-event` already blocks keys. `control` and the logical
+      shield state stay per tab. The shield view is created when the tab goes on screen with the shield up, and destroyed when
+      the tab leaves the screen. Adjust the Task 7 e2e, which asserts a shield with no panel. Re-measure and record the result.
+- [ ] **Dialogs from off-screen tabs.** Task 7 left `alert`/`confirm` in `user`/`idle` to Electron's native dialog. On a tab that
+      is not on screen, that pops up an OS dialog from a page the user is not looking at. An off-screen tab uses the agent rule
+      (auto-answer) unless it is in `user` state, and an on-screen tab keeps the native dialog. Update spec §5.2.
 - [ ] `setBounds` multiplies by `win.webContents.getZoomFactor()`.
 - [ ] Update `tests/unit/ipc-contract.test.ts`. Unit-test attach, detach and bounds with a fake host.
 - [ ] Docs: `docs/reference/05-ipc-contract.md`.
