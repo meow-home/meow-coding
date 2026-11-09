@@ -215,7 +215,8 @@ describe('EmbeddedBrowser tabs', () => {
 
   it('settles an in-flight command when the session is removed', async () => {
     const { browser, hosts } = makeBrowser()
-    await browser.execute('openTab', { url: 'https://a.test/' }, call('a'))
+    // Loopback so the click is not gated by site approval and reaches CDP.
+    await browser.execute('openTab', { url: 'http://127.0.0.1:3000/' }, call('a'))
     hosts[0].cdp.onSend = (method) => (method === 'DOM.getDocument' ? new Promise<void>(() => {}) : undefined)
     const pending = browser.execute('click', { selector: '#a' }, call('a'))
     await tick()

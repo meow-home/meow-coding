@@ -159,7 +159,10 @@ export function createTaskTool(opts: {
         tool,
         toolInput
       ),
-      ask: opts.ask ?? (async () => null),
+      // A background subagent has nobody watching its prompts: asking would park a
+      // pending prompt on the parent forever. Deny instead (canPrompt only gates
+      // permission decisions, not ctx.ask).
+      ask: background ? (async () => null) : (opts.ask ?? (async () => null)),
       hooks: opts.hooks,
       maxSteps: opts.maxSteps ?? 0,
       maxContextTokens: opts.maxContextTokens,

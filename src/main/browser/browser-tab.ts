@@ -3,7 +3,9 @@ import type {
   BrowserCommandName, BrowserCommandResult, BrowserReadMode, BrowserTabControl, BrowserTabInfo
 } from '../../shared/browser-types'
 import * as commands from './cdp-commands'
-import type { TargetRect } from './cdp-commands'
+import { staleRefError } from './cdp-commands'
+import type { RefLabel, TargetRect } from './cdp-commands'
+import { SiteApprovals, isLoopback } from './site-approval'
 
 export interface CdpClient {
   send<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>
@@ -50,6 +52,10 @@ export interface BrowserTabDeps {
   onControlChanged?: () => void
   /** Injectable for tests; defaults to the global timers. */
   timers?: BrowserTabTimers
+  /** Session approvals shared by the owner's tabs (and its subagents). */
+  siteApprovals?: SiteApprovals
+  /** Read per call, so a settings change applies without a restart. */
+  siteApproval?: () => 'ask' | 'off'
 }
 
 export interface ConsoleEntry {
@@ -69,6 +75,14 @@ interface BufferedConsoleEntry extends ConsoleEntry {
 
 interface BufferedNetworkEntry extends NetworkEntry {
   held?: boolean
+}
+
+function originOf(url: string): string {
+  try {
+    return new URL(url).origin
+  } catch {
+    return 'null'
+  }
 }
 
 const MAX_CONSOLE_TEXT = 4000
@@ -101,6 +115,7 @@ export class BrowserTab {
   private readonly deps: BrowserTabDeps
   private readonly host: TabHost
   private readonly refs = new Map<string, number>()
+  private readonly refLabels = new Map<string, RefLabel>()
   private readonly consoleBuffer: BufferedConsoleEntry[] = []
   private readonly networkBuffer: BufferedNetworkEntry[] = []
   private readonly pendingRequests = new Map<string, { method: string; url: string; held: boolean }>()
@@ -108,6 +123,7 @@ export class BrowserTab {
   private readonly resumeNotes: string[] = []
   private readonly holdWaiters = new Set<() => void>()
   private readonly timers: BrowserTabTimers
+  private readonly siteApprovals: SiteApprovals
   private control: BrowserTabControl = 'idle'
   private holdReason: string | undefined
   private leaseTimer: unknown = null
@@ -125,6 +141,7 @@ export class BrowserTab {
       setTimeout: (fn, ms) => setTimeout(fn, ms),
       clearTimeout: handle => clearTimeout(handle as ReturnType<typeof setTimeout>)
     }
+    this.siteApprovals = deps.siteApprovals ?? new SiteApprovals()
     this.unsubscribe = host.cdp.onEvent((method, params) => this.handleEvent(method, params))
   }
 
@@ -139,11 +156,15 @@ export class BrowserTab {
     timeoutMs = DEFAULT_COMMAND_TIMEOUT_MS
   ): Promise<BrowserCommandResult> {
     const task = this.queue.then(async () => {
-      // Pipeline: wait for control, acquire the lease + shield, then execute and
-      // decorate. The wait is not part of the command's execution budget, so it
-      // runs before the timeout below starts.
+      // Pipeline: wait for control, acquire the lease + shield, ask for site
+      // approval when needed, then execute and decorate. Neither the hold wait nor
+      // the approval prompt is part of the command's execution budget, so the
+      // timeout only starts in executeTimed.
       const blocked = await this.waitForControl(name, call)
       if (blocked) return this.decorate(blocked)
+      this.acquire()
+      const denied = await this.approvalGate(name, params, call)
+      if (denied) return this.decorate(denied)
       return this.executeTimed(name, params, call, timeoutMs)
     })
     // A failed (or abandoned) command must not stop the queue for the commands behind it.
@@ -257,7 +278,6 @@ export class BrowserTab {
       }
       signal?.addEventListener('abort', onAbort, { once: true })
       lifetime.addEventListener('abort', onClosed, { once: true })
-      this.acquire()
       timer = setTimeout(() => finish({ ok: false, error: `browser command timed out: ${name}` }), timeoutMs)
       this.dispatch(name, params).then(
         // A late result from an abandoned command is dropped without decorating
@@ -324,6 +344,7 @@ export class BrowserTab {
     this.control = 'idle'
     this.holdReason = undefined
     this.refs.clear()
+    this.refLabels.clear()
     this.resumeNotes.push(USER_HELD_NOTE)
     const waiters = [...this.holdWaiters]
     this.holdWaiters.clear()
@@ -343,6 +364,7 @@ export class BrowserTab {
   markCrashed(): void {
     this.crashed = true
     this.refs.clear()
+    this.refLabels.clear()
   }
 
   /** Settles any in-flight command, then detaches and closes the page. */
@@ -377,7 +399,7 @@ export class BrowserTab {
         // The browser removes and destroys the tab after this command settles.
         return { ok: true }
       case 'read':
-        return commands.read(this.host.cdp, this.refs, {
+        return commands.read(this.host.cdp, this.refs, this.refLabels, {
           mode: params.mode as BrowserReadMode | undefined,
           snapshotDir: this.deps.snapshotDir
         })
@@ -466,6 +488,7 @@ export class BrowserTab {
         // Only a main-frame navigation invalidates refs; iframes come and go all the time.
         if (!frame.parentId) {
           this.refs.clear()
+          this.refLabels.clear()
           this.crashed = false
         }
         break
@@ -483,6 +506,130 @@ export class BrowserTab {
         break
       }
     }
+  }
+
+  /**
+   * Step 4: click/type/select on a non-loopback origin needs the user's consent
+   * once per session. The prompt is outside the command clock.
+   */
+  private async approvalGate(
+    name: BrowserCommandName,
+    params: Record<string, unknown>,
+    call: BrowserCall | undefined
+  ): Promise<BrowserCommandResult | null> {
+    if (name !== 'click' && name !== 'type' && name !== 'select') return null
+    if ((this.deps.siteApproval ?? (() => 'ask'))() === 'off') return null
+    const url = this.host.getUrl()
+    const origin = originOf(url)
+    if (isLoopback(origin)) return null
+    if (this.siteApprovals.isAllowed(this.deps.agentId, origin)) return null
+
+    const target = this.describeTarget(params)
+    if ('error' in target) return target.error
+    const site = origin === 'null' ? (url || 'about:blank') : origin
+
+    this.control = 'approval'
+    this.setShieldSafe({ visible: true })
+    this.notifyControlChanged()
+    const outcome = await this.askApproval(call, name, site, target.label)
+    // The prompt can outlive a take-over attempt; the tab stays the agent's while
+    // it runs and goes back to `agent` for the answer.
+    this.control = 'agent'
+    this.setShieldSafe({ visible: true })
+    this.notifyControlChanged()
+    if ('error' in outcome) {
+      this.armLeaseIfAgent()
+      return outcome.error
+    }
+
+    const now = originOf(this.host.getUrl())
+    if (now !== origin) {
+      this.refs.clear()
+      this.refLabels.clear()
+      this.armLeaseIfAgent()
+      return { ok: false, error: `page changed during approval (now ${now}): re-read it` }
+    }
+    if (outcome.answer === 'Allow once') return null
+    if (outcome.answer === 'Allow this site for the session') {
+      this.siteApprovals.allow(this.deps.agentId, origin)
+      return null
+    }
+    this.armLeaseIfAgent()
+    return { ok: false, error: `not approved: ${origin}` }
+  }
+
+  /** Settles on an answer, `call.signal` abort or tab close; `ask` may never resolve. */
+  private askApproval(
+    call: BrowserCall | undefined,
+    name: BrowserCommandName,
+    site: string,
+    target: string
+  ): Promise<{ answer: string | null } | { error: BrowserCommandResult }> {
+    if (!call) return Promise.resolve({ answer: null })
+    const tab = this
+    return new Promise(resolve => {
+      let settled = false
+      const signal = call.signal
+      const lifetime = this.lifetime.signal
+
+      function cleanup(): void {
+        signal?.removeEventListener('abort', onAbort)
+        lifetime.removeEventListener('abort', onClosed)
+      }
+
+      function finish(result: { answer: string | null } | { error: BrowserCommandResult }): void {
+        if (settled) return
+        settled = true
+        cleanup()
+        resolve(result)
+      }
+
+      function onAbort(): void {
+        finish({ error: { ok: false, error: `browser command aborted: ${name}` } })
+      }
+
+      function onClosed(): void {
+        finish({ error: { ok: false, error: 'tab closed' } })
+      }
+
+      if (tab.closed) {
+        onClosed()
+        return
+      }
+      if (signal?.aborted) {
+        onAbort()
+        return
+      }
+      signal?.addEventListener('abort', onAbort, { once: true })
+      lifetime.addEventListener('abort', onClosed, { once: true })
+      void call.ask({
+        header: 'Allow Meow to act on this site?',
+        question: `browser_${name} on ${site}\nTarget: ${target}`,
+        options: [
+          { label: 'Allow once' },
+          { label: 'Allow this site for the session' },
+          { label: 'Deny' }
+        ],
+        custom: false
+      }).then(
+        answer => finish({ answer }),
+        () => finish({ answer: null })
+      )
+    })
+  }
+
+  /** What the page calls the target; an unknown ref never prompts (the command is stale). */
+  private describeTarget(params: Record<string, unknown>): { label: string } | { error: BrowserCommandResult } {
+    if (params.ref != null) {
+      const ref = String(params.ref)
+      if (!this.refs.has(ref)) return { error: staleRefError(ref) }
+      const label = this.refLabels.get(ref)
+      if (!label) return { label: `ref ${ref}` }
+      const text = label.name.replace(/\s+/g, ' ').trim().slice(0, 80)
+      return { label: text ? `${label.role} "${text}"` : label.role }
+    }
+    if (params.selector != null) return { label: `selector ${String(params.selector)}` }
+    return { label: `at ${Number(params.x)},${Number(params.y)}` }
   }
 
   /** The shield's target ring, drawn before the input is dispatched. */

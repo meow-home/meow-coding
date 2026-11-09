@@ -175,7 +175,9 @@ export class MainApp {
   embeddedBrowser = new EmbeddedBrowser({
     createHost: (ownerId, callbacks) => createElectronTabHost({ getWindow: () => win, callbacks }),
     snapshotDir: path.join(app.getPath('userData'), 'browser-snapshots'),
-    hasWindow: () => !!win && !win.isDestroyed()
+    hasWindow: () => !!win && !win.isDestroyed(),
+    // Re-read meow.json per call so a settings change applies without a restart.
+    siteApproval: () => loadMeowConfig(path.join(app.getPath('userData'), 'meow.json')).browser?.siteApproval ?? 'ask'
   })
   browserRouter = new BrowserRouter({
     backends: {

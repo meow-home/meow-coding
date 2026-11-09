@@ -282,7 +282,8 @@ describe('cdp read', () => {
       ]
     }
     const refs = new Map<string, number>([['old', 1]])
-    const result = await read(cdp, refs, { mode: 'interactive', snapshotDir: dir })
+    const labels = new Map<string, { role: string; name: string }>()
+    const result = await read(cdp, refs, labels, { mode: 'interactive', snapshotDir: dir })
     expect(result.ok).toBe(true)
     if (!result.ok) return
     const data = result.data as { path: string; nodeCount: number; preview: string }
@@ -291,5 +292,6 @@ describe('cdp read', () => {
     expect(readFileSync(data.path, 'utf-8').split('\n')[0]).toBe(SNAPSHOT_UNTRUSTED_NOTICE)
     expect(refs.get('r1')).toBe(12)
     expect(refs.has('old')).toBe(false)
+    expect(labels.get('r1')).toEqual({ role: 'button', name: 'Go' })
   })
 })

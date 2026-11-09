@@ -244,3 +244,60 @@ describe('task subagent roles', () => {
     expect(blocked.error).toMatch(/plan mode/i)
   })
 })
+describe('subagent prompts', () => {
+  function askerProject(): string {
+    const dir = tempDir()
+    mkdirSync(path.join(dir, '.meow', 'agents'), { recursive: true })
+    writeFileSync(path.join(dir, '.meow', 'agents', 'asker.md'), [
+      '---',
+      'name: asker',
+      'description: asks a question',
+      'tools: question',
+      '---',
+      'Ask once, then continue.'
+    ].join('\n'))
+    return dir
+  }
+
+  const questionTurns = (): LlmStreamPart[][] => [
+    [{ kind: 'tool-call', toolCallId: 'c1', toolName: 'question', toolInput: { question: 'Which?', options: [{ label: 'A' }] } }, { kind: 'finish' }],
+    [{ kind: 'text', text: 'done' }, { kind: 'finish' }]
+  ]
+
+  it('denies ctx.ask in a background subagent instead of parking a prompt', async () => {
+    const dir = askerProject()
+    const askSpy = vi.fn(async () => null)
+    let resolveResult!: (text: string) => void
+    const result = new Promise<string>(resolve => { resolveResult = resolve })
+    const tool = createTaskTool({
+      llm: stubLlm(questionTurns()),
+      model: 'm',
+      tools: createDefaultTools(),
+      permission: allowAll(),
+      ask: askSpy,
+      onBackgroundResult: (_id, text) => resolveResult(text)
+    })
+    const r = await tool.run(
+      { description: 'bg ask', prompt: 'ask', subagent_type: 'asker', background: true },
+      { ...ctx, cwd: dir }
+    )
+    expect(r.output).toContain('running in background')
+    expect(await result).toBe('done')
+    expect(askSpy).not.toHaveBeenCalled()
+  })
+
+  it('lets a foreground subagent bubble its question to the parent', async () => {
+    const dir = askerProject()
+    const askSpy = vi.fn(async () => null)
+    const tool = createTaskTool({
+      llm: stubLlm(questionTurns()),
+      model: 'm',
+      tools: createDefaultTools(),
+      permission: allowAll(),
+      ask: askSpy
+    })
+    const r = await tool.run({ description: 'fg ask', prompt: 'ask', subagent_type: 'asker' }, { ...ctx, cwd: dir })
+    expect(askSpy).toHaveBeenCalledTimes(1)
+    expect(r.output).toContain('done')
+  })
+})

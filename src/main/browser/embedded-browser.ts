@@ -5,6 +5,7 @@ import type { ToolRunResult } from '../agent/tools/types'
 import type { BrowserBackend, BrowserCall } from './browser-backend'
 import { BrowserTab, type TabHost } from './browser-tab'
 import { NAVIGATE_TIMEOUT_MS } from './cdp-commands'
+import { SiteApprovals } from './site-approval'
 
 export const MAX_TABS_PER_SESSION = 8
 export const MAX_TABS_TOTAL = 8
@@ -21,6 +22,8 @@ export interface EmbeddedBrowserDeps {
   snapshotDir: string
   /** False while the app has no window; commands then fail instead of creating views. */
   hasWindow?: () => boolean
+  /** Read per call from meow.json, so a settings change applies without a restart. */
+  siteApproval?: () => 'ask' | 'off'
 }
 
 interface TabEntry {
@@ -52,6 +55,7 @@ export class EmbeddedBrowser implements BrowserBackend {
   private readonly panelActive = new Map<string, number>()
   private readonly tabsListeners = new Set<TabsListener>()
   private readonly panelListeners = new Set<PanelRequestListener>()
+  private readonly siteApprovals = new SiteApprovals()
 
   constructor(private readonly deps: EmbeddedBrowserDeps) {}
 
@@ -137,6 +141,7 @@ export class EmbeddedBrowser implements BrowserBackend {
     }
     this.working.delete(agentId)
     this.panelActive.delete(agentId)
+    this.siteApprovals.clearOwner(agentId)
     this.emitTabsChanged(agentId)
   }
 
@@ -228,7 +233,9 @@ export class EmbeddedBrowser implements BrowserBackend {
     tab = new BrowserTab(host, {
       agentId: ownerId,
       snapshotDir: this.deps.snapshotDir,
-      onControlChanged: () => this.emitTabsChanged(ownerId)
+      onControlChanged: () => this.emitTabsChanged(ownerId),
+      siteApprovals: this.siteApprovals,
+      siteApproval: this.deps.siteApproval
     })
     const entry: TabEntry = { tab, host, ownerId, agentCreated }
     this.tabs.set(tab.id, entry)

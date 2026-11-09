@@ -116,7 +116,7 @@ function startMockLlm(turns: MockTurn[]): Promise<{ server: http.Server; port: n
 // AX tree; the far button sits below a 1800px spacer so its click only lands if
 // scroll + box-model coordinates are right; the input reflects its value into
 // document.title, which browser_list_tabs reports.
-function startFixtureServer(): Promise<{ server: http.Server; url: string }> {
+function startFixtureServer(host = '127.0.0.1'): Promise<{ server: http.Server; url: string }> {
   const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html' })
     if (req.url?.startsWith('/frame')) {
@@ -129,6 +129,7 @@ function startFixtureServer(): Promise<{ server: http.Server; url: string }> {
       <div style="height:1800px">spacer</div>
       <button id="far" onclick="document.title='far-clicked'">Far button</button>
       <input id="name" aria-label="Name" oninput="document.title='name:'+this.value">
+      <button id="approve" onclick="window.__approve=(window.__approve||0)+1;document.title='approve:'+window.__approve">Approve button</button>
       <script>
         window.__clicks = 0
         window.__keys = 0
@@ -138,10 +139,10 @@ function startFixtureServer(): Promise<{ server: http.Server; url: string }> {
     </body></html>`)
   })
   return new Promise(resolve => {
-    server.listen(0, '127.0.0.1', () => {
+    server.listen(0, host, () => {
       const addr = server.address()
       const port = typeof addr === 'object' && addr ? addr.port : 0
-      resolve({ server, url: `http://127.0.0.1:${port}/` })
+      resolve({ server, url: `http://${host}:${port}/` })
     })
   })
 }
@@ -440,6 +441,59 @@ test('the shield covers the page while the agent works and is destroyed with the
         }), { pageId: seen!.pageId, shieldId: seen!.shieldId })
         return destroyed.page !== false && destroyed.shield !== false
       }, { timeout: 5000 }).toBe(true)
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+    fixture.close()
+    llm.close()
+  }
+})
+
+test('a non-loopback site needs approval: Deny blocks, session allow lets it through', async () => {
+  // 127.0.0.2 is in the loopback range for the OS but not exempt in our policy,
+  // so this is a real non-loopback origin without a production hook.
+  const { server: fixture, url } = await startFixtureServer('127.0.0.2')
+  const { server: llm, port } = await startMockLlm([
+    { toolCall: { name: 'browser_navigate', args: { url } } },
+    { toolCall: { name: 'browser_read', args: {} } },
+    { toolCall: { name: 'browser_click', args: (body: unknown) => ({ ref: refFor(body, 'Approve button') }) } },
+    { toolCall: { name: 'browser_click', args: (body: unknown) => ({ ref: refFor(body, 'Approve button') }) } },
+    { toolCall: { name: 'browser_click', args: (body: unknown) => ({ ref: refFor(body, 'Approve button') }) } },
+    { toolCall: { name: 'browser_list_tabs', args: {} } },
+    { contentFrom: (body: unknown) => `titles: ${titlesIn(body).join(' | ')}` }
+  ])
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    seedUserData(userData, project, {
+      provider: { mock: { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}`, models: ['mock-model'] } },
+      model: 'mock'
+    })
+    const { app, window } = await launch(userData)
+    try {
+      await window.locator('.chat-input-field').fill('approve the site')
+      await window.locator('.chat-input-field').press('Enter')
+
+      // First click: the prompt names the tool, the origin and what the page calls
+      // the target; Deny blocks it.
+      const prompt = window.locator('.chat-prompt')
+      await expect(prompt).toBeVisible({ timeout: 30000 })
+      await expect(prompt).toContainText('browser_click on http://127.0.0.2')
+      await expect(prompt).toContainText('button "Approve button"')
+      await prompt.locator('.chat-option', { hasText: 'Deny' }).click()
+      await expect(window.locator('.tool-call-error')).toContainText('not approved')
+
+      // Second click: allow this site for the session, then the third click runs
+      // with no prompt at all.
+      await expect(window.locator('.chat-prompt')).toBeVisible({ timeout: 30000 })
+      await window.locator('.chat-option', { hasText: 'Allow this site for the session' }).click()
+
+      const final = window.locator('.chat-msg.assistant').last()
+      await expect(final).toContainText('approve:2', { timeout: 55000 })
+      expect(await window.locator('.chat-prompt').count()).toBe(0)
     } finally {
       await app.close()
     }

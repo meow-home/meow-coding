@@ -7,6 +7,8 @@ import {
 } from '../../../src/main/browser/browser-tab'
 import type { CdpClient, TabHost } from '../../../src/main/browser/browser-tab'
 import type { BrowserCommandResult } from '../../../src/shared/browser-types'
+import type { QuestionPrompt } from '../../../shared/types'
+import { SiteApprovals } from '../../../src/main/browser/site-approval'
 
 class FakeCdp implements CdpClient {
   calls: Array<{ method: string; params?: Record<string, unknown> }> = []
@@ -43,7 +45,7 @@ function fakeHost(cdp: CdpClient): {
   }
 } {
   const state = {
-    url: 'https://example.com/',
+    url: 'http://127.0.0.1:3000/',
     title: 'Example',
     destroyed: false,
     history: [] as string[],
@@ -109,7 +111,7 @@ describe('BrowserTab info', () => {
     expect(tab.toInfo()).toEqual({
       id: 42,
       agentId: 'agent-1',
-      url: 'https://example.com/',
+      url: 'http://127.0.0.1:3000/',
       title: 'Example',
       loading: false,
       canGoBack: true,
@@ -384,7 +386,7 @@ describe('BrowserTab lifecycle', () => {
     expect(errorOf(await tab.run('click', { x: 1, y: 2 }))).toBe(
       'tab crashed; call browser_navigate to reload it'
     )
-    expect((await tab.run('navigate', { url: 'https://example.org/' })).ok).toBe(true)
+    expect((await tab.run('navigate', { url: 'http://127.0.0.1:4000/' })).ok).toBe(true)
     expect(tab.toInfo().crashed).toBe(false)
     expect((await tab.run('click', { x: 1, y: 2 })).ok).toBe(true)
   })
@@ -793,5 +795,235 @@ describe('BrowserTab logs during a hold', () => {
     expect(tab.allConsoleLogs()).toHaveLength(LOG_BUFFER_ENTRIES)
     expect(tab.consoleLogs()).toEqual([])
     tab.destroy()
+  })
+})
+
+describe('BrowserTab site approval', () => {
+  function makeApprovalTab(
+    cdp: FakeCdp,
+    options: { url?: string; siteApproval?: () => 'ask' | 'off'; approvals?: SiteApprovals } = {}
+  ): {
+    tab: BrowserTab
+    state: { url: string; shields: Array<{ visible: boolean; target?: unknown }> }
+    approvals: SiteApprovals
+  } {
+    const { host, state } = fakeHost(cdp)
+    if (options.url) state.url = options.url
+    const approvals = options.approvals ?? new SiteApprovals()
+    const tab = new BrowserTab(host, {
+      agentId: 'agent-1',
+      snapshotDir: dir,
+      siteApprovals: approvals,
+      siteApproval: options.siteApproval ?? (() => 'ask')
+    })
+    return { tab, state, approvals }
+  }
+
+  function primeClick(cdp: FakeCdp): void {
+    cdp.responses['DOM.getDocument'] = { root: { nodeId: 1 } }
+    cdp.responses['DOM.querySelector'] = { nodeId: 7 }
+    cdp.responses['DOM.getBoxModel'] = { model: { content: [10, 20, 110, 20, 110, 70, 10, 70], width: 100, height: 50 } }
+  }
+
+  it('prompts once per click on a non-loopback site and allows once', async () => {
+    const cdp = new FakeCdp()
+    primeClick(cdp)
+    const ask = vi.fn(async (_q: QuestionPrompt) => 'Allow once')
+    const { tab } = makeApprovalTab(cdp, { url: 'https://example.com/page' })
+
+    expect((await tab.run('click', { selector: '#b' }, { ownerId: 'agent-1', ask })).ok).toBe(true)
+    expect(ask).toHaveBeenCalledTimes(1)
+    const prompt = ask.mock.calls[0][0]
+    expect(prompt.header).toBe('Allow Meow to act on this site?')
+    expect(prompt.question).toContain('browser_click on https://example.com')
+    expect(prompt.question).toContain('Target: selector #b')
+    expect(prompt.options?.map(o => o.label)).toEqual(['Allow once', 'Allow this site for the session', 'Deny'])
+    expect(prompt.custom).toBe(false)
+    expect(tab.toInfo().control).toBe('agent')
+
+    // Allow once records nothing: the next click asks again.
+    expect((await tab.run('click', { selector: '#b' }, { ownerId: 'agent-1', ask })).ok).toBe(true)
+    expect(ask).toHaveBeenCalledTimes(2)
+    tab.destroy()
+  })
+
+  it('Allow this site for the session skips the next prompt for that origin', async () => {
+    const cdp = new FakeCdp()
+    primeClick(cdp)
+    const ask = vi.fn(async (_q: QuestionPrompt) => 'Allow this site for the session')
+    const { tab } = makeApprovalTab(cdp, { url: 'https://example.com/' })
+    expect((await tab.run('click', { selector: '#b' }, { ownerId: 'agent-1', ask })).ok).toBe(true)
+    expect((await tab.run('click', { selector: '#b' }, { ownerId: 'agent-1', ask })).ok).toBe(true)
+    expect(ask).toHaveBeenCalledTimes(1)
+    tab.destroy()
+  })
+
+  it('Deny and null/unknown answers block the command before any input', async () => {
+    for (const answer of ['Deny', null, 'Something else']) {
+      const cdp = new FakeCdp()
+      primeClick(cdp)
+      const ask = vi.fn(async (_q: QuestionPrompt) => answer)
+      const { tab } = makeApprovalTab(cdp, { url: 'https://example.com/' })
+      const result = await tab.run('click', { selector: '#b' }, { ownerId: 'agent-1', ask })
+      expect(result).toEqual({ ok: false, error: 'not approved: https://example.com' })
+      expect(cdp.calls).toEqual([])
+      tab.destroy()
+    }
+  })
+
+  it('fails when the origin changes during the prompt and records nothing', async () => {
+    const cdp = new FakeCdp()
+    primeClick(cdp)
+    const { tab, state } = makeApprovalTab(cdp, { url: 'https://example.com/' })
+    const ask = vi.fn(async (_q: QuestionPrompt) => {
+      state.url = 'https://other.example/'
+      return 'Allow this site for the session'
+    })
+    const result = await tab.run('click', { selector: '#b' }, { ownerId: 'agent-1', ask })
+    expect(result).toEqual({
+      ok: false,
+      error: 'page changed during approval (now https://other.example): re-read it'
+    })
+    // Nothing was recorded for either origin: the next click asks again.
+    ask.mockImplementationOnce(async () => 'Deny')
+    expect((await tab.run('click', { selector: '#b' }, { ownerId: 'agent-1', ask })).ok).toBe(false)
+    expect(ask).toHaveBeenCalledTimes(2)
+    tab.destroy()
+  })
+
+  it('does not prompt when site approval is off', async () => {
+    const cdp = new FakeCdp()
+    primeClick(cdp)
+    const ask = vi.fn(async (_q: QuestionPrompt) => 'Deny')
+    const { tab } = makeApprovalTab(cdp, { url: 'https://example.com/', siteApproval: () => 'off' })
+    expect((await tab.run('click', { selector: '#b' }, { ownerId: 'agent-1', ask })).ok).toBe(true)
+    expect(ask).not.toHaveBeenCalled()
+    tab.destroy()
+  })
+
+  it('never prompts for a stale ref', async () => {
+    const cdp = new FakeCdp()
+    const ask = vi.fn(async (_q: QuestionPrompt) => 'Allow once')
+    const { tab } = makeApprovalTab(cdp, { url: 'https://example.com/' })
+    const result = await tab.run('click', { ref: 'r9' }, { ownerId: 'agent-1', ask })
+    expect(result).toEqual({ ok: false, error: 'snapshot stale: re-read the page (ref r9 no longer valid)' })
+    expect(ask).not.toHaveBeenCalled()
+    tab.destroy()
+  })
+
+  it('shows what the page calls the target and collapses the name', async () => {
+    const cdp = new FakeCdp()
+    cdp.responses['Runtime.evaluate'] = { result: { value: true } }
+    cdp.responses['Page.getFrameTree'] = { frameTree: { frame: { id: 'F1' } } }
+    const longName = `  Delete\n   workspace ${'x'.repeat(120)} `
+    cdp.responses['Accessibility.getFullAXTree'] = {
+      nodes: [
+        { nodeId: '1', role: { value: 'rootwebarea' }, childIds: ['2'] },
+        { nodeId: '2', role: { value: 'button' }, name: { value: longName }, backendDOMNodeId: 12 }
+      ]
+    }
+    const ask = vi.fn(async (_q: QuestionPrompt) => 'Deny')
+    const { tab } = makeApprovalTab(cdp, { url: 'https://example.com/' })
+    await tab.run('read', {})
+    await tab.run('click', { ref: 'r1' }, { ownerId: 'agent-1', ask })
+    const question = ask.mock.calls[0][0].question
+    const target = question.split('\n')[1]
+    expect(target.startsWith('Target: button "Delete workspace x')).toBe(true)
+    expect(target).not.toContain('  ')
+    const quoted = target.slice('Target: button "'.length, -1)
+    expect(quoted.length).toBeLessThanOrEqual(80)
+    tab.destroy()
+  })
+
+  it('labels coordinate and selector targets', async () => {
+    const cdp = new FakeCdp()
+    primeClick(cdp)
+    const ask = vi.fn(async (_q: QuestionPrompt) => 'Allow once')
+    const { tab } = makeApprovalTab(cdp, { url: 'https://example.com/' })
+    await tab.run('click', { x: 12, y: 34 }, { ownerId: 'agent-1', ask })
+    expect(ask.mock.calls[0][0].question).toContain('Target: at 12,34')
+    await tab.run('click', { selector: '#b' }, { ownerId: 'agent-1', ask })
+    expect(ask.mock.calls[1][0].question).toContain('Target: selector #b')
+    tab.destroy()
+  })
+
+  it('does not gate read, scroll or navigate', async () => {
+    const cdp = new FakeCdp()
+    cdp.responses['Runtime.evaluate'] = { result: { value: true } }
+    primeRead(cdp)
+    const ask = vi.fn(async (_q: QuestionPrompt) => 'Deny')
+    const { tab } = makeApprovalTab(cdp, { url: 'https://example.com/' })
+    expect((await tab.run('read', {}, { ownerId: 'agent-1', ask })).ok).toBe(true)
+    expect((await tab.run('scroll', { direction: 'down' }, { ownerId: 'agent-1', ask })).ok).toBe(true)
+    expect((await tab.run('navigate', { url: 'https://example.com/next' }, { ownerId: 'agent-1', ask })).ok).toBe(true)
+    expect(ask).not.toHaveBeenCalled()
+    tab.destroy()
+  })
+
+  it('shares approvals per owner and survives another owner', async () => {
+    const cdp = new FakeCdp()
+    primeClick(cdp)
+    const approvals = new SiteApprovals()
+    const ask = vi.fn(async (_q: QuestionPrompt) => 'Allow this site for the session')
+    const first = makeApprovalTab(cdp, { url: 'https://example.com/', approvals })
+    await first.tab.run('click', { selector: '#b' }, { ownerId: 'agent-1', ask })
+    expect(approvals.isAllowed('agent-1', 'https://example.com')).toBe(true)
+    expect(approvals.isAllowed('agent-2', 'https://example.com')).toBe(false)
+    first.tab.destroy()
+  })
+
+  it('shows approval during the prompt and goes back to agent after the answer', async () => {
+    const cdp = new FakeCdp()
+    primeClick(cdp)
+    let release: (value: string) => void = () => {}
+    const ask = vi.fn((_q: QuestionPrompt) => new Promise<string | null>(resolve => { release = resolve }))
+    const { tab, state } = makeApprovalTab(cdp, { url: 'https://example.com/' })
+    const pending = tab.run('click', { selector: '#b' }, { ownerId: 'agent-1', ask })
+    await tick()
+    expect(tab.toInfo().control).toBe('approval')
+    expect(state.shields[state.shields.length - 1]).toEqual({ visible: true })
+    // Take over has no transition from approval, and releaseLease must not unstick it.
+    tab.takeOver()
+    tab.releaseLease()
+    expect(tab.toInfo().control).toBe('approval')
+    release('Allow once')
+    expect((await pending).ok).toBe(true)
+    expect(tab.toInfo().control).toBe('agent')
+    tab.destroy()
+  })
+
+  it('settles a pending prompt on abort and drops the lease afterwards', async () => {
+    vi.useFakeTimers()
+    try {
+      const cdp = new FakeCdp()
+      primeClick(cdp)
+      const ask = vi.fn((_q: QuestionPrompt) => new Promise<string | null>(() => {}))
+      const { tab } = makeApprovalTab(cdp, { url: 'https://example.com/' })
+      const controller = new AbortController()
+      const pending = tab.run('click', { selector: '#b' }, {
+        ownerId: 'agent-1', ask, signal: controller.signal
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(tab.toInfo().control).toBe('approval')
+      controller.abort()
+      expect(await pending).toEqual({ ok: false, error: 'browser command aborted: click' })
+      expect(tab.toInfo().control).toBe('agent')
+      await vi.advanceTimersByTimeAsync(CONTROL_LEASE_MS)
+      expect(tab.toInfo().control).toBe('idle')
+      tab.destroy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('settles a pending prompt when the tab is destroyed', async () => {
+    const cdp = new FakeCdp()
+    primeClick(cdp)
+    const ask = vi.fn((_q: QuestionPrompt) => new Promise<string | null>(() => {}))
+    const { tab } = makeApprovalTab(cdp, { url: 'https://example.com/' })
+    const pending = tab.run('click', { selector: '#b' }, { ownerId: 'agent-1', ask })
+    await tick()
+    tab.destroy()
+    expect(await pending).toEqual({ ok: false, error: 'tab closed' })
   })
 })

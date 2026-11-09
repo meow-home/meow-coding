@@ -202,6 +202,13 @@ Every session gets its own tabs inside the app window and the agent drives them 
   commands then wait up to 5 minutes for hand-back (`user is holding this tab` on timeout), and the
   first result afterwards carries a `[meow]` note to re-read the page. Hand-back clears the ref map.
   `host.setShield` is called on every transition but the shield view does not exist yet.
+- **Site approval** (`site-approval.ts`): `click`, `type` and `select` on a non-loopback main-frame origin ask
+  "Allow Meow to act on this site?" with `Allow once` / `Allow this site for the session` / `Deny`. The origin is
+  read from the page at action time and re-read after the answer (a change fails with `page changed during
+  approval`); `Allow once` records nothing, session approvals live per owner (a subagent shares its parent's), and
+  `browser.siteApproval: 'off'` in `meow.json` skips the check. `localhost`, `127.0.0.1`, `[::1]` and `*.localhost`
+  are exempt, lookalikes are not. The prompt runs in the `approval` state, outside the command clock, and settles
+  on abort or tab close.
 - **Private logs during a hold**: console and network entries captured while `control === 'user'` are
   marked; the agent's `browser_console` / `browser_network` exclude them, including after hand-back,
   while the user's drawer reads the full buffers. A request is marked from the moment it starts, so a
@@ -219,9 +226,8 @@ Every session gets its own tabs inside the app window and the agent drives them 
 - **Limits**: 8 tabs per session, 8 per app (spike S4: ~123 MB of working set per tab). A shield adds
   a renderer: 8 shields cost +615 MB on top of 875 MB for the 8 pages in a local measurement, so they
   are created only for tabs the agent actually drives.
-- **Not implemented yet**: site approval (the `approval` state is reserved), password-field refusal,
-  `browser_handoff`, the panel UI and the occlusion freeze. Treat the built-in browser as unfinished: a
-  page can be driven without an approval prompt and a password field can be typed into.
+- **Not implemented yet**: password-field refusal, `browser_handoff`, the panel UI and the occlusion freeze.
+  Treat the built-in browser as unfinished: a password field can still be typed into.
 - Chrome remains available with `browser_start({ target: 'chrome' })`; the bridge rules in 8.3 are
   unchanged.
 

@@ -1,4 +1,4 @@
-import type { BrowserCommandResult, BrowserReadMode } from '../../shared/browser-types'
+import type { BrowserCommandResult, BrowserReadMode, SnapshotNode } from '../../shared/browser-types'
 import { readInteractiveTree } from '../../shared/browser-ax-snapshot'
 import type { CdpClient } from './browser-tab'
 import { writeSnapshotFile } from './snapshot-output'
@@ -28,7 +28,7 @@ interface BoxModel {
   model: { content: number[]; width?: number; height?: number }
 }
 
-function stale(ref: string): BrowserCommandResult {
+export function staleRefError(ref: string): BrowserCommandResult {
   return { ok: false, error: `snapshot stale: re-read the page (ref ${ref} no longer valid)` }
 }
 
@@ -49,7 +49,7 @@ async function resolveNode(
   if (params.ref != null) {
     const ref = String(params.ref)
     const backendNodeId = refs.get(ref)
-    if (backendNodeId == null) return stale(ref)
+    if (backendNodeId == null) return staleRefError(ref)
     return { backendNodeId }
   }
   const selector = params.selector != null ? String(params.selector) : null
@@ -78,7 +78,7 @@ async function withTarget(
   } catch (err) {
     // The node was removed or replaced since the snapshot: answer like an unknown ref,
     // not with the raw CDP "could not find node" text.
-    if (ref && isMissingNode(err)) return stale(ref)
+    if (ref && isMissingNode(err)) return staleRefError(ref)
     throw err
   }
 }
@@ -153,7 +153,7 @@ async function resolveAttachedObject(
   const objectId = await resolveObject(cdp, target)
   if (ref == null) return objectId
   const connected = await callOnObject(cdp, objectId, 'function(){ return this.isConnected === true }')
-  if (connected !== true) return stale(ref)
+  if (connected !== true) return staleRefError(ref)
   return objectId
 }
 
@@ -205,15 +205,30 @@ export interface ReadParams extends Record<string, unknown> {
   snapshotDir: string
 }
 
+/** What the page calls an element, for the approval prompt. */
+export interface RefLabel {
+  role: string
+  name: string
+}
+
 export async function read(
   cdp: CdpClient,
   refs: Map<string, number>,
+  labels: Map<string, RefLabel>,
   params: ReadParams
 ): Promise<BrowserCommandResult> {
   const mode: BrowserReadMode = params.mode === 'full' ? 'full' : 'interactive'
   const { tree, refs: found } = await readInteractiveTree((method, p) => cdp.send(method, p), mode)
   refs.clear()
   for (const r of found) refs.set(r.ref, r.backendDOMNodeId)
+  labels.clear()
+  const walk = (nodes: SnapshotNode[]): void => {
+    for (const node of nodes) {
+      if (node.ref) labels.set(node.ref, { role: node.role, name: node.name ?? '' })
+      if (node.children) walk(node.children)
+    }
+  }
+  walk(tree)
   return writeSnapshotFile(params.snapshotDir, tree)
 }
 

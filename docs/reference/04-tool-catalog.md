@@ -308,9 +308,11 @@ A call with no session identity (`snapshotAgentId ?? agentId`) returns `browser:
 | `browser_wait_for` | `{ selector, timeoutMs? }` | Poll until a CSS selector exists. |
 
 Built-in commands run through one FIFO queue per tab and time out after 30 s; a `tabId` from another
-session is rejected with `no such tab`. Site approval and password-field refusal are not implemented
-yet (see 8.3b). Chrome commands time out after 30 s at the bridge level; when the Chrome backend is
-not paired, every command returns `browser not connected — run browser_start first`.
+session is rejected with `no such tab`. On the built-in backend, `browser_click`, `browser_type` and
+`browser_select` on a non-loopback site ask the user for approval (`Allow once` / `Allow this site for
+the session` / `Deny`; `browser.siteApproval: 'off'` disables the prompt — see 8.3b). Password-field
+refusal is not implemented yet. Chrome commands time out after 30 s at the bridge level; when the
+Chrome backend is not paired, every command returns `browser not connected — run browser_start first`.
 
 ## 4.4 MCP tools
 
