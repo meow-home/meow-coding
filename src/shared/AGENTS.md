@@ -9,7 +9,7 @@ Shared contract between main / preload / renderer.
 - `ipc.ts` — `Channels` (all channel strings) + `AgentApi` (API interface) + event payload types
   (`AgentStateEvent`, `GitStatusEvent`).
 - `image.ts` — image extension list (`IMAGE_EXTENSIONS`) and MIME mapping helper (`imageMimeType`).
-- `browser-types.ts` — types specific to the browser bridge (extension approval, snapshot).
+- `browser-types.ts` — types specific to the browser bridge and the built-in browser (extension approval, snapshot, `BrowserTabInfo` / `BrowserTabControl`).
 - `browser-ax-snapshot.ts` — pure accessibility-tree helpers shared by both browser backends: `axTreeToSnapshot`, `mergeFrameAxTrees`, and the `send`-parameterized `waitForPageSettle` / `collectFrameAx` / `readInteractiveTree` (no Chrome or Electron imports).
 - `text.ts` — pure text helpers (lossless incremental stream delta append, ...).
 - `usage.ts` — pure helpers for computing context/token usage.

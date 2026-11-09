@@ -28,14 +28,19 @@ export interface SnapshotNode {
   children?: SnapshotNode[]
 }
 
+export type BrowserTabControl = 'idle' | 'agent' | 'approval' | 'user'
+
 export interface BrowserTabInfo {
-  id?: number
-  title?: string
-  url?: string
-  active: boolean
-  windowId?: number
-  groupId?: number
-  groupTitle?: string
+  id: number
+  agentId: string
+  url: string
+  title: string
+  loading: boolean
+  canGoBack: boolean
+  canGoForward: boolean
+  crashed: boolean
+  control: BrowserTabControl
+  holdReason?: string
 }
 
 export type BrowserCommandName =
