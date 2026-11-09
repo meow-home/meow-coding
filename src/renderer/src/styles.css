@@ -4999,7 +4999,12 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 
 /* Browser panel (built-in browser). The native page view is a rectangle, so the
    panel, its viewport and their ancestors are square; only controls stay rounded. */
-.browser-overlay { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+/* A native page view cannot follow a CSS transform: this panel must not animate
+   (meow-rise starts 0.5rem low and leaves the measured rect stale). */
+.browser-overlay { display: flex; flex-direction: column; min-width: 0; min-height: 0; animation: none; }
+/* .files-head carries the title-bar class for its chrome, but its buttons are real
+   buttons: the window drag region must not swallow them. */
+.files-head, .files-head * { -webkit-app-region: no-drag; }
 .browser-overlay, .browser-overlay * { border-radius: 0; }
 .browser-overlay .btn,
 .browser-overlay .icon-btn,

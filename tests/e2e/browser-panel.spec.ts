@@ -151,19 +151,51 @@ function viewBounds(app: ElectronApp, url: string): Promise<Rect & { visible: bo
   }, url)
 }
 
-async function screenshot(app: ElectronApp, file: string): Promise<void> {
-  const data = await app.evaluate(async ({ desktopCapturer, screen, BrowserWindow }) => {
+async function compositeShot(app: ElectronApp, fixtureUrl: string, file: string): Promise<number> {
+  const data = await app.evaluate(async ({ BrowserWindow, nativeImage }, fixture) => {
     const win = BrowserWindow.getAllWindows()[0]
-    const bounds = win.getContentBounds()
-    const display = screen.getDisplayNearestPoint({ x: bounds.x + 10, y: bounds.y + 10 })
-    const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: { width: display.size.width, height: display.size.height }
-    })
-    const source = sources.find(s => s.display_id === String(display.id)) || sources[0]
-    return source.thumbnail.toPNG().toString('base64')
-  })
-  writeFileSync(file, Buffer.from(data, 'base64'))
+    const appImage = await win.webContents.capturePage()
+    const content = win.getContentBounds()
+    const appSize = appImage.getSize()
+    const scale = content.width > 0 ? appSize.width / content.width : 1
+    const bitmap = Buffer.from(appImage.toBitmap())
+    const children = win.contentView.children as unknown as Array<{
+      webContents?: { getURL(): string; capturePage(): Promise<{ getSize(): { width: number; height: number }; toBitmap(): Buffer }> }
+      getBounds(): { x: number; y: number; width: number; height: number }
+    }>
+    const page = children.find(c => c.webContents?.getURL().startsWith(fixture))
+    if (page && page.webContents) {
+      const pageImage = await page.webContents.capturePage()
+      const pSize = pageImage.getSize()
+      const pBitmap = pageImage.toBitmap()
+      const b = page.getBounds()
+      const ox = Math.round(b.x * scale)
+      const oy = Math.round(b.y * scale)
+      for (let row = 0; row < pSize.height && oy + row < appSize.height; row++) {
+        if (oy + row < 0) continue
+        const src = row * pSize.width * 4
+        const dst = ((oy + row) * appSize.width + ox) * 4
+        const len = Math.min(pSize.width * 4, (appSize.width - ox) * 4)
+        if (dst >= 0 && len > 0) pBitmap.copy(bitmap, dst, src, src + len)
+      }
+    }
+    return nativeImage.createFromBitmap(bitmap, { width: appSize.width, height: appSize.height }).toPNG().toString('base64')
+  }, fixtureUrl)
+  const buffer = Buffer.from(data, 'base64')
+  if (buffer.length === 0) throw new Error(`empty screenshot: ${file}`)
+  writeFileSync(file, buffer)
+  return buffer.length
+}
+
+async function expectBounds(app: ElectronApp, url: string, window: Page): Promise<void> {
+  await window.waitForTimeout(250)
+  await expect.poll(async () => {
+    const view = await viewBounds(app, url)
+    const rect = await viewportRect(window)
+    if (!view) return false
+    return Math.abs(view.x - rect.x) <= 1 && Math.abs(view.y - rect.y) <= 1
+      && Math.abs(view.width - rect.width) <= 1 && Math.abs(view.height - rect.height) <= 1
+  }, { timeout: 15000 }).toBe(true)
 }
 
 function viewportRect(window: Page): Promise<Rect> {
@@ -207,21 +239,23 @@ test('the panel toggles, drives a tab, switches tabs, reloads and matches the vi
       await expect(window.locator('.icon-btn[aria-label="Open in default browser"]')).toBeEnabled()
 
       // Docked beside the chat, the native view matches the placeholder rect.
-      await window.waitForTimeout(800)
-      await expect.poll(async () => {
-        const view = await viewBounds(app, url)
-        const rect = await viewportRect(window)
-        if (!view) return false
-        return Math.abs(view.x - rect.x) <= 6 && Math.abs(view.y - rect.y) <= 6
-          && Math.abs(view.width - rect.width) <= 2 && Math.abs(view.height - rect.height) <= 2
-      }, { timeout: 15000 }).toBe(true)
+      await expectBounds(app, url, window)
+      await window.locator('.pane-header .icon-btn[aria-label="Toggle browser"]').click()
+      await window.waitForTimeout(300)
+      console.log('[e2e] toggle close count', await window.locator('.browser-overlay').count())
+      await window.locator('.pane-header .icon-btn[aria-label="Toggle browser"]').click()
+      await window.waitForTimeout(300)
+      const agentShot = await compositeShot(app, url, path.join(shots, 'browser-agent-banner.png'))
 
       // Take over / hand back.
+
       await window.locator('.browser-banner button', { hasText: 'Take over' }).click()
       await expect(window.locator('.browser-banner')).toContainText('Hand back')
       await expect(window.locator('.browser-url-input')).toBeEnabled()
       await window.locator('.browser-banner button', { hasText: 'Hand back' }).click()
       await expect(window.locator('.browser-banner')).toHaveCount(0)
+      // The banner row disappeared: the viewport moved without resizing the panel.
+      await expectBounds(app, url, window)
 
       // URL entry reaches the fixture; invalid input shows the error row.
       await window.locator('.browser-url-input').fill(url.replace(/^http:\/\//, ''))
@@ -230,6 +264,11 @@ test('the panel toggles, drives a tab, switches tabs, reloads and matches the vi
       await window.locator('.browser-url-input').fill('file:///C:/secret.txt')
       await window.locator('.browser-url-input').press('Enter')
       await expect(window.locator('.terminal-error-bar')).toContainText('Enter an http(s) URL')
+      // The error row moved the viewport down.
+      await expectBounds(app, url, window)
+      await window.locator('.terminal-error-bar .icon-btn').click()
+      await expect(window.locator('.terminal-error-bar')).toHaveCount(0)
+      await expectBounds(app, url, window)
 
       // A second tab and a reload.
       await window.locator('.icon-btn[aria-label="New tab"]').click()
@@ -237,20 +276,35 @@ test('the panel toggles, drives a tab, switches tabs, reloads and matches the vi
       await window.locator('.browser-tab').first().click()
       await window.locator('.icon-btn[aria-label="Reload"]').click()
 
-      await screenshot(app, path.join(shots, 'browser-docked-chat.png'))
+      const chatShot = await compositeShot(app, url, path.join(shots, 'browser-docked-chat.png'))
+
+      // Position-only change: a transition moves .main without resizing it (the
+      // panel's own rise animation is the production case; this makes it explicit).
+      const beforeMove = await viewportRect(window)
+      await window.evaluate(() => {
+        const main = document.querySelector('.main') as HTMLElement
+        main.style.transition = 'transform 80ms linear'
+        main.style.transform = 'translateX(-24px)'
+      })
+      await window.waitForTimeout(400)
+      const afterMove = await viewportRect(window)
+      expect(afterMove.width).toBe(beforeMove.width)
+      expect(afterMove.height).toBe(beforeMove.height)
+      expect(afterMove.x).not.toBe(beforeMove.x)
+      await expectBounds(app, url, window)
+      await window.evaluate(() => {
+        const main = document.querySelector('.main') as HTMLElement
+        main.style.transform = ''
+      })
+      await window.waitForTimeout(300)
+      await expectBounds(app, url, window)
 
       // Expanded: the view follows the new placeholder rect.
       await window.locator('.icon-btn[aria-label="Expand"]').click()
       await expect(overlay).toHaveClass(/full/)
-      await window.waitForTimeout(800)
-      await expect.poll(async () => {
-        const view = await viewBounds(app, url)
-        const rect = await viewportRect(window)
-        if (!view) return false
-        return Math.abs(view.x - rect.x) <= 6 && Math.abs(view.y - rect.y) <= 6
-          && Math.abs(view.width - rect.width) <= 2 && Math.abs(view.height - rect.height) <= 2
-      }, { timeout: 15000 }).toBe(true)
+      await expectBounds(app, url, window)
       await window.locator('.icon-btn[aria-label="Restore size"]').click()
+      await expectBounds(app, url, window)
 
       // Docked beside the terminal: both visible, no overlap.
       await window.keyboard.press('Control+`')
@@ -261,8 +315,18 @@ test('the panel toggles, drives a tab, switches tabs, reloads and matches the vi
       // The grid stacks them: the browser sits above the terminal in the column.
       expect(browserBox!.x).toBeCloseTo(terminalBox!.x, 0)
       expect(browserBox!.y + browserBox!.height).toBeLessThanOrEqual(terminalBox!.y + 1)
-      await screenshot(app, path.join(shots, 'browser-docked-terminal.png'))
-      console.log('[e2e] screenshots', path.join(shots, 'browser-docked-chat.png'), path.join(shots, 'browser-docked-terminal.png'))
+      const terminalShot = await compositeShot(app, url, path.join(shots, 'browser-docked-terminal.png'))
+
+      // Closing with the terminal docked: the header Close button must close the panel.
+      await window.locator('.icon-btn[aria-label="Close Browser"]').click()
+      await expect(overlay).toHaveCount(0)
+      await expect.poll(async () => (await viewBounds(app, url))?.x, { timeout: 10000 }).toBe(10_000)
+
+      console.log('[e2e] screenshots', JSON.stringify({
+        agent: { path: path.join(shots, 'browser-agent-banner.png'), bytes: agentShot },
+        chat: { path: path.join(shots, 'browser-docked-chat.png'), bytes: chatShot },
+        terminal: { path: path.join(shots, 'browser-docked-terminal.png'), bytes: terminalShot }
+      }))
       releaseSecondTurn()
     } finally {
       await app.close()

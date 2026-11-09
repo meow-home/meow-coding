@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { Plus, RotateCw } from 'lucide-react'
 import type { BrowserTabInfo } from '@shared/browser-types'
 
@@ -24,6 +24,23 @@ function sameRect(a: Rect | null, b: Rect): boolean {
 export default function BrowserViewport({ agentId, tab, onNewTab, onReloadCrash, onError }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const lastRect = useRef<Rect | null>(null)
+  const frame = useRef(0)
+
+  // ResizeObserver misses position-only moves (a CSS transform, the panel's rise
+  // animation, the grid re-laying out). Re-measure on animation/transition ends too.
+  const schedule = useCallback(() => {
+    const el = hostRef.current
+    if (!el || frame.current) return
+    frame.current = requestAnimationFrame(() => {
+      frame.current = 0
+      const rect = roundedRect(el)
+      if (rect.width === 0 || rect.height === 0 || sameRect(lastRect.current, rect)) return
+      lastRect.current = rect
+      void window.api.browserPanelSetBounds(rect).catch(err => {
+        onError(err instanceof Error ? err.message : String(err))
+      })
+    })
+  }, [onError])
 
   // Attach once; IPC order is preserved, so a remount's attach always follows the
   // previous unmount's detach.
@@ -37,6 +54,8 @@ export default function BrowserViewport({ agentId, tab, onNewTab, onReloadCrash,
     })
     return () => {
       lastRect.current = null
+      if (frame.current) cancelAnimationFrame(frame.current)
+      frame.current = 0
       void window.api.browserPanelDetach().catch(() => {})
     }
   }, [agentId, onError])
@@ -44,29 +63,26 @@ export default function BrowserViewport({ agentId, tab, onNewTab, onReloadCrash,
   useEffect(() => {
     const el = hostRef.current
     if (!el) return
-    let frame = 0
-    const send = (): void => {
-      frame = 0
-      const rect = roundedRect(el)
-      if (rect.width === 0 || rect.height === 0 || sameRect(lastRect.current, rect)) return
-      lastRect.current = rect
-      void window.api.browserPanelSetBounds(rect).catch(err => {
-        onError(err instanceof Error ? err.message : String(err))
-      })
-    }
-    const schedule = (): void => {
-      if (frame) return
-      frame = requestAnimationFrame(send)
-    }
     const observer = new ResizeObserver(schedule)
     observer.observe(el)
+    if (el.parentElement) observer.observe(el.parentElement)
+    const main = document.querySelector('.main')
+    if (main) observer.observe(main)
     window.addEventListener('resize', schedule)
+    document.addEventListener('animationend', schedule, true)
+    document.addEventListener('transitionend', schedule, true)
     return () => {
-      if (frame) cancelAnimationFrame(frame)
       observer.disconnect()
       window.removeEventListener('resize', schedule)
+      document.removeEventListener('animationend', schedule, true)
+      document.removeEventListener('transitionend', schedule, true)
     }
-  }, [onError])
+  }, [schedule])
+
+  // The banner and the error row move the viewport without changing the panel size.
+  useEffect(() => {
+    schedule()
+  }, [tab?.id, tab?.control, schedule])
 
   // A crashed tab has no usable view: freeze it away so the message below is visible.
   useEffect(() => {
