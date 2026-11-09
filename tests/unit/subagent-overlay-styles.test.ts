@@ -18,10 +18,11 @@ function ruleBody(selector: string): string {
 }
 
 describe('Subagent Overlay CSS', () => {
-  it('defines .subagent-overlay rule with box-shadow: var(--shadow-panel)', () => {
+  it('is a flush surface, like every other right-side panel', () => {
     const body = ruleBody('.subagent-overlay')
-    expect(body).toContain('box-shadow:')
-    expect(body).toContain('var(--shadow-panel)')
+    expect(body).toContain('background: var(--bg-chat)')
+    expect(body).not.toContain('border-radius')
+    expect(body).not.toContain('box-shadow')
   })
 
   it('defines .subagent-overlay.full rule', () => {
@@ -29,19 +30,16 @@ describe('Subagent Overlay CSS', () => {
     expect(body).toContain('position: absolute')
   })
 
-  it('insets .subagent-overlay.full by the same gap on every edge', () => {
+  it('lets .subagent-overlay.full cover the pane area edge to edge', () => {
     // A `.full` panel is a direct child of `.main`, so its absolute insets resolve
-    // against the whole pane area. An asymmetric inset (e.g. a wider `right`) would
-    // pull it away from the pane edge it must cover, and it is only correct relative
-    // to `.main` — inside the positioned `.right-panels-container` these same numbers
-    // would confine the panel to the docked column instead. The e2e
-    // `right-panels-full.spec.ts` guards that containment; this guards the insets.
+    // against the whole pane area. It must sit on every edge (no gap ring), and it is
+    // only correct relative to `.main` — inside the positioned
+    // `.right-panels-container` these same numbers would confine the panel to the
+    // docked column instead. The e2e `right-panels-full.spec.ts` guards that
+    // containment; this guards the insets.
     const body = ruleBody('.subagent-overlay.full')
-    const insets = ['top', 'right', 'bottom', 'left'].map(side => {
-      const match = new RegExp(`${side}:\\s*([\\d.]+rem)`).exec(body)
-      expect(match, `.subagent-overlay.full has no ${side} inset`).not.toBeNull()
-      return match![1]
-    })
-    expect(new Set(insets).size).toBe(1)
+    for (const side of ['top', 'right', 'bottom', 'left']) {
+      expect(new RegExp(`${side}:\\s*0;`).test(body), `.subagent-overlay.full has a non-zero ${side} inset`).toBe(true)
+    }
   })
 })

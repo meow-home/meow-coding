@@ -313,8 +313,9 @@ test('the panel toggles, drives a tab, switches tabs, reloads and matches the vi
 
       const chatShot = await compositeShot(app, url, path.join(shots, 'browser-docked-chat.png'))
 
-      // Position-only change: a transition moves .main without resizing it (the
-      // panel's own rise animation is the production case; this makes it explicit).
+      // Position-only change: a transition moves .main without resizing it, which a
+      // ResizeObserver alone would miss (the panel also re-measures on transition and
+      // animation ends).
       const beforeMove = await viewportRect(window)
       await window.evaluate(() => {
         const main = document.querySelector('.main') as HTMLElement

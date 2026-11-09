@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  ChevronDown, ChevronRight, Code, FolderOpen, FolderPlus, FolderSymlink, GitBranch, Moon, MoreVertical,
+  ChevronDown, ChevronRight, Code, FolderOpen, FolderSymlink, GitBranch, Moon, MoreVertical,
   PanelLeft, Pencil, Plus, RefreshCw, Server, Settings, Square, Sun, Terminal, Trash2, X
 } from 'lucide-react'
 import BaseDropdown from './common/BaseDropdown'
@@ -182,14 +182,6 @@ export default function Sidebar({
         >
           <Plus size={14} aria-hidden="true" />
           <span>New session</span>
-        </button>
-        <button
-          type="button"
-          className="sidebar-header-item"
-          onClick={() => void handleAddProjectDirect()}
-        >
-          <FolderPlus size={14} aria-hidden="true" />
-          <span>Add folder</span>
         </button>
       </div>
       {collapsed ? (

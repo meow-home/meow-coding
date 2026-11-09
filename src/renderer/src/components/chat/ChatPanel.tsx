@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { AlertCircle, ArrowRight, Check, ChevronDown, ChevronRight, Copy, Folder, GitBranch, Pencil, RotateCw, Trash2, X } from 'lucide-react'
+import { AlertCircle, ArrowRight, Check, ChevronDown, ChevronRight, Copy, Folder, FolderPlus, GitBranch, Pencil, RotateCw, Trash2, X } from 'lucide-react'
 import type { AgentMode, ChatDelegationMeta, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ContextSection, ImageAttachment, QuestionOption, QueuedMessage, TodoItem, ToolCallData } from '@shared/types'
 import { DRAFT_SESSION_ID } from '@shared/types'
 import { isExternalPeer } from '@shared/external-api-types'
@@ -15,7 +15,8 @@ import TodoCard from './TodoCard'
 import MarkdownText from './MarkdownText'
 import ModePicker from './ModePicker'
 import ContextFooter from './ContextFooter'
-import SubagentOverlay, { SUBAGENT_DEFAULT_WIDTH, type SubagentOverlayItem } from './SubagentOverlay'
+import BaseDropdown from '../common/BaseDropdown'
+import type { SubagentOverlayItem } from './SubagentOverlay'
 import { countWords } from './reasoning'
 
 type FeedItem =
@@ -227,6 +228,10 @@ interface Props {
   onVariantChange?: (variant: string | undefined) => void
   onSendDraftMessage?: (textAndImages: { text: string; images?: ImageAttachment[] }) => void
   onOpenSubagent?: (item: SubagentOverlayItem) => void
+  /** Known project folders — the footer picker's options while this session is new. */
+  projects?: { path: string; name: string }[]
+  onSelectProject?: (path: string) => void
+  onChooseFolder?: () => void
 }
 
 function RetryCountdown({ id, attempt, maxAttempts, delayMs, unbounded }: { id: string; attempt: number; maxAttempts: number; delayMs: number; unbounded?: boolean }) {
@@ -243,7 +248,7 @@ function RetryCountdown({ id, attempt, maxAttempts, delayMs, unbounded }: { id: 
   )
 }
 
-function ChatPanel({ agentId, cwd, gitBranch, mode = 'build', variant, onModeChange, onVariantChange, onSendDraftMessage, onOpenSubagent }: Props) {
+function ChatPanel({ agentId, cwd, gitBranch, mode = 'build', variant, onModeChange, onVariantChange, onSendDraftMessage, onOpenSubagent, projects, onSelectProject, onChooseFolder }: Props) {
   const [items, setItems] = useState<FeedItem[]>([])
   const [running, setRunning] = useState(false)
   const [currentMode, setCurrentMode] = useState<AgentMode>(mode)
@@ -276,19 +281,8 @@ function ChatPanel({ agentId, cwd, gitBranch, mode = 'build', variant, onModeCha
   const queueRef = useRef<QueuedMessage[]>([])
   const [editTarget, setEditTarget] = useState<QueuedMessage | null>(null)
   const [queueCollapsed, setQueueCollapsed] = useState(false)
+  const [projectMenuOpen, setProjectMenuOpen] = useState(false)
   const [liveTaskId, setLiveTaskId] = useState<string | null>(null)
-  const [subagentFull, setSubagentFull] = useState(false)
-  const [subagentWidth, setSubagentWidth] = useState<number>(() => {
-    const saved = localStorage.getItem('meow.subagent.width')
-    if (!saved) return SUBAGENT_DEFAULT_WIDTH
-    const n = parseInt(saved, 10)
-    return Number.isNaN(n) ? SUBAGENT_DEFAULT_WIDTH : n
-  })
-
-  const handleSubagentWidthChange = useCallback((w: number) => {
-    setSubagentWidth(w)
-    localStorage.setItem('meow.subagent.width', String(w))
-  }, [])
   const promptRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<ChatInputHandle>(null)
   const scroll = useChatScroll()
@@ -955,7 +949,14 @@ if (e.type === 'usage') {
     if (first) void window.api.sendQueuedNow(agentId, first.id)
   }, [agentId])
 
-  const projectName = cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd
+  // The workspace's display name, so the footer agrees with the sidebar and the
+  // picker's own rows (it falls back to the folder basename for an unknown cwd).
+  const projectName = projects?.find(p => p.path === cwd)?.name
+    ?? cwd.split(/[\\/]/).filter(Boolean).pop()
+    ?? cwd
+  // Only a session that has not started yet can move to another project: once the
+  // first message materializes the agent, its cwd is fixed.
+  const canPickProject = agentId === DRAFT_SESSION_ID && Boolean(projects && onSelectProject && onChooseFolder)
 
   const handleUndo = useCallback(() => {
     void window.api.undoChat(agentId).then(ok => {
@@ -1490,10 +1491,61 @@ if (e.type === 'usage') {
         />
         <div className="chat-footer">
           <div className="chat-footer-project-group">
-            <span className="chat-footer-project" title={cwd}>
-              <Folder size={13} aria-hidden="true" />
-              <span className="chat-footer-project-name">{projectName}</span>
-            </span>
+            {canPickProject ? (
+              <BaseDropdown
+                open={projectMenuOpen}
+                onOpenChange={setProjectMenuOpen}
+                placement="top-start"
+                menuClassName="project-switch-dropdown"
+                trigger={(
+                  <button
+                    type="button"
+                    className="chat-footer-project pickable"
+                    title={`${cwd} — choose the project for this new session`}
+                    aria-label="Choose project for this new session"
+                    aria-expanded={projectMenuOpen}
+                  >
+                    <Folder size={13} aria-hidden="true" />
+                    <span className="chat-footer-project-name">{projectName}</span>
+                    <ChevronDown size={12} className="dropdown-caret" aria-hidden="true" />
+                  </button>
+                )}
+              >
+                {projects!.map(p => (
+                  <button
+                    key={p.path}
+                    className="menu-item"
+                    title={p.path}
+                    onClick={() => {
+                      setProjectMenuOpen(false)
+                      if (p.path !== cwd) onSelectProject!(p.path)
+                    }}
+                  >
+                    <Folder size={16} aria-hidden="true" />
+                    <span className="menu-item-label">{p.name}</span>
+                    <span className="menu-item-check">
+                      {p.path === cwd && <Check size={14} aria-hidden="true" />}
+                    </span>
+                  </button>
+                ))}
+                <div className="menu-sep" />
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setProjectMenuOpen(false)
+                    onChooseFolder!()
+                  }}
+                >
+                  <FolderPlus size={16} aria-hidden="true" />
+                  <span className="menu-item-label">Choose folder…</span>
+                </button>
+              </BaseDropdown>
+            ) : (
+              <span className="chat-footer-project" title={cwd}>
+                <Folder size={13} aria-hidden="true" />
+                <span className="chat-footer-project-name">{projectName}</span>
+              </span>
+            )}
             {gitBranch && (
               <>
                 <span className="chat-footer-sep" aria-hidden="true" />

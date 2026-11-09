@@ -234,8 +234,8 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .main { position: relative; flex: 1; display: flex; min-width: 0; min-height: 0; }
 /* Holds the project panes; the Files panel docks beside it or expands over it. */
 .main-panes { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-/* The gap the docked Files panel leaves shows the chat surface — body's radial
-   gradient would otherwise frame it in a lighter shade than the chat pane. */
+/* The translucent hairlines between docked panels sit on the chat surface — body's
+   radial gradient would otherwise tint them lighter than the panes. */
 .main.files-open { background: var(--bg-chat); }
 
 /* Shell entrance — staggered rise */
@@ -2792,6 +2792,14 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   height: 1.666667rem; padding: 0 0.416667rem; color: var(--text-faint);
   font-size: var(--fs-sm); min-width: 0;
 }
+/* A new session's footer chip is a project picker; a started session shows the
+   fixed cwd as plain text. */
+.chat-footer-project.pickable {
+  appearance: none; background: none; border: none; font-family: inherit;
+  font-size: var(--fs-sm); cursor: pointer; border-radius: var(--radius-sm);
+}
+.chat-footer-project.pickable:hover { background: var(--bg-hover); color: var(--text-dim); }
+.chat-footer-project .dropdown-caret { width: 12px; height: 12px; }
 .chat-footer-project-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 12rem; }
 .chat-footer-sep { flex: 0 0 auto; width: 0.083333rem; height: 0.916667rem; background: var(--hairline); }
 .chat-footer-branch {
@@ -3058,6 +3066,8 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 
 /* Project row menu */
 .project-menu-dropdown { min-width: 16.666667rem; }
+/* New session's project picker (composer footer). */
+.project-switch-dropdown { min-width: 16.666667rem; max-width: 22rem; }
 /* Explicit so this menu's width matches Sidebar.tsx's MENU_WIDTH positioning constant. */
 .sidebar-footer-dropdown { min-width: 16.666667rem; }
 .menu-item.danger { color: var(--red); }
@@ -3802,17 +3812,16 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .git-switch-actions .btn.danger { border-color: rgba(255, 95, 86, 0.4); color: var(--red); }
 .git-switch-actions .btn.danger:hover { background: rgba(255, 95, 86, 0.12); }
 
-/* Files panel (in-app project explorer) — docked on the right by default,
-   expanded over the pane area by the maximize button. It is a bordered, rounded
-   card in both modes: the 4px gaps below only keep the radius from being cut off
-   by the pane edges (a corner needs ~radius/3 of clearance). */
+/* Every right-side panel (Files, Processes, Terminal, Browser, Sub-agents) is a
+   square, flush surface: no border, no radius, no shadow. The grid draws a single
+   hairline between neighbours and one against the chat; a maximized panel covers
+   the pane area edge to edge. A native page view cannot be clipped by a CSS radius
+   anyway, so a rounded card never matched the Browser panel. */
 .files-overlay {
   flex: 0 0 auto; position: relative; display: flex; flex-direction: column; overflow: hidden;
-  background: var(--bg-chat); border: 0.083333rem solid var(--hairline);
-  border-radius: var(--radius-lg); animation: meow-rise 180ms ease-out both;
-  box-shadow: var(--shadow-panel);
+  background: var(--bg-chat);
 }
-.files-overlay.docked { margin: 0.333333rem; }
+.files-overlay.docked { margin: 0; }
 
 /* The header of every right-side panel: its tabs replace the title. */
 .panel-head {
@@ -3864,7 +3873,12 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 }
 .right-panels-resizer:hover { background: var(--accent-dim); }
 .right-panels-grid {
-  display: grid; width: 100%; height: 100%; padding: 0.333333rem; gap: 0.333333rem; box-sizing: border-box;
+  display: grid; width: 100%; height: 100%; box-sizing: border-box;
+  /* Flush cells: no padding and no visible gutter. The grid's own surface shows
+     through the 1px gaps and the 1px left padding, which reads as a single hairline
+     between neighbours and one against the chat. */
+  gap: 0.083333rem; padding: 0 0 0 0.083333rem;
+  background: var(--hairline);
 }
 /* The Files panel's host moves between slots: neither box takes part in layout. */
 .files-panel-slot, .files-panel-host { display: contents; }
@@ -3883,15 +3897,12 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 /* Subagent overlay — docked on the right side of the main container */
 .subagent-overlay {
   flex: 0 0 auto; position: relative; display: flex; flex-direction: column; overflow: hidden;
-  background: var(--bg-chat); border: 0.083333rem solid var(--hairline);
-  border-radius: var(--radius-lg); animation: meow-rise 180ms ease-out both;
-  box-shadow: var(--shadow-panel);
+  background: var(--bg-chat);
 }
 .subagent-overlay.docked { margin: 0; }
 .subagent-overlay.full {
   position: absolute; z-index: 40;
-  top: 0.333333rem; left: 0.333333rem; right: 0.333333rem; bottom: 0.333333rem;
-  box-shadow: var(--shadow-panel), 0 0 0 0.333333rem var(--bg-chat);
+  top: 0; left: 0; right: 0; bottom: 0;
 }
 .subagent-side {
   padding: 0.666667rem;
@@ -4121,22 +4132,14 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   letter-spacing: 0.04em;
   margin-bottom: 0.5rem;
 }
-.files-resizer {
-  position: absolute; left: -0.25rem; top: 0; bottom: 0; width: 0.583333rem;
-  cursor: col-resize; z-index: 5;
-}
-.files-resizer:hover { background: var(--accent-dim); }
 /* Docked: the panel is resizable, so the tree takes a share instead of a fixed 20rem. */
 .files-overlay.docked .files-side { flex-basis: 42%; }
-/* Expanded: fills the pane area only — title bar, sidebar and status bar stay visible.
-   The spread shadow paints the surrounding gap as the chat surface, like the docked
-   panel's `.main.files-open` backdrop (otherwise the pane's own chrome peeks through).
-   `--shadow-panel` is listed first so it paints ON TOP of that opaque ring: the gap
-   reads as a shadow rather than a flat backdrop. */
+/* Expanded: fills the pane area edge to edge — title bar, sidebar and status bar
+   stay visible. Panels never animate: a docked one is a grid cell (a rise slides it
+   off the shared hairlines) and a native page view cannot follow a CSS transform. */
 .files-overlay.full {
   position: absolute; z-index: 40;
-  top: 0.333333rem; left: 0.333333rem; right: 0.333333rem; bottom: 0.333333rem;
-  box-shadow: var(--shadow-panel), 0 0 0 0.333333rem var(--bg-chat);
+  top: 0; left: 0; right: 0; bottom: 0;
 }
 .files-body { flex: 1; min-height: 0; display: flex; }
 .files-side {
@@ -5003,8 +5006,8 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 
 /* Browser panel (built-in browser). The native page view is a rectangle, so the
    panel, its viewport and their ancestors are square; only controls stay rounded. */
-/* A native page view cannot follow a CSS transform: this panel must not animate
-   (meow-rise starts 0.5rem low and leaves the measured rect stale). */
+/* A native page view cannot follow a CSS transform, so this panel must never animate:
+   the measured rect would go stale. */
 .browser-overlay { display: flex; flex-direction: column; min-width: 0; min-height: 0; animation: none; }
 .browser-overlay, .browser-overlay * { border-radius: 0; }
 .browser-overlay .btn,

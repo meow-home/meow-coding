@@ -6,10 +6,6 @@ import {
 import MarkdownText from './MarkdownText'
 import PanelHeader from '../common/PanelHeader'
 
-export const SUBAGENT_MIN_WIDTH = 320
-export const SUBAGENT_MAX_WIDTH = 900
-export const SUBAGENT_DEFAULT_WIDTH = 420
-
 export interface SubagentOverlayItem {
   taskId: string
   subagentType?: string
@@ -27,8 +23,6 @@ interface Props {
   onSelect: (taskId: string) => void
   onCloseTab: (taskId: string) => void
   full: boolean
-  width?: number
-  onWidthChange?: (width: number) => void
   onToggleFull: () => void
   onClose: () => void
 }
@@ -62,28 +56,8 @@ function tabLabel(item: SubagentOverlayItem): string {
 }
 
 /** One tab per sub-agent the user opened from the chat. */
-export default function SubagentOverlay({ items, activeId, onSelect, onCloseTab, full, width, onWidthChange, onToggleFull, onClose }: Props) {
-  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
+export default function SubagentOverlay({ items, activeId, onSelect, onCloseTab, full, onToggleFull, onClose }: Props) {
   const item = items.find(i => i.taskId === activeId) ?? items[items.length - 1]
-
-  const startDrag = useCallback((e: React.MouseEvent) => {
-    if (!onWidthChange || width === undefined) return
-    e.preventDefault()
-    dragRef.current = { startX: e.clientX, startWidth: width }
-    const onMove = (ev: MouseEvent) => {
-      if (!dragRef.current) return
-      const delta = dragRef.current.startX - ev.clientX
-      const next = Math.min(SUBAGENT_MAX_WIDTH, Math.max(SUBAGENT_MIN_WIDTH, dragRef.current.startWidth + delta))
-      onWidthChange(next)
-    }
-    const onUp = () => {
-      dragRef.current = null
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-    }
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-  }, [width, onWidthChange])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -96,13 +70,9 @@ export default function SubagentOverlay({ items, activeId, onSelect, onCloseTab,
   return (
     <section
       className={`files-overlay subagent-overlay${full ? ' full' : ' docked'}`}
-      style={full ? undefined : (width !== undefined ? { width } : undefined)}
       role="dialog"
       aria-label="Sub-agent Details"
     >
-      {!full && onWidthChange && width !== undefined && (
-        <div className="files-resizer" onMouseDown={startDrag} title="Drag to resize" />
-      )}
       <PanelHeader
         ariaLabel="Sub-agents"
         activeId={item?.taskId ?? null}

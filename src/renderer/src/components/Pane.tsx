@@ -17,9 +17,12 @@ interface Props {
   onToggleTerminal?: () => void
   onToggleBrowser?: () => void
   onOpenSubagent?: (item: SubagentOverlayItem) => void
+  projects: { path: string; name: string }[]
+  onSelectProject: (path: string) => void
+  onChooseFolder: () => void
 }
 
-export default function Pane({ pane, background, active, gitBranch, onFocus, onRemove, onSendDraftMessage, onToggleTerminal, onToggleBrowser, onOpenSubagent }: Props) {
+export default function Pane({ pane, background, active, gitBranch, onFocus, onRemove, onSendDraftMessage, onToggleTerminal, onToggleBrowser, onOpenSubagent, projects, onSelectProject, onChooseFolder }: Props) {
   const id = pane.agent.id
   const native = pane.agent.kind === 'native'
   const isDraft = id === DRAFT_SESSION_ID
@@ -120,6 +123,9 @@ export default function Pane({ pane, background, active, gitBranch, onFocus, onR
             onVariantChange={handleVariantChange}
             onSendDraftMessage={onSendDraftMessage}
             onOpenSubagent={onOpenSubagent}
+            projects={projects}
+            onSelectProject={onSelectProject}
+            onChooseFolder={onChooseFolder}
           />
         </ChatErrorBoundary>
       </div>

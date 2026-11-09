@@ -413,8 +413,8 @@ Everything else: $ARGUMENTS
 | `meow.rightpanel.open` | `'1'` / `'0'` |
 | `meow.rightpanel.tab` | `'tree'` / `'artifacts'` |
 | `meow.rightpanel.width` | number, clamped to 240–600 |
-| `meow.files.width` | number, docked Files overlay width (320–900px, default 420px) |
-| `meow.processes.width` | number, docked Processes overlay width (320–900px, default 420px) |
+| `meow.rightPanels.width` | number, docked right-side panel column width (320–1600px, default 420px) |
+| `meow.files.sideWidth` | number, Files panel tree/editor splitter position (≥ 160px); absent = CSS default |
 | `meow.sidebar.expanded` | JSON map of project path → expanded (bool) |
 | `meow.activeSessionByPath` | JSON map of project path → active session id |
 

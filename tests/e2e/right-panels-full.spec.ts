@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import type { Page } from '@playwright/test'
 
-// A `.full` (expanded) panel is `position: absolute` with sub-pixel insets, so which
-// ancestor resolves those insets decides how much it covers. It has to resolve against
+// A `.full` (expanded) panel is `position: absolute` and covers the pane area edge to
+// edge, so which ancestor resolves its insets decides how much it covers. It has to resolve against
 // `.main` (the whole pane area, chat included) — not against `.right-panels-container`,
 // the 420px column the docked panels live in, which is `position: relative` for its
 // resizer. Getting this wrong confines "expand" to the docked column and leaves the
@@ -42,11 +42,6 @@ async function launch(userData: string) {
 
 async function openFromToolbar(window: Page, label: 'files' | 'processes'): Promise<void> {
   await window.locator(`.title-bar-tools .icon-btn[aria-label="Toggle ${label}"]`).click()
-}
-
-/** The live root font-size: every rem-derived metric scales with it. */
-function rootFontSize(window: Page): Promise<number> {
-  return window.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize))
 }
 
 function rectOf(window: Page, selector: string) {
@@ -87,13 +82,12 @@ test('expanding a panel covers the pane area, not just the docked column', async
     })
     expect(offsetParentClass).toContain('main')
 
-    // Expanded fills the pane area within its 0.333333rem gap on every edge, so it
-    // covers the chat pane instead of the docked column. The gap is rem-derived, so
-    // derive the expected inset from the live root font-size rather than hardcoding
-    // 4px (which only holds at the 12px root the CSS defaults to).
-    const rem = await rootFontSize(window)
-    expect(full!.x).toBeCloseTo(main!.x + 0.333333 * rem, 0)
-    expect(full!.w).toBeCloseTo(main!.w - 2 * 0.333333 * rem, 0)
+    // Expanded fills the pane area edge to edge, so it covers the chat pane instead of
+    // the docked column.
+    expect(full!.x).toBeCloseTo(main!.x, 0)
+    expect(full!.y).toBeCloseTo(main!.y, 0)
+    expect(full!.w).toBeCloseTo(main!.w, 0)
+    expect(full!.h).toBeCloseTo(main!.h, 0)
     expect(full!.w).toBeGreaterThan(docked!.w + 400)
     expect(full!.w).toBeGreaterThan(chat!.w)
 
@@ -126,9 +120,8 @@ test('expanding the Processes panel covers the pane area too', async () => {
 
     const main = await rectOf(window, '.main')
     const full = await rectOf(window, '.processes-overlay.full')
-    const rem = await rootFontSize(window)
-    expect(full!.x).toBeCloseTo(main!.x + 0.333333 * rem, 0)
-    expect(full!.w).toBeCloseTo(main!.w - 2 * 0.333333 * rem, 0)
+    expect(full!.x).toBeCloseTo(main!.x, 0)
+    expect(full!.w).toBeCloseTo(main!.w, 0)
   } finally {
     await app.close()
     rmSync(userData, { recursive: true, force: true })

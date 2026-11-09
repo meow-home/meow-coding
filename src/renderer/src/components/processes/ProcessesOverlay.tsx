@@ -3,49 +3,23 @@ import { Activity, Square, Terminal } from 'lucide-react'
 import type { BackgroundProcInfo, MonitorInfo } from '@shared/types'
 import PanelHeader from '../common/PanelHeader'
 
-export const PROCESSES_MIN_WIDTH = 320
-export const PROCESSES_MAX_WIDTH = 900
-export const PROCESSES_DEFAULT_WIDTH = 420
-
 const MONITORS_TAB = 'monitors'
 
 interface Props {
   agentId: string
   full: boolean
-  width?: number
-  onWidthChange?: (width: number) => void
   onToggleFull: () => void
   onClose: () => void
 }
 
-export default function ProcessesOverlay({ agentId, full, width, onWidthChange, onToggleFull, onClose }: Props) {
+export default function ProcessesOverlay({ agentId, full, onToggleFull, onClose }: Props) {
   const [shells, setShells] = useState<BackgroundProcInfo[]>([])
   const [monitors, setMonitors] = useState<MonitorInfo[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [output, setOutput] = useState('')
   const outRef = useRef<HTMLPreElement>(null)
-  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
   const showingMonitors = selected === MONITORS_TAB
   const selectedShell = selected && !showingMonitors ? selected : null
-
-  const startDrag = useCallback((e: React.MouseEvent) => {
-    if (!onWidthChange || width === undefined) return
-    e.preventDefault()
-    dragRef.current = { startX: e.clientX, startWidth: width }
-    const onMove = (ev: MouseEvent) => {
-      if (!dragRef.current || !onWidthChange) return
-      const delta = dragRef.current.startX - ev.clientX
-      const next = Math.min(PROCESSES_MAX_WIDTH, Math.max(PROCESSES_MIN_WIDTH, dragRef.current.startWidth + delta))
-      onWidthChange(next)
-    }
-    const onUp = () => {
-      dragRef.current = null
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-    }
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-  }, [width, onWidthChange])
 
   // Poll the lists while open.
   useEffect(() => {
@@ -119,11 +93,9 @@ export default function ProcessesOverlay({ agentId, full, width, onWidthChange, 
   return (
     <section
       className={`files-overlay processes-overlay${full ? ' full' : ' docked'}`}
-      style={full ? undefined : (width !== undefined ? { width } : undefined)}
       role="dialog"
       aria-label="Processes"
     >
-      {!full && onWidthChange && width !== undefined && <div className="files-resizer" onMouseDown={startDrag} />}
       <PanelHeader
         ariaLabel="Background processes"
         activeId={selected}

@@ -11,9 +11,6 @@ import FilesTree from './FilesTree'
 import FileContentView from '../file-content/FileContentView'
 import { baseName } from './file-path'
 
-export const FILES_MIN_WIDTH = 320
-export const FILES_MAX_WIDTH = 900
-export const FILES_DEFAULT_WIDTH = 420
 export const FILES_SIDE_MIN_WIDTH = 160
 // The editor side keeps at least this much room when the tree is dragged wider.
 export const FILES_MAIN_MIN_WIDTH = 160
@@ -38,8 +35,6 @@ function saveSideWidth(width: number | null): void {
 interface Props {
   projectPath: string
   full: boolean
-  width?: number
-  onWidthChange?: (width: number) => void
   onToggleFull: () => void
   onClose: () => void
   onDirtyChange?: (dirty: boolean) => void
@@ -50,7 +45,7 @@ interface OpenFile {
   name: string
 }
 
-export default function FilesOverlay({ projectPath, full, width, onWidthChange, onToggleFull, onClose, onDirtyChange }: Props) {
+export default function FilesOverlay({ projectPath, full, onToggleFull, onClose, onDirtyChange }: Props) {
   const [query, setQuery] = useState('')
   const [tabs, setTabs] = useState<OpenFile[]>([])
   const [activeTab, setActiveTab] = useState<string | null>(null)
@@ -61,7 +56,6 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
   const [pendingClose, setPendingClose] = useState<string[] | null>(null)
   const filterRef = useRef<HTMLInputElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const sideRef = useRef<HTMLDivElement>(null)
   // null = the CSS default (42% docked, 20rem expanded) until the user drags the splitter.
@@ -97,25 +91,6 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
     setSideWidth(null)
     saveSideWidth(null)
   }, [])
-
-  const startDrag = useCallback((e: React.MouseEvent) => {
-    if (!onWidthChange || width === undefined) return
-    e.preventDefault()
-    dragRef.current = { startX: e.clientX, startWidth: width }
-    const onMove = (ev: MouseEvent) => {
-      if (!dragRef.current || !onWidthChange) return
-      const delta = dragRef.current.startX - ev.clientX
-      const next = Math.min(FILES_MAX_WIDTH, Math.max(FILES_MIN_WIDTH, dragRef.current.startWidth + delta))
-      onWidthChange(next)
-    }
-    const onUp = () => {
-      dragRef.current = null
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-    }
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-  }, [width, onWidthChange])
 
   const openFile = useCallback((absPath: string) => {
     setTabs(prev => (prev.some(t => t.path === absPath) ? prev : [...prev, { path: absPath, name: baseName(absPath) }]))
@@ -171,11 +146,9 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
   return (
     <section
       className={`files-overlay${full ? ' full' : ' docked'}`}
-      style={full ? undefined : (width !== undefined ? { width } : undefined)}
       role="dialog"
       aria-label="Files"
     >
-      {!full && onWidthChange && width !== undefined && <div className="files-resizer" onMouseDown={startDrag} />}
       <PanelHeader
         ariaLabel="Open files"
         activeId={activeTab}

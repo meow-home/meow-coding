@@ -13,8 +13,8 @@ import EmptyState from './components/EmptyState'
 import StatusBar from './components/StatusBar'
 import TitleBar from './components/TitleBar'
 import PanelToolbar from './components/PanelToolbar'
-import FilesOverlay, { FILES_DEFAULT_WIDTH, FILES_MAX_WIDTH, FILES_MIN_WIDTH } from './components/files/FilesOverlay'
-import ProcessesOverlay, { PROCESSES_DEFAULT_WIDTH, PROCESSES_MAX_WIDTH, PROCESSES_MIN_WIDTH } from './components/processes/ProcessesOverlay'
+import FilesOverlay from './components/files/FilesOverlay'
+import ProcessesOverlay from './components/processes/ProcessesOverlay'
 import SubagentOverlay, { type SubagentOverlayItem } from './components/chat/SubagentOverlay'
 import TerminalOverlay from './components/terminal/TerminalOverlay'
 import BrowserOverlay from './components/browser/BrowserOverlay'
@@ -25,7 +25,6 @@ import InstallGuideDialog from './components/InstallGuideDialog'
 import UpdateDialog from './components/UpdateDialog'
 import { beginOcclusion, endOcclusion, overlapsBrowserViewport, useBrowserOcclusion } from './components/common/useBrowserOcclusion'
 import BaseModal from './components/common/BaseModal'
-import { AppActionsContext } from './app-actions'
 import { isLastSession } from './session-guard'
 
 export interface PaneModel {
@@ -40,7 +39,8 @@ export const MAX_KEEP_ALIVE = 5
 // `.workspace-hidden`; the app toggles which one is visible by swapping the
 // `workspace-active` wrapper, so hidden ChatPanels keep streaming events.
 function WorkspaceView({
-  runtime, backgrounds, activeSessionByPath, onActiveChange, onRemovePane, onSendDraftMessage, onToggleTerminal, onToggleBrowser, onOpenSubagent
+  runtime, backgrounds, activeSessionByPath, onActiveChange, onRemovePane, onSendDraftMessage, onToggleTerminal, onToggleBrowser, onOpenSubagent,
+  projects, onSelectProject, onChooseFolder
 }: {
   runtime: WorkspaceRuntime
   backgrounds: Record<string, boolean>
@@ -51,6 +51,9 @@ function WorkspaceView({
   onToggleTerminal: (id: string) => void
   onToggleBrowser: (id: string) => void
   onOpenSubagent: (item: SubagentOverlayItem) => void
+  projects: { path: string; name: string }[]
+  onSelectProject: (path: string) => void
+  onChooseFolder: () => void
 }) {
   const draftPane: PaneModel = useMemo(() => ({
     agent: {
@@ -104,6 +107,9 @@ function WorkspaceView({
         onToggleTerminal={onToggleTerminal}
         onToggleBrowser={onToggleBrowser}
         onOpenSubagent={onOpenSubagent}
+        projects={projects}
+        onSelectProject={onSelectProject}
+        onChooseFolder={onChooseFolder}
       />
       <BackgroundPanel
         panes={panes.filter(p => p.agent.id !== DRAFT_SESSION_ID)}
@@ -210,17 +216,8 @@ export default function App() {
     if (filesDirty) setConfirmCloseFiles(true)
     else setFilesOpenFor(null)
   }, [filesDirty])
-  const [filesWidth, setFilesWidth] = useState(() => {
-    const w = Number(localStorage.getItem('meow.files.width'))
-    return Number.isFinite(w) && w >= FILES_MIN_WIDTH && w <= FILES_MAX_WIDTH ? w : FILES_DEFAULT_WIDTH
-  })
   const [processesOpenFor, setProcessesOpenFor] = useState<string | null>(null)
   const [processesFull, setProcessesFull] = useState(false)
-  const [processesWidth, setProcessesWidth] = useState(() => {
-    const w = Number(localStorage.getItem('meow.processes.width'))
-    return Number.isFinite(w) && w >= PROCESSES_MIN_WIDTH && w <= PROCESSES_MAX_WIDTH ? w : PROCESSES_DEFAULT_WIDTH
-  })
-  useEffect(() => { localStorage.setItem('meow.processes.width', String(processesWidth)) }, [processesWidth])
   const [terminalOpenFor, setTerminalOpenFor] = useState<string | null>(null)
   const [terminalFull, setTerminalFull] = useState(false)
   const handleToggleTerminal = useCallback((agentId: string) => {
@@ -276,8 +273,6 @@ export default function App() {
       key={`files:${filesOpenFor}`}
       projectPath={filesOpenFor}
       full={filesFull}
-      width={filesWidth}
-      onWidthChange={setFilesWidth}
       onToggleFull={() => setFilesFull(v => !v)}
       onClose={requestCloseFiles}
       onDirtyChange={setFilesDirty}
@@ -287,8 +282,6 @@ export default function App() {
     <ProcessesOverlay
       agentId={processesOpenFor}
       full={processesFull}
-      width={processesWidth}
-      onWidthChange={setProcessesWidth}
       onToggleFull={() => setProcessesFull(v => !v)}
       onClose={() => setProcessesOpenFor(null)}
     />
@@ -496,9 +489,6 @@ export default function App() {
       else setFilesOpenFor(null)
     }
   }, [activePath])
-  useEffect(() => {
-    localStorage.setItem('meow.files.width', String(filesWidth))
-  }, [filesWidth])
   useEffect(() => {
     localStorage.setItem('meow.activeSessionByPath', JSON.stringify(activeSessionByPath))
   }, [activeSessionByPath])
@@ -829,22 +819,23 @@ export default function App() {
     void window.api.stopChat(id)
   }, [])
 
-  // "Add Folder" (composer "+" menu) triggers the OS folder picker directly:
-  // adds the selected folder as a project, refreshes the sidebar, and opens it.
-  const handleAddFolderDirect = useCallback(async () => {
-    try {
-      const folderPath = await window.api.pickFolder()
-      if (!folderPath) return
-      const name = folderPath.split(/[\\/]/).filter(Boolean).pop() || folderPath
-      await window.api.addWorkspace(folderPath, name)
-      await refreshWorkspaces()
-      openWorkspace(folderPath)
-    } catch {
-      /* ignore cancel or failure */
-    }
-  }, [refreshWorkspaces, openWorkspace])
+  // The new session's project picker offers the known projects plus this: pick a
+  // folder, add it as a project and start the session there (the flow the removed
+  // sidebar "Add folder" action used to own).
+  const handleChooseFolder = useCallback(async () => {
+    const folderPath = await window.api.pickFolder().catch(() => null)
+    if (!folderPath) return
+    const name = folderPath.split(/[\\/]/).filter(Boolean).pop() || folderPath
+    await window.api.addWorkspace(folderPath, name)
+    await refreshWorkspaces()
+    await onNewSession(folderPath)
+  }, [refreshWorkspaces, onNewSession])
 
-  const appActions = useMemo(() => ({ addFolder: handleAddFolderDirect }), [handleAddFolderDirect])
+  // Stable identity: ChatPanel is memoized and this feeds every pane.
+  const projectOptions = useMemo(
+    () => workspaces.map(w => ({ path: w.projectPath, name: w.name })),
+    [workspaces]
+  )
 
   const activeRuntime = activePath ? (runtimes[activePath] ?? null) : null
   const activeSessionId = activePath ? (activeSessionByPath[activePath] ?? null) : null
@@ -868,7 +859,6 @@ export default function App() {
   useBrowserOcclusion(sidebarCollapsed && sidebarHovered && sidebarPopoverOverlaps, 'overlay')
 
   return (
-    <AppActionsContext.Provider value={appActions}>
     <div className="app">
       <TitleBar
         sidebarCollapsed={sidebarCollapsed}
@@ -984,6 +974,9 @@ export default function App() {
                   onToggleTerminal={handleToggleTerminal}
                   onToggleBrowser={handleToggleBrowser}
                   onOpenSubagent={handleOpenSubagent}
+                  projects={projectOptions}
+                  onSelectProject={onNewSession}
+                  onChooseFolder={handleChooseFolder}
                 />
               </div>
             )}
@@ -1004,6 +997,9 @@ export default function App() {
                     onToggleTerminal={handleToggleTerminal}
                     onToggleBrowser={handleToggleBrowser}
                     onOpenSubagent={handleOpenSubagent}
+                    projects={projectOptions}
+                    onSelectProject={onNewSession}
+                    onChooseFolder={handleChooseFolder}
                   />
                 </div>
               ))}
@@ -1104,7 +1100,6 @@ export default function App() {
         />
       )}
     </div>
-    </AppActionsContext.Provider>
   )
 }
 

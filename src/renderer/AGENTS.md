@@ -10,7 +10,7 @@ React renderer (no direct Node/Electron access).
 - `src/App.tsx` — state hub: workspaces, the mounted `WorkspaceRuntime` per kept-alive
   project; defines `PaneModel` (agent + state + git) for each pane; owns the active session per
   project path (`activeSessionByPath`, persisted to localStorage `meow.activeSessionByPath`) so
-  switching workspaces restores the previously active session. It also owns the right-side panels container state (Files, Processes, Terminal, Browser, and one Sub-agents panel holding a tab per opened sub-agent, each with the `common/PanelHeader` tabs-in-header, toggled from `PanelToolbar` in the title bar), rendering them in a dynamic multi-panel grid layout (prioritizing rows first, then columns). The Files panel holds unsaved edits in React state, so it renders through one portal whose host node moves between the two slots instead of remounting. An **expanded** (`full`) panel is rendered OUTSIDE that container, as a direct child of `.main` (and excluded from the grid's row/column count): `.full` is `position: absolute` with sub-pixel insets, and `.right-panels-container` is `position: relative` (its resizer anchors to it), so nesting an expanded panel in the container confines it to the docked column instead of covering the pane area — `tests/e2e/right-panels-full.spec.ts` guards the containment. On startup, if no workspace path is
+  switching workspaces restores the previously active session. It also owns the right-side panels container state (Files, Processes, Terminal, Browser, and one Sub-agents panel holding a tab per opened sub-agent, each with the `common/PanelHeader` tabs-in-header, toggled from `PanelToolbar` in the title bar), rendering them in a dynamic multi-panel grid layout (prioritizing rows first, then columns). The Files panel holds unsaved edits in React state, so it renders through one portal whose host node moves between the two slots instead of remounting. An **expanded** (`full`) panel is rendered OUTSIDE that container, as a direct child of `.main` (and excluded from the grid's row/column count): `.full` is `position: absolute` and covers the pane area edge to edge, and `.right-panels-container` is `position: relative` (its resizer anchors to it), so nesting an expanded panel in the container confines it to the docked column instead of covering the pane area — `tests/e2e/right-panels-full.spec.ts` guards the containment. On startup, if no workspace path is
   active and workspaces exist, automatically opens the first workspace with a draft session (`DRAFT_SESSION_ID`).
   Also tracks `needsInput`
   (project path → agent ids waiting on a permission/question prompt, for the sidebar
@@ -90,10 +90,10 @@ Lessons learned from the Git viewer screen (don't repeat them):
   (`scrollbar-gutter: stable both-edges`) while taking `calc(var(--chat-inset) - var(--scrollbar-w))` as its padding — drop
   that compensation and the transcript rows end a scrollbar width short of the input card. `--scrollbar-w` is the single
   source for that width; the global `*::-webkit-scrollbar` rule consumes it. Guarded by `tests/e2e/chat-lane.spec.ts`.
-- **The Files panel's shadow is `--shadow-panel`**, not `--shadow-1/2/3`: it is bounded by the
-  0.333333rem gap between the panel and every `.main` edge (blur / 2 + offset ≤ that gap). The larger
-  dialog shadows spill past `.main` onto the title bar and status bar, which are not the panel's
-  backdrop. `files-overlay-shadow.test.ts` asserts the bound against the gap.
+- **Right-side panels are flush, square surfaces** — no border, radius or shadow. `.right-panels-grid`
+  has no padding/gap: its own `--hairline` background shows through the 1px gaps (and 1px left padding),
+  which is the only divider between cells and against the chat. A maximized panel is inset `0` on every
+  edge. `tests/unit/right-panels-layout.test.ts` guards this.
 - **Selector rows use `.menu-item-label` + `.menu-item-check`**, and triggers use `.dropdown-caret`.
   A selector trigger must set `aria-expanded={open}` (the caret's rotation is CSS off that attribute;
   `Dropdown.tsx` does it for `ModePicker`/`VariantPicker`, the other two set it themselves). The check
