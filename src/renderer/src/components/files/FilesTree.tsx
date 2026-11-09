@@ -15,6 +15,8 @@ interface Props {
   query: string
   activePath: string | null
   onOpenFile: (absPath: string) => void
+  /** Double click: open permanent, or promote the preview tab. */
+  onOpenFilePermanent: (absPath: string) => void
   reloadToken: number
   collapseToken: number
 }
@@ -29,7 +31,7 @@ interface NodeData {
 
 const emptyNode = (): NodeData => ({ loaded: false, loading: false, error: null, expanded: false, children: [] })
 
-export default function FilesTree({ projectPath, query, activePath, onOpenFile, reloadToken, collapseToken }: Props) {
+export default function FilesTree({ projectPath, query, activePath, onOpenFile, onOpenFilePermanent, reloadToken, collapseToken }: Props) {
   const [root, setRoot] = useState<NodeData>({ ...emptyNode(), expanded: true })
   const [nodes, setNodes] = useState<Record<string, NodeData>>({})
   const [hits, setHits] = useState<ProjectSearchHit[]>([])
@@ -197,6 +199,7 @@ export default function FilesTree({ projectPath, query, activePath, onOpenFile, 
         style={{ paddingLeft: `${0.666667 + depth * 0.75}rem` }}
         title={entry.path}
         onClick={() => toggle(entry)}
+        onDoubleClick={() => { if (!entry.isDirectory) onOpenFilePermanent(entry.path) }}
         onContextMenu={e => {
           e.preventDefault()
           setMenu({ x: e.clientX, y: e.clientY, absPath: entry.path })

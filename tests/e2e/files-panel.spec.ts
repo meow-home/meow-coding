@@ -225,3 +225,70 @@ test('the tree shows file type icons and git state', async () => {
     cleanupDir(project)
   }
 })
+
+test('preview tabs are replaced, promoted and pinned', async () => {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    writeFileSync(path.join(project, 'a.txt'), 'alpha\n')
+    writeFileSync(path.join(project, 'b.txt'), 'bravo\n')
+    writeFileSync(path.join(project, 'c.txt'), 'charlie\n')
+    seedWorkspaces(userData, project)
+    const { app, window } = await launch(userData)
+    try {
+      await openProject(window)
+      await openFilesPanel(window)
+
+      const labels = window.locator('.files-open-tab .panel-tab-label')
+      const tab = (index: number) => window.locator('.files-open-tab').nth(index)
+      const row = (name: string) => window.locator('.files-tree-row', { hasText: name })
+
+      // A single click opens a preview: one tab, italic name.
+      await row('a.txt').click()
+      await expect(labels).toHaveText(['a.txt'])
+      await expect(tab(0)).toHaveClass(/files-tab-preview/)
+      await expect(labels.first()).toHaveCSS('font-style', 'italic')
+
+      // The next single click replaces the preview instead of adding a tab.
+      await row('b.txt').click()
+      await expect(labels).toHaveText(['b.txt'])
+
+      // A double click opens permanent, so a later preview keeps it.
+      await row('a.txt').dblclick()
+      await expect(labels).toHaveText(['a.txt'])
+      await expect(tab(0)).not.toHaveClass(/files-tab-preview/)
+      await row('b.txt').click()
+      await expect(labels).toHaveText(['a.txt', 'b.txt'])
+      await row('c.txt').click()
+      await expect(labels).toHaveText(['a.txt', 'c.txt'])
+      await expect(tab(1)).toHaveClass(/files-tab-preview/)
+
+      // Pinning moves the tab first and makes it permanent.
+      await tab(1).hover()
+      await window.getByRole('button', { name: 'Pin c.txt', exact: true }).click()
+      await expect(labels).toHaveText(['c.txt', 'a.txt'])
+      await expect(tab(0)).not.toHaveClass(/files-tab-preview/)
+      await expect(tab(0).locator('.files-tab-pin')).toHaveClass(/pinned/)
+
+      // Close all tabs keeps the pinned one.
+      await window.getByRole('button', { name: 'Files menu', exact: true }).click()
+      await window.getByRole('button', { name: 'Close all tabs', exact: true }).click()
+      await expect(labels).toHaveText(['c.txt'])
+
+      // Typing in a preview promotes it, so a later preview cannot drop the edit.
+      await row('b.txt').click()
+      await expect(labels).toHaveText(['c.txt', 'b.txt'])
+      await expect(tab(1)).toHaveClass(/files-tab-preview/)
+      await window.locator('.files-tab-pane:not([hidden]) .cm-content').click()
+      await window.keyboard.type('edited')
+      await expect(tab(1)).not.toHaveClass(/files-tab-preview/)
+      await expect(labels.nth(1)).toHaveCSS('font-style', 'normal')
+      await expect(tab(1).locator('.panel-tab-dirty')).toBeVisible()
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+  }
+})

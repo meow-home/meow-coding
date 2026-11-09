@@ -4211,6 +4211,21 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
   color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .files-bar .viewer-actions { flex: 0 0 auto; align-items: center; gap: 0.166667rem; }
+/* Preview tabs read as italic; a pin button (same square and hover as the
+   tab's close button) shows on hover and on the active tab, and stays filled
+   on a pinned one. */
+.files-tab-preview .panel-tab-label { font-style: italic; }
+.files-tab-pin {
+  flex: 0 0 1.5rem; width: 1.5rem; height: 1.5rem; display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; border: none; background: transparent; color: var(--text-dim); cursor: pointer;
+  border-radius: var(--radius-xs); opacity: 0; pointer-events: none;
+}
+.files-tab-pin:hover { background: var(--bg-hover); color: var(--text-strong); }
+.panel-tab:hover .files-tab-pin,
+.panel-tab:focus-within .files-tab-pin,
+.panel-tab.active .files-tab-pin,
+.files-tab-pin.pinned { opacity: 1; pointer-events: auto; }
+.files-tab-pin.pinned { color: var(--text-strong); }
 /* One Dark paints its own editor and gutter backgrounds; inside the panel they
    take the chat surface so the editor reads as part of the card. */
 :root:not([data-theme="light"]) .files-tab-pane .cm-editor,

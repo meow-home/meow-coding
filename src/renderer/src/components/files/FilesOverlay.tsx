@@ -3,13 +3,17 @@ import { createPortal } from 'react-dom'
 import { beginOcclusion, endOcclusion } from '../common/useBrowserOcclusion'
 import PanelHeader from '../common/PanelHeader'
 import {
-  ArrowUpRight, CircleX, Code, Copy, Folder,
+  ArrowUpRight, CircleX, Code, Copy, Folder, Pin,
   ListCollapse, MoreHorizontal, PanelRightClose, PanelRightOpen, RefreshCw, Search
 } from 'lucide-react'
 import BaseDropdown from '../common/BaseDropdown'
 import ConfirmDialog from '../ConfirmDialog'
 import FilesTree from './FilesTree'
 import FileIcon from './file-icon'
+import {
+  EMPTY_OPEN_TABS, activateTab, closeTabs, openTab, promoteTab, togglePinned,
+  type OpenTabsState
+} from './open-tabs'
 import FileContentView from '../file-content/FileContentView'
 import { baseName } from './file-path'
 
@@ -62,15 +66,10 @@ interface Props {
   onDirtyChange?: (dirty: boolean) => void
 }
 
-interface OpenFile {
-  path: string
-  name: string
-}
-
 export default function FilesOverlay({ projectPath, full, width, onWidthChange, onToggleFull, onClose, onDirtyChange }: Props) {
   const [query, setQuery] = useState('')
-  const [tabs, setTabs] = useState<OpenFile[]>([])
-  const [activeTab, setActiveTab] = useState<string | null>(null)
+  const [tabState, setTabState] = useState<OpenTabsState>(EMPTY_OPEN_TABS)
+  const { tabs, activeTab } = tabState
   const [reloadToken, setReloadToken] = useState(0)
   const [collapseToken, setCollapseToken] = useState(0)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -159,9 +158,18 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
     document.addEventListener('mouseup', onUp)
   }, [width, onWidthChange])
 
-  const openFile = useCallback((absPath: string) => {
-    setTabs(prev => (prev.some(t => t.path === absPath) ? prev : [...prev, { path: absPath, name: baseName(absPath) }]))
-    setActiveTab(absPath)
+  // A single click (tree, search hit, or any host that opens a file) is a preview;
+  // a double click asks for a permanent tab.
+  const openFile = useCallback((absPath: string, permanent = false) => {
+    setTabState(prev => openTab(prev, { path: absPath, name: baseName(absPath), permanent }))
+  }, [])
+
+  const selectTab = useCallback((path: string) => {
+    setTabState(prev => activateTab(prev, path))
+  }, [])
+
+  const pinTab = useCallback((path: string) => {
+    setTabState(prev => togglePinned(prev, path))
   }, [])
 
   const anyDirty = dirtyPaths.size > 0
@@ -171,14 +179,13 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
 
   const removeTabs = useCallback((paths: string[]) => {
+    setTabState(prev => closeTabs(prev, paths))
     const removed = new Set(paths)
-    setTabs(prev => {
-      const next = prev.filter(t => !removed.has(t.path))
-      setActiveTab(current => (current && removed.has(current) ? (next[next.length - 1]?.path ?? null) : current))
-      return next
-    })
     setDirtyPaths(prev => new Set([...prev].filter(p => !removed.has(p))))
   }, [])
+
+  // Pinned tabs are permanent, so "Close all tabs" leaves them alone.
+  const closableTabs = tabs.filter(tab => !tab.pinned)
 
   const requestClose = useCallback((paths: string[]) => {
     if (paths.some(p => dirtyPaths.has(p))) setPendingClose(paths)
@@ -193,6 +200,8 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
       else next.delete(path)
       return next
     })
+    // A dirty tab becomes permanent, so replacing a preview can never drop edits.
+    if (dirty) setTabState(prev => promoteTab(prev, path))
   }, [])
 
   useEffect(() => {
@@ -255,8 +264,8 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
           </button>
           <button
             className="menu-item"
-            disabled={tabs.length === 0}
-            onClick={() => { setMenuOpen(false); requestClose(tabs.map(t => t.path)) }}
+            disabled={closableTabs.length === 0}
+            onClick={() => { setMenuOpen(false); requestClose(closableTabs.map(t => t.path)) }}
           >
             <CircleX size={16} aria-hidden="true" />
             Close all tabs
@@ -302,20 +311,35 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
       <PanelHeader
         ariaLabel="Open files"
         activeId={activeTab}
-        onSelect={setActiveTab}
+        onSelect={selectTab}
         full={full}
         onToggleFull={onToggleFull}
         closeLabel="Close Files"
         onClose={onClose}
         tabs={tabs.map(tab => ({
           id: tab.path,
-          className: 'files-open-tab',
+          className: `files-open-tab${tab.preview ? ' files-tab-preview' : ''}`,
           title: tab.path,
           lead: <FileIcon name={tab.name} size={14} />,
           label: tab.name,
-          trail: dirtyPaths.has(tab.path)
-            ? <span className="panel-tab-dirty" role="img" aria-label="Unsaved changes" title="Unsaved changes" />
-            : undefined,
+          trail: (
+            <>
+              {dirtyPaths.has(tab.path) && (
+                <span className="panel-tab-dirty" role="img" aria-label="Unsaved changes" title="Unsaved changes" />
+              )}
+              <button
+                className={`files-tab-pin${tab.pinned ? ' pinned' : ''}`}
+                aria-label={tab.pinned ? `Unpin ${tab.name}` : `Pin ${tab.name}`}
+                title={tab.pinned ? 'Unpin tab' : 'Pin tab'}
+                aria-pressed={tab.pinned}
+                onClick={e => { e.stopPropagation(); pinTab(tab.path) }}
+                onDoubleClick={e => e.stopPropagation()}
+              >
+                <Pin size={12} aria-hidden="true" fill={tab.pinned ? 'currentColor' : 'none'} />
+              </button>
+            </>
+          ),
+          onDoubleClick: () => setTabState(prev => promoteTab(prev, tab.path)),
           closeLabel: `Close ${tab.name}`,
           onClose: () => requestClose([tab.path])
         }))}
@@ -388,6 +412,7 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
             query={query}
             activePath={activeTab}
             onOpenFile={openFile}
+            onOpenFilePermanent={path => openFile(path, true)}
             reloadToken={reloadToken}
             collapseToken={collapseToken}
           />
