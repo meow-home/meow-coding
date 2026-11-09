@@ -10,5 +10,5 @@
     "types": ["chrome"],
     "lib": ["ES2022", "DOM"]
   },
-  "include": ["src/browser-extension/**/*", "src/shared/browser-types.ts"]
+  "include": ["src/browser-extension/**/*", "src/shared/browser-types.ts", "src/shared/browser-ax-snapshot.ts"]
 }

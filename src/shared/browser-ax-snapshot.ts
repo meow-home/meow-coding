@@ -1,4 +1,4 @@
-import type { SnapshotNode, BrowserReadMode } from '../../src/shared/browser-types'
+import type { SnapshotNode, BrowserReadMode } from './browser-types'
 
 export interface AxNodeLike {
   nodeId: string
@@ -25,6 +25,10 @@ export interface AxFrameBundle {
   ownerBackendNodeId?: number
   nodes: AxNodeLike[]
 }
+
+// The one seam both backends share: the extension passes a
+// chrome.debugger.sendCommand closure, the built-in browser a webContents.debugger one.
+export type AxSend = (method: string, params?: Record<string, unknown>) => Promise<unknown>
 
 // Merge per-frame AX node lists (CDP getFullAXTree is per document) into one flat
 // list: namespace nodeIds per frame (they collide across frames), then graft each
@@ -170,4 +174,74 @@ export function axTreeToSnapshot(
   }
 
   return { tree: rootNode ? [rootNode] : [], refs }
+}
+
+interface FrameTreeLike {
+  frame: { id: string }
+  childFrames?: FrameTreeLike[]
+}
+
+export async function waitForPageSettle(send: AxSend, timeoutMs = 5000): Promise<void> {
+  await send('Runtime.evaluate', {
+    expression: `
+      new Promise((resolve) => {
+        const deadline = Date.now() + ${timeoutMs};
+        let lastChange = Date.now();
+        let obs;
+        try {
+          obs = new MutationObserver(() => { lastChange = Date.now(); });
+          obs.observe(document.documentElement, { childList: true, subtree: true, attributes: true, characterData: true });
+        } catch {}
+        const tick = () => {
+          const settled = document.readyState === 'complete' && (Date.now() - lastChange) > 300;
+          if (settled || Date.now() >= deadline) {
+            try { if (obs) obs.disconnect(); } catch {}
+            resolve(true);
+            return;
+          }
+          setTimeout(tick, 150);
+        };
+        tick();
+      })
+    `,
+    awaitPromise: true,
+    returnByValue: true
+  })
+}
+
+export async function collectFrameAx(send: AxSend): Promise<AxFrameBundle[]> {
+  const { frameTree } = await send('Page.getFrameTree') as { frameTree: FrameTreeLike }
+  const bundles: AxFrameBundle[] = []
+  const visit = async (node: FrameTreeLike, ownerBackendNodeId?: number): Promise<void> => {
+    const frameId = node.frame.id
+    let nodes: unknown[] = []
+    try {
+      const res = await send('Accessibility.getFullAXTree', { frameId }) as { nodes?: unknown[] }
+      nodes = res.nodes ?? []
+    } catch {
+      nodes = []
+    }
+    bundles.push({ frameId, ownerBackendNodeId, nodes: nodes as AxNodeLike[] })
+    for (const child of node.childFrames ?? []) {
+      let childOwner: number | undefined
+      try {
+        const owner = await send('DOM.getFrameOwner', { frameId: child.frame.id }) as { backendNodeId: number }
+        childOwner = owner.backendNodeId
+      } catch {
+        childOwner = undefined
+      }
+      await visit(child, childOwner)
+    }
+  }
+  await visit(frameTree)
+  return bundles
+}
+
+export async function readInteractiveTree(
+  send: AxSend,
+  mode: BrowserReadMode = 'interactive'
+): Promise<{ tree: SnapshotNode[]; refs: AxSnapshotRef[] }> {
+  await waitForPageSettle(send)
+  const frames = await collectFrameAx(send)
+  return axTreeToSnapshot(mergeFrameAxTrees(frames), { mode, maxNodes: 0 })
 }

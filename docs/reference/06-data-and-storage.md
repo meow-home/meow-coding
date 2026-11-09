@@ -47,7 +47,7 @@ in `src/main/index.ts`).
 | `connections/index.json` | `connections/connection-store.ts` | `{ version: 1, accounts: ConnectionAccount[] }` | **Metadata only** — never secrets |
 | `connections/vault.json` | `vault.ts` | `{ ref: base64 }` | `safeStorage`-encrypted secrets |
 | `connections/runtime/` | `connections/codex-proxy-manager.ts` | random owner-only dir | Sidecar config containing OAuth tokens; removed on graceful shutdown, stale dirs cleaned at next launch |
-| `browser-screenshots/`, `browser-snapshots/` | `browser/bridge.ts` | png / text | Page screenshots and structure snapshots produced by `browser_*` tools |
+| `browser-screenshots/`, `browser-snapshots/` | `browser/bridge.ts`, `browser/snapshot-output.ts` | png / text | Page screenshots and structure snapshots produced by `browser_*` tools |
 | `browser-extension/` | `browser/chrome-launcher.ts` | files | The unpacked MV3 extension copied from the build output so the user can Load unpacked |
 | `skills/` | user | `*.md` or `<name>/SKILL.md` | User-level skills |
 | `agents/` | user | `*.md` | User-level subagent roles |

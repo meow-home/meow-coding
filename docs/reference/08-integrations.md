@@ -128,9 +128,9 @@ can discover the bridge.
 - Result post-processing:
   - a payload containing `base64` is written to `userData/browser-screenshots/browser-<ts>.png` and
     the tool receives `{ path }`
-  - a payload containing a `tree` is rendered by `snapshotToText` into
-    `userData/browser-snapshots/browser-snapshot-<ts>.txt`; the tool receives
-    `{ path, size, nodeCount, preview }` where the preview is the first 80 lines
+  - a payload containing a `tree` is written by `browser/snapshot-output.ts` (`writeSnapshotFile`, which
+    renders it with `snapshotToText`) into `userData/browser-snapshots/browser-snapshot-<ts>.txt`; the
+    tool receives `{ path, size, nodeCount, preview }` where the preview is the first 80 lines
 - Console and network events are ring-buffered (default 200 entries each) and exposed both to the
   agent (`browser_console` / `browser_network`) and to the renderer
   (`getBrowserConsoleLogs` / `getBrowserNetworkLogs`).
@@ -147,8 +147,9 @@ Manifest V3, name **Meow Browser Bridge**.
 | `content_scripts` | `content.js` on `<all_urls>` at `document_idle` |
 | `action` | `popup.html` — bridge port and connection status |
 
-Other sources: `ax-snapshot.ts` (accessibility-tree snapshot producing `role "name" [ref]` lines) and
-`debug-session.ts` (Chrome debugger attach for console/network capture).
+Other sources: `debug-session.ts` (Chrome debugger attach for console/network capture) and
+`src/shared/browser-ax-snapshot.ts` (accessibility-tree snapshot producing `role "name" [ref]` lines, plus the
+settle → collect → merge → read sequence that both browser backends share).
 
 Build: `npm run build:extension` (esbuild, `scripts/build-extension.mjs`) → `out/browser-extension`.
 This runs automatically via `predev` / `prebuild` / `predist*`.

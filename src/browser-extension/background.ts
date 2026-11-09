@@ -1,7 +1,6 @@
 import type { BridgeToExtension, ExtensionToBridge } from '../../src/shared/browser-types'
 import { createDebugSession } from './debug-session'
-import { axTreeToSnapshot, mergeFrameAxTrees } from './ax-snapshot'
-import type { AxFrameBundle, AxNodeLike } from './ax-snapshot'
+import { readInteractiveTree } from '../shared/browser-ax-snapshot'
 
 const DEFAULT_PORT = 3927
 const STORAGE_KEY = 'meowBridge'
@@ -238,67 +237,6 @@ async function sendToTab(tabId: number, name: string, params: Record<string, unk
   }
 }
 
-async function waitForPageSettle(tabId: number, timeoutMs = 5000): Promise<void> {
-  await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
-    expression: `
-      new Promise((resolve) => {
-        const deadline = Date.now() + ${timeoutMs};
-        let lastChange = Date.now();
-        let obs;
-        try {
-          obs = new MutationObserver(() => { lastChange = Date.now(); });
-          obs.observe(document.documentElement, { childList: true, subtree: true, attributes: true, characterData: true });
-        } catch {}
-        const tick = () => {
-          const settled = document.readyState === 'complete' && (Date.now() - lastChange) > 300;
-          if (settled || Date.now() >= deadline) {
-            try { if (obs) obs.disconnect(); } catch {}
-            resolve(true);
-            return;
-          }
-          setTimeout(tick, 150);
-        };
-        tick();
-      })
-    `,
-    awaitPromise: true,
-    returnByValue: true
-  })
-}
-
-interface FrameTreeLike {
-  frame: { id: string }
-  childFrames?: FrameTreeLike[]
-}
-
-async function collectFrameAx(tabId: number): Promise<AxFrameBundle[]> {
-  const { frameTree } = await chrome.debugger.sendCommand({ tabId }, 'Page.getFrameTree') as { frameTree: FrameTreeLike }
-  const bundles: AxFrameBundle[] = []
-  const visit = async (node: FrameTreeLike, ownerBackendNodeId?: number): Promise<void> => {
-    const frameId = node.frame.id
-    let nodes: unknown[] = []
-    try {
-      const res = await chrome.debugger.sendCommand({ tabId }, 'Accessibility.getFullAXTree', { frameId }) as { nodes?: unknown[] }
-      nodes = res.nodes ?? []
-    } catch {
-      nodes = []
-    }
-    bundles.push({ frameId, ownerBackendNodeId, nodes: nodes as AxNodeLike[] })
-    for (const child of node.childFrames ?? []) {
-      let childOwner: number | undefined
-      try {
-        const owner = await chrome.debugger.sendCommand({ tabId }, 'DOM.getFrameOwner', { frameId: child.frame.id }) as { backendNodeId: number }
-        childOwner = owner.backendNodeId
-      } catch {
-        childOwner = undefined
-      }
-      await visit(child, childOwner)
-    }
-  }
-  await visit(frameTree)
-  return bundles
-}
-
 async function callOnNode(tabId: number, backendNodeId: number, functionDeclaration: string, args: unknown[] = []): Promise<void> {
   const { object } = await chrome.debugger.sendCommand({ tabId }, 'DOM.resolveNode', { backendNodeId }) as { object: { objectId: string } }
   const res = await chrome.debugger.sendCommand({ tabId }, 'Runtime.callFunctionOn', {
@@ -454,11 +392,9 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
           return
         }
         try {
-          await waitForPageSettle(tabId)
           const mode = params.mode === 'full' ? 'full' : 'interactive'
-          const frames = await collectFrameAx(tabId)
-          const merged = mergeFrameAxTrees(frames)
-          const { tree, refs } = axTreeToSnapshot(merged, { mode, maxNodes: 0 })
+          const cdpSend = (method: string, p?: Record<string, unknown>) => chrome.debugger.sendCommand({ tabId }, method, p)
+          const { tree, refs } = await readInteractiveTree(cdpSend, mode)
           snapshot = { tabId, refs: new Map(refs.map(r => [r.ref, r.backendDOMNodeId])) }
           const tab = await chrome.tabs.get(tabId)
           persistWorkingTab(tabId)

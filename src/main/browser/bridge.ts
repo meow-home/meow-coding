@@ -5,11 +5,10 @@ import path from 'node:path'
 import { WebSocketServer, WebSocket } from 'ws'
 import type {
   BrowserCommandName, BrowserCommandResult, BrowserEvent, BrowserStatus, BrowserStatusInfo,
-  ExtensionToBridge, HelloMessage, HelloResultMessage, PendingExtensionInfo, TrustedExtension
+  ExtensionToBridge, HelloMessage, HelloResultMessage, PendingExtensionInfo, SnapshotNode, TrustedExtension
 } from '../../shared/browser-types'
-import type { SnapshotNode } from '../../shared/browser-types'
-import { snapshotToText, countSnapshotNodes } from './snapshot-format'
 import { TrustedExtensionStore } from './trusted-store'
+import { writeSnapshotFile } from './snapshot-output'
 
 export interface BridgeDeps {
   host?: string
@@ -356,35 +355,12 @@ export class BrowserBridge {
       }
       const tree = data?.tree as SnapshotNode[] | undefined
       if (Array.isArray(tree) && this.deps.snapshotDir) {
-        pending.resolve(this.saveSnapshot(tree))
+        pending.resolve(writeSnapshotFile(this.deps.snapshotDir, tree))
         return
       }
       pending.resolve({ ok: true, data: msg.data })
     } else {
       pending.resolve({ ok: false, error: msg.error ?? 'browser command failed' })
-    }
-  }
-
-  private saveSnapshot(tree: SnapshotNode[]): BrowserCommandResult {
-    try {
-      const dir = this.deps.snapshotDir!
-      mkdirSync(dir, { recursive: true })
-      const text = snapshotToText(tree)
-      const file = path.join(dir, `browser-snapshot-${Date.now()}.txt`)
-      writeFileSync(file, text, 'utf-8')
-      const lines = text.split('\n')
-      const preview = lines.slice(0, 80).join('\n') + (lines.length > 80 ? '\n...(preview cut — read the file for the full snapshot)' : '')
-      return {
-        ok: true,
-        data: {
-          path: file,
-          size: Buffer.byteLength(text, 'utf-8'),
-          nodeCount: countSnapshotNodes(tree),
-          preview
-        }
-      }
-    } catch (err) {
-      return { ok: false, error: `snapshot save failed: ${String(err)}` }
     }
   }
 

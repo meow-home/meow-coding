@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { axTreeToSnapshot, mergeFrameAxTrees } from '../../../src/browser-extension/ax-snapshot'
-import type { AxNodeLike } from '../../../src/browser-extension/ax-snapshot'
+import { axTreeToSnapshot, mergeFrameAxTrees } from '../../../src/shared/browser-ax-snapshot'
+import type { AxNodeLike } from '../../../src/shared/browser-ax-snapshot'
 
 function axn(
   nodeId: string,
