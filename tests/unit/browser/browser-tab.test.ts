@@ -333,16 +333,29 @@ describe('BrowserTab dialogs', () => {
 })
 
 describe('BrowserTab lifecycle', () => {
-  it('refuses commands while crashed and recovers on a navigation', async () => {
+  it('lets navigate recover a crashed tab, then runs commands again', async () => {
     const cdp = new FakeCdp()
-    cdp.responses['Runtime.evaluate'] = { result: { value: true } }
-    const tab = makeTab(cdp)
+    const { host } = fakeHost(cdp)
+    const tab = new BrowserTab(host, { agentId: 'agent-1', snapshotDir: dir })
     tab.markCrashed()
     expect(tab.toInfo().crashed).toBe(true)
-    expect(errorOf(await tab.run('scroll', { direction: 'down' }))).toBe('tab crashed; reload it')
+    expect(errorOf(await tab.run('click', { x: 1, y: 2 }))).toBe(
+      'tab crashed; call browser_navigate to reload it'
+    )
+    expect((await tab.run('navigate', { url: 'https://example.org/' })).ok).toBe(true)
+    expect(tab.toInfo().crashed).toBe(false)
+    expect((await tab.run('click', { x: 1, y: 2 })).ok).toBe(true)
+  })
+
+  it('allows reload on a crashed tab and clears crashed on a main-frame navigation', async () => {
+    const cdp = new FakeCdp()
+    const { host, state } = fakeHost(cdp)
+    const tab = new BrowserTab(host, { agentId: 'agent-1', snapshotDir: dir })
+    tab.markCrashed()
+    expect(await tab.run('reload')).toEqual({ ok: true })
+    expect(state.history).toEqual(['reload'])
     cdp.emit('Page.frameNavigated', { frame: { id: 'F1' } })
     expect(tab.toInfo().crashed).toBe(false)
-    expect((await tab.run('scroll', { direction: 'down' })).ok).toBe(true)
   })
 
   it('navigates through the host and reports the tab id, url and title', async () => {

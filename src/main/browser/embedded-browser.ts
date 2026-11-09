@@ -212,7 +212,9 @@ export class EmbeddedBrowser implements BrowserBackend {
     tab = new BrowserTab(host, { agentId: ownerId, snapshotDir: this.deps.snapshotDir })
     const entry: TabEntry = { tab, host, ownerId, agentCreated }
     this.tabs.set(tab.id, entry)
-    this.setWorking(ownerId, tab.id)
+    // Only an agent-created tab becomes the working tab: a page calling
+    // window.open must not redirect the agent's next untargeted command.
+    if (agentCreated) this.setWorking(ownerId, tab.id)
     this.emitTabsChanged(ownerId)
     if (agentCreated) this.emitPanelRequest(ownerId)
     return entry

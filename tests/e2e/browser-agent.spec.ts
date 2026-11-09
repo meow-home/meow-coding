@@ -56,6 +56,13 @@ function startMockLlm(turns: MockTurn[]): Promise<{ server: http.Server; port: n
     let raw = ''
     req.on('data', chunk => { raw += chunk })
     req.on('end', () => {
+      void handle().catch(err => {
+        console.error('[e2e] mock turn failed', err)
+        try { res.writeHead(500); res.end() } catch { /* already sent */ }
+      })
+    })
+
+    async function handle(): Promise<void> {
       let body: unknown = {}
       try { body = JSON.parse(raw) } catch { /* leave {} */ }
       const turn = turns[Math.min(call, turns.length - 1)]
@@ -70,7 +77,7 @@ function startMockLlm(turns: MockTurn[]): Promise<{ server: http.Server; port: n
         res.write(`data: ${JSON.stringify(obj)}\n\n`)
       }
       if (turn.toolCall) {
-        const args = typeof turn.toolCall.args === 'function' ? turn.toolCall.args(body) : turn.toolCall.args
+        const args = typeof turn.toolCall.args === 'function' ? await turn.toolCall.args(body) : turn.toolCall.args
         send({
           id: 'mock-1',
           choices: [{
@@ -94,7 +101,7 @@ function startMockLlm(turns: MockTurn[]): Promise<{ server: http.Server; port: n
       }
       res.write('data: [DONE]\n\n')
       res.end()
-    })
+    }
   })
   return new Promise(resolve => {
     server.listen(0, '127.0.0.1', () => {
@@ -118,6 +125,7 @@ function startFixtureServer(): Promise<{ server: http.Server; url: string }> {
     }
     res.end(`<!doctype html><html><head><title>fixture</title></head><body style="margin:0">
       <iframe src="/frame" width="320" height="120" style="border:0"></iframe>
+      <iframe srcdoc="<button id='sd' onclick='parent.document.title=&quot;srcdoc-clicked&quot;'>Srcdoc button</button>"></iframe>
       <div style="height:1800px">spacer</div>
       <button id="far" onclick="document.title='far-clicked'">Far button</button>
       <input id="name" aria-label="Name" oninput="document.title='name:'+this.value">
@@ -176,6 +184,8 @@ test('the agent drives the built-in browser: navigate, read, click by ref, scrol
     { toolCall: { name: 'browser_list_tabs', args: {} } },
     { toolCall: { name: 'browser_navigate', args: { url: `${url}?v=2` } } },
     { toolCall: { name: 'browser_read', args: {} } },
+    { toolCall: { name: 'browser_click', args: (body: unknown) => ({ ref: refFor(body, 'Srcdoc button') }) } },
+    { toolCall: { name: 'browser_list_tabs', args: {} } },
     { toolCall: { name: 'browser_click', args: (body: unknown) => ({ ref: refFor(body, 'Far button') }) } },
     { toolCall: { name: 'browser_list_tabs', args: {} } },
     { toolCall: { name: 'browser_type', args: (body: unknown) => ({ ref: refFor(body, 'Name'), text: 'hello' }) } },
@@ -199,15 +209,82 @@ test('the agent drives the built-in browser: navigate, read, click by ref, scrol
       const final = window.locator('.chat-msg.assistant').last()
       await expect(final).toContainText('name:hello', { timeout: 55_000 })
       const text = (await final.textContent()) ?? ''
-      // Clicking the iframe button, the below-the-fold button (scrolled into view)
-      // and typing into the input — all by ref after the second read — reached the page.
+      // Clicking the iframe button, the srcdoc button, the below-the-fold button
+      // (scrolled into view) and typing into the input — all by ref after the
+      // second read — reached the page.
       expect(text).toContain('frame-clicked')
+      expect(text).toContain('srcdoc-clicked')
       expect(text).toContain('far-clicked')
 
       // The transcript really contains the tool calls, including the final listTabs.
       await expect(window.locator('.tool-call-badge', { hasText: 'browser_navigate' })).toHaveCount(2)
       await expect(window.locator('.tool-call-badge', { hasText: 'browser_read' })).toHaveCount(2)
-      await expect(window.locator('.tool-call-badge', { hasText: 'browser_list_tabs' })).toHaveCount(3)
+      await expect(window.locator('.tool-call-badge', { hasText: 'browser_list_tabs' })).toHaveCount(4)
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+    fixture.close()
+    llm.close()
+  }
+})
+
+test('a crashed tab is recovered by browser_navigate', async () => {
+  const { server: fixture, url } = await startFixtureServer()
+  let crashBrowser = async (): Promise<void> => { throw new Error('app not launched') }
+  const { server: llm, port } = await startMockLlm([
+    { toolCall: { name: 'browser_navigate', args: { url } } },
+    {
+      toolCall: {
+        name: 'browser_click',
+        args: async () => {
+          await crashBrowser()
+          return { x: 5, y: 5 }
+        }
+      }
+    },
+    { toolCall: { name: 'browser_navigate', args: { url } } },
+    { toolCall: { name: 'browser_click', args: { selector: '#far' } } },
+    { toolCall: { name: 'browser_list_tabs', args: {} } },
+    {
+      contentFrom: (body: unknown) => {
+        const text = conversationText(body)
+        return `crashed-error=${text.includes('tab crashed; call browser_navigate to reload it')} titles: ${titlesIn(body).join(' | ')}`
+      }
+    }
+  ])
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    seedUserData(userData, project, {
+      provider: { mock: { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}`, models: ['mock-model'] } },
+      model: 'mock'
+    })
+
+    const { app, window } = await launch(userData)
+    // Runs inside the mock's next turn, after the first navigation.
+    crashBrowser = async () => {
+      await app.evaluate(({ BrowserWindow }, fixtureUrl) => {
+        const win = BrowserWindow.getAllWindows()[0]
+        const view = win.contentView.children.find(child => {
+          const wc = (child as unknown as { webContents?: { getURL(): string } }).webContents
+          return !!wc && wc.getURL().startsWith(fixtureUrl)
+        }) as unknown as { webContents: { forcefullyCrashRenderer(): void } } | undefined
+        if (!view) throw new Error('built-in browser view not found')
+        view.webContents.forcefullyCrashRenderer()
+      }, url)
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    }
+    try {
+      await window.locator('.chat-input-field').fill('crash the browser')
+      await window.locator('.chat-input-field').press('Enter')
+
+      const final = window.locator('.chat-msg.assistant').last()
+      await expect(final).toContainText('crashed-error=true', { timeout: 55_000 })
+      // The navigate after the crash really reloaded the page: the click landed.
+      expect(await final.textContent()).toContain('far-clicked')
     } finally {
       await app.close()
     }

@@ -261,6 +261,17 @@ describe('EmbeddedBrowser events', () => {
     expect(browser.listTabs('a')).toHaveLength(2)
   })
 
+  it('does not move the working tab to a page-opened popup', async () => {
+    const { browser, hosts, callbacks } = makeBrowser()
+    await browser.execute('openTab', { url: 'https://a.test/1' }, call('a'))
+    callbacks[0].onWindowOpen('https://popup.test/')
+    expect(hosts).toHaveLength(2)
+    // Untargeted command still drives the tab the agent used, not the popup.
+    expect((await browser.execute('navigate', { url: 'https://a.test/2' }, call('a'))).ok).toBe(true)
+    expect(hosts[0].loaded).toEqual(['https://a.test/1', 'https://a.test/2'])
+    expect(hosts[1].loaded).toEqual(['https://popup.test/'])
+  })
+
   it('emits the owner tab list and active tab on change', async () => {
     const { browser } = makeBrowser()
     const events: Array<{ agentId: string; ids: number[]; active: number | null }> = []

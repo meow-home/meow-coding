@@ -134,7 +134,11 @@ Tab id = page `webContents.id` (a number, like Chrome tab ids; ids never mix bec
 `partition: 'persist:meow-browser'`. Applied to the partition once at startup:
 
 - `setPermissionRequestHandler` and `setPermissionCheckHandler` deny everything except clipboard write.
-- `will-navigate`, `will-redirect` and `will-frame-navigate` allow only `http:`, `https:` and `about:blank`.
+- `will-navigate` and `will-redirect` (main frame) allow only `http:`, `https:` and `about:blank`.
+  `will-frame-navigate` applies that list to the main frame; subframes additionally allow `about:srcdoc`,
+  `blob:` and `data:` (ordinary inline content, still in the page's sandboxed renderer). `file:` and custom
+  schemes stay blocked for both. The check is `isAllowedNavigation(url, isMainFrame)` in
+  `src/main/browser/navigation-policy.ts`.
 - `setWindowOpenHandler` opens http(s) URLs as a new tab of the same owner and denies everything else.
 - `will-download` cancels while the agent has control; otherwise the default save dialog is used.
 - Certificate errors stay rejected (no override).

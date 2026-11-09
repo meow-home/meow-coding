@@ -213,12 +213,16 @@ export class BrowserTab {
 
   private async dispatch(name: BrowserCommandName, params: Record<string, unknown>): Promise<BrowserCommandResult> {
     if (this.closed) return { ok: false, error: 'tab closed' }
-    if (this.crashed) return { ok: false, error: 'tab crashed; reload it' }
+    // A crashed tab is recoverable through navigation/reload; nothing else runs.
+    if (this.crashed && name !== 'navigate' && name !== 'reload') {
+      return { ok: false, error: 'tab crashed; call browser_navigate to reload it' }
+    }
     switch (name) {
       case 'navigate': {
         const url = String(params.url ?? '')
         if (!/^https?:\/\//i.test(url)) return { ok: false, error: `invalid url: ${url}` }
         await this.host.loadUrl(url)
+        this.crashed = false
         return { ok: true, data: { tabId: this.id, url: this.host.getUrl(), title: this.host.getTitle() } }
       }
       case 'reload':

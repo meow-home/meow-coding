@@ -2,6 +2,8 @@ import { WebContentsView, session, type BrowserWindow } from 'electron'
 import type { BrowserTabControl } from '../../shared/browser-types'
 import { waitForPageSettle } from '../../shared/browser-ax-snapshot'
 import type { CdpClient, TabHost } from './browser-tab'
+import type { HostCallbacks } from './embedded-browser'
+import { isAllowedNavigation } from './navigation-policy'
 
 export const PARTITION = 'persist:meow-browser'
 
@@ -11,14 +13,6 @@ export const PARTITION = 'persist:meow-browser'
  */
 export const DEFAULT_VIEW_BOUNDS = { x: 10_000, y: 10_000, width: 1280, height: 800 }
 
-export interface HostCallbacks {
-  /** URL, title or loading state changed. */
-  onChanged(): void
-  onCrashed(): void
-  /** The page called window.open with an http(s) URL; the browser creates the tab. */
-  onWindowOpen(url: string): void
-}
-
 export interface ElectronTabHostDeps {
   getWindow: () => BrowserWindow | null
   callbacks: HostCallbacks
@@ -26,16 +20,6 @@ export interface ElectronTabHostDeps {
 
 const DEBUGGER_DOMAINS = ['Page', 'Runtime', 'Network', 'Log', 'DOM', 'Accessibility'] as const
 const CAPTURE_ATTEMPTS = 4
-
-function isAllowedNavigation(url: string): boolean {
-  if (url === 'about:blank') return true
-  try {
-    const parsed = new URL(url)
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
 
 function isAbortedNavigation(err: unknown): boolean {
   const e = err as { code?: string; message?: string } | undefined
@@ -61,6 +45,9 @@ export class ElectronTabHost implements TabHost {
   private attachedWindow: BrowserWindow | null = null
   private reattached = false
   private destroyed = false
+  private readonly ready: Promise<void>
+  private readyError: string | null = null
+  private processGone = false
 
   constructor(deps: ElectronTabHostDeps) {
     this.deps = deps
@@ -77,8 +64,13 @@ export class ElectronTabHost implements TabHost {
     const wc = this.view.webContents
     this.id = wc.id
     this.cdp = {
-      send: <T>(method: string, params?: Record<string, unknown>) =>
-        wc.debugger.sendCommand(method, params) as Promise<T>,
+      // Commands wait for attach + domain enable + the metrics override, so the
+      // first command never runs against a 0×0 viewport or a disabled domain.
+      send: async <T>(method: string, params?: Record<string, unknown>) => {
+        await this.ready
+        if (this.readyError) throw new Error(this.readyError)
+        return wc.debugger.sendCommand(method, params) as Promise<T>
+      },
       onEvent: (cb: (method: string, params: unknown) => void) => {
         const listener = (_event: Electron.Event, method: string, params: unknown): void => cb(method, params)
         wc.debugger.on('message', listener)
@@ -88,7 +80,7 @@ export class ElectronTabHost implements TabHost {
     this.attach()
     this.wireEvents()
     liveHosts.add(this)
-    void this.attachDebugger()
+    this.ready = this.startDebugger()
   }
 
   /** Re-add the view after the window was recreated; a no-op while it is attached. */
@@ -119,6 +111,9 @@ export class ElectronTabHost implements TabHost {
   }
 
   async loadUrl(url: string): Promise<void> {
+    await this.ready
+    if (this.readyError) throw new Error(this.readyError)
+    await this.ensureDebugger()
     const wc = this.view.webContents
     let aborted: unknown = null
     try {
@@ -131,9 +126,14 @@ export class ElectronTabHost implements TabHost {
     }
     if (aborted) {
       await this.waitForLoadStop()
-      if (!isAllowedNavigation(wc.getURL()) || wc.getURL() === 'about:blank') {
+      if (!isAllowedNavigation(wc.getURL(), true) || wc.getURL() === 'about:blank') {
         throw new Error(`failed to load ${url}: ${errorText(aborted)}`)
       }
+    }
+    if (this.processGone) {
+      // The renderer is new: re-enable the domains and the metrics override.
+      this.processGone = false
+      await this.enableDebugger()
     }
     await waitForPageSettle((method, params) => wc.debugger.sendCommand(method, params))
   }
@@ -168,6 +168,7 @@ export class ElectronTabHost implements TabHost {
   }
 
   async setOffscreenMetrics(enabled: boolean): Promise<void> {
+    await this.ready
     const wc = this.view.webContents
     try {
       if (enabled) {
@@ -228,19 +229,31 @@ export class ElectronTabHost implements TabHost {
   private wireEvents(): void {
     const wc = this.view.webContents
     wc.setWindowOpenHandler(({ url }) => {
-      if (isAllowedNavigation(url) && url !== 'about:blank') this.deps.callbacks.onWindowOpen(url)
+      if (isAllowedNavigation(url, true) && url !== 'about:blank') this.deps.callbacks.onWindowOpen(url)
       return { action: 'deny' }
     })
     wc.on('will-navigate', (event, url) => {
-      if (!isAllowedNavigation(url)) event.preventDefault()
+      if (!isAllowedNavigation(url, true)) event.preventDefault()
     })
     wc.on('will-redirect', (event, url) => {
-      if (!isAllowedNavigation(url)) event.preventDefault()
+      if (!isAllowedNavigation(url, true)) event.preventDefault()
     })
     wc.on('will-frame-navigate', (event) => {
-      if (!isAllowedNavigation(event.url)) event.preventDefault()
+      if (!isAllowedNavigation(event.url, event.isMainFrame)) event.preventDefault()
     })
-    wc.on('render-process-gone', () => this.deps.callbacks.onCrashed())
+    // Registered once: a reattach must not add a second listener.
+    wc.debugger.on('detach', (_event, reason) => {
+      if (this.destroyed || reason === 'target closed' || this.processGone) return
+      if (this.reattached) return
+      this.reattached = true
+      void this.enableDebugger().catch(err => {
+        this.readyError = `browser debugger unavailable: ${errorText(err)}`
+      })
+    })
+    wc.on('render-process-gone', () => {
+      this.processGone = true
+      this.deps.callbacks.onCrashed()
+    })
     const changed = (): void => this.deps.callbacks.onChanged()
     wc.on('did-navigate', changed)
     wc.on('did-navigate-in-page', changed)
@@ -249,24 +262,45 @@ export class ElectronTabHost implements TabHost {
     wc.on('did-stop-loading', changed)
   }
 
-  private async attachDebugger(): Promise<void> {
+  private async ensureDebugger(): Promise<void> {
     const wc = this.view.webContents
+    if (wc.debugger.isAttached()) return
     try {
-      if (!wc.debugger.isAttached()) wc.debugger.attach('1.3')
-      for (const domain of DEBUGGER_DOMAINS) {
-        await wc.debugger.sendCommand(`${domain}.enable`)
-      }
-    } catch {
-      return
+      await this.enableDebugger()
+    } catch (err) {
+      this.readyError = `browser debugger unavailable: ${errorText(err)}`
+      throw new Error(this.readyError)
     }
-    wc.debugger.on('detach', (_event, reason) => {
-      if (this.destroyed || reason === 'target closed') return
-      // An unexpected detach is retried once; after that every command reports it.
-      if (this.reattached) return
-      this.reattached = true
-      void this.attachDebugger()
+  }
+
+  private async startDebugger(): Promise<void> {
+    try {
+      const wc = this.view.webContents
+      if (!wc.debugger.isAttached()) wc.debugger.attach('1.3')
+      // A fresh webContents does not answer debugger commands until its renderer
+      // exists; about:blank starts it without touching the network, so the domains
+      // and the metrics override are in place before the first real navigation.
+      await wc.loadURL('about:blank')
+      await this.enableDebugger()
+    } catch (err) {
+      // Ready always settles; commands then fail with this message instead of hanging.
+      this.readyError = `browser debugger unavailable: ${errorText(err)}`
+    }
+  }
+
+  private async enableDebugger(): Promise<void> {
+    const wc = this.view.webContents
+    if (!wc.debugger.isAttached()) wc.debugger.attach('1.3')
+    for (const domain of DEBUGGER_DOMAINS) {
+      await wc.debugger.sendCommand(`${domain}.enable`)
+    }
+    await wc.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
+      width: DEFAULT_VIEW_BOUNDS.width,
+      height: DEFAULT_VIEW_BOUNDS.height,
+      deviceScaleFactor: 1,
+      mobile: false
     })
-    await this.setOffscreenMetrics(true)
+    this.readyError = null
   }
 
   private waitForLoadStop(timeoutMs = 15_000): Promise<void> {
