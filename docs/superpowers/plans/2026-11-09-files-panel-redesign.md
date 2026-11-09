@@ -43,9 +43,10 @@ that predate this work. Do not fix them or treat them as yours.
 Files: `components/files/FilesOverlay.tsx`, `components/file-content/FileContentView.tsx`,
 `src/renderer/src/styles.css`, `tests/unit/files-overlay-splitter.test.tsx`, new `tests/e2e/files-panel.spec.ts`.
 
-1. Implement spec section 1: tree on the right, inverted drag, rounded filter and new placeholder, pill
-   `.files-open-tab`, per-file bar with relative path, `toolbarActions`, Fold/Unfold all, Toggle file tree
-   with `meow.files.treeHidden`, Files menu moved into the bar, and the empty-state bar.
+1. Implement spec section 1: tree on the right, inverted drag, the new filter placeholder, per-file bar
+   with relative path, `toolbarActions`, Fold/Unfold all, Toggle file tree with `meow.files.treeHidden`,
+   Files menu moved into the bar, and the empty-state bar. Tabs, filter and panel header keep the shared
+   panel style: no pills and no rounded filter.
 2. Use `foldAll` / `unfoldAll` from `@codemirror/language` and add `"@codemirror/language": "^6.12.4"` and
    `"@codemirror/view": "^6.43.11"` to `package.json` `dependencies` by hand. Both are already installed
    transitively. Add `@codemirror/state` too if you import it. Do not run npm install. If `package-lock.json`

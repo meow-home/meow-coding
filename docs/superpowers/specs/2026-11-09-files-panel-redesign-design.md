@@ -21,8 +21,9 @@ restarts; syntax themes; a light-theme editor.
 - `.files-body` order becomes `.files-main` then `.files-side`, so the tree is on the right. The tree has
   a left border and the resizer sits on its left edge. Dragging left widens the tree. Clamps, the
   `meow.files.sideWidth` key and double-click reset are unchanged.
-- The filter is a rounded input with the placeholder `Filter, or ? to search in files`.
-- Files tabs (`.files-open-tab`) are rounded pills. Only this class changes, not `.panel-tab`.
+- The filter keeps the shared input style and gets the placeholder `Filter, or ? to search in files`.
+- Files tabs, the filter and the panel header keep the shared panel style: this redesign changes layout
+  and behavior only, so the Files panel stays in sync with the other panels.
 - A per-file bar sits under the header, reusing `.viewer-toolbar`: the path relative to the project on the
   left, actions on the right. The actions are the Markdown toggle where it applies, **Fold/Unfold all**
   (code files only), **Toggle file tree** (with an active state) and the existing **Files menu**, moved

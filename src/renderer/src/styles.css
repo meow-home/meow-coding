@@ -4150,7 +4150,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .files-filter {
   display: flex; align-items: center; gap: 0.5rem; flex: 0 0 auto;
   margin: 0.666667rem 0.666667rem 0.333333rem; padding: 0 0.5rem;
-  background: var(--bg-input); border: 0.083333rem solid var(--hairline); border-radius: var(--radius-lg);
+  background: var(--bg-input); border: 0.083333rem solid var(--hairline); border-radius: var(--radius);
   color: var(--text-faint);
 }
 .files-filter-input {
@@ -4174,8 +4174,6 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .files-side-resizer:hover { background: var(--accent-dim); }
 body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-select: none; }
 .files-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-/* Files tabs are pills; every other panel keeps the shared square-ish tab. */
-.files-open-tab { border-radius: 999px; }
 /* The per-file bar: the popup's `.viewer-toolbar` on one line under the header,
    spanning the whole panel above both columns. The active file portals it into
    this host; the empty state renders its own bar into the same place. */
