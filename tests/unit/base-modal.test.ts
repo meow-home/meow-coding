@@ -63,4 +63,23 @@ describe('BaseModal', () => {
     expect(css).toContain('.dialog-body')
     expect(css).toContain('.dialog-footer')
   })
+
+  it('paints the dialog as one surface: no header/footer rules, tight padding', () => {
+    const css = readFileSync(resolve(__dirname, '../../src/renderer/src/styles.css'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+    const body = (selector: string): string => {
+      const rule = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+        .find(([, selectors]) => selectors.split(',').map(s => s.trim()).includes(selector))
+      expect(rule, `styles.css has no ${selector} rule`).toBeDefined()
+      return rule![2].replace(/\s+/g, ' ')
+    }
+    // A rule across the dialog would cut it into three slabs; the sections are
+    // separated by spacing only, and the chrome padding stays small.
+    for (const selector of ['.dialog-header', '.dialog-footer']) {
+      expect(body(selector), `${selector} draws a rule`).not.toMatch(/border-(top|bottom)/)
+    }
+    expect(body('.dialog-header')).toContain('padding: 0.5rem')
+    expect(body('.dialog-footer')).toContain('padding: 0.416667rem')
+    expect(body('.dialog-footer .btn')).toContain('min-width: 5rem')
+  })
 })
