@@ -12,6 +12,7 @@ import BackgroundPanel from './components/BackgroundPanel'
 import EmptyState from './components/EmptyState'
 import StatusBar from './components/StatusBar'
 import TitleBar from './components/TitleBar'
+import SessionTitle from './components/SessionTitle'
 import PanelToolbar from './components/PanelToolbar'
 import FilesOverlay from './components/files/FilesOverlay'
 import ProcessesOverlay from './components/processes/ProcessesOverlay'
@@ -32,8 +33,35 @@ export interface PaneModel {
   state: AgentState
 }
 
+function idleState(agentId: string): AgentState {
+  return { agentId, status: 'idle', exitCode: null, lastOutputAt: null, alert: 'normal' }
+}
+
+function draftPaneModel(projectPath: string): PaneModel {
+  return {
+    agent: {
+      id: DRAFT_SESSION_ID,
+      name: 'New session',
+      templateId: 'meow',
+      cwd: projectPath,
+      kind: 'native'
+    },
+    state: idleState(DRAFT_SESSION_ID)
+  }
+}
+
 // Upper bound on how many projects stay mounted as keep-alives.
 export const MAX_KEEP_ALIVE = 5
+
+// The chat keeps at least this much room when the right-side column opens or is
+// dragged wider. `--panels-chat-min` owns the value (the container's max-width uses
+// it too), so the drag clamp and the layout can never disagree.
+function chatMinWidthPx(): number {
+  const root = getComputedStyle(document.documentElement)
+  const rem = parseFloat(root.fontSize) || 12
+  const minRem = parseFloat(root.getPropertyValue('--panels-chat-min'))
+  return (Number.isFinite(minRem) ? minRem : 30) * rem
+}
 
 // One project's pane shell. Kept-alive projects are mounted but hidden via
 // `.workspace-hidden`; the app toggles which one is visible by swapping the
@@ -55,29 +83,15 @@ function WorkspaceView({
   onSelectProject: (path: string) => void
   onChooseFolder: () => void
 }) {
-  const draftPane: PaneModel = useMemo(() => ({
-    agent: {
-      id: DRAFT_SESSION_ID,
-      name: 'New session',
-      templateId: 'meow',
-      cwd: runtime.workspace.projectPath,
-      kind: 'native'
-    },
-    state: {
-      agentId: DRAFT_SESSION_ID,
-      status: 'idle',
-      exitCode: null,
-      lastOutputAt: null,
-      alert: 'normal'
-    }
-  }), [runtime.workspace.projectPath])
+  const draftPane: PaneModel = useMemo(
+    () => draftPaneModel(runtime.workspace.projectPath),
+    [runtime.workspace.projectPath]
+  )
 
   const panes: PaneModel[] = useMemo(() => {
     const realPanes: PaneModel[] = runtime.workspace.agents.map(agent => ({
       agent,
-      state: runtime.agents.find(s => s.agentId === agent.id) ?? {
-        agentId: agent.id, status: 'idle', exitCode: null, lastOutputAt: null, alert: 'normal'
-      }
+      state: runtime.agents.find(s => s.agentId === agent.id) ?? idleState(agent.id)
     }))
     const active = activeSessionByPath[runtime.workspace.projectPath]
     if (realPanes.length === 0 || active === DRAFT_SESSION_ID) {
@@ -102,7 +116,6 @@ function WorkspaceView({
         onActiveChange={id => onActiveChange(runtime.workspace.projectPath, id)}
         backgrounds={backgrounds}
         gitBranch={runtime.git?.branch ?? null}
-        onRemove={id => onRemovePane(runtime.workspace.projectPath, id)}
         onSendDraftMessage={textAndImages => onSendDraftMessage(runtime.workspace.projectPath, textAndImages.text, textAndImages.images)}
         onToggleTerminal={onToggleTerminal}
         onToggleBrowser={onToggleBrowser}
@@ -338,11 +351,17 @@ export default function App() {
   const startRightPanelsDrag = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     beginOcclusion('right-panels-resizer', 'overlay')
-    rightPanelsDragRef.current = { startX: e.clientX, startWidth: rightPanelsWidth }
+    // Start from the rendered width, not the stored one: a narrow window clamps the
+    // container through CSS, and a drag must continue from what the user sees.
+    const startWidth = (e.currentTarget as HTMLElement).parentElement?.getBoundingClientRect().width
+      ?? rightPanelsWidth
+    rightPanelsDragRef.current = { startX: e.clientX, startWidth }
+    const mainWidth = document.querySelector('.main')?.getBoundingClientRect().width ?? window.innerWidth
+    const maxWidth = Math.max(320, Math.min(1600, mainWidth - chatMinWidthPx()))
     const onMove = (ev: MouseEvent) => {
       if (!rightPanelsDragRef.current) return
       const delta = rightPanelsDragRef.current.startX - ev.clientX
-      const next = Math.min(1600, Math.max(320, rightPanelsDragRef.current.startWidth + delta))
+      const next = Math.min(maxWidth, Math.max(320, rightPanelsDragRef.current.startWidth + delta))
       setRightPanelsWidth(next)
     }
     const onUp = () => {
@@ -839,6 +858,15 @@ export default function App() {
 
   const activeRuntime = activePath ? (runtimes[activePath] ?? null) : null
   const activeSessionId = activePath ? (activeSessionByPath[activePath] ?? null) : null
+  // The title bar carries the active session's identity now (there is no pane header
+  // row): the same model SessionPanes renders, picked by the remembered active id.
+  const activePane = useMemo<PaneModel | null>(() => {
+    if (!activeRuntime || !activeSessionId) return null
+    if (activeSessionId === DRAFT_SESSION_ID) return draftPaneModel(activeRuntime.workspace.projectPath)
+    const agent = activeRuntime.workspace.agents.find(a => a.id === activeSessionId)
+    if (!agent) return null
+    return { agent, state: activeRuntime.agents.find(s => s.agentId === agent.id) ?? idleState(agent.id) }
+  }, [activeRuntime, activeSessionId])
   // Occlusion reasons owned by the app shell: another panel expanded over the
   // browser, or the panel's session no longer in the active project.
   const otherPanelExpanded = filesFull || processesFull || terminalFull || (subagentsShown && subagentsFull)
@@ -865,6 +893,14 @@ export default function App() {
         onToggleSidebar={handleToggleSidebar}
         onMouseEnterBrand={handleMouseEnterBrand}
         onMouseLeaveBrand={handleMouseLeaveBrand}
+        session={activePane ? (
+          <SessionTitle
+            name={activePane.agent.name}
+            state={activePane.state}
+            cwd={activePane.agent.cwd}
+            onRemove={() => { if (activePath) handleRemovePane(activePath, activePane.agent.id) }}
+          />
+        ) : undefined}
         tools={(
           <PanelToolbar
             projectPath={activePath}

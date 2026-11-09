@@ -10,7 +10,6 @@ interface Props {
   onActiveChange: (id: string) => void
   backgrounds: Record<string, boolean>
   gitBranch?: string | null
-  onRemove: (id: string) => void
   onSendDraftMessage?: (textAndImages: { text: string; images?: ImageAttachment[] }) => void
   onToggleTerminal?: (id: string) => void
   onToggleBrowser?: (id: string) => void
@@ -23,7 +22,7 @@ interface Props {
 // All sessions stay mounted (hidden when inactive) so a hidden session keeps
 // streaming/running — switching never stops another. The hiding is CSS only
 // (the `hidden` attribute on the slot), never an unmount or a key change.
-export default function SessionPanes({ panes, activeId, onActiveChange, backgrounds, gitBranch, onRemove, onSendDraftMessage, onToggleTerminal, onToggleBrowser, onOpenSubagent, projects, onSelectProject, onChooseFolder }: Props) {
+export default function SessionPanes({ panes, activeId, onActiveChange, backgrounds, gitBranch, onSendDraftMessage, onToggleTerminal, onToggleBrowser, onOpenSubagent, projects, onSelectProject, onChooseFolder }: Props) {
   useEffect(() => {
     if (panes.length === 0) return
     if (activeId && panes.some(p => p.agent.id === activeId)) return
@@ -42,7 +41,6 @@ export default function SessionPanes({ panes, activeId, onActiveChange, backgrou
             active={pane.agent.id === active?.agent.id}
             gitBranch={gitBranch}
             onFocus={() => onActiveChange(pane.agent.id)}
-            onRemove={() => onRemove(pane.agent.id)}
             onSendDraftMessage={onSendDraftMessage}
             onToggleTerminal={onToggleTerminal ? () => onToggleTerminal(pane.agent.id) : undefined}
             onToggleBrowser={onToggleBrowser ? () => onToggleBrowser(pane.agent.id) : undefined}

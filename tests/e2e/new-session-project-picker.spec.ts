@@ -75,8 +75,8 @@ test('the new session footer picks the project, and only before the chat starts'
 
       // A new session turns the chip into a picker.
       await window.getByRole('button', { name: 'new session Alpha', exact: true }).click()
-      // The draft is not a sidebar row; it is the active pane's own "New session".
-      await expect(window.locator('.pane-slot:not([hidden])')).toContainText('New session')
+      // The draft is not a sidebar row; its name sits in the title bar, not in a pane header.
+      await expect(window.locator('.title-bar-session-name')).toHaveText('New session')
       const picker = window.locator('.pane-slot:not([hidden]) button.chat-footer-project')
       await expect(picker).toBeVisible()
       await expect(picker).toHaveText(/Alpha/)

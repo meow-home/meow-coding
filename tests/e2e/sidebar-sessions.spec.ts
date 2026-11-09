@@ -333,7 +333,7 @@ test('sidebar icon buttons are 24x24 squares with a 3px radius', async () => {
   }
 })
 
-test('the pane header is the dot and the name, sharing the sidebar icon button', async () => {
+test('the title bar seats the session dot and name, sharing the sidebar icon button', async () => {
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
   const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
   try {
@@ -342,16 +342,18 @@ test('the pane header is the dot and the name, sharing the sidebar icon button',
     try {
       await openProject(window)
 
-      // The header is the dot and the name. The status word repeated the dot
-      // beside it, and the git readout rendered "--" whenever git was
-      // unavailable while the status bar already shows branch + dirty count.
+      // There is no pane header row: the session identity sits in the title bar,
+      // as the dot and the name. The status word repeated the dot beside it, and
+      // the git readout rendered "--" whenever git was unavailable while the
+      // status bar already shows branch + dirty count.
+      await expect(window.locator('.pane-header')).toHaveCount(0)
       await expect(window.locator('.pane-status')).toHaveCount(0)
       await expect(window.locator('.pane-git')).toHaveCount(0)
-      await expect(window.locator('.pane-title')).toHaveText('Alpha')
+      await expect(window.locator('.title-bar-session-name')).toHaveText('Alpha')
 
       // Dropping the visible status word must not drop the status: the dot
       // carries it as an accessible name.
-      await expect(window.locator('.pane-header .status-dot')).toHaveAttribute('aria-label', 'idle')
+      await expect(window.locator('.title-bar-session .status-dot')).toHaveAttribute('aria-label', 'idle')
 
       // One action button, in the sidebar icon-button box.
       const paneMenu = window.getByRole('button', { name: 'menu Alpha', exact: true })

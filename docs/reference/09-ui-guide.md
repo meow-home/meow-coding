@@ -25,8 +25,8 @@ main window's theme (see [9.6](#96-theming)).
 ├────────┬─────────────────────────────────────────────────────────────┤
 │Sidebar │ SessionPanes                                                │
 │        │  ┌────────────────────────────────────────────────────────┐ │
-│ work-  │  │ PaneHeader                                             │ │
-│ spaces │  │ ChatPanel (active session)                             │ │
+│ work-  │  │ ChatPanel (active session)                             │ │
+│ spaces │  │   (session dot/name/⋮ live in the title bar)           │ │
 │        │  │                                                        │ │
 │ theme  │  └────────────────────────────────────────────────────────┘ │
 ├────────┴─────────────────────────────────────────────────────────────┤
@@ -39,7 +39,7 @@ Overlays: `SettingsDialog` (centered modal size xl tabbed),
 
 ### Files overlay
 
-A pane's `⋮` menu offers **Files**, which opens an in-app explorer docked on the right of the pane area — the
+The title bar's **Files** button opens an in-app explorer docked on the right of the pane area — the
 slot the old right panel used (never an OS window, so the title bar, sidebar and status bar stay visible). It
 holds a filterable, lazily loaded directory tree on the left — dotfiles and `node_modules` are listed — and
 open files in tabs on the right, next to a header with focus-filter, `⋮` (Refresh, Collapse all, Close all
@@ -119,7 +119,7 @@ that must be called in the effect cleanup. (The Processes overlay subscribes to
 
 ## 9.3.1 `App.tsx` — the Processes overlay state
 
-Mirrors the Files overlay but keyed by **agent id** (from the pane's `⋮` menu), not project
+Mirrors the Files overlay but keyed by **agent id** (from the title bar's Processes button), not project
 path: `processesOpenFor` (agentId — closed by default, closed on project switch),
 `processesFull` (docked by default) and `processesWidth` (docked width, persisted in
 `localStorage`). Both this overlay and the Files one render in one of two places, chosen by their
@@ -141,13 +141,13 @@ is dismissible (no install button, "Later" only).
 
 | Component | Responsibility |
 |---|---|
-| `TitleBar.tsx` | Custom window chrome for frameless platforms; when collapsed, hovering the title bar brand region reveals a floating full sidebar popover dropdown menu. |
+| `TitleBar.tsx` | Custom window chrome for frameless platforms; when collapsed, hovering the title bar brand region reveals a floating full sidebar popover dropdown menu. Between the brand and the panel tools it seats the active session's title (`SessionTitle`); with the sidebar collapsed the brand strip shrinks to the logo + toggle so the title moves left, next to the expand button. |
 | `PopupTitleBar.tsx` | Same for the FileViewer/GitViewer popups (drag region + Linux min/max/close) |
 | `Sidebar.tsx` | Project list; header action bar features a vertical menu with a single "New session" (`Plus` icon) full-width menu item without border radius or bottom border (adding a folder as a project moved to the new session's footer picker). Each project row is a lightweight group header — the project name (bright on the current project, dim otherwise) followed by a **trailing** expand/collapse chevron, with the `+` (new session) and `...` (project menu) icons revealed on hover / while the project is current. The project path lives on the row's `title`: there is no path line and no session count. An expanded project lists its **sessions**, indented: a status dot (green = running, yellow = waiting on input, none when idle; it hangs in the row indent, so names stay aligned), the name, and a trailing `...` menu that appears on hover / when active. The active session is a full-width rounded pill. The per-row `...` menu holds Rename (via inline input), Stop (when running) and Delete. The project `...` menu holds Open, Open in VS Code, Git, Open Folder, Open Terminal (a real OS terminal window via `openSystemTerminal`) and Remove. The `+` button activates a draft session; deleting a project's last session transitions the workspace to a draft session pane — creating a backend session is deferred until the user sends their first message. Expanded state persists in `localStorage` (`meow.sidebar.expanded`). Also: Providers entry and theme toggle in the footer menu. Projects with sessions waiting on a permission/question prompt show a red count badge (and a dot on the collapsed-rail avatar) |
 | `StatusBar.tsx` | Workspace name, git branch, running count, app version |
 | `SessionPanes.tsx` | Session layout of one project: **every session stays mounted** (inactive ones carry the `hidden` attribute, hidden by CSS and never unmounted) so a session that is not showing keeps streaming/answering. The active session is **controlled** by `App` (`activeId` + `onActiveChange`, remembered per project path so switching workspaces restores the session that was showing); it reports the first session when the stored id no longer exists |
-| `Pane.tsx` | One session: header + `ChatPanel`; background badge mode |
-| `PaneHeader.tsx` | Status dot (which carries the status as its accessible name — `role="img"` + the status label, with any exit code folded in), the session name, the menu (inject / log / stop / restart / background / delete — inject/log/stop/restart exist only on the parked PTY path; a native session's lifecycle lives in its sidebar row; the panels open from the title bar, `PanelToolbar`). The `...` button is the shared `.icon-btn`. No status word (the dot already shows it) and no git readout (the status bar owns branch + dirty count) |
+| `Pane.tsx` | One session: `ChatPanel` only — there is no header row, the session identity lives in the title bar; background badge mode |
+| `SessionTitle.tsx` | The active session's identity in the title bar, between the brand and `PanelToolbar`: the status dot (which carries the status as its accessible name — `role="img"` + the status label, with any exit code folded in), the name (ellipsized with the full name on `title`, so a long name never pushes the tools), and the `...` menu (Open Folder / Open in VS Code / Delete session, with a confirm dialog). The `...` button is the shared `.icon-btn`. No status word (the dot already shows it) and no git readout (the status bar owns branch + dirty count) |
 | `EmptyState.tsx` | No-pane hint (differs for "no workspace" vs "workspace open") |
 | `BackgroundPanel.tsx` | Background agents; open/stop |
 | `RightPanel.tsx` | Resizable panel with a fixed header; **both tabs stay mounted** for instant switching (**parked** — nothing renders it since the Files panel took its slot) |
@@ -336,7 +336,7 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   `--font-ui`: the display fonts were never loaded via `@font-face` (CSP is `'self'` only) and
   silently fell back to mono, which made uppercase labels look like terminal output.
 - Spacing on a 4px scale; controls use Tailwind default sizes.
-- Radii: `--radius-xs` 3px (`.icon-btn` — the sidebar `+`/`...` and the pane header `...` — and the chat context readout), `--radius-sm` 4px, `--radius` 6px (the global
+- Radii: `--radius-xs` 3px (`.icon-btn` — the sidebar `+`/`...` and the session title `...` — and the chat context readout), `--radius-sm` 4px, `--radius` 6px (the global
   `*` default), `--radius-lg` 8px.
 - Menus share one metric set (tokens in `:root`): `--menu-radius` 10px (container corner),
   `--menu-pad` 6px (container padding), `--menu-item-h` 32px, `--menu-item-pad-x` 10px,
@@ -365,7 +365,7 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   (`.command-item.selected`) and the settings nav (`.settings-nav-item`) are not selectors and still use
   the left-bar idiom.
 - **Action menus get icons and dividers; pickers get metrics only.** The action menus (project,
-  session row, sidebar footer, pane header, right-panel file context, Files overlay) lead every item with a 16px
+  session row, sidebar footer, session title, right-panel file context, Files overlay) lead every item with a 16px
   lucide icon and separate groups with `.menu-sep`. The pickers (mode, variant, model, git branch)
   take the shared metrics but deliberately have no icons or dividers: the model picker is a
   searchable, sectioned list where an icon column is noise. `.command-item` is excluded from the
@@ -432,10 +432,10 @@ Before editing, check whether the element is being rounded by the `*` rule
 
 **Icon-only buttons.** `.icon-btn` (fixed 24 × 24, `--radius-xs`) is the one class for every
 icon-only button — the sidebar's project `+` / `...` and session-row `...` (`Sidebar.tsx`) and the
-pane header's `...` (`PaneHeader.tsx`). Its geometry must live on that class: composing `.btn small`
+session title's `...` (`SessionTitle.tsx`). Its geometry must live on that class: composing `.btn small`
 and overriding the padding from a container rule does not work — `.project-actions .btn` and
 `.btn.small` are both `(0,2,0)`, so source order decides, and the override lost. The sidebar buttons
-render 34 × 25 with the `.btn` 6px radius until `.icon-btn` replaced them, and the pane header
+render 34 × 25 with the `.btn` 6px radius until `.icon-btn` replaced them, and the old pane header
 button measured 31 × 21 with the same 6px radius for the same reason.
 
 **CRLF note:** `styles.css` and the test files use CRLF line endings, which can make exact-match

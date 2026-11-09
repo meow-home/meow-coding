@@ -23,13 +23,15 @@ interface Props {
   onToggleSidebar?: () => void
   onMouseEnterBrand?: () => void
   onMouseLeaveBrand?: () => void
+  /** The active session's title + menu, seated between the brand and the tools. */
+  session?: ReactNode
   /** The right-side panel buttons. */
   tools?: ReactNode
 }
 
 export default function TitleBar({
   sidebarCollapsed, onToggleSidebar,
-  onMouseEnterBrand, onMouseLeaveBrand, tools
+  onMouseEnterBrand, onMouseLeaveBrand, session, tools
 }: Props) {
   const platform = window.api.platform
   const showCustomControls = platform === 'linux'
@@ -63,6 +65,7 @@ export default function TitleBar({
           </button>
         )}
       </div>
+      {session}
       <div className="title-bar-right">
         {tools}
         {showCustomControls && (

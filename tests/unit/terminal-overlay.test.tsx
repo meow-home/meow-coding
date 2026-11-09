@@ -14,10 +14,6 @@ vi.mock('../../src/renderer/src/components/chat/ChatPanel', () => ({
   default: () => null
 }))
 
-vi.mock('../../src/renderer/src/components/PaneHeader', () => ({
-  default: () => null
-}))
-
 class MockResizeObserver {
   observe() {}
   unobserve() {}

@@ -18,7 +18,7 @@ React renderer (no direct Node/Electron access).
   workspace and activating the waiting agent's session.
 - `src/components/` — `Sidebar` (project list; expand a project to see its session rows with a
   status dot and a per-row rename/stop/delete menu, plus a `+` that creates and activates a
-  session), `SessionPanes`, `Pane`, `PaneHeader`, `EmptyState`,
+  session), `SessionPanes`, `Pane`, `SessionTitle`, `EmptyState`,
   `StatusBar`, `TitleBar`, `BackgroundPanel`, `UpdateDialog`,
   `BrowserDialog`, `InstallGuideDialog`, `browser/` (the built-in browser panel: `BrowserOverlay`, `BrowserToolbar`, `BrowserControlBanner`, `BrowserViewport`, `normalizeUrlInput`), `files/` (the Files panel:
   `FilesOverlay`, `FilesTree`, `file-path`, `tree-filter`),
@@ -76,10 +76,10 @@ Lessons learned from the Git viewer screen (don't repeat them):
 - Before editing: check whether the element is being rounded by the `*` rule (`grep "border-radius"` +
   trace the class). Don't assume.
 - **Icon-only buttons use `.icon-btn`** (fixed 24 × 24, `border-radius: var(--radius-xs)` = 3px) —
-  the sidebar's project `+`/`...` and session-row `...`, plus the pane header's `...`. Never `.btn small`
+  the sidebar's project `+`/`...` and session-row `...`, plus the session title's `...`. Never `.btn small`
   with a container padding override. `.project-actions .btn` and `.btn.small` are both `(0,2,0)`, so
   source order decides and the override is silently ignored (the project `+`/`...` rendered 34 × 25
-  and the pane header's `...` 31 × 21 with the `.btn` 6px radius before the dedicated class existed).
+  and the old pane header's `...` 31 × 21 with the `.btn` 6px radius before the dedicated class existed).
 - **The title bar paints `var(--bg)`** — `.title-bar` paints `var(--bg)`. On Windows the OS paints the caption strip ~0.5px narrower than the reserved `11.5rem`, so a transparent bar exposed `body`'s radial gradient as a 1px line beside the min/max/close buttons. Don't reintroduce a transparent title bar (`window-chrome.test.ts` guards the surface). `.title-bar-brand` (when expanded) and `.sidebar` draw a `--hairline` right border; when collapsed (`.title-bar-brand.collapsed`), it has `background: var(--bg)` to match the chat pane background and `border-right: none`.
 - **Dropdowns share the `--menu-*` metric tokens** (`--menu-radius`, `--menu-pad`, `--menu-item-h`,
   `--menu-item-pad-x`, `--menu-icon`). New menu surfaces must consume them, not hardcode padding.

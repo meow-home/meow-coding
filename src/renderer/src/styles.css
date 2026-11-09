@@ -265,8 +265,13 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   border-radius: 0;
 }
 .title-bar-brand.collapsed {
+  /* The sidebar is a narrow rail: shrink the brand strip to its logo + toggle so the
+     session title moves left, right next to the expand button, instead of starting
+     22.33rem in over an empty strip. */
   background: var(--bg);
   border-right: none;
+  width: auto;
+  padding-right: 0.333333rem;
 }
 .title-bar-darwin .title-bar-brand { padding-left: 6.5rem; }
 .title-bar-logo { width: 1.333333rem; height: 1.333333rem; flex: none; border-radius: 0.25rem; filter: drop-shadow(0 0 0.5rem var(--accent-dim)); }
@@ -278,10 +283,29 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   color: var(--text-strong); white-space: nowrap;
 }
 .title-bar-right {
-  display: flex; align-items: center; justify-content: flex-end; height: 100%; flex: 1; min-width: 0;
+  display: flex; align-items: center; justify-content: flex-end; height: 100%; flex: 0 0 auto;
   background: var(--bg); border-bottom: none;
   border-radius: 0;
 }
+/* The active session's identity in the title bar (no pane header row any more). It takes
+   the free space between the brand and the tools, and the name ellipsizes so a long
+   session name can never push the panel tools or the window controls off the bar. */
+.title-bar-session {
+  display: flex; align-items: center; gap: 0.5rem;
+  flex: 1 1 auto; min-width: 0; height: 100%;
+  padding-left: 0.833333rem;
+  -webkit-app-region: drag;
+  color: var(--text-dim); font-size: var(--fs-md);
+}
+.title-bar-session .status-dot { flex: 0 0 auto; }
+.title-bar-session-name {
+  flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: var(--fw-semibold); color: var(--text-strong);
+}
+.title-bar-session .icon-btn { -webkit-app-region: no-drag; flex: 0 0 auto; }
+.title-bar-session .base-dropdown-container { flex: 0 0 auto; }
+.title-bar-brand.collapsed + .title-bar-session { padding-left: 0.333333rem; }
+.title-bar-session .icon-btn:hover { background: var(--bg-hover); color: var(--text); }
 .title-bar-toolbar-btn {
   -webkit-app-region: no-drag;
   background: var(--bg-input);
@@ -540,7 +564,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .btn.ghost:hover { background: var(--bg-hover); }
 .btn.danger { border-color: rgba(255, 95, 86, 0.4); color: var(--red); }
 .btn.danger:hover { background: rgba(255, 95, 86, 0.12); }
-/* Icon-only button (sidebar project +/…, session-row …, pane header …). A standalone
+/* Icon-only button (sidebar project +/…, session-row …, session title …). A standalone
    class, NOT `.btn small` + a container padding override: `.btn.small` and
    `.project-actions .btn` are both (0,2,0), so source order decided and the
    override silently lost — the buttons rendered 34x25 with the .btn 0.5rem radius. */
@@ -630,30 +654,12 @@ select.input { width: 100%; }
 .background-name { font-weight: var(--fw-medium); }
 .background-status { color: var(--text-dim); font-size: var(--fs-sm); font-family: var(--font-ui); }
 .background-actions { display: inline-flex; gap: 0.333333rem; margin-left: 0.333333rem; }
-.pane-header {
-  display: flex;
-  align-items: center;
-  gap: 0.666667rem;
-  padding: 0 0.833333rem;
-  height: 3rem;
-  flex: 0 0 auto;
-  background: var(--bg-chat);
-  color: var(--text-dim);
-  font-size: var(--fs-md);
-}
-.pane-header.active {
-  color: var(--text-strong);
-}
 .status-dot { width: 0.666667rem; height: 0.666667rem; border-radius: 50%; background: var(--text-faint); flex: 0 0 auto; }
 .status-dot.status-spawning { background: var(--accent); box-shadow: 0 0 0.666667rem var(--accent-dim); }
 .status-dot.status-running { background: var(--green); box-shadow: 0 0 0.666667rem rgba(74, 222, 159, 0.4); }
 .status-dot.status-idle { background: var(--yellow); box-shadow: 0 0 0.666667rem rgba(255, 180, 84, 0.35); }
 .status-dot.status-exited, .status-dot.status-stopped { background: var(--text-faint); }
 .status-dot.status-error { background: var(--red); box-shadow: 0 0 0.666667rem rgba(255, 95, 86, 0.4); }
-.pane-title { font-weight: var(--fw-semibold); white-space: nowrap; }
-.pane-actions { margin-left: auto; display: flex; gap: 0.333333rem; align-items: center; }
-.pane-actions .icon-btn:hover { background: var(--bg-hover); color: var(--text); }
-.inject-input { width: 15rem; }
 
 /* Dialogs */
 .dialog-backdrop {

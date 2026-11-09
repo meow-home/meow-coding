@@ -460,7 +460,8 @@ test('a panel request for a session that is not active does not open the panel',
 
       // Make another session active, then let the first agent navigate again.
       await window.getByRole('button', { name: 'new session E2E Project', exact: true }).click()
-      await expect(window.locator('.pane-slot:not([hidden])')).toContainText('New session', { timeout: 10000 })
+      // The draft's name is in the title bar; the pane itself has no header row.
+      await expect(window.locator('.title-bar-session-name')).toHaveText('New session', { timeout: 10000 })
       releaseSecond()
       await expect(window.locator('.chat-msg.assistant').last()).toContainText('done', { timeout: 30000 })
       expect(await window.locator('.browser-overlay').count()).toBe(0)
@@ -622,7 +623,7 @@ test('occlusion: menus and the resizer hide the native view, and it comes back',
           return false
         }
       })
-      const sidebarMenu = window.locator('button[aria-label^="menu "]').first()
+      const sidebarMenu = window.locator('.project-row button[aria-label^="menu "]').first()
       await sidebarMenu.click()
       await expect(window.locator('.project-menu-dropdown')).toBeVisible()
       for (let i = 0; i < 5; i++) {
@@ -950,7 +951,7 @@ test('the title bar toggles every panel, and each panel header is its tabs with 
         if (buffer.length === 0) throw new Error(`empty screenshot: ${name}`)
         writeFileSync(path.join(shots, name), buffer)
       }
-      expect(await window.locator('.pane-header [aria-label="Toggle browser"], .pane-header [aria-label="Toggle terminal"]').count()).toBe(0)
+      expect(await window.locator('.pane-header').count()).toBe(0)
 
       for (const [label, panel] of [
         ['files', '.files-overlay[aria-label="Files"]'],

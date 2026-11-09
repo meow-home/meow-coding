@@ -40,10 +40,10 @@ straight to the code.
 | Add workspace | Pick a folder; persisted in `userData/workspaces.json`; a native `meow` agent is auto-created if the workspace has none | `src/main/workspace-store.ts`, `Channels.WorkspaceAdd` |
 | Open workspace | Registers native agents synchronously (so chat mounts instantly), then loads tools/MCP off the critical path | `MainApp.openWorkspace` / `prepareWorkspace` |
 | Session panes | Every session of the active project has a pane and stays mounted; the selected one is shown (inactive ones are hidden, never unmounted) | `SessionPanes.tsx` |
-| Pane status | Status dot (spawning/running/idle/exited/stopped/error), git branch, dirty-file count | `PaneHeader.tsx`, `git-status-service.ts` |
+| Session title | Status dot (spawning/running/idle/exited/stopped/error) and name in the window title bar, with the session's `⋮` menu; branch + dirty count live in the status bar | `SessionTitle.tsx`, `git-status-service.ts` |
 | Background agents | An agent can be moved to the background and keeps running; listed in a background panel | `Channels.AgentSetBackground`, `BackgroundPanel.tsx` |
 | Idle / exit alerts | Idle alert after 5 minutes without output; exit alert classified by exit code | `alert-service.ts` |
-| Per-agent logs | Every byte of PTY output appended to `userData/logs/<agentId>.log`, openable from the pane menu | `log-manager.ts` |
+| Per-agent logs | Every byte of PTY output appended to `userData/logs/<agentId>.log` | `log-manager.ts` |
 
 ### Native Meow agent
 
@@ -102,7 +102,7 @@ straight to the code.
 |---|---|
 | **Workspace** | A git project folder registered in the app, with a list of agents. Persisted in `workspaces.json`. |
 | **Agent** | A configured worker inside a workspace, backing exactly one session. `native` (the in-app Meow agent) is the only kind the UI creates; the legacy `pty` kind remains in the `AgentKind` type and its runtime still ships, parked. |
-| **Pane** | The UI slot rendering one session — its `PaneHeader` plus the `ChatPanel`. One pane exists per session of the active project; the ones not selected are hidden, not unmounted. |
+| **Pane** | The UI slot rendering one session — its `ChatPanel`; the session's status dot, name and `⋮` menu sit in the window title bar, so the pane has no header row. One pane exists per session of the active project; the ones not selected are hidden, not unmounted. |
 | **Session** | The unit of work the UI shows: one chat, listed per project in the sidebar and rendered in its pane. One session per agent — creating a session adds an agent. |
 | **Transcript item** | The persisted unit of a session: either a `message` (user/assistant) or a `tool` (a tool call with input/output/permission). It is the single source of truth for what the LLM sees. |
 | **Turn** | One user message and everything the agent does in response, until `done` or `error`. |
