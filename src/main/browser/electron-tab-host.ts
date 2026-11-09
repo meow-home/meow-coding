@@ -233,7 +233,9 @@ export class ElectronTabHost implements TabHost {
     const shield = this.ensureShield()
     if (!shield) return
     shield.setBounds(this.view.getBounds())
-    shield.setVisible(true)
+    // An agent command can run while an overlay hides the panel: a visible transparent
+    // shield would swallow clicks meant for the overlay.
+    shield.setVisible(this.requestedVisible)
     this.applyShieldState()
   }
 

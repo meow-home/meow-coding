@@ -676,6 +676,21 @@ describe('EmbeddedBrowser panel', () => {
     expect(hosts.find(h => h.onScreen && !h.destroyed)?.visible).toBe(true)
   })
 
+  it('a tab hidden on screen earlier is visible when it comes back after an unfreeze', async () => {
+    const { browser, hosts } = await twoTabs()
+    await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 })
+    const frozen = await browser.freeze()
+    browser.hideFrozen(frozen!.generation)
+    expect(hosts[1].visible).toBe(false)
+    await browser.activateTab('a', hosts[0].id)
+    browser.unfreeze()
+    expect(hosts[0].visible).toBe(true)
+
+    await browser.activateTab('a', hosts[1].id)
+    expect(hosts[1].onScreen).toBe(true)
+    expect(hosts[1].visible).toBe(true)
+  })
+
   it('detach and attach reset the hidden state', async () => {
     const { browser, hosts } = await twoTabs()
     await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 })

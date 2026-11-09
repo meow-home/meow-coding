@@ -234,9 +234,9 @@ export class EmbeddedBrowser implements BrowserBackend {
     entry.onScreen = true
     this.panelActive.set(entry.ownerId, entry.tab.id)
     const applied = this.panelBounds
-    // Hidden is the panel's state: request it before the tab is placed so the
-    // host never shows a frame while an overlay is open.
-    if (this.panelHidden) entry.tab.setVisible(false)
+    // Hidden is the panel's state, not the tab's: set it both ways before placing, so
+    // the host never shows a frame under an overlay and a tab hidden earlier comes back.
+    entry.tab.setVisible(!this.panelHidden)
     await entry.tab.setOnScreen(true, applied ?? undefined)
     // A setBounds that arrived while the placement was in flight wins.
     if (this.panelBounds && this.panelBounds !== applied) entry.tab.setBounds(this.panelBounds)

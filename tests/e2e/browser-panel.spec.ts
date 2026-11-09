@@ -169,7 +169,18 @@ function onscreenView(app: ElectronApp): Promise<{ url: string; visible: boolean
 async function compositeShot(app: ElectronApp, fixtureUrl: string, file: string): Promise<number> {
   const data = await app.evaluate(async ({ BrowserWindow, nativeImage }, fixture) => {
     const win = BrowserWindow.getAllWindows()[0]
-    const appImage = await win.webContents.capturePage()
+    // capturePage can fail transiently with UnknownVizError (spike S1).
+    const capture = async <T>(source: { capturePage(): Promise<T> }): Promise<T> => {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await source.capturePage()
+        } catch (err) {
+          if (attempt >= 3) throw err
+          await new Promise(resolve => setTimeout(resolve, 200))
+        }
+      }
+    }
+    const appImage = await capture(win.webContents)
     const content = win.getContentBounds()
     const appSize = appImage.getSize()
     const scale = content.width > 0 ? appSize.width / content.width : 1
@@ -343,6 +354,64 @@ test('the panel toggles, drives a tab, switches tabs, reloads and matches the vi
         terminal: { path: path.join(shots, 'browser-docked-terminal.png'), bytes: terminalShot }
       }))
       releaseSecondTurn()
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+    fixture.close()
+    llm.close()
+  }
+})
+
+test('a panel opening under a modal stays hidden, and an agent shield does not cover the modal', async () => {
+  const { server: fixture, url } = await startFixtureServer()
+  let releaseNavigate: () => void = () => {}
+  const navigateGate = new Promise<void>(resolve => { releaseNavigate = resolve })
+  let releaseEnd: () => void = () => {}
+  const endGate = new Promise<void>(resolve => { releaseEnd = resolve })
+  const { server: llm, port } = await startMockLlm([
+    { toolCall: { name: 'browser_navigate', args: async () => { await navigateGate; return { url } } } },
+    { toolCall: { name: 'browser_list_tabs', args: async () => { await endGate; return {} } } },
+    { contentFrom: () => 'done' }
+  ])
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  const onScreenVisible = (app: ElectronApp): Promise<number> => app.evaluate(({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows()[0]
+    const children = win.contentView.children as unknown as Array<{
+      webContents?: unknown
+      getBounds(): { x: number }
+      getVisible(): boolean
+    }>
+    return children.filter(c => !!c.webContents && c.getBounds().x < 10_000 && c.getVisible()).length
+  })
+  try {
+    seedUserData(userData, project, {
+      provider: { mock: { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}`, models: ['mock-model'] } },
+      model: 'mock'
+    })
+    const { app, window } = await launch(userData)
+    try {
+      await window.locator('.chat-input-field').fill('open the browser')
+      await window.locator('.chat-input-field').press('Enter')
+      const dialog = window.locator('.browser-dialog')
+      await window.locator('.sb-browser').click()
+      await expect(dialog).toBeVisible()
+
+      releaseNavigate()
+      await expect(window.locator('.browser-overlay')).toHaveCount(1, { timeout: 30000 })
+      for (let i = 0; i < 12; i++) {
+        expect(await onScreenVisible(app)).toBe(0)
+        await window.waitForTimeout(60)
+      }
+      // The modal is still usable while the agent holds the tab.
+      await window.keyboard.press('Escape')
+      await expect(dialog).toHaveCount(0)
+      await expect.poll(() => onScreenVisible(app), { timeout: 15000 }).toBeGreaterThan(0)
+      releaseEnd()
+      await expect(window.locator('.chat-msg.assistant').last()).toContainText('done', { timeout: 30000 })
     } finally {
       await app.close()
     }
