@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Save, Check, FoldVertical, UnfoldVertical } from 'lucide-react'
 import CodeMirror, { Extension } from '@uiw/react-codemirror'
 import { oneDark } from '@codemirror/theme-one-dark'
@@ -25,6 +26,8 @@ interface Props {
   hideFileActions?: boolean
   /** Panel-specific buttons appended after the file actions (the Files panel's tree toggle and menu). */
   toolbarActions?: ReactNode
+  /** When set, the toolbar renders there instead of inline: the Files panel's full-width bar. */
+  toolbarHost?: HTMLElement | null
   onDirtyChange?: (dirty: boolean) => void
 }
 
@@ -68,7 +71,7 @@ function getLanguageExtension(ext: string): Extension[] {
 
 // Toolbar + body of the file viewer, shared by the popup FileViewer window and
 // the Files overlay tab. The host supplies the flex container.
-export default function FileContentView({ path: filePath, root, active = true, hideFileActions = false, toolbarActions, onDirtyChange }: Props) {
+export default function FileContentView({ path: filePath, root, active = true, hideFileActions = false, toolbarActions, toolbarHost, onDirtyChange }: Props) {
   const [content, setContent] = useState<string | null>(null)
   const [editedContent, setEditedContent] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -76,6 +79,7 @@ export default function FileContentView({ path: filePath, root, active = true, h
   const [image, setImage] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [justSaved, setJustSaved] = useState(false)
+  const [folded, setFolded] = useState(false)
   const editorRef = useRef<EditorView | null>(null)
 
   const ext = filePath.toLowerCase().split('.').pop() ?? ''
@@ -156,69 +160,75 @@ export default function FileContentView({ path: filePath, root, active = true, h
     void window.api.openFile({ path: p, root })
   }, [root])
 
+  const toolbar = (
+    <div className={hideFileActions ? 'viewer-toolbar files-bar' : 'viewer-toolbar'}>
+      <span className="viewer-path" title={filePath}>
+        {hideFileActions ? relativePath(root, filePath) : filePath}
+      </span>
+      <div className="viewer-actions">
+        {isMarkdown && (
+          <button className="btn small" onClick={() => setShowRawMd(v => !v)}>
+            {showRawMd ? 'Markdown Preview' : 'Edit Source'}
+          </button>
+        )}
+        {hideFileActions && showsEditor && (
+          <button
+            className="icon-btn"
+            title={folded ? 'Unfold all' : 'Fold all'}
+            aria-label={folded ? 'Unfold all' : 'Fold all'}
+            onClick={() => {
+              const view = editorRef.current
+              if (!view) return
+              if (folded) unfoldAll(view)
+              else foldAll(view)
+              setFolded(v => !v)
+            }}
+          >
+            {folded
+              ? <UnfoldVertical size={14} aria-hidden="true" />
+              : <FoldVertical size={14} aria-hidden="true" />}
+          </button>
+        )}
+        {!hideFileActions && !isImage && (
+          <button
+            className={`btn small ${isDirty ? 'primary' : ''}`}
+            onClick={() => void save()}
+            disabled={!isDirty || isSaving}
+            title="Save changes (Ctrl+S)"
+          >
+            {justSaved ? (
+              <>
+                <Check size={12} className="text-green" />
+                <span>Saved</span>
+              </>
+            ) : (
+              <>
+                {isDirty && <span className="viewer-dirty-dot" />}
+                <Save size={12} />
+                <span>{isSaving ? 'Saving...' : 'Save'}</span>
+              </>
+            )}
+          </button>
+        )}
+        {!hideFileActions && (
+          <button className="btn small" onClick={() => void window.api.openFileInEditor(filePath)}>Open in VS Code</button>
+        )}
+        {!hideFileActions && !isImage && (
+          <button className="btn small" onClick={() => void copy()} disabled={editedContent === null}>Copy</button>
+        )}
+        {toolbarActions}
+      </div>
+    </div>
+  )
+
   return (
     <>
-      <div className={hideFileActions ? 'viewer-toolbar files-bar' : 'viewer-toolbar'}>
-        <span className="viewer-path" title={filePath}>
-          {hideFileActions ? relativePath(root, filePath) : filePath}
-        </span>
-        <div className="viewer-actions">
-          {isMarkdown && (
-            <button className="btn small" onClick={() => setShowRawMd(v => !v)}>
-              {showRawMd ? 'Markdown Preview' : 'Edit Source'}
-            </button>
-          )}
-          {hideFileActions && showsEditor && (
-            <>
-              <button
-                className="icon-btn"
-                title="Fold all"
-                aria-label="Fold all"
-                onClick={() => { if (editorRef.current) foldAll(editorRef.current) }}
-              >
-                <FoldVertical size={14} aria-hidden="true" />
-              </button>
-              <button
-                className="icon-btn"
-                title="Unfold all"
-                aria-label="Unfold all"
-                onClick={() => { if (editorRef.current) unfoldAll(editorRef.current) }}
-              >
-                <UnfoldVertical size={14} aria-hidden="true" />
-              </button>
-            </>
-          )}
-          {!hideFileActions && !isImage && (
-            <button
-              className={`btn small ${isDirty ? 'primary' : ''}`}
-              onClick={() => void save()}
-              disabled={!isDirty || isSaving}
-              title="Save changes (Ctrl+S)"
-            >
-              {justSaved ? (
-                <>
-                  <Check size={12} className="text-green" />
-                  <span>Saved</span>
-                </>
-              ) : (
-                <>
-                  {isDirty && <span className="viewer-dirty-dot" />}
-                  <Save size={12} />
-                  <span>{isSaving ? 'Saving...' : 'Save'}</span>
-                </>
-              )}
-            </button>
-          )}
-          {!hideFileActions && (
-            <button className="btn small" onClick={() => void window.api.openFileInEditor(filePath)}>Open in VS Code</button>
-          )}
-          {!hideFileActions && !isImage && (
-            <button className="btn small" onClick={() => void copy()} disabled={editedContent === null}>Copy</button>
-          )}
-          {toolbarActions}
-        </div>
-      </div>
-      
+      {/* The Files panel renders the bar once, above both columns; an inactive
+          tab keeps its editor mounted but contributes no bar. */}
+      {hideFileActions
+        ? (active && toolbarHost ? createPortal(toolbar, toolbarHost) : null)
+        : toolbar}
+
       <div className={`viewer-body${isImage ? ' viewer-body--image' : ''}`}>
         {isImage ? (
           error ? (

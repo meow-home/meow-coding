@@ -4145,6 +4145,8 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   border-left: 0.083333rem solid var(--hairline); background: var(--bg-sidebar);
   border-radius: 0;
 }
+/* The tree is hidden, never unmounted, so it keeps its expanded folders. */
+.files-side[hidden] { display: none; }
 .files-filter {
   display: flex; align-items: center; gap: 0.5rem; flex: 0 0 auto;
   margin: 0.666667rem 0.666667rem 0.333333rem; padding: 0 0.5rem;
@@ -4174,15 +4176,18 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 .files-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 /* Files tabs are pills; every other panel keeps the shared square-ish tab. */
 .files-open-tab { border-radius: 999px; }
-/* The per-file bar: the popup's `.viewer-toolbar` on one line under the tabs,
-   with the project-relative path and the panel's own actions on the right. */
+/* The per-file bar: the popup's `.viewer-toolbar` on one line under the header,
+   spanning the whole panel above both columns. The active file portals it into
+   this host; the empty state renders its own bar into the same place. */
+.files-bar-host { flex: 0 0 auto; }
 .files-bar {
   flex: 0 0 auto; flex-wrap: nowrap; gap: 0.5rem; padding: 0.333333rem 0.5rem 0.333333rem 0.75rem;
   background: var(--bg-chat); border-bottom: 0.083333rem solid var(--hairline);
 }
+/* UI face, not the popup's mono: the path is a label here, not code. */
 .files-bar .viewer-path {
-  flex: 1 1 auto; min-width: 0; font-size: var(--fs-xs); white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis;
+  flex: 1 1 auto; min-width: 0; font-family: inherit; font-size: var(--fs-base);
+  color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .files-bar .viewer-actions { flex: 0 0 auto; align-items: center; gap: 0.166667rem; }
 /* One Dark paints its own editor and gutter backgrounds; inside the panel they

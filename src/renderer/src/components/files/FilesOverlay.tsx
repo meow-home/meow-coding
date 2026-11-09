@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { beginOcclusion, endOcclusion } from '../common/useBrowserOcclusion'
 import PanelHeader from '../common/PanelHeader'
 import {
@@ -82,8 +83,29 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
   // null = the CSS default (42% docked, 20rem expanded) until the user drags the splitter.
   const [sideWidth, setSideWidth] = useState<number | null>(loadSideWidth)
   const [treeHidden, setTreeHidden] = useState(loadTreeHidden)
+  // The per-file bar is rendered by the active file, but it belongs above both
+  // columns: FileContentView portals its toolbar into this host.
+  const [toolbarHost, setToolbarHost] = useState<HTMLElement | null>(null)
+  const pendingFilterFocus = useRef(false)
 
   useEffect(() => { saveTreeHidden(treeHidden) }, [treeHidden])
+
+  // Focusing the filter while the tree is hidden does nothing useful: the input
+  // only exists on screen once the tree is shown again.
+  useEffect(() => {
+    if (!pendingFilterFocus.current || treeHidden) return
+    pendingFilterFocus.current = false
+    filterRef.current?.focus()
+  }, [treeHidden])
+
+  const focusFilter = useCallback(() => {
+    if (!treeHidden) {
+      filterRef.current?.focus()
+      return
+    }
+    pendingFilterFocus.current = true
+    setTreeHidden(false)
+  }, [treeHidden])
 
   const startSideDrag = useCallback((e: React.MouseEvent) => {
     const side = sideRef.current
@@ -218,7 +240,7 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
             </button>
           )}
         >
-          <button className="menu-item" onClick={() => { setMenuOpen(false); filterRef.current?.focus() }}>
+          <button className="menu-item" onClick={() => { setMenuOpen(false); focusFilter() }}>
             <Search size={16} aria-hidden="true" />
             Focus filter
           </button>
@@ -297,14 +319,16 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
           onClose: () => requestClose([tab.path])
         }))}
       />
+      <div className="files-bar-host" ref={setToolbarHost} />
+      {toolbarHost && !activeTab && createPortal(
+        <div className="viewer-toolbar files-bar">
+          <span className="viewer-path" />
+          <div className="viewer-actions">{barActions}</div>
+        </div>,
+        toolbarHost
+      )}
       <div className="files-body" ref={bodyRef}>
         <div className="files-main">
-          {!activeTab && (
-            <div className="viewer-toolbar files-bar">
-              <span className="viewer-path" />
-              <div className="viewer-actions">{barActions}</div>
-            </div>
-          )}
           <div className="files-content">
             {/* Every open file stays mounted: unmounting on a tab switch would drop unsaved edits. */}
             {tabs.map(tab => (
@@ -315,6 +339,7 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
                   active={tab.path === activeTab}
                   hideFileActions
                   toolbarActions={tab.path === activeTab ? barActions : undefined}
+                  toolbarHost={toolbarHost}
                   onDirtyChange={dirty => handleDirtyChange(tab.path, dirty)}
                 />
               </div>
@@ -330,42 +355,42 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
             )}
           </div>
         </div>
-        {!treeHidden && (
+        {/* Hidden, not unmounted: the tree keeps its expanded folders across a toggle. */}
+        <div
+          className="files-side"
+          ref={sideRef}
+          hidden={treeHidden}
+          style={sideWidth !== null ? { flexBasis: sideWidth, maxWidth: `calc(100% - ${FILES_MAIN_MIN_WIDTH}px)` } : undefined}
+        >
           <div
-            className="files-side"
-            ref={sideRef}
-            style={sideWidth !== null ? { flexBasis: sideWidth, maxWidth: `calc(100% - ${FILES_MAIN_MIN_WIDTH}px)` } : undefined}
-          >
-            <div
-              className="files-side-resizer"
-              role="separator"
-              aria-orientation="vertical"
-              aria-label="Resize file tree"
-              title="Drag to resize, double-click to reset"
-              onMouseDown={startSideDrag}
-              onDoubleClick={resetSideWidth}
-            />
-            <div className="files-filter">
-              <Search size={13} aria-hidden="true" />
-              <input
-                ref={filterRef}
-                className="files-filter-input"
-                placeholder="Filter, or ? to search in files"
-                value={query}
-                spellCheck={false}
-                onChange={e => setQuery(e.target.value)}
-              />
-            </div>
-            <FilesTree
-              projectPath={projectPath}
-              query={query}
-              activePath={activeTab}
-              onOpenFile={openFile}
-              reloadToken={reloadToken}
-              collapseToken={collapseToken}
+            className="files-side-resizer"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize file tree"
+            title="Drag to resize, double-click to reset"
+            onMouseDown={startSideDrag}
+            onDoubleClick={resetSideWidth}
+          />
+          <div className="files-filter">
+            <Search size={13} aria-hidden="true" />
+            <input
+              ref={filterRef}
+              className="files-filter-input"
+              placeholder="Filter, or ? to search in files"
+              value={query}
+              spellCheck={false}
+              onChange={e => setQuery(e.target.value)}
             />
           </div>
-        )}
+          <FilesTree
+            projectPath={projectPath}
+            query={query}
+            activePath={activeTab}
+            onOpenFile={openFile}
+            reloadToken={reloadToken}
+            collapseToken={collapseToken}
+          />
+        </div>
       </div>
       {pendingClose && (
         <ConfirmDialog

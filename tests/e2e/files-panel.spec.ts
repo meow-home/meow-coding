@@ -75,8 +75,20 @@ test('the file tree sits right of the editor and the bar names the open file', a
       // the absolute one.
       await window.locator('.files-tree-row', { hasText: 'src' }).click()
       await window.locator('.files-tree-row', { hasText: 'index.ts' }).click()
-      await expect(window.locator('.files-tab-pane:not([hidden]) .viewer-path'))
-        .toHaveText('src/index.ts')
+      await expect(window.locator('.files-bar .viewer-path')).toHaveText('src/index.ts')
+
+      // The bar spans the whole panel: its right edge is the panel's inner right
+      // edge (inside the 1px border), and both columns start below it.
+      const barGap = await window.evaluate(() => {
+        const panel = document.querySelector('.files-overlay') as HTMLElement
+        const bar = document.querySelector('.files-bar') as HTMLElement
+        const border = parseFloat(getComputedStyle(panel).borderRightWidth)
+        return panel.getBoundingClientRect().right - border - bar.getBoundingClientRect().right
+      })
+      expect(Math.abs(barGap)).toBeLessThanOrEqual(1)
+
+      const bar = (await window.locator('.files-bar').boundingBox())!
+      expect(tree.y).toBeGreaterThanOrEqual(bar.y + bar.height - 1)
     } finally {
       await app.close()
     }
@@ -96,20 +108,31 @@ test('the tree toggle hides the tree and the choice survives closing the panel',
     try {
       await openProject(window)
       await openFilesPanel(window)
-      await expect(window.locator('.files-side')).toHaveCount(1)
+      await expect(window.locator('.files-side')).toBeVisible()
 
-      await window.getByRole('button', { name: 'Toggle file tree', exact: true }).click()
-      await expect(window.locator('.files-side')).toHaveCount(0)
+      // The tree is hidden, not unmounted, so an expanded folder survives.
+      await window.locator('.files-tree-row', { hasText: 'src' }).click()
+      await expect(window.locator('.files-tree-row', { hasText: 'index.ts' })).toBeVisible()
+
+      const toggle = window.getByRole('button', { name: 'Toggle file tree', exact: true })
+      await toggle.click()
+      await expect(window.locator('.files-side')).toBeHidden()
       await expect.poll(() => window.evaluate(() => localStorage.getItem('meow.files.treeHidden')))
         .toBe('1')
+
+      await toggle.click()
+      await expect(window.locator('.files-side')).toBeVisible()
+      await expect(window.locator('.files-tree-row', { hasText: 'index.ts' })).toBeVisible()
 
       // Closing the panel unmounts it; reopening mounts a fresh instance that
       // must read the stored choice. With no open file the empty bar keeps the
       // toggle reachable.
+      await toggle.click()
+      await expect(window.locator('.files-side')).toBeHidden()
       await window.getByRole('button', { name: 'Close Files', exact: true }).click()
       await expect(window.locator('.files-overlay')).toHaveCount(0)
       await openFilesPanel(window)
-      await expect(window.locator('.files-side')).toHaveCount(0)
+      await expect(window.locator('.files-side')).toBeHidden()
       await expect(window.getByRole('button', { name: 'Toggle file tree', exact: true })).toBeVisible()
     } finally {
       await app.close()

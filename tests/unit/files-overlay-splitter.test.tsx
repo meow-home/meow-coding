@@ -113,12 +113,14 @@ describe('FilesOverlay file tree toggle', () => {
     act(() => { button.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
   }
 
-  it('hides the tree and restores that choice when the panel is remounted', () => {
+  it('hides the tree without unmounting it and restores that choice on remount', () => {
     render()
-    expect(side()).not.toBeNull()
+    expect(side()!.hidden).toBe(false)
 
     toggleTree()
-    expect(side()).toBeNull()
+    // Still in the DOM: the tree keeps its expanded folders across a toggle.
+    expect(side()).not.toBeNull()
+    expect(side()!.hidden).toBe(true)
     expect(localStorage.getItem('meow.files.treeHidden')).toBe('1')
 
     // Closing and reopening the panel mounts a fresh FilesOverlay.
@@ -128,16 +130,16 @@ describe('FilesOverlay file tree toggle', () => {
     document.body.appendChild(container)
     root = createRoot(container)
     render()
-    expect(side()).toBeNull()
+    expect(side()!.hidden).toBe(true)
   })
 
   it('shows the tree again when toggled back', () => {
     localStorage.setItem('meow.files.treeHidden', '1')
     render()
-    expect(side()).toBeNull()
+    expect(side()!.hidden).toBe(true)
 
     toggleTree()
-    expect(side()).not.toBeNull()
+    expect(side()!.hidden).toBe(false)
     expect(localStorage.getItem('meow.files.treeHidden')).toBe('0')
   })
 })
