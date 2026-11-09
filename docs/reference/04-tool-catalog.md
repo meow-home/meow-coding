@@ -304,15 +304,17 @@ A call with no session identity (`snapshotAgentId ?? agentId`) returns `browser:
 | `browser_switch_tab` | `{ tabId }` | Built-in: makes it the agent's working tab without changing the tab the user selected in the panel. Chrome: activates the Chrome tab without focusing the window. |
 | `browser_close_tab` | `{ tabId }` | Close a tab. |
 | `browser_console` | `{ limit? ≤200, tabId? }` | Recent console logs; built-in reads the working tab's buffer unless `tabId` is given. Chrome ignores `tabId`. |
+| `browser_handoff` | `{ reason, tabId? }` | Built-in only. Hands the tab to the user for sign-in, passwords, payment details or CAPTCHAs, blocking with no timeout until hand-back; returns `{ originChanged }`. Not for questions — use `question`. |
 | `browser_network` | `{ limit? ≤200, tabId? }` | Recent network requests (method, url, status), same `tabId` rule. |
 | `browser_wait_for` | `{ selector, timeoutMs? }` | Poll until a CSS selector exists. |
 
-Built-in commands run through one FIFO queue per tab and time out after 30 s; a `tabId` from another
-session is rejected with `no such tab`. On the built-in backend, `browser_click`, `browser_type` and
-`browser_select` on a non-loopback site ask the user for approval (`Allow once` / `Allow this site for
-the session` / `Deny`; `browser.siteApproval: 'off'` disables the prompt — see 8.3b). Password-field
-refusal is not implemented yet. Chrome commands time out after 30 s at the bridge level; when the
-Chrome backend is not paired, every command returns `browser not connected — run browser_start first`.
+Built-in commands run through one FIFO queue per tab and time out after 30 s (the handoff has no
+timeout); a `tabId` from another session is rejected with `no such tab`. On the built-in backend,
+`browser_click`, `browser_type` and `browser_select` on a non-loopback site ask the user for approval
+(`Allow once` / `Allow this site for the session` / `Deny`; `browser.siteApproval: 'off'` disables the
+prompt — see 8.3b), and `browser_type`/`browser_select` refuse password and payment fields, pointing at
+`browser_handoff`. Chrome commands time out after 30 s at the bridge level; when the Chrome backend is
+not paired, every command returns `browser not connected — run browser_start first`.
 
 ## 4.4 MCP tools
 

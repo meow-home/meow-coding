@@ -267,12 +267,17 @@ below are added inside `EmbeddedBrowser`. The plan-mode `'browser_*': 'ask'` rul
 
 ### 7.2 Sensitive fields and handoff (board 5)
 
-- `browser_type` and `browser_select` refuse a target that is `input[type=password]` or has `autocomplete` starting
-  with `cc-`, with an error telling the agent to call `browser_handoff`. Password fields are also refused by selector.
+- `browser_type` and `browser_select` refuse a target that is `input[type=password]` or whose `autocomplete` tokens
+  are `current-password`, `new-password`, `one-time-code` or start with `cc-` (case-insensitive, token by token, so a
+  "show password" toggle that flips `type` to `text` is still caught), with an error telling the agent to call
+  `browser_handoff`. The check runs before the site-approval prompt and again inside the command; a check that fails
+  for any other reason refuses (fail closed). The ref map keeps no field values, and the snapshot drops the value text
+  Chromium puts under a text-entry field.
 - `browser_read` never outputs field values: `axTreeToSnapshot` emits only role and name.
 - New tool `browser_handoff({ reason, tabId? })` sets `user` state with the reason in the banner and blocks until the
   user presses **I'm signed in** or the call is aborted. It returns whether the page's origin changed, and never its
-  content.
+  content. Entering the hold makes the tab the panel's active tab, fires a panel request and raises the existing
+  "input needed" notification.
 - Console and network entries captured while the user holds the tab are marked and excluded from the agent's
   `browser_console` / `browser_network` output, including after hand-back; only the user's drawer sees them.
 

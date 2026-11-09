@@ -30,6 +30,7 @@ describe('summarizeCalls', () => {
   it('covers searches, the browser and unknown tools', () => {
     expect(summarizeCalls([call('grep', { pattern: 'x' }), call('glob', { pattern: '*' })])).toBe('Ran 2 searches')
     expect(summarizeCalls([call('browser_open_tab', {}), call('browser_click', {})])).toBe('Used the browser (2 steps)')
+    expect(summarizeCalls([call('browser_handoff', { reason: 'Sign in' })])).toBe('Handed the browser to you')
     expect(summarizeCalls([call('mcp_foo', {})])).toBe('Used mcp_foo')
   })
 })
@@ -40,6 +41,7 @@ describe('describeRunning', () => {
     expect(describeRunning(call('bash', { command: 'npm test\nnpm run e2e' }))).toBe('Running npm test')
     expect(describeRunning(call('grep', { pattern: 'tool-cluster' }))).toBe('Searching for tool-cluster')
     expect(describeRunning(call('bash', { command: 'cd /c/repo && npm test' }))).toBe('Running npm test')
+    expect(describeRunning(call('browser_handoff', { reason: 'Sign in' }))).toBe('Waiting for you')
   })
 })
 

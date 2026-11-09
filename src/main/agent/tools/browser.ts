@@ -237,6 +237,27 @@ export function createBrowserTools(router: BrowserRouterLike): ToolDefinition[] 
       }
     },
     {
+      name: 'browser_handoff',
+      description:
+        'Hand this tab to the user for a step only a person can do: signing in, passwords, payment details, ' +
+        'CAPTCHAs or other checks. Blocks until the user hands back and returns whether the page origin changed. ' +
+        'Do not use it to ask questions — use the question tool for those.',
+      schema: z.object({
+        reason: z.string().describe('Short reason shown to the user, e.g. "Sign in to the admin console".'),
+        tabId: z.number().int().optional().describe('Optional tab id; defaults to the working tab.')
+      }),
+      async run(input, ctx): Promise<ToolRunResult> {
+        const call = callFor(ctx)
+        if (!call) return { error: NO_CONTEXT }
+        const { reason, tabId } = input as unknown as { reason?: string; tabId?: number }
+        const text = String(reason ?? '').trim()
+        if (!text) return { error: 'browser_handoff: reason is required' }
+        const params: Record<string, unknown> = { reason: text }
+        if (tabId != null) params.tabId = tabId
+        return fmt(await router.backendFor(call.ownerId).execute('handoff', params, call))
+      }
+    },
+    {
       name: 'browser_wait_for',
       description: 'Wait until a CSS selector exists on the page (polling), up to timeoutMs.',
       schema: z.object({

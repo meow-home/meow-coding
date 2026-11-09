@@ -84,7 +84,8 @@ describe('browser tools', () => {
     expect(tools.map(t => t.name)).toEqual([
       'browser_start', 'browser_navigate', 'browser_open_tab', 'browser_click', 'browser_type',
       'browser_select', 'browser_scroll', 'browser_read', 'browser_list_tabs',
-      'browser_switch_tab', 'browser_close_tab', 'browser_console', 'browser_network', 'browser_wait_for'
+      'browser_switch_tab', 'browser_close_tab', 'browser_console', 'browser_network',
+      'browser_handoff', 'browser_wait_for'
     ])
   })
 
@@ -244,6 +245,31 @@ describe('browser tools', () => {
     expect(r.error).toContain('built-in browser is not available')
     expect(router.backendFor('agent-1')).toBe(chrome)
     expect(openChrome).not.toHaveBeenCalled()
+  })
+
+  it('browser_handoff forwards the trimmed reason and tab id', async () => {
+    const { backend, calls } = fakeBackend()
+    const tools = toolsFor(backend)
+    const handoff = tools.find(t => t.name === 'browser_handoff')!
+    const r = await handoff.run({ reason: '  Sign in to the admin console  ', tabId: 7 }, ctx)
+    expect(r.output).toContain('handoff')
+    expect(calls).toEqual([
+      { name: 'handoff', params: { reason: 'Sign in to the admin console', tabId: 7 } }
+    ])
+  })
+
+  it('browser_handoff requires a non-empty reason', async () => {
+    const { backend, calls } = fakeBackend()
+    const tools = toolsFor(backend)
+    const handoff = tools.find(t => t.name === 'browser_handoff')!
+    expect((await handoff.run({ reason: '   ' }, ctx)).error).toContain('reason is required')
+    expect(calls).toEqual([])
+  })
+
+  it('the Chrome backend rejects browser_handoff', async () => {
+    const chrome = new ChromeBackend({ bridge: fakeBridge(), launcher: fakeLauncher() })
+    const r = await chrome.execute('handoff', { reason: 'x' }, { ownerId: 'agent-1', ask: async () => null })
+    expect(r).toEqual({ ok: false, error: 'browser_handoff is only available in the built-in browser' })
   })
 
   it('browser_console and browser_network read the backend buffers', async () => {

@@ -1883,6 +1883,19 @@ ${content}` : content
     return { input: p.input ?? 0, output: p.output ?? 0, cacheRead: p.cacheRead, cacheWrite: p.cacheWrite }
   }
 
+  /** The same "input needed" notification a pending prompt raises; also used by browser handoff. */
+  notifyInputNeeded(agentId: string, reason?: string): void {
+    if (this.deps.notifications?.needsInput === false) return
+    const name = this.agents.get(agentId)?.name ?? agentId
+    this.deps.notify?.notify({
+      title: '[meow] Input needed',
+      body: reason ? `${name} needs you: ${reason}` : `${name} is waiting...`,
+      agentId,
+      kind: 'input',
+      onActivate: () => this.deps.onActivateAgent?.(agentId)
+    })
+  }
+
   private awaitPrompt(agentId: string, promptId: string, tool: string | undefined, info: PendingPromptInfo): Promise<PromptResponse | null> {
     return new Promise(resolve => {
       this.pendingPrompts.set(promptId, { agentId, tool, info, resolve })
@@ -1892,15 +1905,7 @@ ${content}` : content
         this.deps.onPromptStateChange?.(agentId, false)
         resolve(null)
       }
-      if (this.deps.notifications?.needsInput !== false) {
-        this.deps.notify?.notify({
-          title: '[meow] Input needed',
-          body: `${this.agents.get(agentId)?.name ?? agentId} is waiting...`,
-          agentId,
-          kind: 'input',
-          onActivate: () => this.deps.onActivateAgent?.(agentId)
-        })
-      }
+      this.notifyInputNeeded(agentId)
     })
   }
 

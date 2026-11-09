@@ -121,6 +121,48 @@ function labelOf(params: Record<string, unknown>): string {
   return params.ref != null ? String(params.ref) : 'Meow'
 }
 
+const SENSITIVE_TARGET = `function(){
+  const el = this;
+  if (!(el instanceof HTMLInputElement)) return null;
+  const type = (el.getAttribute('type') || '').toLowerCase();
+  if (type === 'password') return 'password';
+  const tokens = (el.getAttribute('autocomplete') || '').toLowerCase().split(/\\s+/).filter(Boolean);
+  for (const token of tokens) {
+    if (token === 'current-password' || token === 'new-password' || token === 'one-time-code' || token.startsWith('cc-')) {
+      return 'payment';
+    }
+  }
+  return null;
+}`
+
+/**
+ * A password or payment field. `type` alone is not enough: a "show password" toggle
+ * flips it to `text`, so the autocomplete tokens are checked too (token by token,
+ * because `autocomplete` can be `section-a cc-number`).
+ */
+export async function isSensitiveTarget(cdp: CdpClient, target: NodeTarget): Promise<boolean> {
+  try {
+    const { object } = await cdp.send<{ object: { objectId: string } }>('DOM.resolveNode', { ...target })
+    const res = await cdp.send<{ result?: { value?: unknown }; exceptionDetails?: { text?: string } }>('Runtime.callFunctionOn', {
+      objectId: object.objectId,
+      functionDeclaration: SENSITIVE_TARGET,
+      returnByValue: true
+    })
+    if (res.exceptionDetails) throw new Error(res.exceptionDetails.text ?? 'unknown')
+    return res.result?.value != null
+  } catch (err) {
+    // Fail closed: the caller refuses rather than typing into an unchecked field.
+    throw new Error(`sensitive check failed: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
+export function sensitiveFieldError(name: 'type' | 'select'): BrowserCommandResult {
+  return {
+    ok: false,
+    error: `browser_${name} refused: this is a sensitive field (password or payment). Call browser_handoff so the user can fill it.`
+  }
+}
+
 async function clickPoint(
   cdp: CdpClient,
   target: NodeTarget
@@ -273,6 +315,7 @@ export async function type(
     onTarget?.(isErrorResult(box) ? null : { ...box, label: labelOf(params) })
     const objectId = await resolveAttachedObject(cdp, target, ref)
     if (isErrorResult(objectId)) return objectId
+    if (await isSensitiveTarget(cdp, target)) return sensitiveFieldError('type')
     await callOnObject(cdp, objectId, FOCUS_AND_SELECT)
     await cdp.send('Input.insertText', { text: String(params.text ?? '') })
     await callOnObject(cdp, objectId, DISPATCH_CHANGE)
@@ -291,6 +334,7 @@ export async function select(
   return withTarget(cdp, refs, params, async (target, ref) => {
     const objectId = await resolveAttachedObject(cdp, target, ref)
     if (isErrorResult(objectId)) return objectId
+    if (await isSensitiveTarget(cdp, target)) return sensitiveFieldError('select')
     await callOnObject(cdp, objectId, SET_VALUE_AND_CHANGE, [String(params.value ?? '')])
     return { ok: true, data: ref != null ? { ref } : { selector: String(params.selector) } }
   })

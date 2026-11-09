@@ -56,6 +56,8 @@ export interface BrowserTabDeps {
   siteApprovals?: SiteApprovals
   /** Read per call, so a settings change applies without a restart. */
   siteApproval?: () => 'ask' | 'off'
+  /** Fired when the agent hands the tab to the user (panel request + notification). */
+  onHandoff?: (reason: string) => void
 }
 
 export interface ConsoleEntry {
@@ -156,13 +158,16 @@ export class BrowserTab {
     timeoutMs = DEFAULT_COMMAND_TIMEOUT_MS
   ): Promise<BrowserCommandResult> {
     const task = this.queue.then(async () => {
-      // Pipeline: wait for control, acquire the lease + shield, ask for site
-      // approval when needed, then execute and decorate. Neither the hold wait nor
-      // the approval prompt is part of the command's execution budget, so the
-      // timeout only starts in executeTimed.
+      // Pipeline: wait for control, acquire the lease + shield, refuse sensitive
+      // fields, ask for site approval, then execute. Neither the hold wait nor the
+      // prompt is part of the command's execution budget. A handoff goes straight
+      // to the user state with no clock and no approval.
       const blocked = await this.waitForControl(name, call)
       if (blocked) return this.decorate(blocked)
+      if (name === 'handoff') return this.handoff(String(params.reason ?? ''), call)
       this.acquire()
+      const sensitive = await this.sensitiveCheck(name, params, call)
+      if (sensitive) return this.decorate(sensitive)
       const denied = await this.approvalGate(name, params, call)
       if (denied) return this.decorate(denied)
       return this.executeTimed(name, params, call, timeoutMs)
@@ -237,8 +242,22 @@ export class BrowserTab {
     call: BrowserCall | undefined,
     timeoutMs: number
   ): Promise<BrowserCommandResult> {
-    // The clock covers execution only: the hold wait and any approval prompt run
-    // before this point, so a long wait cannot spend the command's budget.
+    // The clock covers execution only: the hold wait, the sensitive check and any
+    // approval prompt run before this point, so a long wait cannot spend it.
+    return this.bounded(name, call, timeoutMs, () => this.dispatch(name, params))
+  }
+
+  /**
+   * Runs `work` with the command timeout and abort/close listeners. Shared by the
+   * sensitive check and the command itself so a hung page cannot wedge the queue.
+   */
+  private bounded(
+    name: BrowserCommandName,
+    call: BrowserCall | undefined,
+    timeoutMs: number,
+    work: () => Promise<BrowserCommandResult>,
+    decorateResults = true
+  ): Promise<BrowserCommandResult> {
     const tab = this
     return new Promise(resolve => {
       let settled = false
@@ -279,17 +298,55 @@ export class BrowserTab {
       signal?.addEventListener('abort', onAbort, { once: true })
       lifetime.addEventListener('abort', onClosed, { once: true })
       timer = setTimeout(() => finish({ ok: false, error: `browser command timed out: ${name}` }), timeoutMs)
-      this.dispatch(name, params).then(
+      work().then(
         // A late result from an abandoned command is dropped without decorating
         // (which would consume dialog notes) or resolving anything.
         result => {
-          if (!settled) finish(this.decorate(result))
+          if (!settled) finish(decorateResults ? tab.decorate(result) : result)
         },
         err => {
-          if (!settled) finish(this.decorate({ ok: false, error: `${name}: ${errorMessage(err)}` }))
+          const error = { ok: false as const, error: `${name}: ${errorMessage(err)}` }
+          if (!settled) finish(decorateResults ? tab.decorate(error) : error)
         }
       )
     })
+  }
+
+  /**
+   * Step 3: password/payment fields are refused before the approval prompt, so a
+   * prompt is never wasted on an action that cannot run. Bounded like a command.
+   */
+  private async sensitiveCheck(
+    name: BrowserCommandName,
+    params: Record<string, unknown>,
+    call: BrowserCall | undefined
+  ): Promise<BrowserCommandResult | null> {
+    if (name !== 'type' && name !== 'select') return null
+    const result = await this.bounded(
+      name,
+      call,
+      DEFAULT_COMMAND_TIMEOUT_MS,
+      () => this.sensitiveTarget(name, params),
+      false
+    )
+    return result.ok ? null : result
+  }
+
+  private async sensitiveTarget(name: 'type' | 'select', params: Record<string, unknown>): Promise<BrowserCommandResult> {
+    if (params.ref != null) {
+      const ref = String(params.ref)
+      const backendNodeId = this.refs.get(ref)
+      if (backendNodeId == null) return staleRefError(ref)
+      const sensitive = await commands.isSensitiveTarget(this.host.cdp, { backendNodeId })
+      return sensitive ? commands.sensitiveFieldError(name) : { ok: true }
+    }
+    const selector = params.selector != null ? String(params.selector) : null
+    if (!selector) return { ok: false, error: `${name} requires ref or selector` }
+    const doc = await this.host.cdp.send<{ root: { nodeId: number } }>('DOM.getDocument', { depth: 0 })
+    const found = await this.host.cdp.send<{ nodeId: number }>('DOM.querySelector', { nodeId: doc.root.nodeId, selector })
+    if (!found.nodeId) return { ok: false, error: `selector not found: ${selector}` }
+    const sensitive = await commands.isSensitiveTarget(this.host.cdp, { nodeId: found.nodeId })
+    return sensitive ? commands.sensitiveFieldError(name) : { ok: true }
   }
 
   toInfo(): BrowserTabInfo {
@@ -328,6 +385,79 @@ export class BrowserTab {
   allNetworkLogs(limit = LOG_BUFFER_ENTRIES): NetworkEntry[] {
     return tail(this.networkBuffer, limit)
       .map(entry => ({ method: entry.method, url: entry.url, status: entry.status }))
+  }
+
+  /**
+   * Hand the tab to the user for a step only a person can do. No clock: it holds
+   * the queue until hand-back, abort or tab close. Returns only whether the origin
+   * changed across the hold.
+   */
+  async handoff(reason: string, call?: BrowserCall): Promise<BrowserCommandResult> {
+    const text = reason.trim().slice(0, 200)
+    if (!text) return { ok: false, error: 'browser_handoff requires a reason' }
+    const origin = originOf(this.host.getUrl())
+    this.control = 'user'
+    this.holdReason = text
+    this.cancelLease()
+    this.setShieldSafe({ visible: false })
+    this.notifyControlChanged()
+    this.deps.onHandoff?.(text)
+
+    const outcome = await this.waitForHandBack(call)
+    if ('error' in outcome) {
+      // Abort (Stop) leaves the sign-in uninterrupted: stay user, drop the reason so
+      // the banner falls back to the plain hold.
+      this.holdReason = undefined
+      this.notifyControlChanged()
+      return outcome.error
+    }
+    return { ok: true, data: { originChanged: originOf(this.host.getUrl()) !== origin } }
+  }
+
+  private waitForHandBack(call?: BrowserCall): Promise<{ ok: true } | { error: BrowserCommandResult }> {
+    const tab = this
+    return new Promise(resolve => {
+      let settled = false
+      const signal = call?.signal
+      const lifetime = this.lifetime.signal
+
+      function cleanup(): void {
+        signal?.removeEventListener('abort', onAbort)
+        lifetime.removeEventListener('abort', onClosed)
+        tab.holdWaiters.delete(waiter)
+      }
+
+      function finish(result: { ok: true } | { error: BrowserCommandResult }): void {
+        if (settled) return
+        settled = true
+        cleanup()
+        resolve(result)
+      }
+
+      function onAbort(): void {
+        finish({ error: { ok: false, error: 'browser command aborted: browser_handoff' } })
+      }
+
+      function onClosed(): void {
+        finish({ error: { ok: false, error: 'tab closed' } })
+      }
+
+      function waiter(): void {
+        finish({ ok: true })
+      }
+
+      if (tab.closed) {
+        onClosed()
+        return
+      }
+      if (signal?.aborted) {
+        onAbort()
+        return
+      }
+      signal?.addEventListener('abort', onAbort, { once: true })
+      lifetime.addEventListener('abort', onClosed, { once: true })
+      tab.holdWaiters.add(waiter)
+    })
   }
 
   /** The user takes control: the in-flight command finishes, the next ones wait. */
@@ -604,7 +734,7 @@ export class BrowserTab {
       lifetime.addEventListener('abort', onClosed, { once: true })
       void call.ask({
         header: 'Allow Meow to act on this site?',
-        question: `browser_${name} on ${site}\nTarget: ${target}`,
+        question: `Allow Meow to act on this site?\nbrowser_${name} on ${site}\nTarget: ${target}`,
         options: [
           { label: 'Allow once' },
           { label: 'Allow this site for the session' },

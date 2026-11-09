@@ -13,12 +13,16 @@ import { SiteApprovals } from '../../../src/main/browser/site-approval'
 class FakeCdp implements CdpClient {
   calls: Array<{ method: string; params?: Record<string, unknown> }> = []
   responses: Record<string, unknown> = {}
+  callFunctionOnValues: unknown[] = []
   onSend: ((method: string) => Promise<void> | void) | null = null
   private listeners: Array<(method: string, params: unknown) => void> = []
 
   async send<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T> {
     this.calls.push({ method, params })
     if (this.onSend) await this.onSend(method)
+    if (method === 'Runtime.callFunctionOn' && this.callFunctionOnValues.length > 0) {
+      return { result: { value: this.callFunctionOnValues.shift() } } as T
+    }
     return (this.responses[method] ?? {}) as T
   }
 
@@ -835,6 +839,7 @@ describe('BrowserTab site approval', () => {
     expect(ask).toHaveBeenCalledTimes(1)
     const prompt = ask.mock.calls[0][0]
     expect(prompt.header).toBe('Allow Meow to act on this site?')
+    expect(prompt.question.split('\n')[0]).toBe('Allow Meow to act on this site?')
     expect(prompt.question).toContain('browser_click on https://example.com')
     expect(prompt.question).toContain('Target: selector #b')
     expect(prompt.options?.map(o => o.label)).toEqual(['Allow once', 'Allow this site for the session', 'Deny'])
@@ -927,7 +932,7 @@ describe('BrowserTab site approval', () => {
     await tab.run('read', {})
     await tab.run('click', { ref: 'r1' }, { ownerId: 'agent-1', ask })
     const question = ask.mock.calls[0][0].question
-    const target = question.split('\n')[1]
+    const target = question.split('\n')[2]
     expect(target.startsWith('Target: button "Delete workspace x')).toBe(true)
     expect(target).not.toContain('  ')
     const quoted = target.slice('Target: button "'.length, -1)
@@ -1025,5 +1030,189 @@ describe('BrowserTab site approval', () => {
     await tick()
     tab.destroy()
     expect(await pending).toEqual({ ok: false, error: 'tab closed' })
+  })
+})
+
+describe('BrowserTab sensitive fields', () => {
+  function makeSensitiveTab(cdp: FakeCdp, url = 'https://example.com/'): {
+    tab: BrowserTab
+    state: { url: string; shields: Array<{ visible: boolean }> }
+  } {
+    const { host, state } = fakeHost(cdp)
+    state.url = url
+    cdp.responses['DOM.resolveNode'] = { object: { objectId: 'obj-1' } }
+    cdp.responses['DOM.getDocument'] = { root: { nodeId: 1 } }
+    cdp.responses['DOM.querySelector'] = { nodeId: 7 }
+    const tab = new BrowserTab(host, { agentId: 'agent-1', snapshotDir: dir })
+    return { tab, state }
+  }
+
+  it('refuses a password ref before any approval prompt', async () => {
+    const cdp = new FakeCdp()
+    primeRead(cdp)
+    cdp.callFunctionOnValues = ['password']
+    const ask = vi.fn(async (_q: QuestionPrompt) => 'Allow once')
+    const { tab } = makeSensitiveTab(cdp)
+    expect((await tab.run('read', {})).ok).toBe(true)
+    const result = await tab.run('type', { ref: 'r1', text: 'secret' }, { ownerId: 'agent-1', ask })
+    expect((result as { error: string }).error).toContain('browser_type refused')
+    expect((result as { error: string }).error).toContain('browser_handoff')
+    expect(ask).not.toHaveBeenCalled()
+    expect(cdp.calls.some(c => c.method === 'Input.insertText')).toBe(false)
+    tab.destroy()
+  })
+
+  it('refuses a payment selector before any approval prompt', async () => {
+    const cdp = new FakeCdp()
+    cdp.callFunctionOnValues = ['payment']
+    const ask = vi.fn(async (_q: QuestionPrompt) => 'Allow once')
+    const { tab } = makeSensitiveTab(cdp)
+    const result = await tab.run('type', { selector: '#card', text: '4111' }, { ownerId: 'agent-1', ask })
+    expect((result as { error: string }).error).toContain('browser_type refused')
+    expect(ask).not.toHaveBeenCalled()
+    expect(cdp.calls.some(c => c.method === 'Input.insertText')).toBe(false)
+    tab.destroy()
+  })
+
+  it('returns the stale error for an unknown ref and never prompts', async () => {
+    const cdp = new FakeCdp()
+    const ask = vi.fn(async (_q: QuestionPrompt) => 'Allow once')
+    const { tab } = makeSensitiveTab(cdp)
+    const result = await tab.run('type', { ref: 'r9', text: 'x' }, { ownerId: 'agent-1', ask })
+    expect(result).toEqual({ ok: false, error: 'snapshot stale: re-read the page (ref r9 no longer valid)' })
+    expect(ask).not.toHaveBeenCalled()
+    expect(cdp.calls).toEqual([])
+    tab.destroy()
+  })
+
+  it('fails closed when the sensitive check itself errors', async () => {
+    const cdp = new FakeCdp()
+    cdp.onSend = (method) => {
+      if (method === 'Runtime.callFunctionOn') throw new Error('call failed')
+    }
+    const ask = vi.fn(async (_q: QuestionPrompt) => 'Allow once')
+    const { tab } = makeSensitiveTab(cdp)
+    const result = await tab.run('type', { selector: '#q', text: 'x' }, { ownerId: 'agent-1', ask })
+    expect((result as { error: string }).error).toContain('sensitive check failed')
+    expect(ask).not.toHaveBeenCalled()
+    expect(cdp.calls.some(c => c.method === 'Input.insertText')).toBe(false)
+    tab.destroy()
+  })
+
+  it('refuses a field that becomes sensitive during the approval prompt', async () => {
+    const cdp = new FakeCdp()
+    primeRead(cdp)
+    // Pipeline check: not sensitive. Then type's internal check after approval: password.
+    cdp.callFunctionOnValues = [null, true, 'password']
+    const ask = vi.fn(async (_q: QuestionPrompt) => 'Allow once')
+    const { tab } = makeSensitiveTab(cdp)
+    expect((await tab.run('read', {})).ok).toBe(true)
+    const result = await tab.run('type', { ref: 'r1', text: 'secret' }, { ownerId: 'agent-1', ask })
+    expect((result as { error: string }).error).toContain('browser_type refused')
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(cdp.calls.some(c => c.method === 'Input.insertText')).toBe(false)
+    tab.destroy()
+  })
+})
+
+describe('BrowserTab handoff', () => {
+  function makeHandoffTab(cdp: FakeCdp): {
+    tab: BrowserTab
+    state: { url: string; shields: Array<{ visible: boolean }> }
+    reasons: string[]
+  } {
+    const { host, state } = fakeHost(cdp)
+    state.url = 'https://example.com/signin'
+    const reasons: string[] = []
+    const tab = new BrowserTab(host, {
+      agentId: 'agent-1',
+      snapshotDir: dir,
+      onHandoff: reason => reasons.push(reason)
+    })
+    return { tab, state, reasons }
+  }
+
+  it('enters user with the reason and resolves on hand-back with originChanged', async () => {
+    const cdp = new FakeCdp()
+    const { tab, state, reasons } = makeHandoffTab(cdp)
+    const pending = tab.run('handoff', { reason: '  Sign in  ' })
+    await tick()
+    expect(tab.toInfo().control).toBe('user')
+    expect(tab.toInfo().holdReason).toBe('Sign in')
+    expect(reasons).toEqual(['Sign in'])
+    expect(state.shields[state.shields.length - 1]).toEqual({ visible: false })
+
+    state.url = 'https://accounts.example.com/account'
+    tab.handBack()
+    expect(await pending).toEqual({ ok: true, data: { originChanged: true } })
+    expect(tab.toInfo().control).toBe('idle')
+    tab.destroy()
+  })
+
+  it('reports originChanged false when the page stays put', async () => {
+    const cdp = new FakeCdp()
+    const { tab } = makeHandoffTab(cdp)
+    const pending = tab.run('handoff', { reason: 'Sign in' })
+    await tick()
+    tab.handBack()
+    expect(await pending).toEqual({ ok: true, data: { originChanged: false } })
+    tab.destroy()
+  })
+
+  it('holds the queue while the user signs in', async () => {
+    const cdp = new FakeCdp()
+    cdp.responses['Runtime.evaluate'] = { result: { value: true } }
+    const { tab } = makeHandoffTab(cdp)
+    const handoff = tab.run('handoff', { reason: 'Sign in' })
+    await tick()
+    const queued = tab.run('scroll', { direction: 'down' })
+    await tick()
+    expect(cdp.calls).toEqual([])
+    tab.handBack()
+    expect((await handoff).ok).toBe(true)
+    expect((await queued).ok).toBe(true)
+    tab.destroy()
+  })
+
+  it('on abort stays user, clears the reason and settles with the abort error', async () => {
+    const cdp = new FakeCdp()
+    const { tab } = makeHandoffTab(cdp)
+    const controller = new AbortController()
+    const pending = tab.run('handoff', { reason: 'Sign in' }, {
+      ownerId: 'agent-1', ask: async () => null, signal: controller.signal
+    })
+    await tick()
+    controller.abort()
+    expect(await pending).toEqual({ ok: false, error: 'browser command aborted: browser_handoff' })
+    expect(tab.toInfo().control).toBe('user')
+    expect(tab.toInfo().holdReason).toBeUndefined()
+    tab.handBack()
+    expect(tab.toInfo().control).toBe('idle')
+    tab.destroy()
+  })
+
+
+  it('settles with tab closed when the tab is destroyed', async () => {
+    const cdp = new FakeCdp()
+    const { tab } = makeHandoffTab(cdp)
+    const pending = tab.run('handoff', { reason: 'Sign in' })
+    await tick()
+    tab.destroy()
+    expect(await pending).toEqual({ ok: false, error: 'tab closed' })
+  })
+
+  it('requires a reason, trims and caps it, and skips site approval', async () => {
+    const cdp = new FakeCdp()
+    const ask = vi.fn(async (_q: QuestionPrompt) => 'Deny')
+    const { tab } = makeHandoffTab(cdp)
+    expect((await tab.run('handoff', { reason: '   ' })).error).toContain('requires a reason')
+
+    const pending = tab.run('handoff', { reason: 'x'.repeat(300) }, { ownerId: 'agent-1', ask })
+    await tick()
+    expect(tab.toInfo().holdReason).toHaveLength(200)
+    expect(ask).not.toHaveBeenCalled()
+    tab.handBack()
+    await pending
+    tab.destroy()
   })
 })

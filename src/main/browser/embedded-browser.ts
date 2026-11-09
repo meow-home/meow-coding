@@ -35,6 +35,7 @@ interface TabEntry {
 
 export type TabsListener = (agentId: string, tabs: BrowserTabInfo[], activeTabId: number | null) => void
 export type PanelRequestListener = (agentId: string) => void
+export type HandoffListener = (agentId: string, tabId: number, reason: string) => void
 
 function isError(value: TabEntry | BrowserCommandResult): value is BrowserCommandResult {
   return 'ok' in value
@@ -56,6 +57,7 @@ export class EmbeddedBrowser implements BrowserBackend {
   private readonly tabsListeners = new Set<TabsListener>()
   private readonly panelListeners = new Set<PanelRequestListener>()
   private readonly siteApprovals = new SiteApprovals()
+  private readonly handoffListeners = new Set<HandoffListener>()
 
   constructor(private readonly deps: EmbeddedBrowserDeps) {}
 
@@ -164,6 +166,19 @@ export class EmbeddedBrowser implements BrowserBackend {
     return () => this.panelListeners.delete(cb)
   }
 
+  /** The agent handed a tab to the user: make it the panel's tab and ask for it. */
+  onHandoff(agentId: string, tabId: number, reason: string): void {
+    this.panelActive.set(agentId, tabId)
+    this.emitTabsChanged(agentId)
+    this.emitPanelRequest(agentId)
+    for (const cb of this.handoffListeners) cb(agentId, tabId, reason)
+  }
+
+  onHandoffRequest(cb: HandoffListener): () => void {
+    this.handoffListeners.add(cb)
+    return () => this.handoffListeners.delete(cb)
+  }
+
   private async navigate(
     call: BrowserCall,
     params: Record<string, unknown>,
@@ -235,7 +250,8 @@ export class EmbeddedBrowser implements BrowserBackend {
       snapshotDir: this.deps.snapshotDir,
       onControlChanged: () => this.emitTabsChanged(ownerId),
       siteApprovals: this.siteApprovals,
-      siteApproval: this.deps.siteApproval
+      siteApproval: this.deps.siteApproval,
+      onHandoff: (reason) => this.onHandoff(ownerId, host.id, reason)
     })
     const entry: TabEntry = { tab, host, ownerId, agentCreated }
     this.tabs.set(tab.id, entry)

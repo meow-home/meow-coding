@@ -209,6 +209,15 @@ Every session gets its own tabs inside the app window and the agent drives them 
   `browser.siteApproval: 'off'` in `meow.json` skips the check. `localhost`, `127.0.0.1`, `[::1]` and `*.localhost`
   are exempt, lookalikes are not. The prompt runs in the `approval` state, outside the command clock, and settles
   on abort or tab close.
+- **Sensitive fields** (`cdp-commands.ts`): `type`/`select` refuse a password input or an `autocomplete` token
+  `current-password`, `new-password`, `one-time-code` or `cc-*` (case-insensitive) before the approval prompt and
+  again inside the command; the error points at `browser_handoff`. A failed check refuses. Snapshots drop the value
+  text Chromium exposes under a text-entry field.
+- **Handoff** (`browser_handoff`): the agent hands the tab to the user for sign-in, passwords, payment details or
+  CAPTCHAs. The tab enters `user` with the reason, the shield hides and the queue holds with no command timeout; the
+  tool returns only `{ originChanged }`. Entering the hold makes that tab the panel's active tab, fires a panel
+  request and raises the "input needed" notification. Aborting (Stop) keeps the tab with the user and clears the
+  reason.
 - **Private logs during a hold**: console and network entries captured while `control === 'user'` are
   marked; the agent's `browser_console` / `browser_network` exclude them, including after hand-back,
   while the user's drawer reads the full buffers. A request is marked from the moment it starts, so a
@@ -226,8 +235,8 @@ Every session gets its own tabs inside the app window and the agent drives them 
 - **Limits**: 8 tabs per session, 8 per app (spike S4: ~123 MB of working set per tab). A shield adds
   a renderer: 8 shields cost +615 MB on top of 875 MB for the 8 pages in a local measurement, so they
   are created only for tabs the agent actually drives.
-- **Not implemented yet**: password-field refusal, `browser_handoff`, the panel UI and the occlusion freeze.
-  Treat the built-in browser as unfinished: a password field can still be typed into.
+- **Not implemented yet**: the panel UI and the occlusion freeze. Treat the built-in browser as unfinished until
+  those land.
 - Chrome remains available with `browser_start({ target: 'chrome' })`; the bridge rules in 8.3 are
   unchanged.
 

@@ -1123,6 +1123,10 @@ export function registerIpcHandlers(): void {
 app.whenReady().then(async () => {
   if (!gotTheLock) return // secondary instance — already quitting
   hardenBrowserPartition({ controlOf: id => mainApp.embeddedBrowser.controlOf(id) })
+  // A handoff in a session the user is not looking at still needs their attention.
+  mainApp.embeddedBrowser.onHandoffRequest((agentId, _tabId, reason) => {
+    mainApp.meowAgent.notifyInputNeeded(agentId, reason)
+  })
   mainApp.systemLogger.prune(7)
   mainApp.meowAgent.truncationCleanup()
   await mainApp.browserBridge.start().catch(err => {

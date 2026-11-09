@@ -31,6 +31,8 @@ handlers and the app lifecycle.
   Tracks draft session model preferences (`DRAFT_SESSION_ID`) and resolves default models for unmaterialized sessions (`defaultSessionModel()`: last used model, else the default provider — also used for sessions created by external delegation);
   `suggestFiles` for a draft session (`DRAFT_SESSION_ID`) falls back to the active project path, so `@`-file
   completion works before the session exists.
+  `notifyInputNeeded(agentId, reason?)` raises the same "input needed" notification a pending prompt uses
+  (browser handoff reuses it).
   Failed turns are persisted: `emitError(agentId, message, retryable)` appends an `error` transcript item
   and emits the `error` `ChatEvent` with `errorId`/`retryable`; `retryTurn(agentId, errorId)` (the
   `chat:retry` IPC) removes that item, emits `error-removed`, and starts a new turn with
@@ -126,7 +128,7 @@ handlers and the app lifecycle.
   so the NSIS installer runs silently and relaunches the app.
 - `window-chrome.ts` — `getWindowChromeOptions`: hides the title-bar on Windows/Linux; `applyTitleBarTheme` re-colors the Windows overlay (min/max/close) live when the app theme toggles dark/light. The OS draws those buttons, so `TITLE_BAR_COLORS` is their only color source and must equal the renderer's title bar surface (`.title-bar-right` → `var(--bg)`); `tests/unit/window-chrome.test.ts` parses `styles.css` and fails if the two drift apart.
 - `vault.ts` — encrypted secret store (safeStorage) for provider API keys.
-- `browser/` — backend contract, per-session router (built-in default), built-in backend (`embedded-browser.ts`) with the Electron host (`electron-tab-host.ts`: page + shield views), Chrome backend (BrowserBridge + Chrome launcher), Electron-free tab/command core (`browser-tab.ts` with the control state, lease and site approval, `cdp-commands.ts`, `site-approval.ts`), trusted-extension store, snapshot format and snapshot file output.
+- `browser/` — backend contract, per-session router (built-in default), built-in backend (`embedded-browser.ts`) with the Electron host (`electron-tab-host.ts`: page + shield views), Chrome backend (BrowserBridge + Chrome launcher), Electron-free tab/command core (`browser-tab.ts` with the control state, lease, site approval and handoff, `cdp-commands.ts` with the sensitive-field refusal, `site-approval.ts`), trusted-extension store, snapshot format and snapshot file output.
 - `external-api/` — loopback API + CLI for delegation from Claude Code; see its AGENTS.md.
 
 ## Conventions

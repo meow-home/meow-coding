@@ -77,6 +77,9 @@ const INTERACTIVE_ROLES = new Set([
 ])
 const SKIPPED_ROLES = new Set(['generic', 'none', 'presentation'])
 const TEXT_ROLES = new Set(['text', 'statictext', 'inlinetextbox'])
+// A text-entry field's AX children are its value. The snapshot carries only role
+// and name, so those children are dropped (both browsers use this module).
+const VALUE_TEXT_ROLES = new Set(['textbox', 'searchbox', 'spinbutton'])
 
 function axString(v: { value?: string } | string | undefined): string {
   return typeof v === 'string' ? v : (v?.value ?? '')
@@ -128,7 +131,7 @@ export function axTreeToSnapshot(
     count++
 
     const children: SnapshotNode[] = []
-    for (const childId of n.childIds ?? []) {
+    for (const childId of VALUE_TEXT_ROLES.has(role) ? [] : n.childIds ?? []) {
       if (maxNodes > 0 && count >= maxNodes) break
       const c = byId.get(childId)
       if (!c) continue

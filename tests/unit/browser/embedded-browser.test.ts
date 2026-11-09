@@ -335,6 +335,32 @@ describe('EmbeddedBrowser control', () => {
   })
 })
 
+describe('EmbeddedBrowser handoff', () => {
+  it('returns no target tab when the session has none', async () => {
+    const { browser } = makeBrowser()
+    expect(errorOf(await browser.execute('handoff', { reason: 'Sign in' }, call('a')))).toBe('no target tab')
+  })
+
+  it('activates the tab and fires the handoff listeners on entering the hold', async () => {
+    const { browser } = makeBrowser()
+    const created = await browser.execute('openTab', { url: 'http://127.0.0.1:3000/' }, call('a'))
+    const tabId = (created as { data: { tabId: number } }).data.tabId
+    const handoffs: Array<{ agentId: string; tabId: number; reason: string }> = []
+    const actives: Array<number | null> = []
+    browser.onHandoffRequest((agentId, id, reason) => handoffs.push({ agentId, tabId: id, reason }))
+    browser.onTabsChanged((_agentId, _tabs, activeTabId) => actives.push(activeTabId))
+
+    const pending = browser.execute('handoff', { reason: 'Sign in' }, call('a'))
+    await tick()
+    expect(handoffs).toEqual([{ agentId: 'a', tabId, reason: 'Sign in' }])
+    expect(actives[actives.length - 1]).toBe(tabId)
+    expect(browser.listTabs('a')[0].control).toBe('user')
+
+    browser.handBack(tabId)
+    expect(await pending).toEqual({ ok: true, data: { originChanged: false } })
+  })
+})
+
 describe('EmbeddedBrowser logs', () => {
   it('reads the working tab buffers and accepts an explicit tab id', async () => {
     const { browser, hosts } = makeBrowser()

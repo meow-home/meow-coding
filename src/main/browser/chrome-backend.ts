@@ -24,6 +24,9 @@ export class ChromeBackend implements BrowserBackend {
   }
 
   execute(name: BrowserCommandName, params: Record<string, unknown>, _call: BrowserCall, timeoutMs?: number): Promise<BrowserCommandResult> {
+    if (name === 'handoff') {
+      return Promise.resolve({ ok: false, error: 'browser_handoff is only available in the built-in browser' })
+    }
     return this.deps.bridge.execute(name, params, timeoutMs)
   }
 

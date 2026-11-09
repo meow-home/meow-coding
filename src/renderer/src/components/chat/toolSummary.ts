@@ -87,7 +87,10 @@ export function summarizeCalls(calls: ToolCallData[]): string {
       case 'search': return n === 1 ? 'searched the code' : `ran ${n} searches`
       case 'websearch': return `searched the web${n > 1 ? ` ×${n}` : ''}`
       case 'fetch': return `fetched ${plural(n, 'a page', 'pages')}`
-      case 'browser': return `used the browser${n > 1 ? ` (${n} steps)` : ''}`
+      case 'browser': {
+        if (n === 1 && list[0].tool === 'browser_handoff') return 'handed the browser to you'
+        return `used the browser${n > 1 ? ` (${n} steps)` : ''}`
+      }
       case 'subagent': return `ran ${plural(n, 'a sub-agent', 'sub-agents')}`
       case 'todo': return 'updated todos'
       case 'git': return `ran ${plural(n, 'a git command', 'git commands')}`
@@ -119,7 +122,7 @@ export function describeRunning(call: ToolCallData): string {
     }
     case 'websearch': return 'Searching the web'
     case 'fetch': return 'Fetching a page'
-    case 'browser': return 'Using the browser'
+    case 'browser': return call.tool === 'browser_handoff' ? 'Waiting for you' : 'Using the browser'
     case 'subagent': return 'Running a sub-agent'
     case 'todo': return 'Updating todos'
     case 'git': return 'Running git'

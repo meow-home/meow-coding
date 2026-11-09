@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { click, read, scroll, select, type, waitFor } from '../../../src/main/browser/cdp-commands'
+import { click, isSensitiveTarget, read, scroll, select, type, waitFor } from '../../../src/main/browser/cdp-commands'
 import type { CdpClient } from '../../../src/main/browser/browser-tab'
 import { SNAPSHOT_UNTRUSTED_NOTICE } from '../../../src/main/browser/snapshot-output'
 import type { BrowserCommandResult } from '../../../src/shared/browser-types'
@@ -10,11 +10,15 @@ import type { BrowserCommandResult } from '../../../src/shared/browser-types'
 class FakeCdp implements CdpClient {
   calls: Array<{ method: string; params?: Record<string, unknown> }> = []
   responses: Record<string, unknown> = {}
+  callFunctionOnValues: unknown[] = []
   onSend: ((method: string) => Promise<void> | void) | null = null
 
   async send<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T> {
     this.calls.push({ method, params })
     if (this.onSend) await this.onSend(method)
+    if (method === 'Runtime.callFunctionOn' && this.callFunctionOnValues.length > 0) {
+      return { result: { value: this.callFunctionOnValues.shift() } } as T
+    }
     return (this.responses[method] ?? {}) as T
   }
 
@@ -40,8 +44,6 @@ function fakeCdp(): FakeCdp {
   cdp.responses['DOM.getBoxModel'] = {
     model: { content: [10, 20, 110, 20, 110, 70, 10, 70], width: 100, height: 50 }
   }
-  // `isConnected` checks return true; callers that need another value override it.
-  cdp.responses['Runtime.callFunctionOn'] = { result: { value: true } }
   return cdp
 }
 
@@ -160,16 +162,20 @@ describe('cdp type', () => {
       'DOM.scrollIntoViewIfNeeded',
       'DOM.getBoxModel',
       'DOM.resolveNode',
+      'DOM.resolveNode',
+      'Runtime.callFunctionOn',
       'Runtime.callFunctionOn',
       'Input.insertText',
       'Runtime.callFunctionOn'
     ])
-    const focusSelect = paramsOf(cdp.calls[5])
+    // The sensitive-field check resolves the node again and runs before focus/select.
+    expect(String(paramsOf(cdp.calls[6]).functionDeclaration)).toContain('current-password')
+    const focusSelect = paramsOf(cdp.calls[7])
     expect(focusSelect.objectId).toBe('obj-1')
     expect(String(focusSelect.functionDeclaration)).toContain('isContentEditable')
     expect(String(focusSelect.functionDeclaration)).toContain('.select()')
-    expect(paramsOf(cdp.calls[6])).toEqual({ text: 'hello' })
-    const change = paramsOf(cdp.calls[7])
+    expect(paramsOf(cdp.calls[8])).toEqual({ text: 'hello' })
+    const change = paramsOf(cdp.calls[9])
     expect(String(change.functionDeclaration)).toContain("dispatchEvent(new Event('change'")
   })
 })
@@ -203,19 +209,48 @@ describe('cdp target callback', () => {
   })
 })
 
+describe('cdp sensitive fields', () => {
+  it('reports a password target from the page predicate', async () => {
+    const cdp = fakeCdp()
+    cdp.responses['Runtime.callFunctionOn'] = { result: { value: 'password' } }
+    expect(await isSensitiveTarget(cdp, { nodeId: 7 })).toBe(true)
+    cdp.responses['Runtime.callFunctionOn'] = { result: { value: null } }
+    expect(await isSensitiveTarget(cdp, { nodeId: 7 })).toBe(false)
+  })
+
+  it('refuses type and select on a sensitive target before touching it', async () => {
+    const cdp = fakeCdp()
+    cdp.callFunctionOnValues = [true, 'password']
+    const typed = await type(cdp, new Map([['r1', 42]]), { ref: 'r1', text: 'secret' })
+    expect(errorOf(typed)).toContain('browser_type refused')
+    expect(errorOf(typed)).toContain('browser_handoff')
+    expect(cdp.calls.some(c => c.method === 'Input.insertText')).toBe(false)
+
+    cdp.calls = []
+    cdp.callFunctionOnValues = ['payment']
+    const selected = await select(cdp, new Map(), { selector: '#s', value: 'a' })
+    expect(errorOf(selected)).toContain('browser_select refused')
+    expect(cdp.calls.filter(c => c.method === 'Runtime.callFunctionOn')).toHaveLength(1)
+  })
+})
+
 describe('cdp select', () => {
   it('sets the value and fires change on a ref target', async () => {
     const cdp = fakeCdp()
+    cdp.callFunctionOnValues = [true, null]
     const result = await select(cdp, new Map([['r2', 5]]), { ref: 'r2', value: 'b' })
     expect(result).toEqual({ ok: true, data: { ref: 'r2' } })
     expect(cdp.calls.map(c => c.method)).toEqual([
+      'DOM.resolveNode',
+      'Runtime.callFunctionOn',
       'DOM.resolveNode',
       'Runtime.callFunctionOn',
       'Runtime.callFunctionOn'
     ])
     expect(paramsOf(cdp.calls[0])).toEqual({ backendNodeId: 5 })
     expect(String(paramsOf(cdp.calls[1]).functionDeclaration)).toContain('isConnected')
-    const call = paramsOf(cdp.calls[2])
+    expect(String(paramsOf(cdp.calls[3]).functionDeclaration)).toContain('current-password')
+    const call = paramsOf(cdp.calls[4])
     expect(call.objectId).toBe('obj-1')
     expect(call.arguments).toEqual([{ value: 'b' }])
     expect(String(call.functionDeclaration)).toContain("new Event('change'")
@@ -277,8 +312,10 @@ describe('cdp read', () => {
     cdp.responses['Page.getFrameTree'] = { frameTree: { frame: { id: 'F1' } } }
     cdp.responses['Accessibility.getFullAXTree'] = {
       nodes: [
-        { nodeId: '1', role: { value: 'rootwebarea' }, childIds: ['2'] },
-        { nodeId: '2', role: { value: 'button' }, name: { value: 'Go' }, backendDOMNodeId: 12 }
+        { nodeId: '1', role: { value: 'rootwebarea' }, childIds: ['2', '3'] },
+        { nodeId: '2', role: { value: 'button' }, name: { value: 'Go' }, backendDOMNodeId: 12 },
+        { nodeId: '3', role: { value: 'textbox' }, name: { value: 'Card' }, backendDOMNodeId: 13, childIds: ['4'] },
+        { nodeId: '4', role: { value: 'statictext' }, name: { value: 'hunter2-secret' } }
       ]
     }
     const refs = new Map<string, number>([['old', 1]])
@@ -287,11 +324,12 @@ describe('cdp read', () => {
     expect(result.ok).toBe(true)
     if (!result.ok) return
     const data = result.data as { path: string; nodeCount: number; preview: string }
-    expect(data.nodeCount).toBe(2)
+    expect(data.nodeCount).toBe(3)
     expect(data.preview).toContain('button "Go" [r1]')
     expect(readFileSync(data.path, 'utf-8').split('\n')[0]).toBe(SNAPSHOT_UNTRUSTED_NOTICE)
     expect(refs.get('r1')).toBe(12)
     expect(refs.has('old')).toBe(false)
     expect(labels.get('r1')).toEqual({ role: 'button', name: 'Go' })
+    expect(labels.get('r2')).toEqual({ role: 'textbox', name: 'Card' })
   })
 })

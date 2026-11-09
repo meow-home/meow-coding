@@ -1,5 +1,5 @@
 import { test, expect, _electron as electron, type Page } from '@playwright/test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import http from 'node:http'
@@ -45,7 +45,7 @@ function titlesIn(body: unknown): string[] {
 // Fakes the OpenAI-compatible streaming endpoint. A turn may compute its tool
 // arguments (or its final text) from the request, which is how the mock finds
 // the ref of an element it only learns about from the browser_read result.
-function startMockLlm(turns: MockTurn[]): Promise<{ server: http.Server; port: number }> {
+function startMockLlm(turns: MockTurn[]): Promise<{ server: http.Server; port: number; calls: () => number }> {
   let call = 0
   const server = http.createServer((req, res) => {
     if (req.method !== 'POST' || !req.url?.endsWith('/chat/completions')) {
@@ -107,7 +107,7 @@ function startMockLlm(turns: MockTurn[]): Promise<{ server: http.Server; port: n
     server.listen(0, '127.0.0.1', () => {
       const addr = server.address()
       const port = typeof addr === 'object' && addr ? addr.port : 0
-      resolve({ server, port })
+      resolve({ server, port, calls: () => call })
     })
   })
 }
@@ -130,6 +130,8 @@ function startFixtureServer(host = '127.0.0.1'): Promise<{ server: http.Server; 
       <button id="far" onclick="document.title='far-clicked'">Far button</button>
       <input id="name" aria-label="Name" oninput="document.title='name:'+this.value">
       <button id="approve" onclick="window.__approve=(window.__approve||0)+1;document.title='approve:'+window.__approve">Approve button</button>
+      <input id="pw" type="password" aria-label="Password" value="hunter2-secret">
+      <input id="ac" type="text" aria-label="Card" autocomplete="current-password" value="secret-ac">
       <script>
         window.__clicks = 0
         window.__keys = 0
@@ -481,6 +483,7 @@ test('a non-loopback site needs approval: Deny blocks, session allow lets it thr
       // the target; Deny blocks it.
       const prompt = window.locator('.chat-prompt')
       await expect(prompt).toBeVisible({ timeout: 30000 })
+      await expect(prompt).toContainText('Allow Meow to act on this site?')
       await expect(prompt).toContainText('browser_click on http://127.0.0.2')
       await expect(prompt).toContainText('button "Approve button"')
       await prompt.locator('.chat-option', { hasText: 'Deny' }).click()
@@ -494,6 +497,102 @@ test('a non-loopback site needs approval: Deny blocks, session allow lets it thr
       const final = window.locator('.chat-msg.assistant').last()
       await expect(final).toContainText('approve:2', { timeout: 55000 })
       expect(await window.locator('.chat-prompt').count()).toBe(0)
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+    fixture.close()
+    llm.close()
+  }
+})
+
+test('password and payment fields are refused by ref and selector without a prompt', async () => {
+  // 127.0.0.2 is a non-loopback origin for our policy, so an approval prompt would
+  // appear if the sensitive check did not run first.
+  const { server: fixture, url } = await startFixtureServer('127.0.0.2')
+  const { server: llm, port } = await startMockLlm([
+    { toolCall: { name: 'browser_navigate', args: { url } } },
+    { toolCall: { name: 'browser_read', args: {} } },
+    { toolCall: { name: 'browser_type', args: (body: unknown) => ({ ref: refFor(body, 'Password'), text: 'x' }) } },
+    { toolCall: { name: 'browser_type', args: { selector: '#pw', text: 'x' } } },
+    { toolCall: { name: 'browser_type', args: (body: unknown) => ({ ref: refFor(body, 'Card'), text: 'x' }) } },
+    { toolCall: { name: 'browser_type', args: { selector: '#ac', text: 'x' } } },
+    { toolCall: { name: 'browser_read', args: { mode: 'full' } } },
+    { toolCall: { name: 'browser_list_tabs', args: {} } },
+    {
+      contentFrom: (body: unknown) => {
+        const text = conversationText(body)
+        return `refusals=${(text.match(/sensitive field/g) ?? []).length}`
+      }
+    }
+  ])
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    seedUserData(userData, project, {
+      provider: { mock: { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}`, models: ['mock-model'] } },
+      model: 'mock'
+    })
+    const { app, window } = await launch(userData)
+    try {
+      await window.locator('.chat-input-field').fill('fill the form')
+      await window.locator('.chat-input-field').press('Enter')
+      const final = window.locator('.chat-msg.assistant').last()
+      await expect(final).toContainText('refusals=4', { timeout: 55000 })
+      // The refusal runs before site approval: no prompt was ever shown.
+      expect(await window.locator('.chat-prompt').count()).toBe(0)
+
+      // The snapshots from both read modes must not contain either field's value.
+      const snapshotDir = path.join(userData, 'browser-snapshots')
+      const files = readdirSync(snapshotDir)
+      expect(files.length).toBeGreaterThanOrEqual(2)
+      for (const file of files) {
+        const text = readFileSync(path.join(snapshotDir, file), 'utf-8')
+        expect(text).not.toContain('hunter2-secret')
+        expect(text).not.toContain('secret-ac')
+      }
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+    fixture.close()
+    llm.close()
+  }
+})
+
+test('browser_handoff holds the tab for the user and blocks the turn', async () => {
+  const { server: fixture, url } = await startFixtureServer()
+  const { server: llm, port, calls } = await startMockLlm([
+    { toolCall: { name: 'browser_navigate', args: { url } } },
+    { toolCall: { name: 'browser_handoff', args: { reason: 'Sign in to the fixture' } } },
+    { toolCall: { name: 'browser_list_tabs', args: {} } },
+    { contentFrom: () => 'handoff returned' }
+  ])
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    seedUserData(userData, project, {
+      provider: { mock: { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}`, models: ['mock-model'] } },
+      model: 'mock'
+    })
+    const { app, window } = await launch(userData)
+    try {
+      await window.locator('.chat-input-field').fill('sign in for me')
+      await window.locator('.chat-input-field').press('Enter')
+
+      await expect(window.locator('.tool-call-badge', { hasText: 'browser_handoff' })).toHaveCount(1, { timeout: 30000 })
+      await expect(window.locator('.tool-call-running')).toHaveCount(1)
+      // The handoff holds the queue: the next LLM turn is never requested.
+      await window.waitForTimeout(1500)
+      expect(calls()).toBe(2)
+      await expect(window.locator('.chat-msg.assistant')).toHaveCount(0)
+
+      // The tab's control === 'user' and the hand-back call need the Task 10 IPC;
+      // the unit tests cover both through BrowserTab/EmbeddedBrowser.
     } finally {
       await app.close()
     }

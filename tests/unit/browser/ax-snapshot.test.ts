@@ -48,6 +48,17 @@ describe('axTreeToSnapshot', () => {
     expect(button.name).toBe('Send')
   })
 
+  it('drops the value text under a text-entry field', () => {
+    const nodes: AxNodeLike[] = [
+      axn('1', { role: role('rootwebarea'), childIds: ['2'] }),
+      axn('2', { role: role('textbox'), name: name('Card'), backendDOMNodeId: 12, childIds: ['3'] }),
+      axn('3', { role: role('statictext'), name: name('secret-ac') })
+    ]
+    const { tree } = axTreeToSnapshot(nodes, { maxNodes: 0 })
+    expect(JSON.stringify(tree)).not.toContain('secret-ac')
+    expect(tree[0].children?.[0]).toEqual({ role: 'textbox', name: 'Card', ref: 'r1' })
+  })
+
   it('skips ignored nodes', () => {
     const nodes: AxNodeLike[] = [
       axn('1', { role: role('rootwebarea'), childIds: ['2', '3'] }),

@@ -46,7 +46,7 @@ export interface BrowserTabInfo {
 export type BrowserCommandName =
   | 'navigate' | 'openTab' | 'switchTab' | 'closeTab' | 'reload' | 'listTabs'
   | 'click' | 'type' | 'select' | 'scroll' | 'read' | 'screenshot'
-  | 'waitFor' | 'watchStart' | 'watchStop' | 'getConsoleLogs' | 'getNetworkLogs'
+  | 'waitFor' | 'watchStart' | 'watchStop' | 'getConsoleLogs' | 'getNetworkLogs' | 'handoff'
 
 export interface BrowserCommand {
   id: string
