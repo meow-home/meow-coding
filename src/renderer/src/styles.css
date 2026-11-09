@@ -879,6 +879,22 @@ select.input { width: 100%; }
   padding: 0.2rem 0.55rem;
 }
 
+.browser-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; }
+.browser-setting-label { font-size: var(--fs-sm); color: var(--text-normal); }
+.browser-setting-help { margin: 2px 0 6px; font-size: var(--fs-sm); color: var(--text-dim); }
+.browser-setting-help.warn { color: var(--yellow); }
+
+.sb-browser.builtin {
+  background: var(--bg-input);
+  border-color: var(--hairline);
+  color: var(--text-dim);
+}
+
+.sb-browser.builtin:hover {
+  background: var(--bg-hover);
+  color: var(--text-normal);
+}
+
 .sb-browser.paired {
   background: rgba(34, 197, 94, 0.08);
   border-color: rgba(34, 197, 94, 0.25);

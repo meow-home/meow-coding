@@ -202,7 +202,7 @@ Every session gets its own tabs inside the app window and the agent drives them 
   the turn (`EmbeddedBrowser.releaseOwner`). The user can take over (`agent`/`idle → user`): agent
   commands then wait up to 5 minutes for hand-back (`user is holding this tab` on timeout), and the
   first result afterwards carries a `[meow]` note to re-read the page. Hand-back clears the ref map.
-  `host.setShield` is called on every transition but the shield view does not exist yet.
+  `host.setShield` is called on every transition (see the shield entry below).
 - **Site approval** (`site-approval.ts`): `click`, `type` and `select` on a non-loopback main-frame origin ask
   "Allow Meow to act on this site?" with `Allow once` / `Allow this site for the session` / `Deny`. The origin is
   read from the page at action time and re-read after the answer (a change fails with `page changed during
@@ -247,10 +247,20 @@ Every session gets its own tabs inside the app window and the agent drives them 
   `browserPanelAttach`/`Detach`/`SetBounds` (CSS px × window zoom), `browserPanelFreeze`/`HideFrozen`/
   `Unfreeze` (generation guard) and `browserClearData`. Push events: tabs changed, panel request and the
   shortcut channel.
-- **Not implemented yet**: the panel UI and the occlusion freeze. Treat the built-in browser as unfinished until
-  those land.
-- Chrome remains available with `browser_start({ target: 'chrome' })`; the bridge rules in 8.3 are
-  unchanged.
+- **Choosing a backend**: `browser.backend` in `meow.json` (`builtin` default, or `chrome`) sets the
+  default for every session; the Browser dialog writes it through `getSettings`/`saveSettings` without
+  touching other fields. A session that already called `browser_start({ target })` keeps that choice
+  for the rest of the session. The status-bar pill shows the default (`browser: built-in`, or the
+  Chrome bridge state); a pending extension approval always wins.
+- **Guardrails, not a sandbox** (spec 7.3): site approval and the sensitive-field refusal protect
+  against mistakes and prompt injection, not against a determined agent. An agent with an approved
+  `bash` runs as the same OS user and can read `userData`, including the partition's files.
+  Navigation is ungated, so a page or a URL can carry data out — the same exposure `webfetch` has
+  today.
+- **Known limits**: approval covers the main frame only; out-of-process iframes are not inspected;
+  `prompt()` never returns in Electron (navigate away); the `browser_handoff` sidebar badge can lag
+  behind the panel; terminal links use string columns, so a row with wide characters can be off by
+  one per wide character; popups count toward the 8-tab app cap.
 
 ## 8.4 OfficeCLI
 

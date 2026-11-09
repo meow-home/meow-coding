@@ -2,6 +2,10 @@ import React, { useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useBrowserOcclusion } from './useBrowserOcclusion'
 
+// Only the topmost modal reacts to Escape: a confirm dialog over another modal
+// must not close both.
+const modalStack: symbol[] = []
+
 export interface BaseModalProps {
   title?: ReactNode
   onClose?: () => void
@@ -94,11 +98,19 @@ function BaseModalRoot({
   useBrowserOcclusion(true, 'overlay')
   useEffect(() => {
     if (!closeOnEscape || !onClose) return
+    const id = Symbol('modal')
+    modalStack.push(id)
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key !== 'Escape' || modalStack[modalStack.length - 1] !== id) return
+      e.preventDefault()
+      onClose()
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      const index = modalStack.indexOf(id)
+      if (index >= 0) modalStack.splice(index, 1)
+      window.removeEventListener('keydown', onKey)
+    }
   }, [closeOnEscape, onClose])
 
   const handleBackdropClick = () => {

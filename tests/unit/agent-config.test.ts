@@ -720,6 +720,20 @@ describe('browser config', () => {
     expect(back.browser).toEqual({ backend: 'builtin', siteApproval: 'off' })
   })
 
+  it('keeps every other setting through a dialog-style read-modify-write', () => {
+    writeFileSync(file, JSON.stringify({
+      maxSteps: 17,
+      permission: { 'bash_*': 'ask' },
+      browser: { backend: 'builtin', siteApproval: 'off' }
+    }))
+    const settings = configToSettings(loadMeowConfig(file))
+    const saved = { ...settings, browser: { ...settings.browser!, backend: 'chrome' as const } }
+    const cfg = settingsToConfig(saved, loadMeowConfig(file))
+    expect(cfg.browser).toEqual({ backend: 'chrome', siteApproval: 'off' })
+    expect(cfg.maxSteps).toBe(17)
+    expect(cfg.permission['bash_*']).toBe('ask')
+  })
+
   it('normalizes invalid values to the defaults', () => {
     writeFileSync(file, JSON.stringify({ browser: { backend: 'firefox', siteApproval: 'always' } }))
     expect(loadMeowConfig(file).browser).toEqual({ backend: 'builtin', siteApproval: 'ask' })

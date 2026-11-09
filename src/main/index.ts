@@ -186,7 +186,14 @@ export class MainApp {
     getZoomFactor: () => (win && !win.isDestroyed() ? win.webContents.getZoomFactor() : 1),
     clearData: async () => {
       const partition = session.fromPartition(PARTITION)
-      await partition.clearStorageData()
+      for (const cookie of await partition.cookies.get({})) {
+        const host = (cookie.domain ?? '').replace(/^\./, '')
+        if (!host) continue
+        await partition.cookies.remove(`http${cookie.secure ? 's' : ''}://${host}${cookie.path ?? '/'}`, cookie.name).catch(() => {})
+      }
+      await partition.clearStorageData({
+        storages: ['cookies', 'localstorage', 'indexdb', 'websql', 'serviceworkers', 'cachestorage', 'shadercache', 'filesystem']
+      })
       await partition.clearCache()
     }
   })

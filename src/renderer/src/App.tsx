@@ -136,6 +136,18 @@ export default function App() {
   const [backgrounds, setBackgrounds] = useState<Record<string, boolean>>({})
   const [browser, setBrowser] = useState<BrowserStatusInfo | null>(null)
   const [browserDialogOpen, setBrowserDialogOpen] = useState(false)
+  const [browserBackend, setBrowserBackend] = useState<'builtin' | 'chrome'>('builtin')
+  const refreshBrowserBackend = useCallback(async () => {
+    try {
+      const settings = await window.api.getSettings()
+      setBrowserBackend(settings.browser?.backend ?? 'builtin')
+    } catch {
+      // Keep the last known backend.
+    }
+  }, [])
+  useEffect(() => {
+    void refreshBrowserBackend()
+  }, [refreshBrowserBackend])
   const [installGuide, setInstallGuide] = useState<BrowserInstallGuideEvent | null>(null)
   const [updateStatus, setUpdateStatus] = useState<UpdaterStatusEvent | null>(null)
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
@@ -990,11 +1002,12 @@ export default function App() {
         git={activeRuntime?.git ?? null}
         agents={activeRuntime?.agents ?? []}
         browser={browser}
+        browserBackend={browserBackend}
         onBrowserClick={() => setBrowserDialogOpen(true)}
         onGitClick={activeRuntime ? () => void window.api.gitOpenViewer(activeRuntime.workspace.projectPath) : undefined}
       />
       {browserDialogOpen && (
-        <BrowserDialog status={browser} onClose={() => setBrowserDialogOpen(false)} />
+        <BrowserDialog status={browser} onClose={() => setBrowserDialogOpen(false)} onSaved={refreshBrowserBackend} />
       )}
       {installGuide && (
         <InstallGuideDialog guide={installGuide} onClose={() => setInstallGuide(null)} />

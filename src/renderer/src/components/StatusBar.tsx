@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import type { AgentState, GitStatus } from '@shared/types'
 import type { BrowserStatusInfo } from '@shared/browser-types'
+import { browserPillLabel } from './browserPillLabel'
 
 interface Props {
   workspaceName: string | null
@@ -21,6 +22,7 @@ interface Props {
   git: GitStatus | null
   agents: AgentState[]
   browser?: BrowserStatusInfo | null
+  browserBackend?: 'builtin' | 'chrome'
   onBrowserClick?: () => void
   onGitClick?: () => void
 }
@@ -31,6 +33,7 @@ export default function StatusBar({
   git,
   agents,
   browser,
+  browserBackend,
   onBrowserClick,
   onGitClick
 }: Props) {
@@ -41,9 +44,10 @@ export default function StatusBar({
     void window.api.getAppVersion().then(setVersion)
   }, [])
 
-  const paired = Boolean(browser?.paired)
+  const pill = browserPillLabel(browserBackend, browser)
+  const paired = pill.tone === 'paired'
   const pending = Boolean(browser?.pendingExtension)
-  const waiting = !paired && !pending && (browser?.status === 'listening' || browser?.status === 'idle')
+  const waiting = pill.tone === 'waiting' && !pending
 
   return (
     <footer className="status-bar">
@@ -109,20 +113,12 @@ export default function StatusBar({
         </div>
 
         <button
-          className={`sb-item sb-button sb-browser ${paired ? 'paired' : pending || waiting ? 'waiting' : 'offline'}`}
+          className={`sb-item sb-button sb-browser ${pill.tone}`}
           onClick={onBrowserClick}
-          title="Open Browser Bridge status and extension approval"
+          title="Open browser settings, status and extension approval"
         >
           <Globe size={13} className="sb-icon" />
-          <span className="sb-label sb-mono">
-            {paired
-              ? `browser: paired`
-              : pending
-                ? `browser: approval needed`
-                : waiting
-                  ? `browser: waiting`
-                  : `browser: off`}
-          </span>
+          <span className="sb-label sb-mono">{pill.text}</span>
           {paired ? (
             <CheckCircle2 size={12} className="sb-status-icon ok" />
           ) : pending ? (

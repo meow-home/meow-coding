@@ -835,3 +835,95 @@ test('drawer shows console and network logs, sends them to chat, and the view fo
     llm.close()
   }
 })
+
+test('settings: backend pill, read-modify-write and clearing browsing data', async () => {
+  const { server: fixture, url } = await startFixtureServer()
+  const { server: llm, port } = await startMockLlm([{ content: 'ok' }])
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  const shots = path.join(tmpdir(), 'meow-browser-panel-shots')
+  mkdirSync(shots, { recursive: true })
+  try {
+    seedUserData(userData, project, {
+      provider: { mock: { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}`, models: ['mock-model'] } },
+      model: 'mock'
+    })
+    const { app, window, sessionId } = await launch(userData)
+    try {
+      await expect(window.locator('.sb-browser')).toContainText('browser: built-in')
+      const providerBefore = JSON.parse(readFileSync(path.join(userData, 'meow.json'), 'utf8')).provider
+
+      // Switch to Chrome through the dialog; the pill and meow.json follow.
+      await window.locator('.sb-browser').click()
+      const dialog = window.locator('.browser-dialog')
+      await expect(dialog).toBeVisible()
+      await dialog.locator('.select-trigger').first().click()
+      await window.getByRole('option', { name: 'Chrome' }).click()
+      await expect(window.locator('.sb-browser')).toContainText(/browser: (waiting|off|paired)/, { timeout: 10000 })
+      const saved = JSON.parse(readFileSync(path.join(userData, 'meow.json'), 'utf8'))
+      expect(saved.browser.backend).toBe('chrome')
+      expect(saved.provider).toEqual(providerBefore)
+      await dialog.locator('.select-trigger').first().click()
+      await window.getByRole('option', { name: 'Built-in' }).click()
+      await expect(window.locator('.sb-browser')).toContainText('browser: built-in', { timeout: 10000 })
+      await window.keyboard.press('Escape')
+      await expect(dialog).toHaveCount(0)
+
+      // Open the panel and leave data in the partition.
+      await window.evaluate(({ id, u }) => window.api.browserTabCreate(id, u), { id: sessionId, u: url })
+      await window.locator('.pane-header .icon-btn[aria-label="Toggle browser"]').click()
+      await expect(window.locator('.browser-overlay')).toBeVisible()
+      await expect.poll(async () => (await viewBounds(app, url))?.visible, { timeout: 15000 }).toBe(true)
+      const seedData = (): Promise<unknown> => app.evaluate(({ BrowserWindow }, fixtureUrl) => {
+        const win = BrowserWindow.getAllWindows()[0]
+        const child = win.contentView.children.find(c => {
+          const wc = (c as unknown as { webContents?: { getURL(): string } }).webContents
+          return !!wc && wc.getURL().startsWith(fixtureUrl)
+        }) as unknown as { webContents: { executeJavaScript(code: string): Promise<unknown> } }
+        return child.webContents.executeJavaScript(
+          "document.cookie='meow_e2e=1; path=/'; localStorage.setItem('meow_e2e','1'); [document.cookie, localStorage.getItem('meow_e2e')]"
+        )
+      }, url)
+      expect(await seedData()).toEqual(['meow_e2e=1', '1'])
+      const readData = (): Promise<unknown> => app.evaluate(({ BrowserWindow }, fixtureUrl) => {
+        const win = BrowserWindow.getAllWindows()[0]
+        const child = win.contentView.children.find(c => {
+          const wc = (c as unknown as { webContents?: { getURL(): string } }).webContents
+          return !!wc && wc.getURL().startsWith(fixtureUrl)
+        }) as unknown as { webContents: { executeJavaScript(code: string): Promise<unknown> } }
+        return child.webContents.executeJavaScript("[document.cookie, localStorage.getItem('meow_e2e')]")
+      }, url)
+
+      // Clear data: the confirm sits above, Escape closes only it, the view stays hidden.
+      await window.locator('.sb-browser').click()
+      await expect(dialog).toBeVisible()
+      await expect.poll(async () => (await viewBounds(app, url))?.visible, { timeout: 15000 }).toBe(false)
+      await dialog.getByRole('button', { name: 'Clear browsing data' }).first().click()
+      const confirm = window.locator('[role="alertdialog"]')
+      await expect(confirm).toBeVisible()
+      const modalBytes = await compositeShot(app, url, path.join(shots, 'browser-settings-clear.png'))
+      await window.keyboard.press('Escape')
+      await expect(confirm).toHaveCount(0)
+      await expect(dialog).toBeVisible()
+      expect((await viewBounds(app, url))?.visible).toBe(false)
+
+      await dialog.getByRole('button', { name: 'Clear browsing data' }).first().click()
+      await expect(confirm).toBeVisible()
+      await confirm.getByRole('button', { name: 'Clear browsing data' }).click()
+      await expect(dialog).toContainText('Browsing data cleared.', { timeout: 10000 })
+      await expect.poll(readData, { timeout: 15000 }).toEqual(['', null])
+
+      await window.keyboard.press('Escape')
+      await expect(dialog).toHaveCount(0)
+      await expect.poll(async () => (await viewBounds(app, url))?.visible, { timeout: 15000 }).toBe(true)
+      console.log('[e2e] settings screenshot', JSON.stringify({ file: path.join(shots, 'browser-settings-clear.png'), bytes: modalBytes }))
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+    fixture.close()
+    llm.close()
+  }
+})

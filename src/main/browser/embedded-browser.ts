@@ -314,6 +314,12 @@ export class EmbeddedBrowser implements BrowserBackend {
 
   async clearData(): Promise<void> {
     await this.deps.clearData?.()
+    // A live document keeps its in-memory storage area: reload every page so the
+    // cleared cookies/storage take effect for open tabs, not only on restart.
+    for (const entry of this.tabs.values()) {
+      const url = entry.host.getUrl()
+      if (/^https?:/i.test(url)) void entry.host.loadUrl(url).catch(() => {})
+    }
   }
 
   // ---- user actions from the panel ------------------------------------------
