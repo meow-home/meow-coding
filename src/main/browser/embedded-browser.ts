@@ -234,15 +234,17 @@ export class EmbeddedBrowser implements BrowserBackend {
     entry.onScreen = true
     this.panelActive.set(entry.ownerId, entry.tab.id)
     const applied = this.panelBounds
+    // Hidden is the panel's state: request it before the tab is placed so the
+    // host never shows a frame while an overlay is open.
+    if (this.panelHidden) entry.tab.setVisible(false)
     await entry.tab.setOnScreen(true, applied ?? undefined)
     // A setBounds that arrived while the placement was in flight wins.
     if (this.panelBounds && this.panelBounds !== applied) entry.tab.setBounds(this.panelBounds)
-    if (this.panelHidden) entry.tab.setVisible(false)
   }
 
-  async attach(agentId: string, bounds: PanelBounds): Promise<void> {
+  async attach(agentId: string, bounds: PanelBounds, startHidden = false): Promise<void> {
     this.panelGeneration++
-    this.panelHidden = false
+    this.panelHidden = startHidden
     this.panelOwner = agentId
     this.panelBounds = this.scaleBounds(bounds)
     await this.place(this.panelEntry(agentId))
@@ -330,11 +332,7 @@ export class EmbeddedBrowser implements BrowserBackend {
     const entry = this.tabs.get(tabId)
     if (!entry || entry.ownerId !== agentId) return
     this.panelActive.set(agentId, tabId)
-    if (this.panelOwner === agentId) {
-      this.panelGeneration++
-      this.panelHidden = false
-      await this.place(entry)
-    }
+    if (this.panelOwner === agentId) await this.place(entry)
     this.emitTabsChanged(agentId)
   }
 
@@ -395,8 +393,6 @@ export class EmbeddedBrowser implements BrowserBackend {
   onHandoff(agentId: string, tabId: number, reason: string): void {
     this.panelActive.set(agentId, tabId)
     if (this.panelOwner === agentId) {
-      this.panelGeneration++
-      this.panelHidden = false
       const entry = this.tabs.get(tabId)
       if (entry) void this.place(entry)
     }
@@ -528,8 +524,6 @@ export class EmbeddedBrowser implements BrowserBackend {
     if (this.panelActive.get(entry.ownerId) === id) this.panelActive.delete(entry.ownerId)
     if (entry.onScreen) {
       entry.onScreen = false
-      this.panelGeneration++
-      this.panelHidden = false
       void this.place(this.panelEntry(entry.ownerId))
     }
     entry.tab.destroy()

@@ -201,8 +201,8 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.BrowserTabLogs, tabId, kind, limit),
   browserTakeOver: (tabId: number) => ipcRenderer.invoke(Channels.BrowserTakeOver, tabId),
   browserHandBack: (tabId: number) => ipcRenderer.invoke(Channels.BrowserHandBack, tabId),
-  browserPanelAttach: (agentId: string, bounds: BrowserPanelBounds) =>
-    ipcRenderer.invoke(Channels.BrowserPanelAttach, agentId, bounds),
+  browserPanelAttach: (agentId: string, bounds: BrowserPanelBounds, startHidden?: boolean) =>
+    ipcRenderer.invoke(Channels.BrowserPanelAttach, agentId, bounds, startHidden === true),
   browserPanelDetach: () => ipcRenderer.invoke(Channels.BrowserPanelDetach),
   browserPanelSetBounds: (bounds: BrowserPanelBounds) =>
     ipcRenderer.invoke(Channels.BrowserPanelSetBounds, bounds),

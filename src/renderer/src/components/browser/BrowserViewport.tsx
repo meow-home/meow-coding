@@ -3,6 +3,7 @@ import { Plus, RotateCw } from 'lucide-react'
 import type { BrowserTabInfo } from '@shared/browser-types'
 import {
   confirmFrozenImagePainted,
+  hasActiveOcclusion,
   setBrowserPanelAttached,
   setBrowserViewportElement,
   subscribeFrozenImage,
@@ -67,7 +68,7 @@ export default function BrowserViewport({ agentId, tab, onNewTab, onReloadCrash,
     // Attach first: a reason can be active already (a modal was open before the
     // panel appeared). Freezing before the attach returns would see no view and
     // the attach would then paint over the modal.
-    window.api.browserPanelAttach(agentId, initial)
+    window.api.browserPanelAttach(agentId, initial, hasActiveOcclusion())
       .then(() => {
         if (!cancelled) setBrowserPanelAttached(true)
       })

@@ -380,7 +380,7 @@ export interface AgentApi {
   browserTabLogs(tabId: number, kind: 'console' | 'network', limit?: number): Promise<unknown[]>
   browserTakeOver(tabId: number): Promise<void>
   browserHandBack(tabId: number): Promise<void>
-  browserPanelAttach(agentId: string, bounds: BrowserPanelBounds): Promise<void>
+  browserPanelAttach(agentId: string, bounds: BrowserPanelBounds, startHidden?: boolean): Promise<void>
   browserPanelDetach(): Promise<void>
   browserPanelSetBounds(bounds: BrowserPanelBounds): Promise<void>
   browserPanelFreeze(): Promise<BrowserPanelFreezeResult | null>

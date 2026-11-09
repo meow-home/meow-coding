@@ -99,6 +99,7 @@ export class ElectronTabHost implements TabHost {
   private processGone = false
   private shield: WebContentsView | null = null
   private shieldVisible = false
+  private requestedVisible = true
   private shieldTarget: ShieldTarget | null = null
   private shieldLoaded = false
   private onScreen = false
@@ -249,9 +250,9 @@ export class ElectronTabHost implements TabHost {
     if (!this.attachedWindow) this.attach()
     if (onScreen) {
       this.view.setBounds(bounds ?? this.onScreenBounds ?? DEFAULT_VIEW_BOUNDS)
-      this.view.setVisible(true)
+      this.view.setVisible(this.requestedVisible)
       await this.clearOffscreenMetrics()
-      if (this.shieldVisible) {
+      if (this.requestedVisible && this.shieldVisible) {
         const shield = this.ensureShield()
         if (shield) {
           shield.setBounds(this.view.getBounds())
@@ -273,6 +274,7 @@ export class ElectronTabHost implements TabHost {
   }
 
   setVisible(visible: boolean): void {
+    this.requestedVisible = visible
     this.view.setVisible(visible)
     // Restoring the host restores the shield only while it should be up on screen.
     this.shield?.setVisible(visible && this.shieldVisible && this.onScreen)

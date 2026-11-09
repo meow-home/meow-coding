@@ -175,37 +175,6 @@ describe('BrowserOcclusionController', () => {
     })
   })
 
-  it('re-freezes for a new tab while a reason is active', () => {
-    const t = setup()
-    t.controller.setAttached(true)
-    t.controller.add('menu', 'overlay')
-    t.resolveFreeze({ generation: 7, image: 'first' })
-    return Promise.resolve().then(() => {
-      t.controller.imagePainted()
-      t.controller.refreeze()
-      expect(t.freezeCount()).toBe(2)
-    })
-  })
-
-  it('re-freezes while the view is already hidden (tab switch under a modal)', async () => {
-    const t = setup()
-    t.controller.setAttached(true)
-    t.controller.add('menu', 'overlay')
-    t.resolveFreeze({ generation: 9, image: 'first' })
-    await Promise.resolve()
-    t.controller.imagePainted()
-    await Promise.resolve()
-    expect(t.controller.isHidden()).toBe(true)
-    t.controller.refreeze()
-    expect(t.freezeCount()).toBe(2)
-    t.resolveFreeze({ generation: 10, image: 'second' })
-    await Promise.resolve()
-    expect(t.published[t.published.length - 1]).toBe('second')
-    t.controller.imagePainted()
-    await Promise.resolve()
-    expect(t.calls).toContain('hideFrozen:10')
-  })
-
   it('drops the frozen image when the last overlay leaves and a cover remains', async () => {
     const t = setup()
     t.controller.setAttached(true)

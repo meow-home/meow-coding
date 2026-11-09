@@ -82,25 +82,6 @@ export class BrowserOcclusionController {
     }
   }
 
-  /** Main showed a new tab (activate/create/handoff) while a reason is active. */
-  refreeze(): void {
-    if (!this.attached || this.reasons.size === 0) return
-    // Main just made the new tab visible, so the view is on screen again even
-    // though a reason is still active: capture and hide it again.
-    const wasHidden = this.hidden || this.hiding
-    this.seq++
-    this.pending = false
-    this.hidden = false
-    this.hiding = false
-    if (wasHidden) {
-      // Main re-showed the tab just now; hide it again without waiting for the
-      // new capture, so the page does not paint over the open overlay.
-      this.hiding = true
-      void this.deps.hide().catch(() => {})
-    }
-    this.engage()
-  }
-
   private hasOverlay(): boolean {
     return [...this.reasons.values()].includes('overlay')
   }
@@ -229,8 +210,8 @@ export function setBrowserViewportElement(el: HTMLElement | null): void {
   viewportEl = el
 }
 
-export function refreezeBrowserPanel(): void {
-  controller?.refreeze()
+export function hasActiveOcclusion(): boolean {
+  return (controller?.reasonCount ?? 0) > 0
 }
 
 export function confirmFrozenImagePainted(): void {

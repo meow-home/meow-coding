@@ -1115,8 +1115,8 @@ export function registerIpcHandlers(): void {
     mainApp.embeddedBrowser.logsFromUser(tabId, kind, limit))
   ipcMain.handle(Channels.BrowserTakeOver, (_e, tabId: number) => mainApp.embeddedBrowser.takeOver(tabId))
   ipcMain.handle(Channels.BrowserHandBack, (_e, tabId: number) => mainApp.embeddedBrowser.handBack(tabId))
-  ipcMain.handle(Channels.BrowserPanelAttach, (_e, agentId: string, bounds: { x: number; y: number; width: number; height: number }) =>
-    mainApp.embeddedBrowser.attach(agentId, bounds))
+  ipcMain.handle(Channels.BrowserPanelAttach, (_e, agentId: string, bounds: { x: number; y: number; width: number; height: number }, startHidden?: boolean) =>
+    mainApp.embeddedBrowser.attach(agentId, bounds, startHidden === true))
   ipcMain.handle(Channels.BrowserPanelDetach, () => mainApp.embeddedBrowser.detach())
   ipcMain.handle(Channels.BrowserPanelSetBounds, (_e, bounds: { x: number; y: number; width: number; height: number }) =>
     mainApp.embeddedBrowser.setBounds(bounds))

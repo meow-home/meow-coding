@@ -85,7 +85,9 @@ class FakeHost implements TabHost {
     if (this.setOnScreenImpl) await this.setOnScreenImpl(onScreen)
     this.onScreen = onScreen
     if (bounds) this.bounds = { ...bounds }
-    this.visible = true
+    // On screen honors the requested visibility (setVisible); off screen is the
+    // background placement, which is visible but at 10000,10000.
+    if (!onScreen) this.visible = true
   }
 
   async capture(): Promise<string> {
@@ -639,21 +641,60 @@ describe('EmbeddedBrowser panel', () => {
     expect(hosts[1].visible).toBe(false)
   })
 
-  it('a tab switch or detach during a freeze leaves the views correct', async () => {
+  it('keeps the panel hidden across tab switches, user tabs, handoff and active-tab close', async () => {
     const { browser, hosts } = await twoTabs()
     await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 })
     const frozen = await browser.freeze()
     browser.hideFrozen(frozen!.generation)
+    expect(hosts[1].visible).toBe(false)
+
     await browser.activateTab('a', hosts[0].id)
     expect(hosts[0].onScreen).toBe(true)
-    expect(hosts[0].visible).toBe(true)
-    expect(hosts[1].visible).toBe(true)
+    expect(hosts[0].visible).toBe(false)
 
-    const frozen2 = await browser.freeze()
-    browser.hideFrozen(frozen2!.generation)
+    const userTab = await browser.createUserTab('a')
+    expect(hosts[2].onScreen).toBe(true)
+    expect(hosts[2].visible).toBe(false)
+
+    browser.onHandoff('a', hosts[0].id, 'sign in')
+    await tick()
+    expect(hosts[0].onScreen).toBe(true)
+    expect(hosts[0].visible).toBe(false)
+
+    browser.closeTabFromUser(hosts[0].id)
+    await tick()
+    const current = hosts.find(h => h.onScreen && !h.destroyed)
+    expect(current).toBeTruthy()
+    expect(current!.visible).toBe(false)
+    expect(userTab.id).toBe(hosts[2].id)
+
+    browser.unfreeze()
+    expect(hosts.find(h => h.onScreen && !h.destroyed)?.visible).toBe(true)
+
+    browser.hide()
+    browser.unfreeze()
+    expect(hosts.find(h => h.onScreen && !h.destroyed)?.visible).toBe(true)
+  })
+
+  it('detach and attach reset the hidden state', async () => {
+    const { browser, hosts } = await twoTabs()
+    await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 })
+    const frozen = await browser.freeze()
+    browser.hideFrozen(frozen!.generation)
     await browser.detach()
-    expect(hosts[0].onScreen).toBe(false)
-    expect(hosts[0].visible).toBe(true)
+    expect(hosts.find(h => h.onScreen)).toBeUndefined()
+    await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 })
+    expect(hosts[1].onScreen).toBe(true)
+    expect(hosts[1].visible).toBe(true)
+  })
+
+  it('attach with startHidden places the tab without a visible frame', async () => {
+    const { browser, hosts } = await twoTabs()
+    await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 }, true)
+    expect(hosts[1].onScreen).toBe(true)
+    expect(hosts[1].visible).toBe(false)
+    browser.unfreeze()
+    expect(hosts[1].visible).toBe(true)
   })
 
   it('clearData delegates to the partition dep', async () => {

@@ -178,7 +178,7 @@ async function compositeShot(app: ElectronApp, fixtureUrl: string, file: string)
       webContents?: { getURL(): string; capturePage(): Promise<{ getSize(): { width: number; height: number }; toBitmap(): Buffer }> }
       getBounds(): { x: number; y: number; width: number; height: number }
     }>
-    const page = children.find(c => c.webContents?.getURL().startsWith(fixture))
+    const page = children.find(c => !!c.webContents && c.getBounds().x < 10_000 && c.getVisible())
     if (page && page.webContents) {
       const pageImage = await page.webContents.capturePage()
       const pSize = pageImage.getSize()
@@ -473,6 +473,30 @@ test('occlusion: menus and the resizer hide the native view, and it comes back',
       await window.locator('.sb-browser').click()
       await expect(dialog).toBeVisible()
       await expect.poll(visible, { timeout: 15000 }).toBe(false)
+      // A page title/loading change while the modal is open must not trigger
+      // another capture or hide: main already knows the panel is hidden.
+      const counters = await window.evaluate(() => {
+        const api = window.api as unknown as Record<string, unknown>
+        const freeze = api.browserPanelFreeze as () => Promise<unknown>
+        const hide = api.browserPanelHide as () => Promise<unknown>
+        const counts = { freeze: 0, hide: 0 }
+        api.browserPanelFreeze = (...a: unknown[]) => { counts.freeze++; return freeze.apply(api, a) }
+        api.browserPanelHide = (...a: unknown[]) => { counts.hide++; return hide.apply(api, a) }
+        ;(window as unknown as Record<string, unknown>).__occlusionCounts = () => ({ ...counts })
+        return true
+      })
+      await app.evaluate(({ BrowserWindow }) => {
+        const win = BrowserWindow.getAllWindows()[0]
+        const child = win.contentView.children.find(c => {
+          const wc = (c as unknown as { webContents?: { getURL(): string } }).webContents
+          return !!wc && wc.getURL().startsWith('http://127.0.0.1')
+        }) as unknown as { webContents?: { executeJavaScript(code: string): Promise<unknown> } } | undefined
+        void child?.webContents?.executeJavaScript('document.title = "occlusion-title-change"')
+      })
+      await window.waitForTimeout(400)
+      expect(counters).toBe(true)
+      expect(await window.evaluate(() => (window as unknown as { __occlusionCounts(): { freeze: number; hide: number } }).__occlusionCounts())).toEqual({ freeze: 0, hide: 0 })
+      expect(await visible()).toBe(false)
       const modalBytes = await compositeShot(app, url, path.join(shots, 'browser-occlusion-modal.png'))
       await window.keyboard.press('Escape')
       await expect(dialog).toHaveCount(0)

@@ -230,6 +230,7 @@ behind it, and a mouse crossing it during a drag stops reaching the renderer.
   fail transiently with `UnknownVizError`) and returns a data URL; the renderer paints it in the placeholder and only
   then asks main to hide the views. S1: image-first = 69 ms to hidden and a 0 ms blank gap; hide-first = 115 ms and a
   31 ms gap (≈2 frames). `win.capturePage()` cannot provide this snapshot: it excludes child `WebContentsView`s.
+- `panelHidden` is the panel's state, not the tab's: only `unfreeze`, `attach` and `detach` clear it, and a tab switch while hidden places the new tab hidden (the host honors the requested visibility, so no visible frame).
 - The freeze is generation-guarded. A quick click on the resizer can end the drag while the capture is still in
   flight; an unfreeze that runs before the freeze finishes leaves the panel hidden and frozen (observed once). 1→0:
   `browserPanelUnfreeze()`, which wins over any pending freeze.
