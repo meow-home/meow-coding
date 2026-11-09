@@ -4158,10 +4158,20 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   color: var(--text); font: inherit; outline: none;
 }
 .files-tree { padding-top: 0; border-radius: 0; }
-/* Square rows: the tree is a dense list, so the global `* { border-radius }`
-   must not round every hover/active highlight. */
-.files-tree .tree-row { border-radius: 0; }
-.files-tree-row.active { background: var(--bg-active); color: var(--text-strong); }
+/* Files tree rows: a directory is its chevron plus the name, a file puts its
+   typed icon in that same slot, so both start at the same x for a given depth.
+   Tall rounded pills inset from the tree edges, like the sidebar session rows. */
+.files-tree .tree-row {
+  height: 2.166667rem; margin: 0 0.333333rem; padding-right: 0.5rem;
+  border-radius: var(--radius); color: var(--text); font-size: var(--fs-base);
+}
+.files-tree .tree-row:hover { background: var(--menu-hover); color: var(--text); }
+.files-tree .files-tree-row.active,
+.files-tree .files-tree-row.menu-open { background: var(--menu-active); color: var(--text-strong); }
+.files-tree .files-tree-slot {
+  flex: 0 0 1.166667rem; width: 1.166667rem; display: inline-flex; align-items: center;
+  color: var(--text-faint);
+}
 .files-hit-line { flex: 0 0 auto; color: var(--accent); font-family: var(--font-mono); font-size: var(--fs-xs); }
 .files-hit-text {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;

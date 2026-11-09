@@ -37,9 +37,11 @@ restarts; syntax themes; a light-theme editor.
 
 ## 2. File icons and git state
 
-- The tree keeps its yellow `Folder` icon, and tree rows keep their current size, spacing and
-  hover/active look. Only file icons change, and every colour comes from an existing theme token so the
-  dark and light themes both read correctly.
+- Directories have no icon: a directory row is its chevron plus the name, and a file puts its typed icon in
+  that same slot, so at a given depth a directory's chevron and a file's icon start at the same x. Rows are
+  2.166667rem tall rounded pills inset 0.333333rem from the tree edges — `--menu-hover` on hover,
+  `--menu-active` for the active file and for a row whose context menu is open — indented 1rem per level.
+  Every colour comes from an existing theme token so the dark and light themes both read correctly.
 - `files/file-icon.tsx` maps a file name to a lucide icon and a color class: code, JSON, Markdown, image,
   styles, config, `.gitignore`, and a generic fallback. Used by tree rows, content-search hits and tabs.
 - `files/git-decorations.ts` is pure: `buildGitDecorations(detail)` turns a `GitStatusDetail` into a map of

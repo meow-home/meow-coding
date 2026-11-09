@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronRight, Folder } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import type { DirEntry, GitStatusDetail, ProjectSearchHit } from '@shared/types'
 import FileContextMenu, { type FileMenuState } from '../FileContextMenu'
 import { filterTree, type TreeFilterNode } from './tree-filter'
@@ -190,13 +190,16 @@ export default function FilesTree({ projectPath, query, activePath, onOpenFile, 
     return entry.isDirectory ? directoryDecoration(decorations, rel) : decorationFor(decorations, rel)
   }
 
+  // A directory is its chevron plus the name; a file puts its typed icon in the
+  // same slot, so both start at the same x for a given depth.
   const row = (entry: DirEntry, depth: number, expandable: boolean) => {
     const decoration = decorationOf(entry)
+    const menuOpen = menu?.absPath === entry.path
     return (
       <div
         key={entry.path}
-        className={`tree-row files-tree-row${entry.path === activePath ? ' active' : ''}`}
-        style={{ paddingLeft: `${0.666667 + depth * 0.75}rem` }}
+        className={`tree-row files-tree-row${entry.path === activePath ? ' active' : ''}${menuOpen ? ' menu-open' : ''}`}
+        style={{ paddingLeft: `${0.5 + depth}rem` }}
         title={entry.path}
         onClick={() => toggle(entry)}
         onDoubleClick={() => { if (!entry.isDirectory) onOpenFilePermanent(entry.path) }}
@@ -205,21 +208,20 @@ export default function FilesTree({ projectPath, query, activePath, onOpenFile, 
           setMenu({ x: e.clientX, y: e.clientY, absPath: entry.path })
         }}
       >
-        <span className="tree-chevron">
-          {expandable && (
-            <ChevronRight
-              size={10}
-              aria-hidden="true"
-              style={{
-                transform: nodes[entry.path]?.expanded ? 'rotate(90deg)' : undefined,
-                transition: 'transform 120ms ease'
-              }}
-            />
-          )}
+        <span className="files-tree-slot">
+          {entry.isDirectory
+            ? (expandable && (
+              <ChevronRight
+                size={14}
+                aria-hidden="true"
+                style={{
+                  transform: nodes[entry.path]?.expanded ? 'rotate(90deg)' : undefined,
+                  transition: 'transform 120ms ease'
+                }}
+              />
+            ))
+            : <FileIcon name={entry.name} size={14} className="tree-icon" />}
         </span>
-        {entry.isDirectory
-          ? <Folder size={13} fill="currentColor" aria-hidden="true" className="tree-icon folder" />
-          : <FileIcon name={entry.name} className="tree-icon" />}
         <span className={`tree-name${decoration ? ` files-git-${decoration.kind}` : ''}`}>{entry.name}</span>
         {decoration && (entry.isDirectory
           ? <span className={`files-git-dot files-git-${decoration.kind}`} aria-hidden="true" />
@@ -236,11 +238,11 @@ export default function FilesTree({ projectPath, query, activePath, onOpenFile, 
         <div key={entry.path}>
           {row(entry, depth, true)}
           {node.error ? (
-            <div className="tree-row tree-dim tree-error" style={{ paddingLeft: `${1.416667 + depth * 0.75}rem` }}>
+            <div className="tree-row tree-dim tree-error" style={{ paddingLeft: `${1.5 + depth}rem` }}>
               {node.error}
             </div>
           ) : node.children.length === 0 ? (
-            <div className="tree-row tree-dim" style={{ paddingLeft: `${1.416667 + depth * 0.75}rem` }}>
+            <div className="tree-row tree-dim" style={{ paddingLeft: `${1.5 + depth}rem` }}>
               {node.loading ? 'Loading…' : 'Empty'}
             </div>
           ) : (
@@ -273,8 +275,9 @@ export default function FilesTree({ projectPath, query, activePath, onOpenFile, 
               title={`${hit.path}:${hit.line}`}
               onClick={() => onOpenFile(joinProjectPath(projectPath, hit.path))}
             >
-              <span className="tree-chevron" />
-              <FileIcon name={hit.path.split('/').pop() ?? hit.path} className="tree-icon" />
+              <span className="files-tree-slot">
+                <FileIcon name={hit.path.split('/').pop() ?? hit.path} size={14} className="tree-icon" />
+              </span>
               <span className="tree-name">{hit.path.split('/').pop()}</span>
               <span className="files-hit-line">{hit.line}</span>
               <span className="files-hit-text">{hit.text}</span>

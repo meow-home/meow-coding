@@ -188,6 +188,14 @@ test('the tree shows file type icons and git state', async () => {
       // A directory holding a change shows a dot instead of a letter.
       const srcRow = window.locator('.files-tree-row', { hasText: 'src' })
       await expect(srcRow.locator('.files-git-dot')).toBeVisible()
+
+      // A directory row is its chevron plus the name, with no folder icon. A
+      // file's typed icon takes that same slot, so both start at the same x.
+      await expect(srcRow.locator('.tree-icon.folder')).toHaveCount(0)
+      await expect(srcRow.locator('svg.lucide-folder')).toHaveCount(0)
+      const dirSlot = (await srcRow.locator('.files-tree-slot svg').boundingBox())!
+      const fileSlot = (await committed.locator('.files-tree-slot svg').boundingBox())!
+      expect(Math.abs(dirSlot.x - fileSlot.x)).toBeLessThanOrEqual(1)
       // `.git` and ignored files stay clean (porcelain never lists them).
       await expect(window.locator('.files-tree-row', { hasText: /^\.git$/ })
         .locator('.files-git-dot')).toHaveCount(0)
@@ -209,6 +217,11 @@ test('the tree shows file type icons and git state', async () => {
       await codeRow.click()
       await expect(window.locator('.files-bar .viewer-path')).toHaveText('src/index.ts')
       await expect(window.locator('.files-open-tab .file-icon-code')).toHaveCount(1)
+
+      // The active row is a rounded pill, inset from the tree edges.
+      const activeRow = window.locator('.files-tree-row.active')
+      await expect(activeRow).toHaveCount(1)
+      expect(await activeRow.evaluate(el => parseFloat(getComputedStyle(el).borderRadius))).toBeGreaterThan(0)
 
       // Content-search hits keep their own layout with the typed icon in front.
       const filter = window.locator('.files-filter-input')
