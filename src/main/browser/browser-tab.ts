@@ -29,11 +29,26 @@ export const LOG_BUFFER_ENTRIES = 200
 export const MAX_PENDING_REQUESTS = 400
 /** Matches the bridge's 30 s command timeout. */
 export const DEFAULT_COMMAND_TIMEOUT_MS = 30_000
+/** How long the agent keeps the shield up after its last command. */
+export const CONTROL_LEASE_MS = 15_000
+/** How long an agent command waits while the user holds the tab. */
+export const USER_HOLD_TIMEOUT_MS = 300_000
+
+const USER_HELD_NOTE = '[meow] The user held this tab; the page may have changed. Re-read it.'
+
+export interface BrowserTabTimers {
+  setTimeout(fn: () => void, ms: number): unknown
+  clearTimeout(handle: unknown): void
+}
 
 export interface BrowserTabDeps {
   agentId: string
   /** Snapshot files are written here (`userData/browser-snapshots`). */
   snapshotDir: string
+  /** Called when `control` really changes (not on lease renewals). */
+  onControlChanged?: () => void
+  /** Injectable for tests; defaults to the global timers. */
+  timers?: BrowserTabTimers
 }
 
 export interface ConsoleEntry {
@@ -45,6 +60,14 @@ export interface NetworkEntry {
   method: string
   url: string
   status: number | 'failed'
+}
+
+interface BufferedConsoleEntry extends ConsoleEntry {
+  held?: boolean
+}
+
+interface BufferedNetworkEntry extends NetworkEntry {
+  held?: boolean
 }
 
 const MAX_CONSOLE_TEXT = 4000
@@ -77,11 +100,16 @@ export class BrowserTab {
   private readonly deps: BrowserTabDeps
   private readonly host: TabHost
   private readonly refs = new Map<string, number>()
-  private readonly consoleBuffer: ConsoleEntry[] = []
-  private readonly networkBuffer: NetworkEntry[] = []
+  private readonly consoleBuffer: BufferedConsoleEntry[] = []
+  private readonly networkBuffer: BufferedNetworkEntry[] = []
   private readonly pendingRequests = new Map<string, { method: string; url: string }>()
   private readonly dialogNotes: string[] = []
+  private readonly resumeNotes: string[] = []
+  private readonly holdWaiters = new Set<() => void>()
+  private readonly timers: BrowserTabTimers
   private control: BrowserTabControl = 'idle'
+  private holdReason: string | undefined
+  private leaseTimer: unknown = null
   private crashed = false
   private closed = false
   private readonly lifetime = new AbortController()
@@ -92,6 +120,10 @@ export class BrowserTab {
     this.host = host
     this.deps = deps
     this.id = host.id
+    this.timers = deps.timers ?? {
+      setTimeout: (fn, ms) => setTimeout(fn, ms),
+      clearTimeout: handle => clearTimeout(handle as ReturnType<typeof setTimeout>)
+    }
     this.unsubscribe = host.cdp.onEvent((method, params) => this.handleEvent(method, params))
   }
 
@@ -105,12 +137,76 @@ export class BrowserTab {
     call?: BrowserCall,
     timeoutMs = DEFAULT_COMMAND_TIMEOUT_MS
   ): Promise<BrowserCommandResult> {
-    // Later tasks add the pipeline steps here, in this order: wait for control (6),
-    // acquire + shield, sensitive check (9), site approval (8), execute, decorate.
-    const task = this.queue.then(() => this.executeTimed(name, params, call, timeoutMs))
+    const task = this.queue.then(async () => {
+      // Pipeline: wait for control, acquire the lease + shield, then execute and
+      // decorate. The wait is not part of the command's execution budget, so it
+      // runs before the timeout below starts.
+      const blocked = await this.waitForControl(name, call)
+      if (blocked) return this.decorate(blocked)
+      return this.executeTimed(name, params, call, timeoutMs)
+    })
     // A failed (or abandoned) command must not stop the queue for the commands behind it.
     this.queue = task.then(() => undefined, () => undefined)
     return task
+  }
+
+  private waitForControl(name: BrowserCommandName, call: BrowserCall | undefined): Promise<BrowserCommandResult | null> {
+    if (this.closed) return Promise.resolve({ ok: false, error: 'tab closed' })
+    if (this.control !== 'user') return Promise.resolve(null)
+    const tab = this
+    return new Promise(resolve => {
+      let settled = false
+      let timer: unknown = null
+      const signal = call?.signal
+      const lifetime = this.lifetime.signal
+
+      function cleanup(): void {
+        if (timer !== null) {
+          tab.timers.clearTimeout(timer)
+          timer = null
+        }
+        signal?.removeEventListener('abort', onAbort)
+        lifetime.removeEventListener('abort', onClosed)
+        tab.holdWaiters.delete(waiter)
+      }
+
+      function finish(result: BrowserCommandResult | null): void {
+        if (settled) return
+        settled = true
+        cleanup()
+        resolve(result)
+      }
+
+      function onAbort(): void {
+        finish({ ok: false, error: `browser command aborted: ${name}` })
+      }
+
+      function onClosed(): void {
+        finish({ ok: false, error: 'tab closed' })
+      }
+
+      function onTimeout(): void {
+        finish({ ok: false, error: 'user is holding this tab' })
+      }
+
+      function waiter(): void {
+        finish(null)
+      }
+
+      if (tab.closed) {
+        onClosed()
+        return
+      }
+      if (signal?.aborted) {
+        onAbort()
+        return
+      }
+      signal?.addEventListener('abort', onAbort, { once: true })
+      lifetime.addEventListener('abort', onClosed, { once: true })
+      tab.holdWaiters.add(waiter)
+      timer = tab.timers.setTimeout(onTimeout, USER_HOLD_TIMEOUT_MS)
+      tab.unrefTimer(timer)
+    })
   }
 
   private executeTimed(
@@ -119,9 +215,9 @@ export class BrowserTab {
     call: BrowserCall | undefined,
     timeoutMs: number
   ): Promise<BrowserCommandResult> {
-    // The clock starts here, when the command actually runs, not when it was
-    // enqueued: Task 6's wait for control happens inside this step and must not
-    // spend the command's budget.
+    // The clock covers execution only: the hold wait and any approval prompt run
+    // before this point, so a long wait cannot spend the command's budget.
+    const tab = this
     return new Promise(resolve => {
       let settled = false
       let timer: ReturnType<typeof setTimeout> | null = null
@@ -138,6 +234,7 @@ export class BrowserTab {
         }
         signal?.removeEventListener('abort', onAbort)
         lifetime.removeEventListener('abort', onClosed)
+        tab.armLeaseIfAgent()
         resolve(result)
       }
 
@@ -159,6 +256,7 @@ export class BrowserTab {
       }
       signal?.addEventListener('abort', onAbort, { once: true })
       lifetime.addEventListener('abort', onClosed, { once: true })
+      this.acquire()
       timer = setTimeout(() => finish({ ok: false, error: `browser command timed out: ${name}` }), timeoutMs)
       this.dispatch(name, params).then(
         // A late result from an abandoned command is dropped without decorating
@@ -184,16 +282,61 @@ export class BrowserTab {
       canGoBack: nav.canGoBack,
       canGoForward: nav.canGoForward,
       crashed: this.crashed,
-      control: this.control
+      control: this.control,
+      ...(this.holdReason ? { holdReason: this.holdReason } : {})
     }
   }
 
+  /** The agent path: entries captured while the user held the tab stay private. */
   consoleLogs(limit = LOG_BUFFER_ENTRIES): ConsoleEntry[] {
-    return tail(this.consoleBuffer, limit)
+    return tail(this.consoleBuffer.filter(entry => !entry.held), limit)
+      .map(entry => ({ level: entry.level, text: entry.text }))
+  }
+
+  /** The user's drawer path: everything, including entries captured during a hold. */
+  allConsoleLogs(limit = LOG_BUFFER_ENTRIES): ConsoleEntry[] {
+    return tail(this.consoleBuffer, limit).map(entry => ({ level: entry.level, text: entry.text }))
   }
 
   networkLogs(limit = LOG_BUFFER_ENTRIES): NetworkEntry[] {
+    return tail(this.networkBuffer.filter(entry => !entry.held), limit)
+      .map(entry => ({ method: entry.method, url: entry.url, status: entry.status }))
+  }
+
+  /** The user's drawer path: everything, including entries captured during a hold. */
+  allNetworkLogs(limit = LOG_BUFFER_ENTRIES): NetworkEntry[] {
     return tail(this.networkBuffer, limit)
+      .map(entry => ({ method: entry.method, url: entry.url, status: entry.status }))
+  }
+
+  /** The user takes control: the in-flight command finishes, the next ones wait. */
+  takeOver(): void {
+    if (this.control === 'user' || this.control === 'approval') return
+    this.cancelLease()
+    this.control = 'user'
+    this.host.setShield({ visible: false })
+    this.notifyControlChanged()
+  }
+
+  handBack(): void {
+    if (this.control !== 'user') return
+    this.control = 'idle'
+    this.holdReason = undefined
+    this.refs.clear()
+    this.resumeNotes.push(USER_HELD_NOTE)
+    const waiters = [...this.holdWaiters]
+    this.holdWaiters.clear()
+    for (const waiter of waiters) waiter()
+    this.notifyControlChanged()
+  }
+
+  /** The turn ended: drop the lease unless the user is holding the tab. */
+  releaseLease(): void {
+    if (this.control !== 'agent') return
+    this.cancelLease()
+    this.control = 'idle'
+    this.host.setShield({ visible: false })
+    this.notifyControlChanged()
   }
 
   markCrashed(): void {
@@ -205,6 +348,7 @@ export class BrowserTab {
   destroy(): void {
     if (this.closed) return
     this.closed = true
+    this.cancelLease()
     this.lifetime.abort('tab closed')
     this.unsubscribe?.()
     this.unsubscribe = null
@@ -252,8 +396,9 @@ export class BrowserTab {
   }
 
   private decorate(result: BrowserCommandResult): BrowserCommandResult {
-    if (this.dialogNotes.length === 0) return result
-    const note = this.dialogNotes.splice(0).join('\n')
+    const notes = [...this.dialogNotes.splice(0), ...this.resumeNotes.splice(0)]
+    if (notes.length === 0) return result
+    const note = notes.join('\n')
     if (!result.ok) return { ok: false, error: `${result.error}\n${note}` }
     const data = result.data && typeof result.data === 'object' && !Array.isArray(result.data)
       ? result.data as Record<string, unknown>
@@ -335,6 +480,49 @@ export class BrowserTab {
     }
   }
 
+  private acquire(): void {
+    this.cancelLease()
+    const changed = this.control !== 'agent'
+    this.control = 'agent'
+    this.host.setShield({ visible: true })
+    if (changed) this.notifyControlChanged()
+  }
+
+  /** Arm a fresh lease only while the agent still owns the tab. */
+  private armLeaseIfAgent(): void {
+    if (this.closed || this.control !== 'agent') return
+    this.armLease()
+  }
+
+  private armLease(): void {
+    this.cancelLease()
+    this.leaseTimer = this.timers.setTimeout(() => this.expireLease(), CONTROL_LEASE_MS)
+    this.unrefTimer(this.leaseTimer)
+  }
+
+  private cancelLease(): void {
+    if (this.leaseTimer === null) return
+    this.timers.clearTimeout(this.leaseTimer)
+    this.leaseTimer = null
+  }
+
+  private expireLease(): void {
+    this.leaseTimer = null
+    if (this.control !== 'agent') return
+    this.control = 'idle'
+    this.host.setShield({ visible: false })
+    this.notifyControlChanged()
+  }
+
+  private unrefTimer(handle: unknown): void {
+    const maybe = handle as { unref?: () => void } | null
+    maybe?.unref?.()
+  }
+
+  private notifyControlChanged(): void {
+    this.deps.onControlChanged?.()
+  }
+
   private rememberRequest(requestId: string, data: { method: string; url: string }): void {
     // Redirects reuse the id; re-inserting keeps the map in arrival order.
     this.pendingRequests.delete(requestId)
@@ -347,14 +535,14 @@ export class BrowserTab {
   }
 
   private pushConsole(entry: ConsoleEntry): void {
-    this.consoleBuffer.push(entry)
+    this.consoleBuffer.push({ ...entry, ...(this.control === 'user' ? { held: true } : {}) })
     if (this.consoleBuffer.length > LOG_BUFFER_ENTRIES) {
       this.consoleBuffer.splice(0, this.consoleBuffer.length - LOG_BUFFER_ENTRIES)
     }
   }
 
   private pushNetwork(entry: NetworkEntry): void {
-    this.networkBuffer.push(entry)
+    this.networkBuffer.push({ ...entry, ...(this.control === 'user' ? { held: true } : {}) })
     if (this.networkBuffer.length > LOG_BUFFER_ENTRIES) {
       this.networkBuffer.splice(0, this.networkBuffer.length - LOG_BUFFER_ENTRIES)
     }

@@ -288,8 +288,49 @@ describe('EmbeddedBrowser events', () => {
   it('reports the control state by page webContents id', async () => {
     const { browser, hosts } = makeBrowser()
     await browser.execute('openTab', { url: 'https://a.test/' }, call('a'))
+    expect(browser.controlOf(hosts[0].id)).toBe('agent')
+    browser.releaseOwner('a')
     expect(browser.controlOf(hosts[0].id)).toBe('idle')
     expect(browser.controlOf(12_345)).toBeNull()
+  })
+})
+
+describe('EmbeddedBrowser control', () => {
+  it('releaseOwner releases only the leases of that owner', async () => {
+    const { browser, hosts } = makeBrowser()
+    await browser.execute('openTab', { url: 'https://a.test/' }, call('a'))
+    await browser.execute('openTab', { url: 'https://b.test/' }, call('b'))
+    await browser.execute('scroll', { direction: 'down' }, call('a'))
+    await browser.execute('scroll', { direction: 'down' }, call('b'))
+    expect(browser.listTabs('a')[0].control).toBe('agent')
+    expect(browser.listTabs('b')[0].control).toBe('agent')
+
+    browser.releaseOwner('a')
+    expect(browser.listTabs('a')[0].control).toBe('idle')
+    expect(browser.listTabs('b')[0].control).toBe('agent')
+    expect(hosts).toHaveLength(2)
+  })
+
+  it('takes over and hands back a tab by id', async () => {
+    const { browser, hosts } = makeBrowser()
+    const created = await browser.execute('openTab', { url: 'https://a.test/' }, call('a'))
+    const tabId = (created as { data: { tabId: number } }).data.tabId
+    browser.takeOver(tabId)
+    expect(browser.listTabs('a')[0].control).toBe('user')
+    browser.handBack(tabId)
+    expect(browser.listTabs('a')[0].control).toBe('idle')
+    expect(hosts[0].destroyed).toBe(false)
+  })
+
+  it('emits a tabs-changed event when control changes', async () => {
+    const { browser } = makeBrowser()
+    const controls: string[] = []
+    browser.onTabsChanged((_agentId, tabs) => {
+      if (tabs.length > 0) controls.push(tabs[0].control)
+    })
+    await browser.execute('openTab', { url: 'https://a.test/' }, call('a'))
+    await browser.execute('scroll', { direction: 'down' }, call('a'))
+    expect(controls).toContain('agent')
   })
 })
 

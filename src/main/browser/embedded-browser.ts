@@ -113,6 +113,22 @@ export class EmbeddedBrowser implements BrowserBackend {
     return out
   }
 
+  /** The agent's turn ended: drop the lease on its tabs, never a user hold. */
+  releaseOwner(agentId: string): void {
+    for (const entry of this.tabs.values()) {
+      if (entry.ownerId === agentId) entry.tab.releaseLease()
+    }
+  }
+
+  /** The user takes control of a tab (IPC in a later task). */
+  takeOver(tabId: number): void {
+    this.tabs.get(tabId)?.tab.takeOver()
+  }
+
+  handBack(tabId: number): void {
+    this.tabs.get(tabId)?.tab.handBack()
+  }
+
   removeSession(agentId: string): void {
     for (const entry of [...this.tabs.values()]) {
       if (entry.ownerId !== agentId) continue
@@ -209,7 +225,11 @@ export class EmbeddedBrowser implements BrowserBackend {
       }
     }
     const host = this.deps.createHost(ownerId, callbacks)
-    tab = new BrowserTab(host, { agentId: ownerId, snapshotDir: this.deps.snapshotDir })
+    tab = new BrowserTab(host, {
+      agentId: ownerId,
+      snapshotDir: this.deps.snapshotDir,
+      onControlChanged: () => this.emitTabsChanged(ownerId)
+    })
     const entry: TabEntry = { tab, host, ownerId, agentCreated }
     this.tabs.set(tab.id, entry)
     // Only an agent-created tab becomes the working tab: a page calling

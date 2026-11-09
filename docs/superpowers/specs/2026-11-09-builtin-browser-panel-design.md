@@ -270,6 +270,8 @@ below are added inside `EmbeddedBrowser`. The plan-mode `'browser_*': 'ask'` rul
 - New tool `browser_handoff({ reason, tabId? })` sets `user` state with the reason in the banner and blocks until the
   user presses **I'm signed in** or the call is aborted. It returns whether the page's origin changed, and never its
   content.
+- Console and network entries captured while the user holds the tab are marked and excluded from the agent's
+  `browser_console` / `browser_network` output, including after hand-back; only the user's drawer sees them.
 
 ### 7.3 What this does not protect against
 

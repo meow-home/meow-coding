@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { BrowserTab, LOG_BUFFER_ENTRIES, MAX_PENDING_REQUESTS } from '../../../src/main/browser/browser-tab'
+import {
+  BrowserTab, CONTROL_LEASE_MS, LOG_BUFFER_ENTRIES, MAX_PENDING_REQUESTS, USER_HOLD_TIMEOUT_MS
+} from '../../../src/main/browser/browser-tab'
 import type { CdpClient, TabHost } from '../../../src/main/browser/browser-tab'
 import type { BrowserCommandResult } from '../../../src/shared/browser-types'
 
@@ -32,9 +34,21 @@ class FakeCdp implements CdpClient {
 
 function fakeHost(cdp: CdpClient): {
   host: TabHost
-  state: { url: string; title: string; destroyed: boolean; history: string[] }
+  state: {
+    url: string
+    title: string
+    destroyed: boolean
+    history: string[]
+    shields: Array<{ visible: boolean }>
+  }
 } {
-  const state = { url: 'https://example.com/', title: 'Example', destroyed: false, history: [] as string[] }
+  const state = {
+    url: 'https://example.com/',
+    title: 'Example',
+    destroyed: false,
+    history: [] as string[],
+    shields: [] as Array<{ visible: boolean }>
+  }
   const host: TabHost = {
     id: 42,
     cdp,
@@ -43,7 +57,7 @@ function fakeHost(cdp: CdpClient): {
     loadUrl: async (url) => { state.url = url },
     history: (action) => { state.history.push(action) },
     navState: () => ({ loading: false, canGoBack: true, canGoForward: false }),
-    setShield: () => {},
+    setShield: (shield) => { state.shields.push({ visible: shield.visible }) },
     setBounds: () => {},
     setVisible: () => {},
     setOffscreenMetrics: async () => {},
@@ -166,6 +180,9 @@ describe('BrowserTab timeouts', () => {
       expect(await first).toEqual({ ok: false, error: 'browser command timed out: scroll' })
       await vi.advanceTimersByTimeAsync(0)
       expect(await second).toEqual({ ok: true })
+      // The last command armed its 15 s lease; destroying the tab clears it.
+      expect(vi.getTimerCount()).toBe(1)
+      tab.destroy()
       expect(vi.getTimerCount()).toBe(0)
     } finally {
       vi.useRealTimers()
@@ -404,5 +421,286 @@ describe('BrowserTab lifecycle', () => {
       const source = readFileSync(path.join(process.cwd(), 'src/main/browser', file), 'utf-8')
       expect(source, file).not.toMatch(/from ['"]electron['"]|require\(['"]electron['"]\)/)
     }
+  })
+})
+
+describe('BrowserTab control state', () => {
+  function makeControlledTab(cdp: FakeCdp): {
+    tab: BrowserTab
+    host: TabHost
+    state: { url: string; title: string; destroyed: boolean; history: string[]; shields: Array<{ visible: boolean }> }
+    counter: { changes: number }
+  } {
+    const { host, state } = fakeHost(cdp)
+    const counter = { changes: 0 }
+    const tab = new BrowserTab(host, {
+      agentId: 'agent-1',
+      snapshotDir: dir,
+      onControlChanged: () => { counter.changes++ }
+    })
+    return { tab, host, state, counter }
+  }
+
+  function deferred(): { promise: Promise<void>; resolve: () => void } {
+    let resolve!: () => void
+    const promise = new Promise<void>(r => { resolve = r })
+    return { promise, resolve }
+  }
+
+  it('acquires on a command and drops to idle when the lease expires', async () => {
+    vi.useFakeTimers()
+    try {
+      const cdp = new FakeCdp()
+      cdp.responses['Runtime.evaluate'] = { result: { value: true } }
+      const { tab, state, counter } = makeControlledTab(cdp)
+      expect(await tab.run('scroll', { direction: 'down' })).toEqual({ ok: true })
+      expect(tab.toInfo().control).toBe('agent')
+      expect(state.shields).toEqual([{ visible: true }])
+      expect(counter.changes).toBe(1)
+
+      await vi.advanceTimersByTimeAsync(CONTROL_LEASE_MS)
+      expect(tab.toInfo().control).toBe('idle')
+      expect(state.shields).toEqual([{ visible: true }, { visible: false }])
+      expect(counter.changes).toBe(2)
+      tab.destroy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('renews the lease on each command without notifying', async () => {
+    vi.useFakeTimers()
+    try {
+      const cdp = new FakeCdp()
+      cdp.responses['Runtime.evaluate'] = { result: { value: true } }
+      const { tab, counter } = makeControlledTab(cdp)
+      await tab.run('scroll', { direction: 'down' })
+      await vi.advanceTimersByTimeAsync(CONTROL_LEASE_MS - 1000)
+      await tab.run('scroll', { direction: 'up' })
+      expect(tab.toInfo().control).toBe('agent')
+      await vi.advanceTimersByTimeAsync(CONTROL_LEASE_MS - 1000)
+      expect(tab.toInfo().control).toBe('agent')
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(tab.toInfo().control).toBe('idle')
+      expect(counter.changes).toBe(2)
+      tab.destroy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('releaseLease ends an agent lease but never a user hold', async () => {
+    const cdp = new FakeCdp()
+    cdp.responses['Runtime.evaluate'] = { result: { value: true } }
+    const { tab, counter } = makeControlledTab(cdp)
+    await tab.run('scroll', { direction: 'down' })
+    tab.releaseLease()
+    expect(tab.toInfo().control).toBe('idle')
+    expect(counter.changes).toBe(2)
+
+    tab.takeOver()
+    expect(tab.toInfo().control).toBe('user')
+    tab.releaseLease()
+    expect(tab.toInfo().control).toBe('user')
+    tab.destroy()
+  })
+
+  it('takeOver from idle sets user, from user is a no-op, and a finishing command keeps it', async () => {
+    const cdp = new FakeCdp()
+    const gate = deferred()
+    cdp.onSend = (method) => (method === 'Runtime.evaluate' ? gate.promise : undefined)
+    cdp.responses['Runtime.evaluate'] = { result: { value: true } }
+    const { tab, state } = makeControlledTab(cdp)
+
+    tab.takeOver()
+    expect(tab.toInfo().control).toBe('user')
+    const shieldsBefore = state.shields.length
+    tab.takeOver()
+    expect(tab.toInfo().control).toBe('user')
+    expect(state.shields.length).toBe(shieldsBefore)
+
+    tab.handBack()
+    const running = tab.run('scroll', { direction: 'down' })
+    await tick()
+    expect(tab.toInfo().control).toBe('agent')
+    tab.takeOver()
+    expect(tab.toInfo().control).toBe('user')
+    expect(state.shields[state.shields.length - 1]).toEqual({ visible: false })
+
+    gate.resolve()
+    expect((await running).ok).toBe(true)
+    expect(tab.toInfo().control).toBe('user')
+
+    const behind = tab.run('scroll', { direction: 'up' })
+    await tick()
+    expect(cdp.calls.filter(c => c.method === 'Runtime.evaluate')).toHaveLength(1)
+    tab.handBack()
+    expect((await behind).ok).toBe(true)
+    tab.destroy()
+  })
+
+  it('waits during a hold and resumes on hand-back with the notice', async () => {
+    const cdp = new FakeCdp()
+    cdp.responses['Runtime.evaluate'] = { result: { value: true } }
+    const { tab } = makeControlledTab(cdp)
+    tab.takeOver()
+
+    const waiting = tab.run('scroll', { direction: 'down' })
+    await tick()
+    expect(cdp.calls).toEqual([])
+    tab.handBack()
+    const result = await waiting
+    expect(result.ok).toBe(true)
+    expect((result as { data: { notice: string } }).data.notice).toContain('[meow] The user held this tab')
+    tab.destroy()
+  })
+
+  it('applies the notice to a command that arrives after the hand-back', async () => {
+    const cdp = new FakeCdp()
+    cdp.responses['Runtime.evaluate'] = { result: { value: true } }
+    const { tab } = makeControlledTab(cdp)
+    tab.takeOver()
+    tab.handBack()
+    const result = await tab.run('scroll', { direction: 'down' })
+    expect((result as { data: { notice: string } }).data.notice).toContain('[meow] The user held this tab')
+    const next = await tab.run('scroll', { direction: 'up' })
+    expect((next as { data?: { notice?: string } }).data?.notice).toBeUndefined()
+    tab.destroy()
+  })
+
+  it('clears refs on hand-back and lets a stale error carry the notice', async () => {
+    const cdp = new FakeCdp()
+    primeRead(cdp)
+    const { tab } = makeControlledTab(cdp)
+    expect((await tab.run('read', {})).ok).toBe(true)
+    tab.takeOver()
+    tab.handBack()
+    const result = await tab.run('click', { ref: 'r1' })
+    expect(result.ok).toBe(false)
+    const error = (result as { error: string }).error
+    expect(error).toContain('snapshot stale')
+    expect(error).toContain('[meow] The user held this tab')
+    tab.destroy()
+  })
+
+  it('read and closeTab wait during a hold', async () => {
+    const cdp = new FakeCdp()
+    primeRead(cdp)
+    const { tab } = makeControlledTab(cdp)
+    tab.takeOver()
+    const read = tab.run('read', {})
+    const close = tab.run('closeTab')
+    await tick()
+    expect(cdp.calls).toEqual([])
+    tab.handBack()
+    expect((await read).ok).toBe(true)
+    expect(await close).toEqual({ ok: true })
+    tab.destroy()
+  })
+
+  it('settles a waiting command on abort and removes its listener', async () => {
+    const cdp = new FakeCdp()
+    const { tab } = makeControlledTab(cdp)
+    tab.takeOver()
+    const controller = new AbortController()
+    const remove = vi.spyOn(controller.signal, 'removeEventListener')
+    const waiting = tab.run('scroll', { direction: 'down' }, {
+      ownerId: 'agent-1',
+      ask: async () => null,
+      signal: controller.signal
+    })
+    await tick()
+    controller.abort()
+    expect(await waiting).toEqual({ ok: false, error: 'browser command aborted: scroll' })
+    expect(remove).toHaveBeenCalledWith('abort', expect.any(Function))
+    tab.handBack()
+    expect((await tab.run('scroll', { direction: 'down' })).ok).toBe(true)
+    tab.destroy()
+  })
+
+  it('gives up on a hold after USER_HOLD_TIMEOUT_MS', async () => {
+    vi.useFakeTimers()
+    try {
+      const cdp = new FakeCdp()
+      const { tab } = makeControlledTab(cdp)
+      tab.takeOver()
+      const waiting = tab.run('read', {})
+      await vi.advanceTimersByTimeAsync(USER_HOLD_TIMEOUT_MS)
+      expect(await waiting).toEqual({ ok: false, error: 'user is holding this tab' })
+      expect(vi.getTimerCount()).toBe(0)
+      tab.destroy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('settles a waiting command when the tab is destroyed', async () => {
+    const cdp = new FakeCdp()
+    const { tab } = makeControlledTab(cdp)
+    tab.takeOver()
+    const waiting = tab.run('read', {})
+    await tick()
+    tab.destroy()
+    expect(await waiting).toEqual({ ok: false, error: 'tab closed' })
+  })
+
+  it('keeps the lease timer from outliving the tab', async () => {
+    vi.useFakeTimers()
+    try {
+      const cdp = new FakeCdp()
+      cdp.responses['Runtime.evaluate'] = { result: { value: true } }
+      const { tab } = makeControlledTab(cdp)
+      await tab.run('scroll', { direction: 'down' })
+      expect(vi.getTimerCount()).toBe(1)
+      tab.destroy()
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('BrowserTab logs during a hold', () => {
+  function makeTab(cdp: FakeCdp): BrowserTab {
+    return new BrowserTab(fakeHost(cdp).host, { agentId: 'agent-1', snapshotDir: dir })
+  }
+
+  it('hides entries captured while the user holds the tab from the agent path', () => {
+    const cdp = new FakeCdp()
+    const tab = makeTab(cdp)
+    cdp.emit('Runtime.consoleAPICalled', { type: 'log', args: [{ value: 'before' }] })
+    cdp.emit('Network.requestWillBeSent', { requestId: 'a', request: { method: 'GET', url: 'https://x/before' } })
+    cdp.emit('Network.responseReceived', { requestId: 'a', response: { status: 200 } })
+
+    tab.takeOver()
+    cdp.emit('Runtime.consoleAPICalled', { type: 'log', args: [{ value: 'held' }] })
+    cdp.emit('Network.requestWillBeSent', { requestId: 'b', request: { method: 'GET', url: 'https://x/token?code=secret' } })
+    cdp.emit('Network.responseReceived', { requestId: 'b', response: { status: 200 } })
+
+    expect(tab.consoleLogs().map(e => e.text)).toEqual(['before'])
+    expect(tab.allConsoleLogs().map(e => e.text)).toEqual(['before', 'held'])
+    expect(tab.networkLogs().map(e => e.url)).toEqual(['https://x/before'])
+    expect(tab.allNetworkLogs().map(e => e.url)).toEqual(['https://x/before', 'https://x/token?code=secret'])
+
+    tab.handBack()
+    expect(tab.consoleLogs().map(e => e.text)).toEqual(['before'])
+    expect(tab.allConsoleLogs().map(e => e.text)).toEqual(['before', 'held'])
+
+    cdp.emit('Runtime.consoleAPICalled', { type: 'log', args: [{ value: 'after' }] })
+    expect(tab.consoleLogs().map(e => e.text)).toEqual(['before', 'after'])
+    expect(tab.allConsoleLogs().map(e => e.text)).toEqual(['before', 'held', 'after'])
+    tab.destroy()
+  })
+
+  it('still counts marked entries toward the buffer cap', () => {
+    const cdp = new FakeCdp()
+    const tab = makeTab(cdp)
+    tab.takeOver()
+    for (let i = 0; i < LOG_BUFFER_ENTRIES + 50; i++) {
+      cdp.emit('Runtime.consoleAPICalled', { type: 'log', args: [{ value: `m${i}` }] })
+    }
+    expect(tab.allConsoleLogs()).toHaveLength(LOG_BUFFER_ENTRIES)
+    expect(tab.consoleLogs()).toEqual([])
+    tab.destroy()
   })
 })

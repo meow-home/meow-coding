@@ -187,19 +187,29 @@ Every session gets its own tabs inside the app window and the agent drives them 
   viewport in a visible window and every click misses. The debugger is attached with `Page`,
   `Runtime`, `Network`, `Log`, `DOM` and `Accessibility` enabled.
 - **Hardening** (`hardenBrowserPartition`): permission requests and checks deny everything except
-  `clipboard-sanitized-write`; navigation is limited to `http:`, `https:` and `about:blank`;
+  `clipboard-sanitized-write`; the main frame may navigate only to `http:`, `https:` and `about:blank`,
+  while subframes also allow `about:srcdoc`, `blob:` and `data:` (`navigation-policy.ts`);
   `window.open` on an http(s) URL becomes a new tab of the same session; downloads are cancelled while
-  the agent controls the tab (control state arrives with the shield work — until then nothing is
-  cancelled).
+  the agent controls the tab.
 - **Commands** (`src/main/browser/browser-tab.ts` + `cdp-commands.ts`): `read` (snapshot file),
   `click` (content-quad centre via `Input.dispatchMouseEvent`), `type` (`Input.insertText` after
   selecting the content), `select`, `scroll`, `waitFor`, `navigate`, `reload` and `closeTab`, all
   through one FIFO queue per tab with a 30 s command timeout. Console and network events are
   ring-buffered (200 entries each).
+- **Control state** (`browser-tab.ts`): `idle → agent → idle` through a 15 s lease that is renewed by
+  each command (paused while a command runs, armed again when it finishes) and released at the end of
+  the turn (`EmbeddedBrowser.releaseOwner`). The user can take over (`agent`/`idle → user`): agent
+  commands then wait up to 5 minutes for hand-back (`user is holding this tab` on timeout), and the
+  first result afterwards carries a `[meow]` note to re-read the page. Hand-back clears the ref map.
+  `host.setShield` is called on every transition but the shield view does not exist yet.
+- **Private logs during a hold**: console and network entries captured while `control === 'user'` are
+  marked; the agent's `browser_console` / `browser_network` exclude them, including after hand-back,
+  while the user's drawer reads the full buffers.
 - **Limits**: 8 tabs per session, 8 per app (spike S4: ~123 MB of working set per tab).
-- **Not implemented yet**: site approval, password-field refusal, `browser_handoff`, the panel UI, the
-  shield and the occlusion freeze. Treat the built-in browser as unfinished: a page can be driven
-  without an approval prompt and a password field can be typed into.
+- **Not implemented yet**: site approval (the `approval` state is reserved), password-field refusal,
+  `browser_handoff`, the panel UI, the shield view and the occlusion freeze. Treat the built-in browser
+  as unfinished: a page can be driven without an approval prompt and a password field can be typed
+  into.
 - Chrome remains available with `browser_start({ target: 'chrome' })`; the bridge rules in 8.3 are
   unchanged.
 

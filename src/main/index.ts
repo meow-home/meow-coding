@@ -386,6 +386,7 @@ export class MainApp {
         // The manager clears its `running` set before this callback fires, so
         // the delegation scheduler can now treat the target as available.
         this.delegationService.notifyAgentAvailable(event.agentId)
+        this.embeddedBrowser.releaseOwner(event.agentId)
       }
       if (event.type === 'error') {
         mainApp.systemLogger.log('ERROR', 'agent', `agent ${event.agentId}: ${event.message}`)
