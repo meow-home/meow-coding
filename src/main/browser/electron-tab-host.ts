@@ -13,6 +13,55 @@ export const PARTITION = 'persist:meow-browser'
  */
 export const DEFAULT_VIEW_BOUNDS = { x: 10_000, y: 10_000, width: 1280, height: 800 }
 
+/** Transparent overlay document: only the agent cursor, ring and label. */
+const SHIELD_DOCUMENT = `<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  #ring { position: absolute; border: 2px solid #1f9cf0; border-radius: 4px; box-sizing: border-box; display: none; }
+  #cursor { position: absolute; width: 0; height: 0; border-left: 10px solid #1f9cf0; border-top: 6px solid transparent; border-bottom: 6px solid transparent; filter: drop-shadow(0 1px 1px rgba(0,0,0,.45)); display: none; }
+  #label { position: absolute; font: 11px system-ui, sans-serif; color: #fff; background: #1f9cf0; padding: 1px 5px; border-radius: 3px; white-space: nowrap; display: none; }
+</style></head>
+<body>
+<div id="ring"></div><div id="cursor"></div><div id="label"></div>
+<script>
+  const ring = document.getElementById('ring')
+  const cursor = document.getElementById('cursor')
+  const label = document.getElementById('label')
+  window.__meowShield = {
+    set(target) {
+      if (!target) {
+        ring.style.display = 'none'
+        label.style.display = 'none'
+        return
+      }
+      ring.style.display = 'block'
+      ring.style.left = target.x + 'px'
+      ring.style.top = target.y + 'px'
+      ring.style.width = target.w + 'px'
+      ring.style.height = target.h + 'px'
+      cursor.style.display = 'block'
+      cursor.style.left = (target.x + target.w / 2) + 'px'
+      cursor.style.top = (target.y + target.h / 2) + 'px'
+      label.style.display = 'block'
+      label.textContent = target.label || ''
+      label.style.left = (target.x + target.w / 2 + 12) + 'px'
+      label.style.top = (target.y + target.h / 2 + 12) + 'px'
+    }
+  }
+</script>
+</body></html>`
+
+const SHIELD_URL = `data:text/html;charset=utf-8,${encodeURIComponent(SHIELD_DOCUMENT)}`
+
+interface ShieldTarget {
+  x: number
+  y: number
+  w: number
+  h: number
+  label: string
+}
+
 export interface ElectronTabHostDeps {
   getWindow: () => BrowserWindow | null
   callbacks: HostCallbacks
@@ -48,6 +97,10 @@ export class ElectronTabHost implements TabHost {
   private readonly ready: Promise<void>
   private readyError: string | null = null
   private processGone = false
+  private shield: WebContentsView | null = null
+  private shieldVisible = false
+  private shieldTarget: ShieldTarget | null = null
+  private shieldLoaded = false
 
   constructor(deps: ElectronTabHostDeps) {
     this.deps = deps
@@ -91,11 +144,20 @@ export class ElectronTabHost implements TabHost {
     if (this.attachedWindow === win) return
     if (this.attachedWindow && !this.attachedWindow.isDestroyed()) {
       try { this.attachedWindow.contentView.removeChildView(this.view) } catch { /* gone */ }
+      if (this.shield) {
+        try { this.attachedWindow.contentView.removeChildView(this.shield) } catch { /* gone */ }
+      }
     }
     try {
       win.contentView.addChildView(this.view)
       this.view.setBounds(DEFAULT_VIEW_BOUNDS)
       this.view.setVisible(true)
+      if (this.shield && !this.shield.webContents.isDestroyed()) {
+        // Re-added after the page so it stays directly above it.
+        win.contentView.addChildView(this.shield)
+        this.shield.setBounds(DEFAULT_VIEW_BOUNDS)
+        this.shield.setVisible(this.shieldVisible)
+      }
       this.attachedWindow = win
     } catch {
       this.attachedWindow = null
@@ -155,16 +217,30 @@ export class ElectronTabHost implements TabHost {
     }
   }
 
-  setShield(_state: { visible: boolean; target?: { x: number; y: number; w: number; h: number; label: string } }): void {
-    // The shield WebContentsView lands in Task 7.
+  setShield(state: { visible: boolean; target?: ShieldTarget }): void {
+    this.shieldVisible = state.visible
+    this.shieldTarget = state.target ?? null
+    if (!state.visible) {
+      this.shield?.setVisible(false)
+      this.applyShieldState()
+      return
+    }
+    const shield = this.ensureShield()
+    if (!shield) return
+    shield.setBounds(this.view.getBounds())
+    shield.setVisible(true)
+    this.applyShieldState()
   }
 
   setBounds(bounds: { x: number; y: number; width: number; height: number }): void {
     this.view.setBounds(bounds)
+    this.shield?.setBounds(bounds)
   }
 
   setVisible(visible: boolean): void {
     this.view.setVisible(visible)
+    // Restoring the host restores the shield only while it should be up.
+    this.shield?.setVisible(visible && this.shieldVisible)
   }
 
   async setOffscreenMetrics(enabled: boolean): Promise<void> {
@@ -218,11 +294,27 @@ export class ElectronTabHost implements TabHost {
     } catch {
       // window or view already gone
     }
+    const shield = this.shield
+    this.shield = null
+    if (shield) {
+      try {
+        this.attachedWindow?.contentView.removeChildView(shield)
+      } catch {
+        // window or shield already gone
+      }
+    }
     this.attachedWindow = null
     try {
       wc.close()
     } catch {
       // already closed
+    }
+    if (shield) {
+      try {
+        shield.webContents.close()
+      } catch {
+        // already closed
+      }
     }
   }
 
@@ -254,12 +346,56 @@ export class ElectronTabHost implements TabHost {
       this.processGone = true
       this.deps.callbacks.onCrashed()
     })
+    wc.on('before-input-event', (event) => {
+      // The shield is a transparent overlay, not a focus target: while it is up the
+      // page must not see keys even when it still has focus. Later shortcuts hook in here.
+      if (this.shieldVisible) event.preventDefault()
+    })
     const changed = (): void => this.deps.callbacks.onChanged()
     wc.on('did-navigate', changed)
     wc.on('did-navigate-in-page', changed)
     wc.on('page-title-updated', changed)
     wc.on('did-start-loading', changed)
     wc.on('did-stop-loading', changed)
+  }
+
+  private ensureShield(): WebContentsView | null {
+    if (this.destroyed) return null
+    if (this.shield && !this.shield.webContents.isDestroyed()) return this.shield
+    const shield = new WebContentsView({
+      webPreferences: {
+        sandbox: true,
+        contextIsolation: true,
+        nodeIntegration: false,
+        partition: PARTITION,
+        backgroundThrottling: false
+      }
+    })
+    shield.setBackgroundColor('#00000000')
+    const wc = shield.webContents
+    wc.setWindowOpenHandler(() => ({ action: 'deny' }))
+    wc.on('will-navigate', event => event.preventDefault())
+    wc.on('did-finish-load', () => {
+      this.shieldLoaded = true
+      this.applyShieldState()
+    })
+    shield.setVisible(false)
+    shield.setBounds(this.view.getBounds())
+    this.shield = shield
+    this.shieldLoaded = false
+    if (this.attachedWindow) this.attachedWindow.contentView.addChildView(shield)
+    void wc.loadURL(SHIELD_URL).catch(() => {})
+    return shield
+  }
+
+  private applyShieldState(): void {
+    const shield = this.shield
+    if (!shield || !this.shieldLoaded || shield.webContents.isDestroyed()) return
+    const target = this.shieldVisible ? this.shieldTarget : null
+    const script = `window.__meowShield && window.__meowShield.set(${JSON.stringify(target)})`
+    void shield.webContents.executeJavaScript(script, true).catch(() => {
+      // Decoration only: a shield error never reaches the page or the command.
+    })
   }
 
   private async ensureDebugger(): Promise<void> {

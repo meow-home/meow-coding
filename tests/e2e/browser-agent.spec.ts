@@ -129,6 +129,12 @@ function startFixtureServer(): Promise<{ server: http.Server; url: string }> {
       <div style="height:1800px">spacer</div>
       <button id="far" onclick="document.title='far-clicked'">Far button</button>
       <input id="name" aria-label="Name" oninput="document.title='name:'+this.value">
+      <script>
+        window.__clicks = 0
+        window.__keys = 0
+        document.addEventListener('click', () => { window.__clicks++ })
+        document.addEventListener('keydown', () => { window.__keys++ })
+      </script>
     </body></html>`)
   })
   return new Promise(resolve => {
@@ -285,6 +291,155 @@ test('a crashed tab is recovered by browser_navigate', async () => {
       await expect(final).toContainText('crashed-error=true', { timeout: 55_000 })
       // The navigate after the crash really reloaded the page: the click landed.
       expect(await final.textContent()).toContain('far-clicked')
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+    fixture.close()
+    llm.close()
+  }
+})
+
+type ElectronApp = Awaited<ReturnType<typeof electron.launch>>
+
+interface ShieldWebContentsLike {
+  id: number
+  getURL(): string
+  sendInputEvent(event: unknown): void
+  executeJavaScript<T>(code: string): Promise<T>
+}
+
+interface ShieldViewLike {
+  webContents?: ShieldWebContentsLike
+  getBounds(): { x: number; y: number; width: number; height: number }
+  getVisible(): boolean
+}
+
+interface ShieldInspection {
+  childCount: number
+  pageId: number
+  shieldId: number
+  shieldAbove: boolean
+  sameBounds: boolean
+  shieldVisible: boolean
+  shieldUrl: string
+  pageClicks: number
+  pageKeys: number
+}
+
+/** Finds the page/shield views of the built-in browser and probes synthetic input. */
+function inspectShield(app: ElectronApp, fixtureUrl: string): Promise<ShieldInspection> {
+  return app.evaluate(({ BrowserWindow }, fixture) => {
+    const win = BrowserWindow.getAllWindows()[0]
+    const children = win.contentView.children as unknown as ShieldViewLike[]
+    const page = children.find(c => c.webContents?.getURL().startsWith(fixture))
+    const shield = children.find(c => c.webContents?.getURL().startsWith('data:text/html'))
+    if (!page || !shield || !page.webContents || !shield.webContents) {
+      throw new Error(`browser views not found (${children.length} children)`)
+    }
+    const pageWc = page.webContents
+    const shieldWc = shield.webContents
+    const sameBounds = JSON.stringify(page.getBounds()) === JSON.stringify(shield.getBounds())
+    const above = children.indexOf(shield) === children.indexOf(page) + 1
+    // Synthetic input: it reaches the target webContents directly, so this proves the
+    // shield is the view receiving it, not that an OS hit test picks the shield (S3 did that).
+    shieldWc.sendInputEvent({ type: 'mouseDown', x: 20, y: 20, button: 'left', clickCount: 1 })
+    shieldWc.sendInputEvent({ type: 'mouseUp', x: 20, y: 20, button: 'left', clickCount: 1 })
+    // A key sent to the page while the shield is up must be swallowed by before-input-event.
+    pageWc.sendInputEvent({ type: 'keyDown', keyCode: 'a' })
+    pageWc.sendInputEvent({ type: 'keyUp', keyCode: 'a' })
+    return pageWc.executeJavaScript<{ clicks: number; keys: number }>('({ clicks: window.__clicks, keys: window.__keys })')
+      .then((counters) => ({
+        childCount: children.length,
+        pageId: pageWc.id,
+        shieldId: shieldWc.id,
+        shieldAbove: above,
+        sameBounds,
+        shieldVisible: shield.getVisible(),
+        shieldUrl: shieldWc.getURL().slice(0, 24),
+        pageClicks: counters.clicks,
+        pageKeys: counters.keys
+      }))
+  }, fixtureUrl)
+}
+
+function shieldVisibility(app: ElectronApp): Promise<{ childCount: number; visible: boolean }> {
+  return app.evaluate(({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows()[0]
+    const children = win.contentView.children as unknown as ShieldViewLike[]
+    const shield = children.find(c => c.webContents?.getURL().startsWith('data:text/html'))
+    return { childCount: children.length, visible: shield ? shield.getVisible() : false }
+  })
+}
+
+test('the shield covers the page while the agent works and is destroyed with the session', async () => {
+  const { server: fixture, url } = await startFixtureServer()
+  let appRef: ElectronApp | null = null
+  let probe: ShieldInspection | null = null
+  const { server: llm, port } = await startMockLlm([
+    { toolCall: { name: 'browser_navigate', args: { url } } },
+    {
+      toolCall: {
+        name: 'browser_list_tabs',
+        args: async () => {
+          if (!appRef) throw new Error('app not launched')
+          probe = await inspectShield(appRef, url)
+          return {}
+        }
+      }
+    },
+    { contentFrom: () => 'shield probe done' }
+  ])
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    seedUserData(userData, project, {
+      provider: { mock: { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}`, models: ['mock-model'] } },
+      model: 'mock'
+    })
+
+    const { app, window } = await launch(userData)
+    appRef = app
+    try {
+      await window.locator('.chat-input-field').fill('show the shield')
+      await window.locator('.chat-input-field').press('Enter')
+      await expect(window.locator('.chat-msg.assistant').last()).toContainText('shield probe done', { timeout: 55_000 })
+
+      const seen = probe as ShieldInspection | null
+      expect(seen, 'shield probe did not run').not.toBeNull()
+      expect(seen!.childCount).toBe(2)
+      expect(seen!.shieldAbove).toBe(true)
+      expect(seen!.sameBounds).toBe(true)
+      expect(seen!.shieldVisible).toBe(true)
+      expect(seen!.shieldUrl.startsWith('data:text/html;charset=')).toBe(true)
+      expect(seen!.pageClicks).toBe(0)
+      expect(seen!.pageKeys).toBe(0)
+
+      // The turn ended: releaseOwner drops the lease and hides the shield.
+      await expect.poll(async () => (await shieldVisibility(app)).visible).toBe(false)
+
+      // Deleting the session destroys both renderers.
+      const sessionId = await window.evaluate(async (projectPath) => {
+        const api = (window as unknown as {
+          api: { listWorkspaces(): Promise<Array<{ projectPath: string; sessions?: Array<{ id: string }> }>> }
+        }).api
+        const list = await api.listWorkspaces()
+        return list.find(ws => ws.projectPath === projectPath)?.sessions?.[0]?.id ?? null
+      }, project)
+      expect(sessionId).toBeTruthy()
+      await window.evaluate(async ({ projectPath, agentId }) => {
+        await (window as unknown as { api: { removeAgent(p: string, a: string): Promise<void> } })
+          .api.removeAgent(projectPath, agentId)
+      }, { projectPath: project, agentId: sessionId! })
+      await expect.poll(async () => {
+        const destroyed = await app.evaluate(({ webContents }, ids) => ({
+          page: webContents.fromId(ids.pageId)?.isDestroyed() ?? null,
+          shield: webContents.fromId(ids.shieldId)?.isDestroyed() ?? null
+        }), { pageId: seen!.pageId, shieldId: seen!.shieldId })
+        return destroyed.page !== false && destroyed.shield !== false
+      }, { timeout: 5000 }).toBe(true)
     } finally {
       await app.close()
     }

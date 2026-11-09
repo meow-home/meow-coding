@@ -39,7 +39,7 @@ function fakeHost(cdp: CdpClient): {
     title: string
     destroyed: boolean
     history: string[]
-    shields: Array<{ visible: boolean }>
+    shields: Array<{ visible: boolean; target?: { x: number; y: number; w: number; h: number; label: string } }>
   }
 } {
   const state = {
@@ -47,7 +47,7 @@ function fakeHost(cdp: CdpClient): {
     title: 'Example',
     destroyed: false,
     history: [] as string[],
-    shields: [] as Array<{ visible: boolean }>
+    shields: [] as Array<{ visible: boolean; target?: { x: number; y: number; w: number; h: number; label: string } }>
   }
   const host: TabHost = {
     id: 42,
@@ -57,7 +57,7 @@ function fakeHost(cdp: CdpClient): {
     loadUrl: async (url) => { state.url = url },
     history: (action) => { state.history.push(action) },
     navState: () => ({ loading: false, canGoBack: true, canGoForward: false }),
-    setShield: (shield) => { state.shields.push({ visible: shield.visible }) },
+    setShield: (shield) => { state.shields.push({ ...shield }) },
     setBounds: () => {},
     setVisible: () => {},
     setOffscreenMetrics: async () => {},
@@ -453,7 +453,13 @@ describe('BrowserTab control state', () => {
   function makeControlledTab(cdp: FakeCdp): {
     tab: BrowserTab
     host: TabHost
-    state: { url: string; title: string; destroyed: boolean; history: string[]; shields: Array<{ visible: boolean }> }
+    state: {
+      url: string
+      title: string
+      destroyed: boolean
+      history: string[]
+      shields: Array<{ visible: boolean; target?: { x: number; y: number; w: number; h: number; label: string } }>
+    }
     counter: { changes: number }
   } {
     const { host, state } = fakeHost(cdp)
@@ -683,6 +689,49 @@ describe('BrowserTab control state', () => {
       vi.useRealTimers()
     }
   })
+})
+
+describe('BrowserTab shield', () => {
+  it('shows the shield while the agent owns the tab and hides it on take over', async () => {
+    const cdp = new FakeCdp()
+    cdp.responses['Runtime.evaluate'] = { result: { value: true } }
+    const { tab, state } = makeControlledTabForShield(cdp)
+    await tab.run('scroll', { direction: 'down' })
+    expect(state.shields).toEqual([{ visible: true }])
+    tab.takeOver()
+    expect(state.shields).toEqual([{ visible: true }, { visible: false }])
+    tab.destroy()
+  })
+
+  it('passes the click target rect to the shield', async () => {
+    const cdp = new FakeCdp()
+    cdp.responses['DOM.getDocument'] = { root: { nodeId: 1 } }
+    cdp.responses['DOM.querySelector'] = { nodeId: 7 }
+    cdp.responses['DOM.getBoxModel'] = { model: { content: [10, 20, 110, 20, 110, 70, 10, 70], width: 100, height: 50 } }
+    const { tab, state } = makeControlledTabForShield(cdp)
+    expect((await tab.run('click', { selector: '#b' })).ok).toBe(true)
+    const withTarget = state.shields.filter(entry => entry.target)
+    expect(withTarget).toEqual([{ visible: true, target: { x: 10, y: 20, w: 100, h: 50, label: 'Meow' } }])
+    tab.destroy()
+  })
+
+  it('does not fail a command when the shield throws', async () => {
+    const cdp = new FakeCdp()
+    cdp.responses['Runtime.evaluate'] = { result: { value: true } }
+    const { host } = fakeHost(cdp)
+    host.setShield = () => { throw new Error('shield boom') }
+    const tab = new BrowserTab(host, { agentId: 'agent-1', snapshotDir: dir })
+    expect((await tab.run('scroll', { direction: 'down' })).ok).toBe(true)
+    tab.destroy()
+  })
+
+  function makeControlledTabForShield(cdp: FakeCdp): {
+    tab: BrowserTab
+    state: { shields: Array<{ visible: boolean; target?: { x: number; y: number; w: number; h: number; label: string } }> }
+  } {
+    const { host, state } = fakeHost(cdp)
+    return { tab: new BrowserTab(host, { agentId: 'agent-1', snapshotDir: dir }), state }
+  }
 })
 
 describe('BrowserTab logs during a hold', () => {

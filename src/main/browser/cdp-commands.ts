@@ -5,6 +5,17 @@ import { writeSnapshotFile } from './snapshot-output'
 
 export const NAVIGATE_TIMEOUT_MS = 30_000
 
+export interface TargetRect {
+  x: number
+  y: number
+  w: number
+  h: number
+  label: string
+}
+
+/** Called before input is dispatched so the host can draw the shield ring. */
+export type TargetCallback = (target: TargetRect | null) => void
+
 // DOM.scrollIntoViewIfNeeded / DOM.getBoxModel / DOM.resolveNode accept either key.
 // A ref keeps the backend id from the snapshot: frontend nodeIds only exist after a
 // DOM.getDocument and are invalidated by the next one.
@@ -72,8 +83,15 @@ async function withTarget(
   }
 }
 
-/** Centre of the `content` quad; a zero-size box is a real failure (a 0×0 viewport reports exactly this). */
-async function clickPoint(cdp: CdpClient, target: NodeTarget): Promise<{ x: number; y: number } | BrowserCommandResult> {
+interface Box {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/** Bounding box of the `content` quad; a zero-size box is a real failure (a 0×0 viewport reports exactly this). */
+async function boxOf(cdp: CdpClient, target: NodeTarget): Promise<Box | BrowserCommandResult> {
   let model: BoxModel['model']
   try {
     ({ model } = await cdp.send<BoxModel>('DOM.getBoxModel', { ...target }))
@@ -91,12 +109,25 @@ async function clickPoint(cdp: CdpClient, target: NodeTarget): Promise<{ x: numb
   }
   const xs = [q[0], q[2], q[4], q[6]]
   const ys = [q[1], q[3], q[5], q[7]]
-  const width = Math.max(...xs) - Math.min(...xs)
-  const height = Math.max(...ys) - Math.min(...ys)
-  if (width <= 0 || height <= 0) {
+  const w = Math.max(...xs) - Math.min(...xs)
+  const h = Math.max(...ys) - Math.min(...ys)
+  if (w <= 0 || h <= 0) {
     return { ok: false, error: 'element is not visible (zero-size box)' }
   }
-  return { x: (q[0] + q[2] + q[4] + q[6]) / 4, y: (q[1] + q[3] + q[5] + q[7]) / 4 }
+  return { x: Math.min(...xs), y: Math.min(...ys), w, h }
+}
+
+function labelOf(params: Record<string, unknown>): string {
+  return params.ref != null ? String(params.ref) : 'Meow'
+}
+
+async function clickPoint(
+  cdp: CdpClient,
+  target: NodeTarget
+): Promise<{ x: number; y: number; box: Box } | BrowserCommandResult> {
+  const box = await boxOf(cdp, target)
+  if (isErrorResult(box)) return box
+  return { x: box.x + box.w / 2, y: box.y + box.h / 2, box }
 }
 
 async function pressAt(cdp: CdpClient, x: number, y: number): Promise<void> {
@@ -189,7 +220,8 @@ export async function read(
 export async function click(
   cdp: CdpClient,
   refs: Map<string, number>,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  onTarget?: TargetCallback
 ): Promise<BrowserCommandResult> {
   if (params.ref == null && params.selector == null) {
     const x = Number(params.x)
@@ -204,6 +236,7 @@ export async function click(
     await cdp.send('DOM.scrollIntoViewIfNeeded', { ...target })
     const point = await clickPoint(cdp, target)
     if (isErrorResult(point)) return point
+    onTarget?.({ ...point.box, label: labelOf(params) })
     await pressAt(cdp, point.x, point.y)
     return { ok: true, data: ref != null ? { ref } : { selector: String(params.selector) } }
   })
@@ -212,12 +245,17 @@ export async function click(
 export async function type(
   cdp: CdpClient,
   refs: Map<string, number>,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  onTarget?: TargetCallback
 ): Promise<BrowserCommandResult> {
   if (params.ref == null && params.selector == null) {
     return { ok: false, error: 'type requires ref or selector' }
   }
   return withTarget(cdp, refs, params, async (target, ref) => {
+    await cdp.send('DOM.scrollIntoViewIfNeeded', { ...target })
+    const box = await boxOf(cdp, target)
+    // Drawing is decoration: a field without a box is still typed into.
+    onTarget?.(isErrorResult(box) ? null : { ...box, label: labelOf(params) })
     const objectId = await resolveAttachedObject(cdp, target, ref)
     if (isErrorResult(objectId)) return objectId
     await callOnObject(cdp, objectId, FOCUS_AND_SELECT)

@@ -211,11 +211,17 @@ Every session gets its own tabs inside the app window and the agent drives them 
   native `alert`/`confirm` stays for the user and nothing is recorded for the agent. Electron shows no
   dialog and emits no CDP event for `prompt()`, so a page's `prompt()` call never returns (navigate
   away to recover).
-- **Limits**: 8 tabs per session, 8 per app (spike S4: ~123 MB of working set per tab).
+- **Shield** (`electron-tab-host.ts`): a second transparent `WebContentsView`, created lazily on the
+  first agent command, sits directly above the page with the same bounds and draws the `#1f9cf0` ring,
+  cursor and label from an inline document. It is shown only in `agent`/`approval`, blocks keys through
+  `before-input-event`, never takes focus, and is destroyed with the tab. A drawing error never fails a
+  command.
+- **Limits**: 8 tabs per session, 8 per app (spike S4: ~123 MB of working set per tab). A shield adds
+  a renderer: 8 shields cost +615 MB on top of 875 MB for the 8 pages in a local measurement, so they
+  are created only for tabs the agent actually drives.
 - **Not implemented yet**: site approval (the `approval` state is reserved), password-field refusal,
-  `browser_handoff`, the panel UI, the shield view and the occlusion freeze. Treat the built-in browser
-  as unfinished: a page can be driven without an approval prompt and a password field can be typed
-  into.
+  `browser_handoff`, the panel UI and the occlusion freeze. Treat the built-in browser as unfinished: a
+  page can be driven without an approval prompt and a password field can be typed into.
 - Chrome remains available with `browser_start({ target: 'chrome' })`; the bridge rules in 8.3 are
   unchanged.
 

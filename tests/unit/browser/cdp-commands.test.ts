@@ -157,18 +157,49 @@ describe('cdp type', () => {
     expect(cdp.calls.map(c => c.method)).toEqual([
       'DOM.getDocument',
       'DOM.querySelector',
+      'DOM.scrollIntoViewIfNeeded',
+      'DOM.getBoxModel',
       'DOM.resolveNode',
       'Runtime.callFunctionOn',
       'Input.insertText',
       'Runtime.callFunctionOn'
     ])
-    const focusSelect = paramsOf(cdp.calls[3])
+    const focusSelect = paramsOf(cdp.calls[5])
     expect(focusSelect.objectId).toBe('obj-1')
     expect(String(focusSelect.functionDeclaration)).toContain('isContentEditable')
     expect(String(focusSelect.functionDeclaration)).toContain('.select()')
-    expect(paramsOf(cdp.calls[4])).toEqual({ text: 'hello' })
-    const change = paramsOf(cdp.calls[5])
+    expect(paramsOf(cdp.calls[6])).toEqual({ text: 'hello' })
+    const change = paramsOf(cdp.calls[7])
     expect(String(change.functionDeclaration)).toContain("dispatchEvent(new Event('change'")
+  })
+})
+
+describe('cdp target callback', () => {
+  it('reports the click rect and label before dispatching input', async () => {
+    const cdp = fakeCdp()
+    const targets: Array<{ x: number; y: number; w: number; h: number; label: string } | null> = []
+    let callsAtTarget = -1
+    const result = await click(cdp, new Map([['r4', 42]]), { ref: 'r4' }, target => {
+      callsAtTarget = cdp.calls.length
+      targets.push(target)
+    })
+    expect(result).toEqual({ ok: true, data: { ref: 'r4' } })
+    expect(targets).toEqual([{ x: 10, y: 20, w: 100, h: 50, label: 'r4' }])
+    const firstInput = cdp.calls.findIndex(c => c.method === 'Input.dispatchMouseEvent')
+    expect(callsAtTarget).toBe(firstInput)
+  })
+
+  it('reports the type rect and still types when the field has no box', async () => {
+    const cdp = fakeCdp()
+    const targets: Array<{ x: number; y: number; w: number; h: number; label: string } | null> = []
+    expect((await type(cdp, new Map(), { selector: '#q', text: 'hi' }, t => targets.push(t))).ok).toBe(true)
+    expect(targets).toEqual([{ x: 10, y: 20, w: 100, h: 50, label: 'Meow' }])
+
+    cdp.responses['DOM.getBoxModel'] = { model: { content: [0, 0, 0, 0, 0, 0, 0, 0], width: 0, height: 0 } }
+    targets.length = 0
+    expect((await type(cdp, new Map(), { selector: '#q', text: 'hi' }, t => targets.push(t))).ok).toBe(true)
+    expect(targets).toEqual([null])
+    expect(cdp.calls.some(c => c.method === 'Input.insertText')).toBe(true)
   })
 })
 

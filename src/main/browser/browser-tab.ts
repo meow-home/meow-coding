@@ -3,6 +3,7 @@ import type {
   BrowserCommandName, BrowserCommandResult, BrowserReadMode, BrowserTabControl, BrowserTabInfo
 } from '../../shared/browser-types'
 import * as commands from './cdp-commands'
+import type { TargetRect } from './cdp-commands'
 
 export interface CdpClient {
   send<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>
@@ -314,7 +315,7 @@ export class BrowserTab {
     if (this.control === 'user' || this.control === 'approval') return
     this.cancelLease()
     this.control = 'user'
-    this.host.setShield({ visible: false })
+    this.setShieldSafe({ visible: false })
     this.notifyControlChanged()
   }
 
@@ -335,7 +336,7 @@ export class BrowserTab {
     if (this.control !== 'agent') return
     this.cancelLease()
     this.control = 'idle'
-    this.host.setShield({ visible: false })
+    this.setShieldSafe({ visible: false })
     this.notifyControlChanged()
   }
 
@@ -381,9 +382,9 @@ export class BrowserTab {
           snapshotDir: this.deps.snapshotDir
         })
       case 'click':
-        return commands.click(this.host.cdp, this.refs, params)
+        return commands.click(this.host.cdp, this.refs, params, target => this.showShieldTarget(target))
       case 'type':
-        return commands.type(this.host.cdp, this.refs, params)
+        return commands.type(this.host.cdp, this.refs, params, target => this.showShieldTarget(target))
       case 'select':
         return commands.select(this.host.cdp, this.refs, params)
       case 'scroll':
@@ -484,11 +485,26 @@ export class BrowserTab {
     }
   }
 
+  /** The shield's target ring, drawn before the input is dispatched. */
+  private showShieldTarget(target: TargetRect | null): void {
+    if (this.control !== 'agent' && this.control !== 'approval') return
+    this.setShieldSafe(target ? { visible: true, target } : { visible: true })
+  }
+
+  /** Decoration never fails a command: a shield problem stays invisible to the agent. */
+  private setShieldSafe(state: { visible: boolean; target?: TargetRect }): void {
+    try {
+      this.host.setShield(state)
+    } catch {
+      // The page and the command continue without the shield.
+    }
+  }
+
   private acquire(): void {
     this.cancelLease()
     const changed = this.control !== 'agent'
     this.control = 'agent'
-    this.host.setShield({ visible: true })
+    this.setShieldSafe({ visible: true })
     if (changed) this.notifyControlChanged()
   }
 
@@ -514,7 +530,7 @@ export class BrowserTab {
     this.leaseTimer = null
     if (this.control !== 'agent') return
     this.control = 'idle'
-    this.host.setShield({ visible: false })
+    this.setShieldSafe({ visible: false })
     this.notifyControlChanged()
   }
 
