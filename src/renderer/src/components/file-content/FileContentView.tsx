@@ -1,7 +1,10 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Save, Check } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import type { ReactNode } from 'react'
+import { Save, Check, FoldVertical, UnfoldVertical } from 'lucide-react'
 import CodeMirror, { Extension } from '@uiw/react-codemirror'
 import { oneDark } from '@codemirror/theme-one-dark'
+import { foldAll, unfoldAll } from '@codemirror/language'
+import type { EditorView } from '@codemirror/view'
 import { javascript } from '@codemirror/lang-javascript'
 import { json } from '@codemirror/lang-json'
 import { html } from '@codemirror/lang-html'
@@ -20,7 +23,19 @@ interface Props {
   active?: boolean
   /** The host shows the unsaved state and file actions itself (the Files panel's tab and menu). */
   hideFileActions?: boolean
+  /** Panel-specific buttons appended after the file actions (the Files panel's tree toggle and menu). */
+  toolbarActions?: ReactNode
   onDirtyChange?: (dirty: boolean) => void
+}
+
+// The Files panel labels a file by its path inside the project; the popup window
+// has no project root and keeps the absolute path.
+function relativePath(root: string, absPath: string): string {
+  const toPosix = (p: string): string => p.replace(/\\/g, '/').replace(/\/+$/, '')
+  const base = toPosix(root)
+  const target = toPosix(absPath)
+  if (target === base) return baseName(target)
+  return target.startsWith(`${base}/`) ? target.slice(base.length + 1) : absPath
 }
 
 function getLanguageExtension(ext: string): Extension[] {
@@ -53,7 +68,7 @@ function getLanguageExtension(ext: string): Extension[] {
 
 // Toolbar + body of the file viewer, shared by the popup FileViewer window and
 // the Files overlay tab. The host supplies the flex container.
-export default function FileContentView({ path: filePath, root, active = true, hideFileActions = false, onDirtyChange }: Props) {
+export default function FileContentView({ path: filePath, root, active = true, hideFileActions = false, toolbarActions, onDirtyChange }: Props) {
   const [content, setContent] = useState<string | null>(null)
   const [editedContent, setEditedContent] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -61,10 +76,12 @@ export default function FileContentView({ path: filePath, root, active = true, h
   const [image, setImage] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [justSaved, setJustSaved] = useState(false)
+  const editorRef = useRef<EditorView | null>(null)
 
   const ext = filePath.toLowerCase().split('.').pop() ?? ''
   const isImage = imageMimeType(ext) !== null
   const isMarkdown = !isImage && (ext === 'md' || ext === 'markdown')
+  const showsEditor = !isImage && !error && content !== null && !(isMarkdown && !showRawMd)
 
   const extensions = useMemo(() => getLanguageExtension(ext), [ext])
 
@@ -141,13 +158,35 @@ export default function FileContentView({ path: filePath, root, active = true, h
 
   return (
     <>
-      <div className="viewer-toolbar">
-        <span className="viewer-path" title={filePath}>{filePath}</span>
+      <div className={hideFileActions ? 'viewer-toolbar files-bar' : 'viewer-toolbar'}>
+        <span className="viewer-path" title={filePath}>
+          {hideFileActions ? relativePath(root, filePath) : filePath}
+        </span>
         <div className="viewer-actions">
           {isMarkdown && (
             <button className="btn small" onClick={() => setShowRawMd(v => !v)}>
               {showRawMd ? 'Markdown Preview' : 'Edit Source'}
             </button>
+          )}
+          {hideFileActions && showsEditor && (
+            <>
+              <button
+                className="icon-btn"
+                title="Fold all"
+                aria-label="Fold all"
+                onClick={() => { if (editorRef.current) foldAll(editorRef.current) }}
+              >
+                <FoldVertical size={14} aria-hidden="true" />
+              </button>
+              <button
+                className="icon-btn"
+                title="Unfold all"
+                aria-label="Unfold all"
+                onClick={() => { if (editorRef.current) unfoldAll(editorRef.current) }}
+              >
+                <UnfoldVertical size={14} aria-hidden="true" />
+              </button>
+            </>
           )}
           {!hideFileActions && !isImage && (
             <button
@@ -176,6 +215,7 @@ export default function FileContentView({ path: filePath, root, active = true, h
           {!hideFileActions && !isImage && (
             <button className="btn small" onClick={() => void copy()} disabled={editedContent === null}>Copy</button>
           )}
+          {toolbarActions}
         </div>
       </div>
       
@@ -205,6 +245,7 @@ export default function FileContentView({ path: filePath, root, active = true, h
             height="100%"
             theme={oneDark}
             extensions={extensions}
+            onCreateEditor={view => { editorRef.current = view }}
             onChange={(val) => setEditedContent(val)}
             basicSetup={{
               lineNumbers: true,

@@ -3,7 +3,7 @@ import { beginOcclusion, endOcclusion } from '../common/useBrowserOcclusion'
 import PanelHeader from '../common/PanelHeader'
 import {
   ArrowUpRight, CircleX, Code, Copy, FileText, Folder,
-  ListCollapse, MoreHorizontal, RefreshCw, Search
+  ListCollapse, MoreHorizontal, PanelRightClose, PanelRightOpen, RefreshCw, Search
 } from 'lucide-react'
 import BaseDropdown from '../common/BaseDropdown'
 import ConfirmDialog from '../ConfirmDialog'
@@ -18,6 +18,7 @@ export const FILES_SIDE_MIN_WIDTH = 160
 // The editor side keeps at least this much room when the tree is dragged wider.
 export const FILES_MAIN_MIN_WIDTH = 160
 const SIDE_WIDTH_KEY = 'meow.files.sideWidth'
+const TREE_HIDDEN_KEY = 'meow.files.treeHidden'
 
 function loadSideWidth(): number | null {
   try {
@@ -32,6 +33,20 @@ function saveSideWidth(width: number | null): void {
   try {
     if (width === null) localStorage.removeItem(SIDE_WIDTH_KEY)
     else localStorage.setItem(SIDE_WIDTH_KEY, String(Math.round(width)))
+  } catch {}
+}
+
+function loadTreeHidden(): boolean {
+  try {
+    return localStorage.getItem(TREE_HIDDEN_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function saveTreeHidden(hidden: boolean): void {
+  try {
+    localStorage.setItem(TREE_HIDDEN_KEY, hidden ? '1' : '0')
   } catch {}
 }
 
@@ -66,6 +81,9 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
   const sideRef = useRef<HTMLDivElement>(null)
   // null = the CSS default (42% docked, 20rem expanded) until the user drags the splitter.
   const [sideWidth, setSideWidth] = useState<number | null>(loadSideWidth)
+  const [treeHidden, setTreeHidden] = useState(loadTreeHidden)
+
+  useEffect(() => { saveTreeHidden(treeHidden) }, [treeHidden])
 
   const startSideDrag = useCallback((e: React.MouseEvent) => {
     const side = sideRef.current
@@ -77,7 +95,8 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
     let latest: number | null = null
     const onMove = (ev: MouseEvent) => {
       const max = Math.max(FILES_SIDE_MIN_WIDTH, body.getBoundingClientRect().width - FILES_MAIN_MIN_WIDTH)
-      latest = Math.min(max, Math.max(FILES_SIDE_MIN_WIDTH, startWidth + ev.clientX - startX))
+      // The tree sits on the right, so dragging left (a smaller clientX) widens it.
+      latest = Math.min(max, Math.max(FILES_SIDE_MIN_WIDTH, startWidth + startX - ev.clientX))
       setSideWidth(latest)
     }
     const onUp = () => {
@@ -168,6 +187,87 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
     return () => document.removeEventListener('keydown', onKey)
   }, [query, onClose, pendingClose, dirtyPaths])
 
+  // The per-file bar's right side: tree toggle and the Files menu. It renders in
+  // the active tab's bar, and in the empty bar when no file is open.
+  const barActions = (
+    <>
+      <button
+        className={`icon-btn${treeHidden ? '' : ' active'}`}
+        title="Toggle file tree"
+        aria-label="Toggle file tree"
+        aria-pressed={!treeHidden}
+        onClick={() => setTreeHidden(v => !v)}
+      >
+        {treeHidden
+          ? <PanelRightOpen size={14} aria-hidden="true" />
+          : <PanelRightClose size={14} aria-hidden="true" />}
+      </button>
+      <div className="pane-menu">
+        <BaseDropdown
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
+          placement="bottom-end"
+          menuClassName="sidebar-menu-dropdown pane-menu-dropdown files-menu-dropdown"
+          trigger={(
+            <button
+              className="icon-btn"
+              title="Files menu"
+              aria-label="Files menu"
+            >
+              <MoreHorizontal size={14} aria-hidden="true" />
+            </button>
+          )}
+        >
+          <button className="menu-item" onClick={() => { setMenuOpen(false); filterRef.current?.focus() }}>
+            <Search size={16} aria-hidden="true" />
+            Focus filter
+          </button>
+          <button className="menu-item" onClick={() => { setMenuOpen(false); setReloadToken(v => v + 1) }}>
+            <RefreshCw size={16} aria-hidden="true" />
+            Refresh
+          </button>
+          <button className="menu-item" onClick={() => { setMenuOpen(false); setCollapseToken(v => v + 1) }}>
+            <ListCollapse size={16} aria-hidden="true" />
+            Collapse all
+          </button>
+          <button
+            className="menu-item"
+            disabled={tabs.length === 0}
+            onClick={() => { setMenuOpen(false); requestClose(tabs.map(t => t.path)) }}
+          >
+            <CircleX size={16} aria-hidden="true" />
+            Close all tabs
+          </button>
+          <div className="menu-sep" aria-hidden="true" />
+          <button
+            className="menu-item"
+            disabled={!activeTab}
+            onClick={() => { setMenuOpen(false); if (activeTab) void navigator.clipboard.writeText(activeTab) }}
+          >
+            <Copy size={16} aria-hidden="true" />
+            Copy path
+          </button>
+          <button
+            className="menu-item"
+            disabled={!activeTab}
+            onClick={() => { setMenuOpen(false); if (activeTab) void window.api.showFileInFolder(activeTab) }}
+          >
+            <ArrowUpRight size={16} aria-hidden="true" />
+            Reveal in Folder
+          </button>
+          <button
+            className="menu-item"
+            disabled={!activeTab}
+            onClick={() => { setMenuOpen(false); if (activeTab) void window.api.openFileInEditor(activeTab) }}
+          >
+            <Code size={16} aria-hidden="true" />
+            Open in VS Code
+          </button>
+        </BaseDropdown>
+      </div>
+    </>
+  )
+
   return (
     <section
       className={`files-overlay${full ? ' full' : ' docked'}`}
@@ -196,108 +296,15 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
           closeLabel: `Close ${tab.name}`,
           onClose: () => requestClose([tab.path])
         }))}
-        actions={(
-          <div className="pane-menu">
-            <BaseDropdown
-              open={menuOpen}
-              onOpenChange={setMenuOpen}
-              placement="bottom-end"
-              menuClassName="sidebar-menu-dropdown pane-menu-dropdown files-menu-dropdown"
-              trigger={(
-                <button
-                  className="icon-btn"
-                  title="Files menu"
-                  aria-label="Files menu"
-                >
-                  <MoreHorizontal size={14} aria-hidden="true" />
-                </button>
-              )}
-            >
-              <button className="menu-item" onClick={() => { setMenuOpen(false); filterRef.current?.focus() }}>
-                <Search size={16} aria-hidden="true" />
-                Focus filter
-              </button>
-              <button className="menu-item" onClick={() => { setMenuOpen(false); setReloadToken(v => v + 1) }}>
-                <RefreshCw size={16} aria-hidden="true" />
-                Refresh
-              </button>
-              <button className="menu-item" onClick={() => { setMenuOpen(false); setCollapseToken(v => v + 1) }}>
-                <ListCollapse size={16} aria-hidden="true" />
-                Collapse all
-              </button>
-              <button
-                className="menu-item"
-                disabled={tabs.length === 0}
-                onClick={() => { setMenuOpen(false); requestClose(tabs.map(t => t.path)) }}
-              >
-                <CircleX size={16} aria-hidden="true" />
-                Close all tabs
-              </button>
-              <div className="menu-sep" aria-hidden="true" />
-              <button
-                className="menu-item"
-                disabled={!activeTab}
-                onClick={() => { setMenuOpen(false); if (activeTab) void navigator.clipboard.writeText(activeTab) }}
-              >
-                <Copy size={16} aria-hidden="true" />
-                Copy path
-              </button>
-              <button
-                className="menu-item"
-                disabled={!activeTab}
-                onClick={() => { setMenuOpen(false); if (activeTab) void window.api.showFileInFolder(activeTab) }}
-              >
-                <ArrowUpRight size={16} aria-hidden="true" />
-                Reveal in Folder
-              </button>
-              <button
-                className="menu-item"
-                disabled={!activeTab}
-                onClick={() => { setMenuOpen(false); if (activeTab) void window.api.openFileInEditor(activeTab) }}
-              >
-                <Code size={16} aria-hidden="true" />
-                Open in VS Code
-              </button>
-            </BaseDropdown>
-          </div>
-        )}
       />
       <div className="files-body" ref={bodyRef}>
-        <div
-          className="files-side"
-          ref={sideRef}
-          style={sideWidth !== null ? { flexBasis: sideWidth, maxWidth: `calc(100% - ${FILES_MAIN_MIN_WIDTH}px)` } : undefined}
-        >
-          <div
-            className="files-side-resizer"
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize file tree"
-            title="Drag to resize, double-click to reset"
-            onMouseDown={startSideDrag}
-            onDoubleClick={resetSideWidth}
-          />
-          <div className="files-filter">
-            <Search size={13} aria-hidden="true" />
-            <input
-              ref={filterRef}
-              className="files-filter-input"
-              placeholder="Filter files... (? for contents)"
-              value={query}
-              spellCheck={false}
-              onChange={e => setQuery(e.target.value)}
-            />
-          </div>
-          <FilesTree
-            projectPath={projectPath}
-            query={query}
-            activePath={activeTab}
-            onOpenFile={openFile}
-            reloadToken={reloadToken}
-            collapseToken={collapseToken}
-          />
-        </div>
         <div className="files-main">
+          {!activeTab && (
+            <div className="viewer-toolbar files-bar">
+              <span className="viewer-path" />
+              <div className="viewer-actions">{barActions}</div>
+            </div>
+          )}
           <div className="files-content">
             {/* Every open file stays mounted: unmounting on a tab switch would drop unsaved edits. */}
             {tabs.map(tab => (
@@ -307,6 +314,7 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
                   root={projectPath}
                   active={tab.path === activeTab}
                   hideFileActions
+                  toolbarActions={tab.path === activeTab ? barActions : undefined}
                   onDirtyChange={dirty => handleDirtyChange(tab.path, dirty)}
                 />
               </div>
@@ -322,6 +330,42 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
             )}
           </div>
         </div>
+        {!treeHidden && (
+          <div
+            className="files-side"
+            ref={sideRef}
+            style={sideWidth !== null ? { flexBasis: sideWidth, maxWidth: `calc(100% - ${FILES_MAIN_MIN_WIDTH}px)` } : undefined}
+          >
+            <div
+              className="files-side-resizer"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize file tree"
+              title="Drag to resize, double-click to reset"
+              onMouseDown={startSideDrag}
+              onDoubleClick={resetSideWidth}
+            />
+            <div className="files-filter">
+              <Search size={13} aria-hidden="true" />
+              <input
+                ref={filterRef}
+                className="files-filter-input"
+                placeholder="Filter, or ? to search in files"
+                value={query}
+                spellCheck={false}
+                onChange={e => setQuery(e.target.value)}
+              />
+            </div>
+            <FilesTree
+              projectPath={projectPath}
+              query={query}
+              activePath={activeTab}
+              onOpenFile={openFile}
+              reloadToken={reloadToken}
+              collapseToken={collapseToken}
+            />
+          </div>
+        )}
       </div>
       {pendingClose && (
         <ConfirmDialog

@@ -41,13 +41,18 @@ Overlays: `SettingsDialog` (centered modal size xl tabbed),
 
 A pane's `⋮` menu offers **Files**, which opens an in-app explorer docked on the right of the pane area — the
 slot the old right panel used (never an OS window, so the title bar, sidebar and status bar stay visible). It
-holds a filterable, lazily loaded directory tree on the left — dotfiles and `node_modules` are listed — and
-open files in tabs on the right, next to a header with focus-filter, `⋮` (Refresh, Collapse all, Close all
-tabs, Copy path, Reveal in Folder, Open in VS Code), maximize/restore and close. Typing in the filter narrows
-the tree by name; a `?` prefix searches file contents instead and lists `path:line` hits. Docked, the panel is
-resizable by its left edge (320–900px, default 420px, persisted in `localStorage` as `meow.files.width`); `⤢`
-expands it over the whole pane area and restore docks it again — the tree, tabs and open files survive both
-directions. The panel is a bordered, rounded card (`--hairline` + `--radius-lg`) in both modes, sitting a 4px
+reads like a code viewer: open files are pill tabs on the header (with maximize/restore and close on the
+right), the editor sits below them on the left, and a filterable, lazily loaded directory tree is the right
+column — dotfiles and `node_modules` are listed. A per-file bar under the tabs shows the open file's path
+relative to the project and, on the right, its Markdown toggle, **Fold all** / **Unfold all** (code files
+only), a **Toggle file tree** button and the `⋮` Files menu (Focus filter, Refresh, Collapse all, Close all
+tabs, Copy path, Reveal in Folder, Open in VS Code); with no open file the bar still renders with an empty
+path, so the toggle and menu stay reachable, and hiding the tree persists in `localStorage` as
+`meow.files.treeHidden`. In the dark theme the editor and its gutter paint `--bg-chat` instead of One Dark's
+own background, so the code area reads as part of the panel. Typing in the rounded filter narrows the tree by
+name; a `?` prefix searches file contents instead and lists `path:line` hits. Docked, the panel is resizable
+by its left edge (320–900px, default 420px, persisted in `localStorage` as `meow.files.width`); `⤢` expands it
+over the whole pane area and restore docks it again — the tree, tabs and open files survive both directions. The panel is a bordered, rounded card (`--hairline` + `--radius-lg`) in both modes, sitting a 4px
 gap away from the pane edges (all four sides when docked) so the radius is never clipped; that gap is painted
 with the chat surface (`--bg-chat`), not body's radial gradient, so the panel is framed like the chat pane. `Esc` and `✕` close it, and switching to another project closes it.
 
@@ -154,8 +159,8 @@ is dismissible (no install button, "Later" only).
 | `RightPanelTree.tsx` | Lazy directory tree; auto-expands the project root; background refresh (**parked**) |
 | `RightPanelArtifacts.tsx` | `.md` files agents created/edited (**parked**) |
 | `FileViewer.tsx` | Popup file viewer: `PopupTitleBar` + the shared `file-content/FileContentView.tsx` |
-| `file-content/FileContentView.tsx` | Toolbar (Raw/Highlighted toggle, Open in VS Code, Copy) + body of a file (Shiki-highlighted code, rendered markdown, or plain `<pre>`), shared by the popup window and the Files overlay tab |
-| `files/FilesOverlay.tsx` | The Files panel: header (focus filter, `⋮` menu, maximize/restore, close), tree side (drag the `.files-side-resizer` splitter on its right edge to resize it, ≥ `FILES_SIDE_MIN_WIDTH` 160px while leaving the editor ≥ `FILES_MAIN_MIN_WIDTH` 160px; the width persists in `localStorage` `meow.files.sideWidth` and applies to both modes, double-click resets to the CSS default of 42% docked / 20rem expanded), open-file tabs and the active tab's `FileContentView`; docked on the right with a drag-to-resize left edge, or expanded over the pane area (same mounted instance, so tabs/tree survive the toggle). Both modes are elevated by `--shadow-panel`, whose blur is tuned to fade out inside the panel's 0.333333rem offset from `.main` (expanded mode layers it on top of the `--bg-chat` backdrop ring that hides the pane chrome) |
+| `file-content/FileContentView.tsx` | Toolbar (Raw/Highlighted toggle, Open in VS Code, Copy) + body of a file (CodeMirror editor, rendered markdown, or an image), shared by the popup window and the Files overlay tab. With `hideFileActions` the toolbar is the panel's per-file bar: project-relative path, Fold all / Unfold all and the host's `toolbarActions` |
+| `files/FilesOverlay.tsx` | The Files panel: header with pill tabs (`.files-open-tab`) and maximize/restore/close, a per-file bar (`.files-bar`) with the project-relative path and the file actions plus Toggle file tree / the `⋮` Files menu (the bar also renders, empty, with no open file), the active tab's `FileContentView` on the left and the tree side on the right (drag the `.files-side-resizer` splitter on its left edge — dragging left widens it — ≥ `FILES_SIDE_MIN_WIDTH` 160px while leaving the editor ≥ `FILES_MAIN_MIN_WIDTH` 160px; the width persists in `localStorage` `meow.files.sideWidth` and applies to both modes, double-click resets to the CSS default of 42% docked / 20rem expanded; hiding it persists in `meow.files.treeHidden`); docked on the right with a drag-to-resize left edge, or expanded over the pane area (same mounted instance, so tabs/tree survive the toggle). Both modes are elevated by `--shadow-panel`, whose blur is tuned to fade out inside the panel's 0.333333rem offset from `.main` (expanded mode layers it on top of the `--bg-chat` backdrop ring that hides the pane chrome) |
 | `files/FilesTree.tsx` | Lazily loaded tree of the overlay; lists dotfiles and `node_modules`; `?`-prefixed filter searches file contents and lists `path:line` hits; refreshes on context changes |
 | `processes/ProcessesOverlay.tsx` | The Processes overlay (`ProcessesOverlay` default export + `PROCESSES_MIN_WIDTH`/`MAX`/`DEFAULT`): per-agent background shells as header tabs (Kill square on running shells) plus a `Monitors (n)` tab, live streamed output of the selected shell below; reuses the Files overlay's `.files-overlay` layout and CSS variables with `processes-*` classes |
 | `files/file-path.ts` | `baseName` / `joinProjectPath` — renderer-side path helpers (the renderer must not import `node:path`) |

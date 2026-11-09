@@ -3901,6 +3901,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   gap: 0.75rem;
   background: var(--bg-sidebar);
   border-right: 0.083333rem solid var(--hairline);
+  border-left: none;
   font-family: inherit;
 }
 .subagent-hero-card {
@@ -4141,13 +4142,13 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .files-body { flex: 1; min-height: 0; display: flex; }
 .files-side {
   flex: 0 0 20rem; min-width: 0; display: flex; flex-direction: column; position: relative;
-  border-right: 0.083333rem solid var(--hairline); background: var(--bg-sidebar);
+  border-left: 0.083333rem solid var(--hairline); background: var(--bg-sidebar);
   border-radius: 0;
 }
 .files-filter {
   display: flex; align-items: center; gap: 0.5rem; flex: 0 0 auto;
   margin: 0.666667rem 0.666667rem 0.333333rem; padding: 0 0.5rem;
-  background: var(--bg-input); border: 0.083333rem solid var(--hairline); border-radius: var(--radius);
+  background: var(--bg-input); border: 0.083333rem solid var(--hairline); border-radius: var(--radius-lg);
   color: var(--text-faint);
 }
 .files-filter-input {
@@ -4165,12 +4166,29 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   color: var(--text-faint); font-family: var(--font-mono); font-size: var(--fs-xs);
 }
 .files-side-resizer {
-  position: absolute; right: -0.25rem; top: 0; bottom: 0; width: 0.5rem;
+  position: absolute; left: -0.25rem; top: 0; bottom: 0; width: 0.5rem;
   cursor: col-resize; z-index: 5; border-radius: 0;
 }
 .files-side-resizer:hover { background: var(--accent-dim); }
 body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-select: none; }
 .files-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+/* Files tabs are pills; every other panel keeps the shared square-ish tab. */
+.files-open-tab { border-radius: 999px; }
+/* The per-file bar: the popup's `.viewer-toolbar` on one line under the tabs,
+   with the project-relative path and the panel's own actions on the right. */
+.files-bar {
+  flex: 0 0 auto; flex-wrap: nowrap; gap: 0.5rem; padding: 0.333333rem 0.5rem 0.333333rem 0.75rem;
+  background: var(--bg-chat); border-bottom: 0.083333rem solid var(--hairline);
+}
+.files-bar .viewer-path {
+  flex: 1 1 auto; min-width: 0; font-size: var(--fs-xs); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.files-bar .viewer-actions { flex: 0 0 auto; align-items: center; gap: 0.166667rem; }
+/* One Dark paints its own editor and gutter backgrounds; inside the panel they
+   take the chat surface so the editor reads as part of the card. */
+:root:not([data-theme="light"]) .files-tab-pane .cm-editor,
+:root:not([data-theme="light"]) .files-tab-pane .cm-gutters { background: var(--bg-chat); }
 /* 30px bar, 22px chips: the 4px padding insets the tabs from every edge and the
    gap separates them, so no hairline divider is needed between tabs. */
 .files-content { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 0; }
