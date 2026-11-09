@@ -91,6 +91,12 @@ Targets:
 | Linux | `AppImage` (x64), `deb` (x64) | category Development, icons from `build/icons` |
 | macOS | `dmg`, `zip` (x64 + arm64) | category `public.app-category.developer-tools` |
 
+App icons: `meow-coding-logo.svg` is the source (a light tile with a flat cat-terminal mark). Every icon
+PNG is rasterized from it at its own size, not downscaled from a large PNG: `meow-coding-logo.png`
+(1024px, the `icon` for Windows and macOS), `build/icons/<n>x<n>.png` (16–512px, Linux and the dev tray),
+`resources/tray-icon.png` (32px) and `src/renderer/src/assets/logo-mark.png` (64px, the title bar). Change
+the SVG, then regenerate all of them together. Rejected directions are kept in `docs/design/logo-directions/`.
+
 NSIS is not one-click: the user may change the install directory, and desktop + Start Menu shortcuts
 are created.
 

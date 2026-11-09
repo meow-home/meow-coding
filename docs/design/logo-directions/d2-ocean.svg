@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg-ocean" x1="0" y1="0" x2="1" y2="1"><stop offset="0.00" stop-color="#5aa8ff"/><stop offset="1.00" stop-color="#2856d6"/></linearGradient>
+    <linearGradient id="body-ocean" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#363c46"/><stop offset="1" stop-color="#1b1e24"/></linearGradient>
+    <linearGradient id="earL-ocean" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cc0ff"/><stop offset="1" stop-color="#4aa3ff"/></linearGradient>
+    <linearGradient id="earR-ocean" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffc27a"/><stop offset="1" stop-color="#ff9f2e"/></linearGradient>
+    <filter id="sh-ocean" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#000" flood-opacity="0.32"/></filter>
+    <filter id="glow-ocean" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#bg-ocean)"/>
+  <rect x="1" y="1" width="126" height="126" rx="27" fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="2"/>
+  <g stroke="#ffffff" stroke-opacity="0.6" stroke-width="2.6" stroke-linecap="round" fill="none">
+    <path d="M17 75 L5 70"/><path d="M17 83 L4 83"/><path d="M17 91 L5 96"/>
+    <path d="M111 75 L123 70"/><path d="M111 83 L124 83"/><path d="M111 91 L123 96"/>
+  </g>
+  <g filter="url(#sh-ocean)">
+    <path d="M20 58 L25.5 19 Q26.6 12.5 31.6 16.6 L53 35 H75 L96.4 16.6 Q101.4 12.5 102.5 19 L108 58 V95 Q108 108 95 108 H33 Q20 108 20 95 Z" fill="url(#body-ocean)"/>
+  </g>
+  <path d="M20 58 L25.5 19 Q26.6 12.5 31.6 16.6 L53 35 H75 L96.4 16.6 Q101.4 12.5 102.5 19 L108 58 V95 Q108 108 95 108 H33 Q20 108 20 95 Z" fill="none" stroke="#ffffff" stroke-opacity="0.1" stroke-width="1.5"/>
+  <path d="M29.5 26 L31 45 L46 37.5 Z" fill="url(#earL-ocean)"/>
+  <path d="M98.5 26 L97 45 L82 37.5 Z" fill="url(#earR-ocean)"/>
+  <circle cx="35" cy="50" r="2.8" fill="#ff6159"/>
+  <circle cx="44" cy="50" r="2.8" fill="#ffbd2e"/>
+  <circle cx="53" cy="50" r="2.8" fill="#28c840"/>
+  <rect x="29" y="58" width="70" height="41" rx="9" fill="#101216"/>
+  <rect x="29" y="58" width="70" height="41" rx="9" fill="none" stroke="#ffffff" stroke-opacity="0.06" stroke-width="1"/>
+  <path d="M41 68.5 L53 78.5 L41 88.5" fill="none" stroke="#4aa3ff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow-ocean)"/>
+  <rect x="59" y="83" width="22" height="7" rx="3.5" fill="#ff9f2e" filter="url(#glow-ocean)"/>
+</svg>
