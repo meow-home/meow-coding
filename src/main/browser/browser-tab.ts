@@ -102,7 +102,7 @@ export class BrowserTab {
   private readonly refs = new Map<string, number>()
   private readonly consoleBuffer: BufferedConsoleEntry[] = []
   private readonly networkBuffer: BufferedNetworkEntry[] = []
-  private readonly pendingRequests = new Map<string, { method: string; url: string }>()
+  private readonly pendingRequests = new Map<string, { method: string; url: string; held: boolean }>()
   private readonly dialogNotes: string[] = []
   private readonly resumeNotes: string[] = []
   private readonly holdWaiters = new Set<() => void>()
@@ -470,6 +470,10 @@ export class BrowserTab {
         break
       }
       case 'Page.javascriptDialogOpening': {
+        // The agent's dialogs are auto-answered so a page cannot block a turn. In
+        // user/idle the dialog belongs to the user: Electron shows its own native
+        // alert/confirm and nothing is recorded for the agent.
+        if (this.control !== 'agent' && this.control !== 'approval') break
         const type = String(p.type ?? 'alert')
         const message = String(p.message ?? '')
         const accept = type === 'alert' || type === 'beforeunload'
@@ -524,9 +528,13 @@ export class BrowserTab {
   }
 
   private rememberRequest(requestId: string, data: { method: string; url: string }): void {
+    // A request that starts while the user holds the tab stays private even if its
+    // response arrives after hand-back. Redirects reuse the id: keep the first mark.
+    const previous = this.pendingRequests.get(requestId)
+    const held = previous?.held === true || this.control === 'user'
     // Redirects reuse the id; re-inserting keeps the map in arrival order.
     this.pendingRequests.delete(requestId)
-    this.pendingRequests.set(requestId, data)
+    this.pendingRequests.set(requestId, { ...data, held })
     while (this.pendingRequests.size > MAX_PENDING_REQUESTS) {
       const oldest = this.pendingRequests.keys().next().value
       if (oldest === undefined) break
@@ -541,8 +549,14 @@ export class BrowserTab {
     }
   }
 
-  private pushNetwork(entry: NetworkEntry): void {
-    this.networkBuffer.push({ ...entry, ...(this.control === 'user' ? { held: true } : {}) })
+  private pushNetwork(entry: NetworkEntry & { held?: boolean }): void {
+    const held = entry.held === true || this.control === 'user'
+    this.networkBuffer.push({
+      method: entry.method,
+      url: entry.url,
+      status: entry.status,
+      ...(held ? { held: true } : {})
+    })
     if (this.networkBuffer.length > LOG_BUFFER_ENTRIES) {
       this.networkBuffer.splice(0, this.networkBuffer.length - LOG_BUFFER_ENTRIES)
     }

@@ -204,7 +204,13 @@ Every session gets its own tabs inside the app window and the agent drives them 
   `host.setShield` is called on every transition but the shield view does not exist yet.
 - **Private logs during a hold**: console and network entries captured while `control === 'user'` are
   marked; the agent's `browser_console` / `browser_network` exclude them, including after hand-back,
-  while the user's drawer reads the full buffers.
+  while the user's drawer reads the full buffers. A request is marked from the moment it starts, so a
+  sign-in POST sent during a hold stays private even when its response arrives after hand-back.
+- **Dialogs** (`browser-tab.ts`): while the agent owns the tab, `alert`/`beforeunload` are accepted and
+  `confirm` is dismissed, and the next tool output names the dialog. While the user owns it, Electron's
+  native `alert`/`confirm` stays for the user and nothing is recorded for the agent. Electron shows no
+  dialog and emits no CDP event for `prompt()`, so a page's `prompt()` call never returns (navigate
+  away to recover).
 - **Limits**: 8 tabs per session, 8 per app (spike S4: ~123 MB of working set per tab).
 - **Not implemented yet**: site approval (the `approval` state is reserved), password-field refusal,
   `browser_handoff`, the panel UI, the shield view and the occlusion freeze. Treat the built-in browser

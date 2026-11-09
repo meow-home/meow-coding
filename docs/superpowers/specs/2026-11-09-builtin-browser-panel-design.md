@@ -162,8 +162,11 @@ reattaches once, then returns an error.
 - A navigation, or hand-back after a user hold, clears the ref map. A stale ref returns the existing error
   `snapshot stale: re-read the page (ref …)`.
 - Commands on one tab run through a FIFO queue, because subagents share their parent's tabs.
-- `Page.javascriptDialogOpening`: `alert` and `beforeunload` are accepted, `confirm` and `prompt` are dismissed; the
-  next tool output for that tab reports the dialog's type and text. No native dialog can block a turn.
+- `Page.javascriptDialogOpening`: while the agent owns the tab (`agent`/`approval`), `alert` and `beforeunload` are
+  accepted, `confirm` is dismissed, and the next tool output reports the dialog's type and text. While the user owns it
+  (`user`/`idle`), Electron's native `alert`/`confirm` dialog is left for the user to answer and nothing is recorded
+  for the agent. Electron shows no dialog and emits no CDP event for `prompt()`, so a page's `prompt()` call never
+  returns; navigating away recovers the tab.
 - `render-process-gone` marks the tab `crashed`. Commands return an error until reload; the panel shows a reload
   action.
 

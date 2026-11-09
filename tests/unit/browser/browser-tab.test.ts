@@ -326,6 +326,8 @@ describe('BrowserTab dialogs', () => {
     const cdp = new FakeCdp()
     cdp.responses['Runtime.evaluate'] = { result: { value: true } }
     const tab = makeTab(cdp)
+    // The agent owns the tab while its command runs, so its dialogs are auto-answered.
+    await tab.run('scroll', { direction: 'down' })
     cdp.emit('Page.javascriptDialogOpening', { type: 'alert', message: 'hi' })
     cdp.emit('Page.javascriptDialogOpening', { type: 'confirm', message: 'sure?' })
     cdp.emit('Page.javascriptDialogOpening', { type: 'prompt', message: 'name?' })
@@ -346,6 +348,29 @@ describe('BrowserTab dialogs', () => {
 
     const next = await tab.run('scroll', { direction: 'down' })
     expect((next as { data?: { notice?: string } }).data?.notice).toBeUndefined()
+    tab.destroy()
+  })
+
+  it('leaves dialogs to the user when the agent does not own the tab', async () => {
+    const cdp = new FakeCdp()
+    cdp.responses['Runtime.evaluate'] = { result: { value: true } }
+    const tab = makeTab(cdp)
+    // idle: Electron shows its own dialog, nothing is auto-answered or noted.
+    cdp.emit('Page.javascriptDialogOpening', { type: 'confirm', message: 'sure?' })
+    await tick()
+    expect(cdp.calls.filter(c => c.method === 'Page.handleJavaScriptDialog')).toEqual([])
+    expect((await tab.run('scroll', { direction: 'down' }) as { data?: { notice?: string } }).data?.notice)
+      .toBeUndefined()
+
+    // user hold: same, the dialog stays the user's.
+    tab.takeOver()
+    cdp.emit('Page.javascriptDialogOpening', { type: 'alert', message: 'hi' })
+    await tick()
+    expect(cdp.calls.filter(c => c.method === 'Page.handleJavaScriptDialog')).toEqual([])
+    tab.handBack()
+    const resumed = await tab.run('scroll', { direction: 'down' })
+    expect((resumed as { data?: { notice?: string } }).data?.notice ?? '').not.toContain('dialog (')
+    tab.destroy()
   })
 })
 
@@ -689,6 +714,23 @@ describe('BrowserTab logs during a hold', () => {
     cdp.emit('Runtime.consoleAPICalled', { type: 'log', args: [{ value: 'after' }] })
     expect(tab.consoleLogs().map(e => e.text)).toEqual(['before', 'after'])
     expect(tab.allConsoleLogs().map(e => e.text)).toEqual(['before', 'held', 'after'])
+    tab.destroy()
+  })
+
+  it('keeps a request private when it starts during a hold and ends after hand-back', () => {
+    const cdp = new FakeCdp()
+    const tab = makeTab(cdp)
+    tab.takeOver()
+    cdp.emit('Network.requestWillBeSent', {
+      requestId: 'signin',
+      request: { method: 'POST', url: 'https://x/signin?code=secret' }
+    })
+    tab.handBack()
+    cdp.emit('Network.responseReceived', { requestId: 'signin', response: { status: 200 } })
+    expect(tab.networkLogs()).toEqual([])
+    expect(tab.allNetworkLogs()).toEqual([
+      { method: 'POST', url: 'https://x/signin?code=secret', status: 200 }
+    ])
     tab.destroy()
   })
 
