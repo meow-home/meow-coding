@@ -1,7 +1,11 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Save, Check } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import type { ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+import { Save, Check, FoldVertical, UnfoldVertical } from 'lucide-react'
 import CodeMirror, { Extension } from '@uiw/react-codemirror'
 import { oneDark } from '@codemirror/theme-one-dark'
+import { foldAll, unfoldAll } from '@codemirror/language'
+import type { EditorView } from '@codemirror/view'
 import { javascript } from '@codemirror/lang-javascript'
 import { json } from '@codemirror/lang-json'
 import { html } from '@codemirror/lang-html'
@@ -20,7 +24,23 @@ interface Props {
   active?: boolean
   /** The host shows the unsaved state and file actions itself (the Files panel's tab and menu). */
   hideFileActions?: boolean
+  /** Panel-specific buttons appended after the file actions (the Files panel's tree toggle and menu). */
+  toolbarActions?: ReactNode
+  /** When set, the toolbar renders there instead of inline: the Files panel's full-width bar. */
+  toolbarHost?: HTMLElement | null
+  /** Extra editor extensions (the Files panel's send-line gutter); the popup passes none. */
+  extraExtensions?: Extension[]
   onDirtyChange?: (dirty: boolean) => void
+}
+
+// The Files panel labels a file by its path inside the project; the popup window
+// has no project root and keeps the absolute path.
+function relativePath(root: string, absPath: string): string {
+  const toPosix = (p: string): string => p.replace(/\\/g, '/').replace(/\/+$/, '')
+  const base = toPosix(root)
+  const target = toPosix(absPath)
+  if (target === base) return baseName(target)
+  return target.startsWith(`${base}/`) ? target.slice(base.length + 1) : absPath
 }
 
 function getLanguageExtension(ext: string): Extension[] {
@@ -53,7 +73,7 @@ function getLanguageExtension(ext: string): Extension[] {
 
 // Toolbar + body of the file viewer, shared by the popup FileViewer window and
 // the Files overlay tab. The host supplies the flex container.
-export default function FileContentView({ path: filePath, root, active = true, hideFileActions = false, onDirtyChange }: Props) {
+export default function FileContentView({ path: filePath, root, active = true, hideFileActions = false, toolbarActions, toolbarHost, extraExtensions, onDirtyChange }: Props) {
   const [content, setContent] = useState<string | null>(null)
   const [editedContent, setEditedContent] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -61,12 +81,18 @@ export default function FileContentView({ path: filePath, root, active = true, h
   const [image, setImage] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [justSaved, setJustSaved] = useState(false)
+  const [folded, setFolded] = useState(false)
+  const editorRef = useRef<EditorView | null>(null)
 
   const ext = filePath.toLowerCase().split('.').pop() ?? ''
   const isImage = imageMimeType(ext) !== null
   const isMarkdown = !isImage && (ext === 'md' || ext === 'markdown')
+  const showsEditor = !isImage && !error && content !== null && !(isMarkdown && !showRawMd)
 
-  const extensions = useMemo(() => getLanguageExtension(ext), [ext])
+  const extensions = useMemo(
+    () => (extraExtensions ? [...getLanguageExtension(ext), ...extraExtensions] : getLanguageExtension(ext)),
+    [ext, extraExtensions]
+  )
 
   useEffect(() => {
     if (isImage) {
@@ -139,46 +165,75 @@ export default function FileContentView({ path: filePath, root, active = true, h
     void window.api.openFile({ path: p, root })
   }, [root])
 
+  const toolbar = (
+    <div className={hideFileActions ? 'viewer-toolbar files-bar' : 'viewer-toolbar'}>
+      <span className="viewer-path" title={filePath}>
+        {hideFileActions ? relativePath(root, filePath) : filePath}
+      </span>
+      <div className="viewer-actions">
+        {isMarkdown && (
+          <button className="btn small" onClick={() => setShowRawMd(v => !v)}>
+            {showRawMd ? 'Markdown Preview' : 'Edit Source'}
+          </button>
+        )}
+        {hideFileActions && showsEditor && (
+          <button
+            className="icon-btn"
+            title={folded ? 'Unfold all' : 'Fold all'}
+            aria-label={folded ? 'Unfold all' : 'Fold all'}
+            onClick={() => {
+              const view = editorRef.current
+              if (!view) return
+              if (folded) unfoldAll(view)
+              else foldAll(view)
+              setFolded(v => !v)
+            }}
+          >
+            {folded
+              ? <UnfoldVertical size={14} aria-hidden="true" />
+              : <FoldVertical size={14} aria-hidden="true" />}
+          </button>
+        )}
+        {!hideFileActions && !isImage && (
+          <button
+            className={`btn small ${isDirty ? 'primary' : ''}`}
+            onClick={() => void save()}
+            disabled={!isDirty || isSaving}
+            title="Save changes (Ctrl+S)"
+          >
+            {justSaved ? (
+              <>
+                <Check size={12} className="text-green" />
+                <span>Saved</span>
+              </>
+            ) : (
+              <>
+                {isDirty && <span className="viewer-dirty-dot" />}
+                <Save size={12} />
+                <span>{isSaving ? 'Saving...' : 'Save'}</span>
+              </>
+            )}
+          </button>
+        )}
+        {!hideFileActions && (
+          <button className="btn small" onClick={() => void window.api.openFileInEditor(filePath)}>Open in VS Code</button>
+        )}
+        {!hideFileActions && !isImage && (
+          <button className="btn small" onClick={() => void copy()} disabled={editedContent === null}>Copy</button>
+        )}
+        {toolbarActions}
+      </div>
+    </div>
+  )
+
   return (
     <>
-      <div className="viewer-toolbar">
-        <span className="viewer-path" title={filePath}>{filePath}</span>
-        <div className="viewer-actions">
-          {isMarkdown && (
-            <button className="btn small" onClick={() => setShowRawMd(v => !v)}>
-              {showRawMd ? 'Markdown Preview' : 'Edit Source'}
-            </button>
-          )}
-          {!hideFileActions && !isImage && (
-            <button
-              className={`btn small ${isDirty ? 'primary' : ''}`}
-              onClick={() => void save()}
-              disabled={!isDirty || isSaving}
-              title="Save changes (Ctrl+S)"
-            >
-              {justSaved ? (
-                <>
-                  <Check size={12} className="text-green" />
-                  <span>Saved</span>
-                </>
-              ) : (
-                <>
-                  {isDirty && <span className="viewer-dirty-dot" />}
-                  <Save size={12} />
-                  <span>{isSaving ? 'Saving...' : 'Save'}</span>
-                </>
-              )}
-            </button>
-          )}
-          {!hideFileActions && (
-            <button className="btn small" onClick={() => void window.api.openFileInEditor(filePath)}>Open in VS Code</button>
-          )}
-          {!hideFileActions && !isImage && (
-            <button className="btn small" onClick={() => void copy()} disabled={editedContent === null}>Copy</button>
-          )}
-        </div>
-      </div>
-      
+      {/* The Files panel renders the bar once, above both columns; an inactive
+          tab keeps its editor mounted but contributes no bar. */}
+      {hideFileActions
+        ? (active && toolbarHost ? createPortal(toolbar, toolbarHost) : null)
+        : toolbar}
+
       <div className={`viewer-body${isImage ? ' viewer-body--image' : ''}`}>
         {isImage ? (
           error ? (
@@ -205,6 +260,7 @@ export default function FileContentView({ path: filePath, root, active = true, h
             height="100%"
             theme={oneDark}
             extensions={extensions}
+            onCreateEditor={view => { editorRef.current = view }}
             onChange={(val) => setEditedContent(val)}
             basicSetup={{
               lineNumbers: true,

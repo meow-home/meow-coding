@@ -41,10 +41,34 @@ Overlays: `SettingsDialog` (centered modal size xl tabbed),
 
 The title bar's **Files** button opens an in-app explorer docked on the right of the pane area — the
 slot the old right panel used (never an OS window, so the title bar, sidebar and status bar stay visible). It
-holds a filterable, lazily loaded directory tree on the left — dotfiles and `node_modules` are listed — and
-open files in tabs on the right, next to a header with focus-filter, `⋮` (Refresh, Collapse all, Close all
-tabs, Copy path, Reveal in Folder, Open in VS Code), maximize/restore and close. Typing in the filter narrows
-the tree by name; a `?` prefix searches file contents instead and lists `path:line` hits. Docked, the panel
+reads like a code viewer: open files are header tabs (with maximize/restore and close on the right), the
+editor sits below them on the left, and a filterable, lazily loaded directory tree is the right column —
+dotfiles and `node_modules` are listed. A per-file bar under the header spans the full panel width above
+both columns (the editor and the tree start below it) and shows the open file's path relative to the
+project — in the UI face, not the popup's mono — and, on the right, its Markdown toggle, a single
+**Fold all** / **Unfold all** toggle (code files only), a **Toggle file tree** button and the `⋮` Files menu
+(Focus filter, Refresh, Collapse all, Close all tabs, Copy path, Reveal in Folder, Open in VS Code). With no
+open file the bar still renders with an empty path in the same place, so the toggle and menu stay reachable
+and the bar does not jump when the first file opens. Hiding the tree persists in `localStorage` as
+`meow.files.treeHidden`, and the tree is hidden rather than unmounted, so its expanded folders survive the
+toggle; **Focus filter** shows the tree first when it is hidden, then focuses the input. Tabs follow the
+preview rule: a single click in the tree or on a search hit opens an italic **preview** that the next single
+click replaces, while a double click opens a permanent tab (a double click on a tab promotes it) and a file
+that becomes dirty is promoted, so a replacement can never drop edits. The pin button — visible on hover and
+on the active tab, filled once pinned — makes a tab permanent and sorts it first; **Close all tabs** keeps
+pinned tabs, and the X still closes any tab. Code files also get a `+` in a gutter left of the line numbers
+(hover a line to reveal it): clicking it sends that line — or the selected lines, when the click is inside the
+selection — to the composer of the panel's own project's active session, as a fenced block headed by the
+project-relative `path:line`; the markdown preview, images and the popup file window have no gutter. A
+directory row is its chevron plus the name — no folder icon —
+and a file row puts its typed icon (code, JSON, Markdown, image, styles, config, `.gitignore`, generic
+fallback) in that same slot, so at a given depth both start at the same x; the open-file tabs use the same
+icon. Rows are 2.166667rem tall rounded pills inset from the tree edges (`--menu-hover` on hover,
+`--menu-active` for the active file and for a row whose context menu is open), indented 1rem per level. In a
+git repository a changed file tints its name and shows its letter — `M`, `A`, `D`, `R`, `T` or `U` — at the
+row's right edge, while a directory holding changes shows a dot; `.git` and ignored files stay clean. In the dark theme the editor and its gutter paint `--bg-chat` instead of One
+Dark's own background, so the code area reads as part of the panel. Typing in the filter narrows the tree by
+name; a `?` prefix searches file contents instead and lists `path:line` hits. Docked, the panel
 fills its cell of the shared right-side grid; the column's own splitter (`.right-panels-resizer`, 320–1600px,
 persisted in `localStorage` as `meow.rightPanels.width`) resizes every docked panel at once. `⤢` expands the
 panel over the whole pane area and restore docks it again — the tree, tabs and open files survive both
@@ -154,10 +178,14 @@ is dismissible (no install button, "Later" only).
 | `RightPanelTree.tsx` | Lazy directory tree; auto-expands the project root; background refresh (**parked**) |
 | `RightPanelArtifacts.tsx` | `.md` files agents created/edited (**parked**) |
 | `FileViewer.tsx` | Popup file viewer: `PopupTitleBar` + the shared `file-content/FileContentView.tsx` |
-| `file-content/FileContentView.tsx` | Toolbar (Raw/Highlighted toggle, Open in VS Code, Copy) + body of a file (Shiki-highlighted code, rendered markdown, or plain `<pre>`), shared by the popup window and the Files overlay tab |
-| `files/FilesOverlay.tsx` | The Files panel: header (focus filter, `⋮` menu, maximize/restore, close), tree side (drag the `.files-side-resizer` splitter on its right edge to resize it, ≥ `FILES_SIDE_MIN_WIDTH` 160px while leaving the editor ≥ `FILES_MAIN_MIN_WIDTH` 160px; the width persists in `localStorage` `meow.files.sideWidth` and applies to both modes, double-click resets to the CSS default of 42% docked / 20rem expanded), open-file tabs and the active tab's `FileContentView`; docked as a flush, square cell of the shared right-side grid (the column splitter resizes it), or expanded edge to edge over the pane area (same mounted instance, so tabs/tree survive the toggle). No border, radius or shadow in either mode |
-| `files/FilesTree.tsx` | Lazily loaded tree of the overlay; lists dotfiles and `node_modules`; `?`-prefixed filter searches file contents and lists `path:line` hits; refreshes on context changes |
+| `file-content/FileContentView.tsx` | Toolbar (Raw/Highlighted toggle, Open in VS Code, Copy) + body of a file (CodeMirror editor, rendered markdown, or an image), shared by the popup window and the Files overlay tab. With `hideFileActions` the toolbar is the panel's per-file bar: project-relative path, one Fold all / Unfold all toggle (state kept per open file) and the host's `toolbarActions`; `toolbarHost` portals it into the panel's full-width bar, and an inactive tab renders no toolbar. `extraExtensions` carries the Files panel's send-line gutter; the popup passes none |
+| `files/FilesOverlay.tsx` | The Files panel: the shared panel header with the open-file tabs and maximize/restore/close, a per-file bar (`.files-bar`) spanning the full panel width between the header and `.files-body` — rendered into a host element by the active tab's `FileContentView`, with the project-relative path and the file actions plus Toggle file tree / the `⋮` Files menu (the empty state renders its own bar into the same host, so it does not jump when the first file opens) — the active tab's `FileContentView` on the left and the tree side on the right (drag the `.files-side-resizer` splitter on its left edge — dragging left widens it — ≥ `FILES_SIDE_MIN_WIDTH` 160px while leaving the editor ≥ `FILES_MAIN_MIN_WIDTH` 160px; the width persists in `localStorage` `meow.files.sideWidth` and applies to both modes, double-click resets to the CSS default of 42% docked / 20rem expanded; hiding it persists in `meow.files.treeHidden` and only sets `hidden`, so expanded folders survive); docked on the right with a drag-to-resize left edge, or expanded over the pane area (same mounted instance, so tabs/tree survive the toggle). Both modes are elevated by `--shadow-panel`, whose blur is tuned to fade out inside the panel's 0.333333rem offset from `.main` (expanded mode layers it on top of the `--bg-chat` backdrop ring that hides the pane chrome) |
+| `files/FilesTree.tsx` | Lazily loaded tree of the overlay; lists dotfiles and `node_modules`; `?`-prefixed filter searches file contents and lists `path:line` hits; refreshes on context changes. A directory row is its chevron plus the name (no folder icon) and a file row puts the typed `file-icon` in the same slot; rows are tall rounded pills (`--menu-hover`/`--menu-active`, `--radius`, 1rem indent per level); in a git repository a changed file tints its name and shows its status letter at the row's right edge, a changed directory shows a dot, and the status comes from `git-decorations` (one `gitGetStatusDetail` call per debounce, on mount, on `reloadToken` and on context changes). A row click opens a preview; a file row double click opens permanent |
 | `processes/ProcessesOverlay.tsx` | The Processes overlay (`ProcessesOverlay` default export): per-agent background shells as header tabs (Kill square on running shells) plus a `Monitors (n)` tab, live streamed output of the selected shell below; reuses the Files overlay's `.files-overlay` layout and CSS variables with `processes-*` classes |
+| `files/line-send-gutter.ts` | `buildSendText` / `languageLabel` / `lineSendGutter`: a gutter before the line numbers with a `+` on the hovered line; sends the line or the selected lines to the composer via `meow:composer-insert`, fenced with a run longer than any backticks in the code |
+| `files/open-tabs.ts` | Pure tab rules over `{ tabs, activeTab }`: `openTab` (single click = preview, double click = permanent, an open file only activates, a preview is replaced in place), `promoteTab`, `togglePinned` (permanent, sorts first), `closeTabs`, `closeAllTabs` (keeps pinned), `activateTab` |
+| `files/file-icon.tsx` | `fileIconKind` / `fileIconFor` / `FileIcon`: a file name → lucide icon + colour class (code, JSON, Markdown, image, styles, config, `.gitignore`, generic); colours are theme tokens in `styles.css` |
+| `files/git-decorations.ts` | Pure git status helpers: `buildGitDecorations` (porcelain path → `{ letter, kind }` plus ancestor directories; `M`/`A`/`D`/`R`/`T`/`U`, untracked-directory prefixes, quote stripping), `decorationFor`, `directoryDecoration`, `projectRelativePath` |
 | `files/file-path.ts` | `baseName` / `joinProjectPath` — renderer-side path helpers (the renderer must not import `node:path`) |
 | `files/tree-filter.ts` | `filterTree` — name filter over already-loaded directories, keeping the ancestor chain of every match |
 | `FileContextMenu.tsx` | Context menu for tree/artifact entries and the Files overlay (Copy path when `showCopyPath`) |

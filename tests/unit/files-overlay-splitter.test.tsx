@@ -26,8 +26,8 @@ function render(): void {
   })
 }
 
-function side(): HTMLElement {
-  return container!.querySelector('.files-side') as HTMLElement
+function side(): HTMLElement | null {
+  return container!.querySelector('.files-side')
 }
 
 function drag(dx: number): void {
@@ -63,31 +63,83 @@ describe('FilesOverlay tree splitter', () => {
 
   it('keeps the CSS default width until the splitter is dragged', () => {
     render()
-    expect(side().style.flexBasis).toBe('')
+    expect(side()!.style.flexBasis).toBe('')
   })
 
-  it('resizes the tree by the drag distance and remembers it', () => {
+  it('widens the tree when the splitter is dragged left and remembers it', () => {
     render()
-    drag(60)
-    expect(side().style.flexBasis).toBe(`${SIDE_WIDTH + 60}px`)
+    drag(-60)
+    expect(side()!.style.flexBasis).toBe(`${SIDE_WIDTH + 60}px`)
     expect(localStorage.getItem('meow.files.sideWidth')).toBe(String(SIDE_WIDTH + 60))
   })
 
   it('clamps to the minimum tree width and leaves room for the editor', () => {
     render()
-    drag(-1000)
-    expect(side().style.flexBasis).toBe(`${FILES_SIDE_MIN_WIDTH}px`)
-    drag(5000)
-    expect(side().style.flexBasis).toBe(`${BODY_WIDTH - FILES_MAIN_MIN_WIDTH}px`)
+    drag(1000)
+    expect(side()!.style.flexBasis).toBe(`${FILES_SIDE_MIN_WIDTH}px`)
+    drag(-5000)
+    expect(side()!.style.flexBasis).toBe(`${BODY_WIDTH - FILES_MAIN_MIN_WIDTH}px`)
   })
 
   it('restores the saved width and resets it on double-click', () => {
     localStorage.setItem('meow.files.sideWidth', '250')
     render()
-    expect(side().style.flexBasis).toBe('250px')
+    expect(side()!.style.flexBasis).toBe('250px')
     const splitter = container!.querySelector('.files-side-resizer') as HTMLElement
     act(() => { splitter.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })) })
-    expect(side().style.flexBasis).toBe('')
+    expect(side()!.style.flexBasis).toBe('')
     expect(localStorage.getItem('meow.files.sideWidth')).toBeNull()
+  })
+})
+
+describe('FilesOverlay file tree toggle', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root?.unmount())
+    container?.remove()
+    root = null
+    container = null
+    localStorage.clear()
+  })
+
+  function toggleTree(): void {
+    const button = container!.querySelector('[aria-label="Toggle file tree"]') as HTMLElement
+    act(() => { button.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
+  }
+
+  it('hides the tree without unmounting it and restores that choice on remount', () => {
+    render()
+    expect(side()!.hidden).toBe(false)
+
+    toggleTree()
+    // Still in the DOM: the tree keeps its expanded folders across a toggle.
+    expect(side()).not.toBeNull()
+    expect(side()!.hidden).toBe(true)
+    expect(localStorage.getItem('meow.files.treeHidden')).toBe('1')
+
+    // Closing and reopening the panel mounts a fresh FilesOverlay.
+    act(() => root?.unmount())
+    container!.remove()
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    render()
+    expect(side()!.hidden).toBe(true)
+  })
+
+  it('shows the tree again when toggled back', () => {
+    localStorage.setItem('meow.files.treeHidden', '1')
+    render()
+    expect(side()!.hidden).toBe(true)
+
+    toggleTree()
+    expect(side()!.hidden).toBe(false)
+    expect(localStorage.getItem('meow.files.treeHidden')).toBe('0')
   })
 })

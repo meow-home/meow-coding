@@ -1,15 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronRight, File, Folder } from 'lucide-react'
-import type { DirEntry, ProjectSearchHit } from '@shared/types'
+import { ChevronRight } from 'lucide-react'
+import type { DirEntry, GitStatusDetail, ProjectSearchHit } from '@shared/types'
 import FileContextMenu, { type FileMenuState } from '../FileContextMenu'
 import { filterTree, type TreeFilterNode } from './tree-filter'
 import { joinProjectPath } from './file-path'
+import FileIcon from './file-icon'
+import {
+  EMPTY_GIT_DECORATIONS, buildGitDecorations, decorationFor, directoryDecoration,
+  projectRelativePath, type GitDecoration, type GitDecorations
+} from './git-decorations'
 
 interface Props {
   projectPath: string
   query: string
   activePath: string | null
   onOpenFile: (absPath: string) => void
+  /** Double click: open permanent, or promote the preview tab. */
+  onOpenFilePermanent: (absPath: string) => void
   reloadToken: number
   collapseToken: number
 }
@@ -24,13 +31,16 @@ interface NodeData {
 
 const emptyNode = (): NodeData => ({ loaded: false, loading: false, error: null, expanded: false, children: [] })
 
-export default function FilesTree({ projectPath, query, activePath, onOpenFile, reloadToken, collapseToken }: Props) {
+export default function FilesTree({ projectPath, query, activePath, onOpenFile, onOpenFilePermanent, reloadToken, collapseToken }: Props) {
   const [root, setRoot] = useState<NodeData>({ ...emptyNode(), expanded: true })
   const [nodes, setNodes] = useState<Record<string, NodeData>>({})
   const [hits, setHits] = useState<ProjectSearchHit[]>([])
   const [searching, setSearching] = useState(false)
   const [menu, setMenu] = useState<FileMenuState | null>(null)
+  const [decorations, setDecorations] = useState<GitDecorations>(EMPTY_GIT_DECORATIONS)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const gitRequestRef = useRef(0)
+  const mountedRef = useRef(true)
 
   const load = useCallback(async (absPath: string) => {
     setNodes(prev => ({ ...prev, [absPath]: { ...(prev[absPath] ?? emptyNode()), loading: true, error: null } }))
@@ -46,6 +56,26 @@ export default function FilesTree({ projectPath, query, activePath, onOpenFile, 
         }
       }))
     }
+  }, [projectPath])
+
+  // StrictMode runs effects twice: set it on setup so the second pass still paints.
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+
+  const refreshGit = useCallback(async () => {
+    const token = ++gitRequestRef.current
+    let detail: GitStatusDetail | null = null
+    try {
+      detail = await window.api.gitGetStatusDetail(projectPath)
+    } catch {
+      // Not a repository (or git failed): no decorations, no error.
+      detail = null
+    }
+    // A late answer for a previous project, or after unmount, must not paint.
+    if (!mountedRef.current || token !== gitRequestRef.current) return
+    setDecorations(buildGitDecorations(detail))
   }, [projectPath])
 
   const refreshRoot = useCallback(async () => {
@@ -64,12 +94,15 @@ export default function FilesTree({ projectPath, query, activePath, onOpenFile, 
     setNodes({})
     setHits([])
     setRoot({ ...emptyNode(), expanded: true })
+    setDecorations(EMPTY_GIT_DECORATIONS)
     void refreshRoot()
-  }, [refreshRoot])
+    void refreshGit()
+  }, [refreshRoot, refreshGit])
 
   useEffect(() => {
     if (reloadToken === 0) return
     void refreshRoot()
+    void refreshGit()
     for (const [absPath, node] of Object.entries(nodes)) {
       if (node.loaded) void load(absPath)
     }
@@ -91,6 +124,8 @@ export default function FilesTree({ projectPath, query, activePath, onOpenFile, 
       if (changed !== projectPath) return
       if (timerRef.current) clearTimeout(timerRef.current)
       timerRef.current = setTimeout(() => {
+        // One status fetch per debounced burst, not one per changed path.
+        void refreshGit()
         void refreshRoot()
         for (const [absPath, node] of Object.entries(nodes)) {
           if (node.expanded && node.loaded) void load(absPath)
@@ -101,7 +136,7 @@ export default function FilesTree({ projectPath, query, activePath, onOpenFile, 
       off()
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [projectPath, nodes, refreshRoot, load])
+  }, [projectPath, nodes, refreshRoot, load, refreshGit])
 
   const contentQuery = query.trim().startsWith('?') ? query.trim().slice(1).trim() : ''
   const nameQuery = contentQuery ? '' : query
@@ -149,36 +184,51 @@ export default function FilesTree({ projectPath, query, activePath, onOpenFile, 
     })
   }, [nodes, load, onOpenFile])
 
-  const row = (entry: DirEntry, depth: number, expandable: boolean) => (
-    <div
-      key={entry.path}
-      className={`tree-row files-tree-row${entry.path === activePath ? ' active' : ''}`}
-      style={{ paddingLeft: `${0.666667 + depth * 0.75}rem` }}
-      title={entry.path}
-      onClick={() => toggle(entry)}
-      onContextMenu={e => {
-        e.preventDefault()
-        setMenu({ x: e.clientX, y: e.clientY, absPath: entry.path })
-      }}
-    >
-      <span className="tree-chevron">
-        {expandable && (
-          <ChevronRight
-            size={10}
-            aria-hidden="true"
-            style={{
-              transform: nodes[entry.path]?.expanded ? 'rotate(90deg)' : undefined,
-              transition: 'transform 120ms ease'
-            }}
-          />
-        )}
-      </span>
-      {entry.isDirectory
-        ? <Folder size={13} fill="currentColor" aria-hidden="true" className="tree-icon folder" />
-        : <File size={13} aria-hidden="true" className="tree-icon file" />}
-      <span className="tree-name">{entry.name}</span>
-    </div>
-  )
+  // Git paths are project-relative with forward slashes; tree entries are absolute.
+  const decorationOf = (entry: DirEntry): GitDecoration | null => {
+    const rel = projectRelativePath(projectPath, entry.path)
+    return entry.isDirectory ? directoryDecoration(decorations, rel) : decorationFor(decorations, rel)
+  }
+
+  // A directory is its chevron plus the name; a file puts its typed icon in the
+  // same slot, so both start at the same x for a given depth.
+  const row = (entry: DirEntry, depth: number, expandable: boolean) => {
+    const decoration = decorationOf(entry)
+    const menuOpen = menu?.absPath === entry.path
+    return (
+      <div
+        key={entry.path}
+        className={`tree-row files-tree-row${entry.path === activePath ? ' active' : ''}${menuOpen ? ' menu-open' : ''}`}
+        style={{ paddingLeft: `${0.5 + depth}rem` }}
+        title={entry.path}
+        onClick={() => toggle(entry)}
+        onDoubleClick={() => { if (!entry.isDirectory) onOpenFilePermanent(entry.path) }}
+        onContextMenu={e => {
+          e.preventDefault()
+          setMenu({ x: e.clientX, y: e.clientY, absPath: entry.path })
+        }}
+      >
+        <span className="files-tree-slot">
+          {entry.isDirectory
+            ? (expandable && (
+              <ChevronRight
+                size={14}
+                aria-hidden="true"
+                style={{
+                  transform: nodes[entry.path]?.expanded ? 'rotate(90deg)' : undefined,
+                  transition: 'transform 120ms ease'
+                }}
+              />
+            ))
+            : <FileIcon name={entry.name} size={14} className="tree-icon" />}
+        </span>
+        <span className={`tree-name${decoration ? ` files-git-${decoration.kind}` : ''}`}>{entry.name}</span>
+        {decoration && (entry.isDirectory
+          ? <span className={`files-git-dot files-git-${decoration.kind}`} aria-hidden="true" />
+          : <span className={`files-git-letter files-git-${decoration.kind}`} aria-hidden="true">{decoration.letter}</span>)}
+      </div>
+    )
+  }
 
   const rows = (entries: DirEntry[], depth: number): React.ReactNode[] =>
     entries.map(entry => {
@@ -188,11 +238,11 @@ export default function FilesTree({ projectPath, query, activePath, onOpenFile, 
         <div key={entry.path}>
           {row(entry, depth, true)}
           {node.error ? (
-            <div className="tree-row tree-dim tree-error" style={{ paddingLeft: `${1.416667 + depth * 0.75}rem` }}>
+            <div className="tree-row tree-dim tree-error" style={{ paddingLeft: `${1.5 + depth}rem` }}>
               {node.error}
             </div>
           ) : node.children.length === 0 ? (
-            <div className="tree-row tree-dim" style={{ paddingLeft: `${1.416667 + depth * 0.75}rem` }}>
+            <div className="tree-row tree-dim" style={{ paddingLeft: `${1.5 + depth}rem` }}>
               {node.loading ? 'Loading…' : 'Empty'}
             </div>
           ) : (
@@ -225,8 +275,9 @@ export default function FilesTree({ projectPath, query, activePath, onOpenFile, 
               title={`${hit.path}:${hit.line}`}
               onClick={() => onOpenFile(joinProjectPath(projectPath, hit.path))}
             >
-              <span className="tree-chevron" />
-              <File size={13} aria-hidden="true" className="tree-icon file" />
+              <span className="files-tree-slot">
+                <FileIcon name={hit.path.split('/').pop() ?? hit.path} size={14} className="tree-icon" />
+              </span>
               <span className="tree-name">{hit.path.split('/').pop()}</span>
               <span className="files-hit-line">{hit.line}</span>
               <span className="files-hit-text">{hit.text}</span>
