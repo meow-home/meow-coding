@@ -16,6 +16,11 @@ import { baseName } from '../files/file-path'
 interface Props {
   path: string
   root: string
+  /** False while the host keeps this file mounted behind another tab: Ctrl+S must not save it. */
+  active?: boolean
+  /** The host shows the unsaved state and file actions itself (the Files panel's tab and menu). */
+  hideFileActions?: boolean
+  onDirtyChange?: (dirty: boolean) => void
 }
 
 function getLanguageExtension(ext: string): Extension[] {
@@ -48,7 +53,7 @@ function getLanguageExtension(ext: string): Extension[] {
 
 // Toolbar + body of the file viewer, shared by the popup FileViewer window and
 // the Files overlay tab. The host supplies the flex container.
-export default function FileContentView({ path: filePath, root }: Props) {
+export default function FileContentView({ path: filePath, root, active = true, hideFileActions = false, onDirtyChange }: Props) {
   const [content, setContent] = useState<string | null>(null)
   const [editedContent, setEditedContent] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -89,6 +94,10 @@ export default function FileContentView({ path: filePath, root }: Props) {
 
   const isDirty = editedContent !== null && content !== null && editedContent !== content
 
+  useEffect(() => {
+    onDirtyChange?.(isDirty)
+  }, [isDirty, onDirtyChange])
+
   const save = useCallback(async () => {
     if (editedContent === null || !isDirty || isSaving) return
     setIsSaving(true)
@@ -110,6 +119,7 @@ export default function FileContentView({ path: filePath, root }: Props) {
   }, [editedContent, isDirty, isSaving, filePath])
 
   useEffect(() => {
+    if (!active) return
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault()
@@ -118,7 +128,7 @@ export default function FileContentView({ path: filePath, root }: Props) {
     }
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [save])
+  }, [save, active])
 
   const copy = useCallback(async () => {
     const textToCopy = editedContent ?? content
@@ -139,7 +149,7 @@ export default function FileContentView({ path: filePath, root }: Props) {
               {showRawMd ? 'Markdown Preview' : 'Edit Source'}
             </button>
           )}
-          {!isImage && (
+          {!hideFileActions && !isImage && (
             <button
               className={`btn small ${isDirty ? 'primary' : ''}`}
               onClick={() => void save()}
@@ -160,8 +170,10 @@ export default function FileContentView({ path: filePath, root }: Props) {
               )}
             </button>
           )}
-          <button className="btn small" onClick={() => void window.api.openFileInEditor(filePath)}>Open in VS Code</button>
-          {!isImage && (
+          {!hideFileActions && (
+            <button className="btn small" onClick={() => void window.api.openFileInEditor(filePath)}>Open in VS Code</button>
+          )}
+          {!hideFileActions && !isImage && (
             <button className="btn small" onClick={() => void copy()} disabled={editedContent === null}>Copy</button>
           )}
         </div>

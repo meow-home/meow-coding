@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { BrowserInstallGuideEvent } from '@shared/ipc'
 import type { BrowserStatusInfo } from '@shared/browser-types'
 import type {
@@ -19,6 +20,7 @@ import TerminalOverlay from './components/terminal/TerminalOverlay'
 import BrowserOverlay from './components/browser/BrowserOverlay'
 import SettingsDialog, { type TabId } from './components/settings/SettingsDialog'
 import BrowserDialog from './components/BrowserDialog'
+import ConfirmDialog from './components/ConfirmDialog'
 import InstallGuideDialog from './components/InstallGuideDialog'
 import UpdateDialog from './components/UpdateDialog'
 import { beginOcclusion, endOcclusion, overlapsBrowserViewport, useBrowserOcclusion } from './components/common/useBrowserOcclusion'
@@ -191,6 +193,23 @@ export default function App() {
   // docked width.
   const [filesOpenFor, setFilesOpenFor] = useState<string | null>(null)
   const [filesFull, setFilesFull] = useState(false)
+  const [filesDirty, setFilesDirty] = useState(false)
+  const [confirmCloseFiles, setConfirmCloseFiles] = useState(false)
+  // The docked and expanded panels live in different parents. The Files panel holds its
+  // open tabs and unsaved edits in React state, so a remount would lose them: its React
+  // tree stays in one portal, and only this DOM node moves between the two slots.
+  const filesHost = useMemo(() => {
+    const el = document.createElement('div')
+    el.className = 'files-panel-host'
+    return el
+  }, [])
+  const attachFilesHost = useCallback((slot: HTMLDivElement | null) => {
+    if (slot) slot.appendChild(filesHost)
+  }, [filesHost])
+  const requestCloseFiles = useCallback(() => {
+    if (filesDirty) setConfirmCloseFiles(true)
+    else setFilesOpenFor(null)
+  }, [filesDirty])
   const [filesWidth, setFilesWidth] = useState(() => {
     const w = Number(localStorage.getItem('meow.files.width'))
     return Number.isFinite(w) && w >= FILES_MIN_WIDTH && w <= FILES_MAX_WIDTH ? w : FILES_DEFAULT_WIDTH
@@ -254,12 +273,14 @@ export default function App() {
   // instead of covering the chat pane.
   const filesPanel = filesOpenFor ? (
     <FilesOverlay
+      key={`files:${filesOpenFor}`}
       projectPath={filesOpenFor}
       full={filesFull}
       width={filesWidth}
       onWidthChange={setFilesWidth}
       onToggleFull={() => setFilesFull(v => !v)}
-      onClose={() => setFilesOpenFor(null)}
+      onClose={requestCloseFiles}
+      onDirtyChange={setFilesDirty}
     />
   ) : null
   const processesPanel = processesOpenFor ? (
@@ -469,7 +490,11 @@ export default function App() {
     localStorage.setItem('meow.rightpanel.width', String(rightWidth))
   }, [rightWidth])
   useEffect(() => {
-    setFilesOpenFor(prev => (prev && prev !== activePath ? null : prev))
+    // Leaving a project closes its Files panel, unless that would discard unsaved edits.
+    if (filesOpenFor && filesOpenFor !== activePath) {
+      if (filesDirty) setConfirmCloseFiles(true)
+      else setFilesOpenFor(null)
+    }
   }, [activePath])
   useEffect(() => {
     localStorage.setItem('meow.files.width', String(filesWidth))
@@ -871,8 +896,13 @@ export default function App() {
             onToggleBrowser={() => { if (activeSessionId) handleToggleBrowser(activeSessionId) }}
             onToggleFiles={() => {
               if (!activePath) return
+              // A panel still open on another project is waiting on the discard prompt.
+              if (filesOpenFor) {
+                requestCloseFiles()
+                return
+              }
               setFilesFull(false)
-              setFilesOpenFor(cur => (cur === activePath ? null : activePath))
+              setFilesOpenFor(activePath)
             }}
           />
         )}
@@ -978,7 +1008,7 @@ export default function App() {
                 </div>
               ))}
           </div>
-          {filesPanel && filesFull && filesPanel}
+          {filesPanel && filesFull && <div className="files-panel-slot" ref={attachFilesHost} />}
           {processesPanel && processesFull && processesPanel}
           {terminalPanel && terminalFull && terminalPanel}
           {browserPanel && browserFull && browserPanel}
@@ -1009,7 +1039,7 @@ export default function App() {
                     gridTemplateRows: `repeat(${rows}, 1fr)`
                   }}
                 >
-                  {filesPanel && !filesFull && filesPanel}
+                  {filesPanel && !filesFull && <div className="files-panel-slot" ref={attachFilesHost} />}
                   {processesPanel && !processesFull && processesPanel}
                   {browserPanel && !browserFull && browserPanel}
                   {terminalPanel && !terminalFull && terminalPanel}
@@ -1030,6 +1060,25 @@ export default function App() {
         onBrowserClick={() => setBrowserDialogOpen(true)}
         onGitClick={activeRuntime ? () => void window.api.gitOpenViewer(activeRuntime.workspace.projectPath) : undefined}
       />
+      {filesPanel && createPortal(filesPanel, filesHost)}
+      {confirmCloseFiles && (
+        <ConfirmDialog
+          title="Discard unsaved changes"
+          message="Some open files have unsaved changes. Close the Files panel and discard them?"
+          confirmLabel="Discard"
+          onConfirm={() => {
+            setConfirmCloseFiles(false)
+            setFilesOpenFor(null)
+          }}
+          onCancel={() => {
+            setConfirmCloseFiles(false)
+            // Keeping the edits after a project switch means going back to them.
+            if (filesOpenFor && filesOpenFor !== activePath && workspaces.some(w => w.projectPath === filesOpenFor)) {
+              void openWorkspace(filesOpenFor)
+            }
+          }}
+        />
+      )}
       {browserDialogOpen && (
         <BrowserDialog status={browser} onClose={() => setBrowserDialogOpen(false)} onSaved={refreshBrowserBackend} />
       )}

@@ -6,6 +6,7 @@ import {
   ListCollapse, MoreHorizontal, RefreshCw, Search
 } from 'lucide-react'
 import BaseDropdown from '../common/BaseDropdown'
+import ConfirmDialog from '../ConfirmDialog'
 import FilesTree from './FilesTree'
 import FileContentView from '../file-content/FileContentView'
 import { baseName } from './file-path'
@@ -41,6 +42,7 @@ interface Props {
   onWidthChange?: (width: number) => void
   onToggleFull: () => void
   onClose: () => void
+  onDirtyChange?: (dirty: boolean) => void
 }
 
 interface OpenFile {
@@ -48,13 +50,15 @@ interface OpenFile {
   name: string
 }
 
-export default function FilesOverlay({ projectPath, full, width, onWidthChange, onToggleFull, onClose }: Props) {
+export default function FilesOverlay({ projectPath, full, width, onWidthChange, onToggleFull, onClose, onDirtyChange }: Props) {
   const [query, setQuery] = useState('')
   const [tabs, setTabs] = useState<OpenFile[]>([])
   const [activeTab, setActiveTab] = useState<string | null>(null)
   const [reloadToken, setReloadToken] = useState(0)
   const [collapseToken, setCollapseToken] = useState(0)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [dirtyPaths, setDirtyPaths] = useState<ReadonlySet<string>>(new Set())
+  const [pendingClose, setPendingClose] = useState<string[] | null>(null)
   const filterRef = useRef<HTMLInputElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
@@ -118,10 +122,33 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
     setActiveTab(absPath)
   }, [])
 
-  const closeTab = useCallback((absPath: string) => {
+  const anyDirty = dirtyPaths.size > 0
+  useEffect(() => {
+    onDirtyChange?.(anyDirty)
+  }, [anyDirty, onDirtyChange])
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
+
+  const removeTabs = useCallback((paths: string[]) => {
+    const removed = new Set(paths)
     setTabs(prev => {
-      const next = prev.filter(t => t.path !== absPath)
-      setActiveTab(current => (current === absPath ? (next[next.length - 1]?.path ?? null) : current))
+      const next = prev.filter(t => !removed.has(t.path))
+      setActiveTab(current => (current && removed.has(current) ? (next[next.length - 1]?.path ?? null) : current))
+      return next
+    })
+    setDirtyPaths(prev => new Set([...prev].filter(p => !removed.has(p))))
+  }, [])
+
+  const requestClose = useCallback((paths: string[]) => {
+    if (paths.some(p => dirtyPaths.has(p))) setPendingClose(paths)
+    else removeTabs(paths)
+  }, [dirtyPaths, removeTabs])
+
+  const handleDirtyChange = useCallback((path: string, dirty: boolean) => {
+    setDirtyPaths(prev => {
+      if (prev.has(path) === dirty) return prev
+      const next = new Set(prev)
+      if (dirty) next.add(path)
+      else next.delete(path)
       return next
     })
   }, [])
@@ -129,6 +156,8 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
+      // Escape must not discard unsaved edits, and it belongs to an open confirm dialog.
+      if (pendingClose || dirtyPaths.size > 0) return
       if (document.activeElement === filterRef.current && query) {
         setQuery('')
         return
@@ -137,7 +166,7 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [query, onClose])
+  }, [query, onClose, pendingClose, dirtyPaths])
 
   return (
     <section
@@ -161,8 +190,11 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
           title: tab.path,
           lead: <FileText size={14} aria-hidden="true" />,
           label: tab.name,
+          trail: dirtyPaths.has(tab.path)
+            ? <span className="panel-tab-dirty" role="img" aria-label="Unsaved changes" title="Unsaved changes" />
+            : undefined,
           closeLabel: `Close ${tab.name}`,
-          onClose: () => closeTab(tab.path)
+          onClose: () => requestClose([tab.path])
         }))}
         actions={(
           <div className="pane-menu">
@@ -196,7 +228,7 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
               <button
                 className="menu-item"
                 disabled={tabs.length === 0}
-                onClick={() => { setMenuOpen(false); setTabs([]); setActiveTab(null) }}
+                onClick={() => { setMenuOpen(false); requestClose(tabs.map(t => t.path)) }}
               >
                 <CircleX size={16} aria-hidden="true" />
                 Close all tabs
@@ -267,9 +299,19 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
         </div>
         <div className="files-main">
           <div className="files-content">
-            {activeTab ? (
-              <FileContentView key={activeTab} path={activeTab} root={projectPath} />
-            ) : (
+            {/* Every open file stays mounted: unmounting on a tab switch would drop unsaved edits. */}
+            {tabs.map(tab => (
+              <div key={tab.path} className="files-tab-pane" hidden={tab.path !== activeTab}>
+                <FileContentView
+                  path={tab.path}
+                  root={projectPath}
+                  active={tab.path === activeTab}
+                  hideFileActions
+                  onDirtyChange={dirty => handleDirtyChange(tab.path, dirty)}
+                />
+              </div>
+            ))}
+            {!activeTab && (
               <div className="files-empty">
                 <Folder size={30} aria-hidden="true" />
                 <div className="files-empty-title">Open files appear here</div>
@@ -281,6 +323,17 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
           </div>
         </div>
       </div>
+      {pendingClose && (
+        <ConfirmDialog
+          title="Discard unsaved changes"
+          message={pendingClose.length === 1
+            ? `${baseName(pendingClose[0])} has unsaved changes. Close it and discard them?`
+            : 'Some open files have unsaved changes. Close them and discard the changes?'}
+          confirmLabel="Discard"
+          onConfirm={() => { removeTabs(pendingClose); setPendingClose(null) }}
+          onCancel={() => setPendingClose(null)}
+        />
+      )}
     </section>
   )
 }

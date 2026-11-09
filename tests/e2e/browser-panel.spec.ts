@@ -976,7 +976,41 @@ test('the title bar toggles every panel, and each panel header is its tabs with 
       await expect(window.locator('.files-overlay .panel-tab.active')).toContainText('notes.md')
       expect(await window.locator('.files-overlay .files-tabs').count()).toBe(0)
       await shot('panel-tabs-files-open.png')
+      // Editing: no save buttons, a dot while unsaved, kept across a tab switch, Ctrl+S saves.
+      writeFileSync(path.join(project, 'other.md'), 'other')
+      expect(await window.locator('.files-overlay .viewer-actions').getByRole('button', { name: /Save|Copy|Open in VS Code/ }).count()).toBe(0)
+      await window.locator('.files-overlay .viewer-actions').getByRole('button', { name: 'Edit Source' }).click()
+      await window.locator('.files-overlay .cm-content').click()
+      await window.keyboard.type('edited ')
+      const dirtyDot = window.locator('.files-overlay .panel-tab .panel-tab-dirty')
+      await expect(dirtyDot).toHaveCount(1)
+      await shot('panel-tabs-files-dirty.png')
+      await window.keyboard.press('Escape')
+      await expect(window.locator('.files-overlay[aria-label="Files"]')).toBeVisible()
+      await window.locator('.files-overlay [aria-label="Files menu"]').click()
+      await window.locator('button.menu-item', { hasText: 'Refresh' }).click()
+      await window.locator('.files-overlay').getByText('other.md', { exact: true }).click()
+      await expect(window.locator('.files-overlay .panel-tab.active')).toContainText('other.md')
+      await expect(dirtyDot).toHaveCount(1)
+      await window.locator('.files-overlay .panel-tab', { hasText: 'notes.md' }).click()
+      await expect(window.locator('.files-overlay .cm-content:visible')).toContainText('edited')
+      await window.locator('.files-overlay .cm-content:visible').click()
+      await window.keyboard.press('Control+s')
+      await expect(dirtyDot).toHaveCount(0)
+      expect(readFileSync(path.join(project, 'notes.md'), 'utf8')).toContain('edited')
+      expect(readFileSync(path.join(project, 'other.md'), 'utf8')).toBe('other')
+      await window.locator('.files-overlay .cm-content:visible').click()
+      await window.keyboard.type('more ')
+      await expect(dirtyDot).toHaveCount(1)
       await window.locator('.files-overlay [aria-label="Close notes.md"]').click()
+      await expect(window.getByRole('button', { name: 'Discard' })).toBeVisible()
+      await window.keyboard.press('Escape')
+      await expect(window.locator('.files-overlay .panel-tab', { hasText: 'notes.md' })).toHaveCount(1)
+      await window.locator('.files-overlay [aria-label="Close notes.md"]').click()
+      await window.getByRole('button', { name: 'Discard' }).click()
+      await expect(window.locator('.files-overlay .panel-tab', { hasText: 'notes.md' })).toHaveCount(0)
+      expect(readFileSync(path.join(project, 'notes.md'), 'utf8')).not.toContain('more')
+      await window.locator('.files-overlay [aria-label="Close other.md"]').click()
       await expect(window.locator('.files-overlay .panel-tab')).toHaveCount(0)
       await window.locator('[aria-label="Close Files"]').click()
 
@@ -988,5 +1022,93 @@ test('the title bar toggles every panel, and each panel header is its tabs with 
   } finally {
     cleanupDir(userData)
     cleanupDir(project)
+  }
+})
+
+test('closing the Files panel asks before discarding, and expanding keeps the edits', async () => {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  const project2 = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    seedUserData(userData, project, {})
+    const workspacesPath = path.join(userData, 'workspaces.json')
+    const seeded = JSON.parse(readFileSync(workspacesPath, 'utf8')) as Array<Record<string, unknown>>
+    seeded.push({ ...seeded[0], projectPath: project2, name: 'E2E Two', agents: [] })
+    writeFileSync(workspacesPath, JSON.stringify(seeded, null, 2))
+    writeFileSync(path.join(project, 'notes.txt'), 'hello\n')
+    const { app, window } = await launch(userData)
+    try {
+      const filesTool = window.locator('.title-bar-tools .icon-btn[aria-label="Toggle files"]')
+      const panel = window.locator('.files-overlay[aria-label="Files"]')
+      const dot = panel.locator('.panel-tab-dirty')
+      const discard = window.getByRole('button', { name: 'Discard' })
+      const cancel = window.locator('.base-modal, [role="dialog"], [role="alertdialog"]').getByRole('button', { name: 'Cancel' })
+
+      // A clean panel closes with no prompt.
+      await filesTool.click()
+      await expect(panel).toBeVisible()
+      await filesTool.click()
+      await expect(panel).toHaveCount(0)
+
+      await filesTool.click()
+      await panel.getByText('notes.txt', { exact: true }).click()
+      await panel.locator('.cm-content').click()
+      await window.keyboard.type('edited ')
+      await expect(dot).toHaveCount(1)
+
+      // Expanding and restoring move the panel between parents without losing anything.
+      await panel.locator('[aria-label="Expand"]').click()
+      await expect(panel).toHaveClass(/full/)
+      await expect(panel.locator('.cm-content')).toContainText('edited')
+      await expect(dot).toHaveCount(1)
+      await panel.locator('[aria-label="Restore size"]').click()
+      await expect(panel).toHaveClass(/docked/)
+      await expect(panel.locator('.cm-content')).toContainText('edited')
+      await expect(dot).toHaveCount(1)
+      const box = await panel.boundingBox()
+      expect(box && box.width > 200 && box.height > 200).toBe(true)
+
+      // The close button: Cancel keeps everything.
+      await panel.locator('[aria-label="Close Files"]').click()
+      await expect(discard).toBeVisible()
+      await cancel.click()
+      await expect(discard).toHaveCount(0)
+      await expect(panel.locator('.cm-content')).toContainText('edited')
+
+      // The title bar button asks too.
+      await filesTool.click()
+      await expect(discard).toBeVisible()
+      await cancel.click()
+      await expect(panel).toBeVisible()
+
+      // A project switch asks, and Cancel goes back to the edits.
+      await window.locator('button[aria-label="menu E2E Two"]').click()
+      await window.locator('.project-menu-dropdown').getByText('Open', { exact: true }).click()
+      await expect(discard).toBeVisible()
+      await cancel.click()
+      await expect(discard).toHaveCount(0)
+      await expect(filesTool).toHaveClass(/active/)
+      await expect(panel.locator('.cm-content')).toContainText('edited')
+
+      // Discard after a switch closes the panel and leaves the file on disk untouched.
+      await window.locator('button[aria-label="menu E2E Two"]').click()
+      await window.locator('.project-menu-dropdown').getByText('Open', { exact: true }).click()
+      await discard.click()
+      await expect(panel).toHaveCount(0)
+      expect(readFileSync(path.join(project, 'notes.txt'), 'utf8')).toBe('hello\n')
+
+      // After a discard nothing is considered dirty: reopening and closing does not ask.
+      await filesTool.click()
+      await expect(panel).toBeVisible()
+      await filesTool.click()
+      await expect(panel).toHaveCount(0)
+      await expect(discard).toHaveCount(0)
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+    cleanupDir(project2)
   }
 })

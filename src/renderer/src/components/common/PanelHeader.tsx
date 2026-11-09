@@ -7,6 +7,8 @@ export interface PanelHeaderTab {
   label: ReactNode
   title?: string
   lead?: ReactNode
+  /** After the label and outside its ellipsis, so it stays visible on a long name. */
+  trail?: ReactNode
   className?: string
   closeClassName?: string
   closeLabel?: string
@@ -63,6 +65,7 @@ export default function PanelHeader({
                 >
                   {tab.lead}
                   <span className="panel-tab-label">{tab.label}</span>
+                  {tab.trail}
                   {tab.onClose && (
                     <button
                       className={`panel-tab-close${tab.closeClassName ? ` ${tab.closeClassName}` : ''}`}

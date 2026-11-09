@@ -54,6 +54,10 @@ with the chat surface (`--bg-chat`), not body's radial gradient, so the panel is
 The previous `RightPanel` (directory tree + artifacts) is parked in the source — its components, CSS, state and
 the artifact store/IPC remain, but nothing renders it.
 
+### Files panel: saving
+
+Open files are tabs in the panel header and stay mounted while hidden, so switching tabs keeps unsaved edits. Ctrl/Cmd+S saves the active file, and an unsaved file shows a dot after its name. Closing an unsaved tab or the panel asks to discard the edits, whether from the close button, the title bar button or a project switch; keeping them after a switch returns to that project. Escape does not close the panel while anything is unsaved. Expanding the panel keeps tabs, edits and undo, because its React tree stays in one portal and only the DOM node moves. Quitting the app does not ask. The popup file window keeps its Save, Open in VS Code and Copy buttons, since it has no tab or panel menu.
+
 ### Processes overlay
 
 The title bar's **Toggle processes** button opens a per-session panel for the active session's agent, with a header tab per background shell, a Kill square on running ones and a `Monitors (n)` tab, mirroring the
