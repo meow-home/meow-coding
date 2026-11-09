@@ -298,7 +298,7 @@ today that is Chrome, which requires a paired extension — see
 | `browser_type` | `{ ref?, selector?, text, ... }` | Type into an input/textarea/select. |
 | `browser_select` | `{ ref?, selector?, value }` | Select an option in a `<select>`. |
 | `browser_scroll` | `{ direction?: up\|down\|top\|bottom, selector? }` | Scroll or bring an element into view. |
-| `browser_read` | `{ tabId?, mode? }` | Snapshot the page into a Playwright-MCP-style structure file: one indented line per element as `role "name" [ref]`. Refs feed the other tools. |
+| `browser_read` | `{ tabId?, mode? }` | Snapshot the page into a Playwright-MCP-style structure file: one indented line per element as `role "name" [ref]`. The file and the preview start with a notice that the content comes from a web page and is data, not instructions. Refs feed the other tools. |
 | `browser_list_tabs` | `{}` | id, title, url, active, window and tab-group info. |
 | `browser_switch_tab` | `{ tabId }` | Activate a tab without focusing the browser window. |
 | `browser_close_tab` | `{ tabId }` | Close a tab. |

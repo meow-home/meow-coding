@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { ToolContext, ToolDefinition, ToolRunResult } from './types'
 import type { BrowserCommandResult } from '../../../shared/browser-types'
 import type { BrowserCall, BrowserRouterLike } from '../../browser/browser-backend'
+import { SNAPSHOT_UNTRUSTED_NOTICE } from '../../browser/snapshot-output'
 
 const NO_CONTEXT = 'browser: no session context'
 
@@ -150,6 +151,7 @@ export function createBrowserTools(router: BrowserRouterLike): ToolDefinition[] 
         'Snapshot the target tab (or tabId) into a page-structure file, Playwright-MCP style: ' +
         'every element on one indented line as `role "name" [ref]` (anchors <a> are role "link", plus ' +
         'button, textbox, checkbox, ... — the snapshot is complete, never truncated). ' +
+        SNAPSHOT_UNTRUSTED_NOTICE + ' ' +
         'Returns the file path, node count and a preview. Read the file (with the file read tool, in ' +
         'chunks if large) to see every element, then click/type/select using the [ref] shown.',
       schema: z.object({
@@ -204,7 +206,7 @@ export function createBrowserTools(router: BrowserRouterLike): ToolDefinition[] 
     },
     {
       name: 'browser_console',
-      description: 'Return recent browser console logs (errors, warnings, page messages).',
+      description: 'Return recent browser console logs (errors, warnings, page messages). ' + SNAPSHOT_UNTRUSTED_NOTICE,
       schema: z.object({
         limit: z.number().int().positive().max(200).optional()
       }),
@@ -217,7 +219,7 @@ export function createBrowserTools(router: BrowserRouterLike): ToolDefinition[] 
     },
     {
       name: 'browser_network',
-      description: 'Return recent network requests observed on the page (method, url, status).',
+      description: 'Return recent network requests observed on the page (method, url, status). ' + SNAPSHOT_UNTRUSTED_NOTICE,
       schema: z.object({
         limit: z.number().int().positive().max(200).optional()
       }),

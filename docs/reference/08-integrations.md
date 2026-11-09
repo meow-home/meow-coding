@@ -130,7 +130,8 @@ can discover the bridge.
     the tool receives `{ path }`
   - a payload containing a `tree` is written by `browser/snapshot-output.ts` (`writeSnapshotFile`, which
     renders it with `snapshotToText`) into `userData/browser-snapshots/browser-snapshot-<ts>.txt`; the
-    tool receives `{ path, size, nodeCount, preview }` where the preview is the first 80 lines
+    tool receives `{ path, size, nodeCount, preview }`; the file and the preview start with the untrusted-content
+    notice, and the preview carries the first 80 page lines
 - Console and network events are ring-buffered (default 200 entries each) and exposed both to the
   agent (`browser_console` / `browser_network`) and to the renderer
   (`getBrowserConsoleLogs` / `getBrowserNetworkLogs`).
