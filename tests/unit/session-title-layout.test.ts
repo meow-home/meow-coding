@@ -42,6 +42,15 @@ describe('session title in the title bar', () => {
     expect(ruleBody('.title-bar-session .icon-btn')).toContain('flex: 0 0 auto')
   })
 
+  it('closes the bar with one hairline against the chat', () => {
+    // .title-bar has a second rule (the entrance animation), so join every rule.
+    const bodies = stylesheetRules()
+      .filter(r => r.selectors.includes('.title-bar'))
+      .map(r => r.body.replace(/\s+/g, ' '))
+      .join(' ')
+    expect(bodies).toContain('border-bottom: 0.083333rem solid var(--hairline)')
+  })
+
   it('shrinks the brand strip when the sidebar is collapsed so the title moves left', () => {
     const body = ruleBody('.title-bar-brand.collapsed')
     expect(body).toContain('width: auto')

@@ -262,6 +262,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
      panel. On Windows the OS-painted caption strip (TITLE_BAR_COLORS) must match
      this token — window-chrome.test.ts parses this rule. */
   background: var(--bg-chat);
+  border-bottom: 0.083333rem solid var(--hairline);
   border-radius: 0; /* flush against the window edge */
   -webkit-app-region: drag; user-select: none;
 }
