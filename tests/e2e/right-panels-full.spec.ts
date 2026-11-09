@@ -40,9 +40,8 @@ async function launch(userData: string) {
   return { app, window }
 }
 
-async function openFromPaneMenu(window: Page, label: 'Files' | 'Processes'): Promise<void> {
-  await window.locator('.pane-header .pane-menu button').first().click()
-  await window.locator('button.menu-item').filter({ hasText: new RegExp(`^${label}$`) }).click()
+async function openFromToolbar(window: Page, label: 'files' | 'processes'): Promise<void> {
+  await window.locator(`.title-bar-tools .icon-btn[aria-label="Toggle ${label}"]`).click()
 }
 
 /** The live root font-size: every rem-derived metric scales with it. */
@@ -65,7 +64,7 @@ test('expanding a panel covers the pane area, not just the docked column', async
   seedWorkspaces(userData, project)
   const { app, window } = await launch(userData)
   try {
-    await openFromPaneMenu(window, 'Files')
+    await openFromToolbar(window, 'files')
     await window.locator('.files-overlay').waitFor()
 
     // Docked first: the panel sits in the right-hand column, chat pane still visible.
@@ -120,7 +119,7 @@ test('expanding the Processes panel covers the pane area too', async () => {
   seedWorkspaces(userData, project)
   const { app, window } = await launch(userData)
   try {
-    await openFromPaneMenu(window, 'Processes')
+    await openFromToolbar(window, 'processes')
     await window.locator('.processes-overlay').waitFor()
     await window.getByRole('button', { name: 'Expand', exact: true }).click()
     await window.locator('.processes-overlay.full').waitFor()

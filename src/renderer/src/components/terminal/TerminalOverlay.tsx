@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Edit2, Maximize2, Minimize2, Plus, RotateCw, SquareTerminal, Trash2, X } from 'lucide-react'
+import { Edit2, Plus, RotateCw, Trash2, X } from 'lucide-react'
 import type { TerminalInfo } from '@shared/types'
 import BaseDropdown from '../common/BaseDropdown'
+import PanelHeader from '../common/PanelHeader'
 import TerminalView from './TerminalView'
 
 interface Props {
@@ -122,102 +123,73 @@ export default function TerminalOverlay({ agentId, full, onToggleFull, onClose, 
       role="dialog"
       aria-label="Terminal"
     >
-      <div className="files-head title-bar">
-        <div className="files-head-title">
-          <SquareTerminal size={14} aria-hidden="true" />
-          <span>Terminal</span>
-        </div>
-        <div className="files-head-actions">
-          {selectedTab && selectedTab.status === 'exited' && (
-            <button
-              className="icon-btn terminal-restart-btn"
-              title="Restart terminal"
-              aria-label="Restart terminal"
-              onClick={() => void handleRestart(selectedTab.id)}
-            >
-              <RotateCw size={14} aria-hidden="true" />
-            </button>
-          )}
-          <button className="icon-btn" title="New terminal" aria-label="New terminal" onClick={handleCreate}>
-            <Plus size={14} aria-hidden="true" />
-          </button>
+      <PanelHeader
+        ariaLabel="Terminals"
+        activeId={selectedTerminalId}
+        onSelect={setSelectedTerminalId}
+        addLabel="New terminal"
+        onAdd={handleCreate}
+        full={full}
+        onToggleFull={onToggleFull}
+        closeLabel="Close Terminal"
+        onClose={onClose}
+        actions={selectedTab && selectedTab.status === 'exited' ? (
           <button
-            className="icon-btn"
-            title={full ? 'Restore size' : 'Expand'}
-            aria-label={full ? 'Restore size' : 'Expand'}
-            onClick={onToggleFull}
+            className="icon-btn terminal-restart-btn"
+            title="Restart terminal"
+            aria-label="Restart terminal"
+            onClick={() => void handleRestart(selectedTab.id)}
           >
-            {full ? <Minimize2 size={14} aria-hidden="true" /> : <Maximize2 size={14} aria-hidden="true" />}
+            <RotateCw size={14} aria-hidden="true" />
           </button>
-          <button className="icon-btn" title="Close" aria-label="Close Terminal" onClick={onClose}>
-            <X size={14} aria-hidden="true" />
-          </button>
-        </div>
-      </div>
-
-      {terminals.length > 0 && (
-        <div className="files-tabs" role="tablist" aria-label="Terminals">
-          {terminals.map((tab) => {
-            const isSelected = tab.id === selectedTerminalId
-            const title = tab.userTitle || tab.title || 'Terminal'
-            const isRunning = tab.status === 'running'
-            return (
-              <div
-                key={tab.id}
-                role="tab"
-                aria-selected={isSelected}
-                className={`files-tab terminal-tab${isSelected ? ' active' : ''}`}
-                onClick={() => setSelectedTerminalId(tab.id)}
-                onContextMenu={(e) => {
-                  e.preventDefault()
-                  setTabMenu({ terminalId: tab.id, x: e.clientX, y: e.clientY })
+        ) : undefined}
+        tabs={terminals.map((tab) => {
+          const title = tab.userTitle || tab.title || 'Terminal'
+          const isRunning = tab.status === 'running'
+          return {
+            id: tab.id,
+            className: 'terminal-tab',
+            title,
+            lead: (
+              <span
+                className={`terminal-tab-dot${isRunning ? ' running' : ''}`}
+                role="img"
+                aria-label={isRunning ? 'running' : `exited (${tab.exitCode ?? 0})`}
+              />
+            ),
+            label: tab.id === renamingId ? (
+              <input
+                type="text"
+                className="terminal-tab-rename-input"
+                value={renameValue}
+                autoFocus
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitRename(tab.id)
+                  else if (e.key === 'Escape') setRenamingId(null)
                 }}
-              >
-                <span
-                  className={`terminal-tab-dot${isRunning ? ' running' : ''}`}
-                  role="img"
-                  aria-label={isRunning ? 'running' : `exited (${tab.exitCode ?? 0})`}
-                />
-                {tab.id === renamingId ? (
-                  <input
-                    type="text"
-                    className="terminal-tab-rename-input"
-                    value={renameValue}
-                    autoFocus
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') commitRename(tab.id)
-                      else if (e.key === 'Escape') setRenamingId(null)
-                    }}
-                    onBlur={() => commitRename(tab.id)}
-                  />
-                ) : (
-                  <button
-                    className="files-tab-name"
-                    title={title}
-                    onDoubleClick={() => startRename(tab.id)}
-                  >
-                    {title}
-                    {!isRunning && tab.exitCode !== undefined && (
-                      <span className="terminal-tab-exit-code"> ({tab.exitCode})</span>
-                    )}
-                  </button>
+                onBlur={() => commitRename(tab.id)}
+              />
+            ) : (
+              <>
+                {title}
+                {!isRunning && tab.exitCode !== undefined && (
+                  <span className="terminal-tab-exit-code"> ({tab.exitCode})</span>
                 )}
-                <button
-                  className="files-tab-close terminal-tab-close"
-                  aria-label={`Close ${title}`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    void handleKill(tab.id)
-                  }}
-                >
-                  <X size={12} aria-hidden="true" />
-                </button>
-              </div>
-            )
-          })}
-        </div>
-      )}
+              </>
+            ),
+            closeClassName: 'terminal-tab-close',
+            closeLabel: `Close ${title}`,
+            onClose: () => void handleKill(tab.id),
+            onDoubleClick: () => startRename(tab.id),
+            onContextMenu: (e) => {
+              e.preventDefault()
+              setTabMenu({ terminalId: tab.id, x: e.clientX, y: e.clientY })
+            }
+          }
+        })}
+      />
 
       {inlineError && (
         <div className="terminal-error-bar" role="alert">

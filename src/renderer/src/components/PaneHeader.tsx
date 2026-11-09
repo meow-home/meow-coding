@@ -1,12 +1,8 @@
 import {  useState } from 'react'
 import {
-  Globe,
-  Terminal,
-  SquareTerminal,
   Code,
   FileText,
   FolderSymlink,
-  FolderTree,
   MoreVertical,
   Play,
   RotateCw,
@@ -24,18 +20,10 @@ interface Props {
   background?: boolean
   native?: boolean
   active?: boolean
-  terminalOpen?: boolean
-  browserOpen?: boolean
-  browserAgentActive?: boolean
-  isDraft?: boolean
-  onToggleTerminal?: () => void
-  onToggleBrowser?: () => void
   onStop: () => void
   onRestart: () => void
   onInject: (text: string) => void
   onOpenLog: () => void
-  onOpenFiles?: () => void
-  onOpenProcesses?: () => void
   onRemove: () => void
 }
 
@@ -50,27 +38,16 @@ export default function PaneHeader({
   cwd,
   native = false,
   active = false,
-  terminalOpen = false,
-  browserOpen = false,
-  browserAgentActive = false,
-  isDraft = false,
-  onToggleTerminal,
-  onToggleBrowser,
   onStop,
   onRestart,
   onInject,
   onOpenLog,
-  onOpenFiles,
-  onOpenProcesses,
   onRemove
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [injecting, setInjecting] = useState(false)
   const [prompt, setPrompt] = useState('')
   const [confirmRemove, setConfirmRemove] = useState(false)
-
-  const isMac = typeof window !== 'undefined' && window.api?.platform === 'darwin'
-  const shortcutLabel = isMac ? 'Cmd+`' : 'Ctrl+`'
 
   const close = () => setMenuOpen(false)
 
@@ -92,29 +69,6 @@ export default function PaneHeader({
       />
       <span className="pane-title">{name}</span>
       <span className="pane-actions">
-        {onToggleBrowser && (
-          <button
-            className={`icon-btn pane-browser-toggle ${browserOpen ? 'active' : ''}`}
-            title={isDraft ? 'Browser unavailable in draft sessions' : 'Toggle browser'}
-            aria-label="Toggle browser"
-            disabled={isDraft}
-            onClick={onToggleBrowser}
-          >
-            <Globe size={14} aria-hidden="true" />
-            {browserAgentActive && <span className="pane-browser-dot" aria-hidden="true" />}
-          </button>
-        )}
-        {onToggleTerminal && (
-          <button
-            className={`icon-btn ${terminalOpen ? 'active' : ''}`}
-            title={isDraft ? 'Terminals unavailable in draft sessions' : `Toggle terminal (${shortcutLabel})`}
-            aria-label="Toggle terminal"
-            disabled={isDraft}
-            onClick={onToggleTerminal}
-          >
-            <SquareTerminal size={14} aria-hidden="true" />
-          </button>
-        )}
         {injecting && (
           <input
             className="input inject-input"
@@ -165,18 +119,6 @@ export default function PaneHeader({
                   Restart
                 </button>
               </>
-            )}
-            {onOpenFiles && (
-              <button className="menu-item" onClick={() => { close(); onOpenFiles() }}>
-                <FolderTree size={16} aria-hidden="true" />
-                Files
-              </button>
-            )}
-            {onOpenProcesses && (
-              <button className="menu-item" onClick={() => { close(); onOpenProcesses() }}>
-                <Terminal size={16} aria-hidden="true" />
-                Processes
-              </button>
             )}
             {cwd && (
               <>

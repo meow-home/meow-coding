@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Copy, Minus, PanelLeft, Square, X } from 'lucide-react'
 import logoMark from '../assets/logo-mark.png'
 
@@ -23,11 +23,13 @@ interface Props {
   onToggleSidebar?: () => void
   onMouseEnterBrand?: () => void
   onMouseLeaveBrand?: () => void
+  /** The right-side panel buttons. */
+  tools?: ReactNode
 }
 
 export default function TitleBar({
   sidebarCollapsed, onToggleSidebar,
-  onMouseEnterBrand, onMouseLeaveBrand
+  onMouseEnterBrand, onMouseLeaveBrand, tools
 }: Props) {
   const platform = window.api.platform
   const showCustomControls = platform === 'linux'
@@ -62,6 +64,7 @@ export default function TitleBar({
         )}
       </div>
       <div className="title-bar-right">
+        {tools}
         {showCustomControls && (
           <div className="title-bar-controls" onDoubleClick={e => e.stopPropagation()}>
             <button className="title-bar-btn" aria-label="Minimize" onClick={() => void window.api.minimizeWindow()}>

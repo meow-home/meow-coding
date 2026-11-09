@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Code, Globe, Maximize2, Minimize2, Plus, RotateCw, X } from 'lucide-react'
+import { Code, ExternalLink, Globe, MoreHorizontal, RotateCw, X } from 'lucide-react'
 import type { BrowserTabInfo } from '@shared/browser-types'
 import BaseDropdown from '../common/BaseDropdown'
+import PanelHeader from '../common/PanelHeader'
 import BrowserControlBanner from './BrowserControlBanner'
 import BrowserToolbar from './BrowserToolbar'
 import BrowserDrawer from './BrowserDrawer'
@@ -31,6 +32,7 @@ export default function BrowserOverlay({ agentId, full, onToggleFull, onClose }:
   const [activeTabId, setActiveTabId] = useState<number | null>(null)
   const [inlineError, setInlineError] = useState<string | null>(null)
   const [tabMenu, setTabMenu] = useState<{ tabId: number; x: number; y: number } | null>(null)
+  const [moreOpen, setMoreOpen] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   const onError = useCallback((message: string) => setInlineError(message), [])
@@ -145,76 +147,71 @@ export default function BrowserOverlay({ agentId, full, onToggleFull, onClose }:
 
   return (
     <section className={`files-overlay browser-overlay${full ? ' full' : ' docked'}`} role="dialog" aria-label="Browser">
-      <div className="files-head title-bar">
-        <div className="files-head-title">
-          <Globe size={14} aria-hidden="true" />
-          <span>Browser</span>
-        </div>
-        <div className="files-head-actions">
-          <button className="icon-btn" title="New tab" aria-label="New tab" onClick={handleCreate}>
-            <Plus size={14} aria-hidden="true" />
-          </button>
-          <button
-            className="icon-btn"
-            title="Console and network"
-            aria-label="Console and network"
-            aria-pressed={drawerOpen}
-            onClick={() => setDrawerOpen(open => !open)}
-          >
-            <Code size={14} aria-hidden="true" />
-          </button>
-          <button
-            className="icon-btn"
-            title={full ? 'Restore size' : 'Expand'}
-            aria-label={full ? 'Restore size' : 'Expand'}
-            onClick={onToggleFull}
-          >
-            {full ? <Minimize2 size={14} aria-hidden="true" /> : <Maximize2 size={14} aria-hidden="true" />}
-          </button>
-          <button className="icon-btn" title="Close" aria-label="Close Browser" onClick={onClose}>
-            <X size={14} aria-hidden="true" />
-          </button>
-        </div>
-      </div>
-
-      {tabs.length > 0 && (
-        <div className="files-tabs" role="tablist" aria-label="Browser tabs">
-          {tabs.map(tab => {
-            const isSelected = tab.id === activeTab?.id
-            const agentOwned = tab.control === 'agent' || tab.control === 'approval'
-            return (
-              <div
-                key={tab.id}
-                role="tab"
-                aria-selected={isSelected}
-                className={`files-tab browser-tab${isSelected ? ' active' : ''}`}
-                onClick={() => handleActivate(tab.id)}
-                onContextMenu={(e) => {
-                  e.preventDefault()
-                  setTabMenu({ tabId: tab.id, x: e.clientX, y: e.clientY })
+      <PanelHeader
+        ariaLabel="Browser tabs"
+        activeId={activeTab ? String(activeTab.id) : null}
+        onSelect={(id) => handleActivate(Number(id))}
+        addLabel="New tab"
+        onAdd={handleCreate}
+        full={full}
+        onToggleFull={onToggleFull}
+        closeLabel="Close Browser"
+        onClose={onClose}
+        tabs={tabs.map(tab => {
+          const agentOwned = tab.control === 'agent' || tab.control === 'approval'
+          return {
+            id: String(tab.id),
+            className: 'browser-tab',
+            title: tabTitle(tab),
+            lead: agentOwned
+              ? <span className="browser-tab-dot agent" role="img" aria-label="Meow is using this tab" />
+              : <Globe size={14} aria-hidden="true" />,
+            label: tabTitle(tab),
+            closeLabel: `Close ${tabTitle(tab)}`,
+            onClose: () => handleClose(tab.id),
+            onContextMenu: (e) => {
+              e.preventDefault()
+              setTabMenu({ tabId: tab.id, x: e.clientX, y: e.clientY })
+            }
+          }
+        })}
+        actions={(
+          <>
+            <button
+              className={`icon-btn${drawerOpen ? ' active' : ''}`}
+              title="Console and network"
+              aria-label="Console and network"
+              aria-pressed={drawerOpen}
+              onClick={() => setDrawerOpen(v => !v)}
+            >
+              <Code size={14} aria-hidden="true" />
+            </button>
+            <BaseDropdown
+              open={moreOpen}
+              onOpenChange={setMoreOpen}
+              placement="bottom-end"
+              menuClassName="sidebar-menu-dropdown"
+              trigger={(
+                <button className="icon-btn" title="More" aria-label="Browser menu">
+                  <MoreHorizontal size={14} aria-hidden="true" />
+                </button>
+              )}
+            >
+              <button
+                className="menu-item"
+                disabled={!activeTab || !/^https?:/i.test(activeTab.url)}
+                onClick={() => {
+                  setMoreOpen(false)
+                  handleOpenExternal()
                 }}
               >
-                <span
-                  className={`browser-tab-dot${agentOwned ? ' agent' : ''}`}
-                  role="img"
-                  aria-label={agentOwned ? 'Meow is using this tab' : 'idle'}
-                />
-                <span className="files-tab-name" title={tabTitle(tab)}>{tabTitle(tab)}</span>
-                <button
-                  className="files-tab-close"
-                  aria-label={`Close ${tabTitle(tab)}`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleClose(tab.id)
-                  }}
-                >
-                  <X size={12} aria-hidden="true" />
-                </button>
-              </div>
-            )
-          })}
-        </div>
-      )}
+                <ExternalLink size={16} aria-hidden="true" />
+                Open in default browser
+              </button>
+            </BaseDropdown>
+          </>
+        )}
+      />
 
       {activeTab && (
         <BrowserToolbar
@@ -224,7 +221,6 @@ export default function BrowserOverlay({ agentId, full, onToggleFull, onClose }:
           onForward={handleForward}
           onReloadOrStop={handleReloadOrStop}
           onNavigate={handleNavigate}
-          onOpenExternal={handleOpenExternal}
           onError={onError}
         />
       )}

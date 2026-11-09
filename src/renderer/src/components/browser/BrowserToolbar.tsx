@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, ExternalLink, RotateCw, Square } from 'lucide-react'
+import { ArrowLeft, ArrowRight, RotateCw, Square } from 'lucide-react'
 import type { BrowserTabInfo } from '@shared/browser-types'
 import { normalizeUrlInput } from './normalizeUrlInput'
 
@@ -11,12 +11,11 @@ interface Props {
   onForward: () => void
   onReloadOrStop: () => void
   onNavigate: (url: string) => void
-  onOpenExternal: () => void
   onError: (message: string) => void
 }
 
 export default function BrowserToolbar({
-  tab, locked, onBack, onForward, onReloadOrStop, onNavigate, onOpenExternal, onError
+  tab, locked, onBack, onForward, onReloadOrStop, onNavigate, onError
 }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -104,15 +103,6 @@ export default function BrowserToolbar({
           setDraft(url)
         }}
       />
-      <button
-        className="icon-btn"
-        title="Open in default browser"
-        aria-label="Open in default browser"
-        disabled={!tab || !/^https?:/i.test(url)}
-        onClick={onOpenExternal}
-      >
-        <ExternalLink size={14} aria-hidden="true" />
-      </button>
     </div>
   )
 }

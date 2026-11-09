@@ -11,20 +11,15 @@ interface Props {
   background: boolean
   active: boolean
   gitBranch?: string | null
-  terminalOpen?: boolean
-  browserOpen?: boolean
-  browserAgentActive?: boolean
   onFocus: () => void
   onRemove: () => void
   onSendDraftMessage?: (textAndImages: { text: string; images?: ImageAttachment[] }) => void
-  onOpenFiles?: () => void
-  onOpenProcesses?: () => void
   onToggleTerminal?: () => void
   onToggleBrowser?: () => void
   onOpenSubagent?: (item: SubagentOverlayItem) => void
 }
 
-export default function Pane({ pane, background, active, gitBranch, terminalOpen = false, browserOpen = false, browserAgentActive = false, onFocus, onRemove, onSendDraftMessage, onOpenFiles, onOpenProcesses, onToggleTerminal, onToggleBrowser, onOpenSubagent }: Props) {
+export default function Pane({ pane, background, active, gitBranch, onFocus, onRemove, onSendDraftMessage, onToggleTerminal, onToggleBrowser, onOpenSubagent }: Props) {
   const id = pane.agent.id
   const native = pane.agent.kind === 'native'
   const isDraft = id === DRAFT_SESSION_ID
@@ -100,18 +95,10 @@ export default function Pane({ pane, background, active, gitBranch, terminalOpen
         cwd={pane.agent.cwd}
         native={native}
         active={active}
-        terminalOpen={terminalOpen}
-        browserOpen={browserOpen}
-        browserAgentActive={browserAgentActive}
-        isDraft={isDraft}
-        onToggleTerminal={onToggleTerminal ? handleToggleTerminal : undefined}
-        onToggleBrowser={onToggleBrowser ? handleToggleBrowser : undefined}
         onStop={handleStop}
         onRestart={handleRestart}
         onInject={handleInject}
         onOpenLog={handleOpenLog}
-        onOpenFiles={onOpenFiles}
-        onOpenProcesses={onOpenProcesses}
         onRemove={onRemove}
       />
       {background ? (

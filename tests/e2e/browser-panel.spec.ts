@@ -268,14 +268,17 @@ test('the panel toggles, drives a tab, switches tabs, reloads and matches the vi
       await expect(window.locator('.browser-banner')).toContainText('Meow is using this tab')
       await expect(window.locator('.browser-url-input')).toBeDisabled()
       await expect(window.locator('.icon-btn[aria-label="Back"]')).toBeDisabled()
-      await expect(window.locator('.icon-btn[aria-label="Open in default browser"]')).toBeEnabled()
+      await window.locator('.icon-btn[aria-label="Browser menu"]').click()
+      await expect(window.locator('button.menu-item', { hasText: 'Open in default browser' })).toBeEnabled()
+      await window.keyboard.press('Escape')
+      await expect(window.locator('button.menu-item', { hasText: 'Open in default browser' })).toHaveCount(0)
 
       // Docked beside the chat, the native view matches the placeholder rect.
       await expectBounds(app, url, window)
-      await window.locator('.pane-header .icon-btn[aria-label="Toggle browser"]').click()
+      await window.locator('.title-bar-tools .icon-btn[aria-label="Toggle browser"]').click()
       await window.waitForTimeout(300)
       await expect(window.locator('.browser-overlay')).toHaveCount(0)
-      await window.locator('.pane-header .icon-btn[aria-label="Toggle browser"]').click()
+      await window.locator('.title-bar-tools .icon-btn[aria-label="Toggle browser"]').click()
       await window.waitForTimeout(300)
       const agentShot = await compositeShot(app, url, path.join(shots, 'browser-agent-banner.png'))
 
@@ -491,7 +494,7 @@ test('occlusion: menus and the resizer hide the native view, and it comes back',
     try {
       window.on('console', m => { if (m.type() === 'error') console.log('[console]', m.text().slice(0, 300)) })
       await window.evaluate(({ id, u }) => window.api.browserTabCreate(id, u), { id: sessionId, u: url })
-      await window.locator('.pane-header .icon-btn[aria-label="Toggle browser"]').click()
+      await window.locator('.title-bar-tools .icon-btn[aria-label="Toggle browser"]').click()
       await expect(window.locator('.browser-overlay')).toBeVisible()
       await expect.poll(async () => (await viewBounds(app, url))?.visible, { timeout: 15000 }).toBe(true)
       await expectBounds(app, url, window)
@@ -692,7 +695,7 @@ test('keyboard shortcuts from a focused page', async () => {
     const { app, window, sessionId } = await launch(userData)
     try {
       await window.evaluate(({ id, u }) => window.api.browserTabCreate(id, u), { id: sessionId, u: url })
-      await window.locator('.pane-header .icon-btn[aria-label="Toggle browser"]').click()
+      await window.locator('.title-bar-tools .icon-btn[aria-label="Toggle browser"]').click()
       await expect(window.locator('.browser-overlay')).toBeVisible()
       await expect.poll(async () => (await viewBounds(app, url))?.visible, { timeout: 15000 }).toBe(true)
 
@@ -774,7 +777,7 @@ test('drawer shows console and network logs, sends them to chat, and the view fo
     const { app, window, sessionId } = await launch(userData)
     try {
       await window.evaluate(({ id, u }) => window.api.browserTabCreate(id, u), { id: sessionId, u: url })
-      await window.locator('.pane-header .icon-btn[aria-label="Toggle browser"]').click()
+      await window.locator('.title-bar-tools .icon-btn[aria-label="Toggle browser"]').click()
       await expect(window.locator('.browser-overlay')).toBeVisible()
       await expect.poll(async () => (await viewBounds(app, url))?.visible, { timeout: 15000 }).toBe(true)
       await expectBounds(app, url, window)
@@ -821,7 +824,7 @@ test('drawer shows console and network logs, sends them to chat, and the view fo
         const created = await window.api.browserTabCreate(id, u)
         await window.api.browserTabActivate(id, created.id)
       }, { id: sessionId, u: `${url}?second=1` })
-      await window.locator('.pane-header .icon-btn[aria-label="Toggle browser"]').click()
+      await window.locator('.title-bar-tools .icon-btn[aria-label="Toggle browser"]').click()
       await expect(window.locator('.browser-overlay')).toBeVisible()
       await expect(window.locator('.browser-url-input')).toHaveValue(/second=1/, { timeout: 10000 })
       console.log('[e2e] drawer screenshot', JSON.stringify({ file: path.join(shots, 'browser-drawer.png'), bytes: shot }))
@@ -871,7 +874,7 @@ test('settings: backend pill, read-modify-write and clearing browsing data', asy
 
       // Open the panel and leave data in the partition.
       await window.evaluate(({ id, u }) => window.api.browserTabCreate(id, u), { id: sessionId, u: url })
-      await window.locator('.pane-header .icon-btn[aria-label="Toggle browser"]').click()
+      await window.locator('.title-bar-tools .icon-btn[aria-label="Toggle browser"]').click()
       await expect(window.locator('.browser-overlay')).toBeVisible()
       await expect.poll(async () => (await viewBounds(app, url))?.visible, { timeout: 15000 }).toBe(true)
       const seedData = (): Promise<unknown> => app.evaluate(({ BrowserWindow }, fixtureUrl) => {
@@ -925,5 +928,65 @@ test('settings: backend pill, read-modify-write and clearing browsing data', asy
     cleanupDir(project)
     fixture.close()
     llm.close()
+  }
+})
+
+test('the title bar toggles every panel, and each panel header is its tabs with no title', async () => {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  const shots = path.join(tmpdir(), 'meow-browser-panel-shots')
+  mkdirSync(shots, { recursive: true })
+  try {
+    seedUserData(userData, project, {})
+    writeFileSync(path.join(project, 'notes.md'), '# Notes\n')
+    const { app, window } = await launch(userData)
+    try {
+      const tool = (label: string) => window.locator(`.title-bar-tools .icon-btn[aria-label="Toggle ${label}"]`)
+      const shot = async (name: string): Promise<void> => {
+        const data = await app.evaluate(async ({ BrowserWindow }) =>
+          (await BrowserWindow.getAllWindows()[0].webContents.capturePage()).toPNG().toString('base64'))
+        const buffer = Buffer.from(data, 'base64')
+        if (buffer.length === 0) throw new Error(`empty screenshot: ${name}`)
+        writeFileSync(path.join(shots, name), buffer)
+      }
+      expect(await window.locator('.pane-header [aria-label="Toggle browser"], .pane-header [aria-label="Toggle terminal"]').count()).toBe(0)
+
+      for (const [label, panel] of [
+        ['files', '.files-overlay[aria-label="Files"]'],
+        ['processes', '.processes-overlay'],
+        ['terminal', '.terminal-overlay'],
+        ['browser', '.browser-overlay']
+      ] as const) {
+        await tool(label).click()
+        await expect(window.locator(panel)).toBeVisible()
+        await expect(tool(label)).toHaveClass(/active/)
+        await expect(window.locator(`${panel} .panel-head`)).toHaveCount(1)
+        expect(await window.locator(`${panel} .files-head-title`).count()).toBe(0)
+        if (label === 'terminal') await expect(window.locator('.terminal-overlay .panel-tab.terminal-tab')).toHaveCount(1, { timeout: 20_000 })
+        await shot(`panel-tabs-${label}.png`)
+        await tool(label).click()
+        await expect(window.locator(panel)).toHaveCount(0)
+        await expect(tool(label)).not.toHaveClass(/active/)
+      }
+
+      // Files: an opened file is a tab in the header, and there is no second tab row.
+      await tool('files').click()
+      await window.locator('.files-overlay').getByText('notes.md').click()
+      await expect(window.locator('.files-overlay .panel-head .panel-tab')).toHaveCount(1)
+      await expect(window.locator('.files-overlay .panel-tab.active')).toContainText('notes.md')
+      expect(await window.locator('.files-overlay .files-tabs').count()).toBe(0)
+      await shot('panel-tabs-files-open.png')
+      await window.locator('.files-overlay [aria-label="Close notes.md"]').click()
+      await expect(window.locator('.files-overlay .panel-tab')).toHaveCount(0)
+      await window.locator('[aria-label="Close Files"]').click()
+
+      // Nothing has opened a sub-agent yet.
+      await expect(tool('sub-agents')).toBeDisabled()
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
   }
 })

@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Maximize2, Minimize2, Skull, Terminal, X } from 'lucide-react'
+import { Activity, Square, Terminal } from 'lucide-react'
 import type { BackgroundProcInfo, MonitorInfo } from '@shared/types'
+import PanelHeader from '../common/PanelHeader'
 
 export const PROCESSES_MIN_WIDTH = 320
 export const PROCESSES_MAX_WIDTH = 900
 export const PROCESSES_DEFAULT_WIDTH = 420
+
+const MONITORS_TAB = 'monitors'
 
 interface Props {
   agentId: string
@@ -22,6 +25,8 @@ export default function ProcessesOverlay({ agentId, full, width, onWidthChange, 
   const [output, setOutput] = useState('')
   const outRef = useRef<HTMLPreElement>(null)
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  const showingMonitors = selected === MONITORS_TAB
+  const selectedShell = selected && !showingMonitors ? selected : null
 
   const startDrag = useCallback((e: React.MouseEvent) => {
     if (!onWidthChange || width === undefined) return
@@ -50,7 +55,11 @@ export default function ProcessesOverlay({ agentId, full, width, onWidthChange, 
       if (!alive) return
       setShells(s)
       setMonitors(m)
-      setSelected(cur => (cur && s.some(x => x.id === cur) ? cur : (s[0]?.id ?? null)))
+      setSelected(cur => {
+        if (cur === MONITORS_TAB && m.length > 0) return cur
+        if (cur && s.some(x => x.id === cur)) return cur
+        return s[0]?.id ?? (m.length > 0 ? MONITORS_TAB : null)
+      })
     }
     void load()
     const t = setInterval(() => void load(), 1500)
@@ -59,21 +68,21 @@ export default function ProcessesOverlay({ agentId, full, width, onWidthChange, 
 
   // Stream the selected shell's output.
   useEffect(() => {
-    if (!selected) { setOutput(''); return }
+    if (!selectedShell) { setOutput(''); return }
     let alive = true
     setOutput('')
-    void window.api.backgroundProcSubscribe(selected).then(res => { if (alive && res) setOutput(res.backlog) })
-    const offData = window.api.onBackgroundProcData(e => { if (e.id === selected) setOutput(prev => prev + e.chunk) })
+    void window.api.backgroundProcSubscribe(selectedShell).then(res => { if (alive && res) setOutput(res.backlog) })
+    const offData = window.api.onBackgroundProcData(e => { if (e.id === selectedShell) setOutput(prev => prev + e.chunk) })
     const offExit = window.api.onBackgroundProcExit(e => {
-      if (e.id === selected) setShells(prev => prev.map(s => s.id === e.id ? { ...s, status: 'exited', exitCode: e.exitCode } : s))
+      if (e.id === selectedShell) setShells(prev => prev.map(s => s.id === e.id ? { ...s, status: 'exited', exitCode: e.exitCode } : s))
     })
     return () => {
       alive = false
       offData()
       offExit()
-      void window.api.backgroundProcUnsubscribe(selected)
+      void window.api.backgroundProcUnsubscribe(selectedShell)
     }
-  }, [selected])
+  }, [selectedShell])
 
   useEffect(() => {
     const el = outRef.current
@@ -86,6 +95,27 @@ export default function ProcessesOverlay({ agentId, full, width, onWidthChange, 
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  const shellTabs = shells.map(s => {
+    const running = s.status === 'running'
+    return {
+      id: s.id,
+      title: s.command,
+      lead: <span className={`terminal-tab-dot${running ? ' running' : ''}`} role="img" aria-label={running ? 'running' : 'exited'} />,
+      label: running ? s.command : `${s.command} (exit ${s.exitCode ?? '?'})`,
+      // Not a plain close: this stops the process, so it does not look like one.
+      ...(running ? {
+        closeLabel: `Kill ${s.command}`,
+        closeIcon: <Square size={11} aria-hidden="true" />,
+        onClose: () => void window.api.backgroundProcKill(s.id)
+      } : {})
+    }
+  })
+  const monitorTab = monitors.length > 0 ? [{
+    id: MONITORS_TAB,
+    lead: <Activity size={14} aria-hidden="true" />,
+    label: `Monitors (${monitors.length})`
+  }] : []
+
   return (
     <section
       className={`files-overlay processes-overlay${full ? ' full' : ' docked'}`}
@@ -94,66 +124,40 @@ export default function ProcessesOverlay({ agentId, full, width, onWidthChange, 
       aria-label="Processes"
     >
       {!full && onWidthChange && width !== undefined && <div className="files-resizer" onMouseDown={startDrag} />}
-      <div className="files-head title-bar">
-        <div className="files-head-title">
-          <Terminal size={14} aria-hidden="true" />
-          <span>Processes</span>
-        </div>
-        <div className="files-head-actions">
-          <button className="icon-btn" title={full ? 'Restore size' : 'Expand'} aria-label={full ? 'Restore size' : 'Expand'} onClick={onToggleFull}>
-            {full ? <Minimize2 size={14} aria-hidden="true" /> : <Maximize2 size={14} aria-hidden="true" />}
-          </button>
-          <button className="icon-btn" title="Close" aria-label="Close Processes" onClick={onClose}>
-            <X size={14} aria-hidden="true" />
-          </button>
-        </div>
-      </div>
+      <PanelHeader
+        ariaLabel="Background processes"
+        activeId={selected}
+        onSelect={setSelected}
+        tabs={[...shellTabs, ...monitorTab]}
+        full={full}
+        onToggleFull={onToggleFull}
+        closeLabel="Close Processes"
+        onClose={onClose}
+      />
       <div className="files-body">
-        <div className="files-side processes-side">
-          <div className="processes-group-title">Shells</div>
-          {shells.length === 0 && <div className="processes-empty">No background shells.</div>}
-          {shells.map(s => (
-            <div
-              key={s.id}
-              className={`processes-row${s.id === selected ? ' active' : ''}`}
-              onClick={() => setSelected(s.id)}
-            >
-              <span className={`status-dot status-${s.status === 'running' ? 'busy' : 'idle'}`} />
-              <span className="processes-cmd" title={s.id}>{s.command}</span>
-              {s.status === 'exited' && <span className="processes-exit">exit {s.exitCode ?? '?'}</span>}
-              {s.status === 'running' && (
-                <button
-                  className="icon-btn processes-kill"
-                  title="Kill"
-                  aria-label={`Kill ${s.command}`}
-                  onClick={ev => { ev.stopPropagation(); void window.api.backgroundProcKill(s.id) }}
-                >
-                  <Skull size={13} aria-hidden="true" />
-                </button>
-              )}
-            </div>
-          ))}
-          <div className="processes-group-title">Monitors</div>
-          {monitors.length === 0 && <div className="processes-empty">No active monitors.</div>}
-          {monitors.map(m => (
-            <div key={m.id} className="processes-row processes-monitor" title={`monitor ${m.id}`}>
-              <span className="status-dot status-busy" />
-              <span className="processes-cmd">→ {m.targetId}</span>
-              <span className="processes-until">{m.until}</span>
-            </div>
-          ))}
-        </div>
-        <div className="files-main processes-main">
-          {selected ? (
-            <pre ref={outRef} className="processes-output">{output || '(no output yet)'}</pre>
-          ) : (
-            <div className="files-empty">
-              <Terminal size={30} aria-hidden="true" />
-              <div className="files-empty-title">No shell selected</div>
-              <div className="files-empty-hint">Start one with a background bash command, then pick it on the left.</div>
-            </div>
-          )}
-        </div>
+        {showingMonitors ? (
+          <div className="processes-monitors">
+            {monitors.map(m => (
+              <div key={m.id} className="processes-monitor-row" title={`monitor ${m.id}`}>
+                <span className="terminal-tab-dot running" aria-hidden="true" />
+                <span className="processes-monitor-target">{m.targetId}</span>
+                <span className="processes-monitor-until">{m.until}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="files-main processes-main">
+            {selectedShell ? (
+              <pre ref={outRef} className="processes-output">{output || '(no output yet)'}</pre>
+            ) : (
+              <div className="files-empty">
+                <Terminal size={30} aria-hidden="true" />
+                <div className="files-empty-title">No background processes</div>
+                <div className="files-empty-hint">Start one with a background bash command.</div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </section>
   )

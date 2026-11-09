@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AlertCircle, Bot, Check, CheckCircle2, Clock, Copy, FileText, GitBranch,
-  Maximize2, Minimize2, Search, Sparkles, Terminal, Wrench, X, XCircle
+  Search, Sparkles, Terminal, Wrench, XCircle
 } from 'lucide-react'
 import MarkdownText from './MarkdownText'
+import PanelHeader from '../common/PanelHeader'
 
 export const SUBAGENT_MIN_WIDTH = 320
 export const SUBAGENT_MAX_WIDTH = 900
@@ -21,7 +22,10 @@ export interface SubagentOverlayItem {
 }
 
 interface Props {
-  item: SubagentOverlayItem
+  items: SubagentOverlayItem[]
+  activeId: string | null
+  onSelect: (taskId: string) => void
+  onCloseTab: (taskId: string) => void
   full: boolean
   width?: number
   onWidthChange?: (width: number) => void
@@ -53,16 +57,14 @@ function ToolIcon({ name }: { name: string }) {
   return <Wrench size={12} className="tool-icon" />
 }
 
-export default function SubagentOverlay({ item, full, width, onWidthChange, onToggleFull, onClose }: Props) {
-  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
-  const outRef = useRef<HTMLDivElement>(null)
-  const [copiedId, setCopiedId] = useState(false)
+function tabLabel(item: SubagentOverlayItem): string {
+  return `${item.subagentType || 'sub-agent'} ${item.taskId.slice(0, 6)}`
+}
 
-  const handleCopyId = useCallback(() => {
-    void navigator.clipboard.writeText(item.taskId)
-    setCopiedId(true)
-    setTimeout(() => setCopiedId(false), 1500)
-  }, [item.taskId])
+/** One tab per sub-agent the user opened from the chat. */
+export default function SubagentOverlay({ items, activeId, onSelect, onCloseTab, full, width, onWidthChange, onToggleFull, onClose }: Props) {
+  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  const item = items.find(i => i.taskId === activeId) ?? items[items.length - 1]
 
   const startDrag = useCallback((e: React.MouseEvent) => {
     if (!onWidthChange || width === undefined) return
@@ -91,13 +93,6 @@ export default function SubagentOverlay({ item, full, width, onWidthChange, onTo
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  useEffect(() => {
-    const el = outRef.current
-    if (el && item.state === 'running') {
-      el.scrollTop = el.scrollHeight
-    }
-  }, [item.text, item.state])
-
   return (
     <section
       className={`files-overlay subagent-overlay${full ? ' full' : ' docked'}`}
@@ -108,31 +103,46 @@ export default function SubagentOverlay({ item, full, width, onWidthChange, onTo
       {!full && onWidthChange && width !== undefined && (
         <div className="files-resizer" onMouseDown={startDrag} title="Drag to resize" />
       )}
-      <div className="files-head title-bar">
-        <div className="files-head-title">
-          <Bot size={14} aria-hidden="true" />
-          <span>sub-agent{item.subagentType ? ` (${item.subagentType})` : ''}</span>
-          {item.background && <span className="subagent-bg">bg</span>}
-        </div>
-        <div className="files-head-actions">
-          <button
-            className="icon-btn"
-            title={full ? 'Restore size' : 'Expand'}
-            aria-label={full ? 'Restore size' : 'Expand'}
-            onClick={onToggleFull}
-          >
-            {full ? <Minimize2 size={14} aria-hidden="true" /> : <Maximize2 size={14} aria-hidden="true" />}
-          </button>
-          <button
-            className="icon-btn"
-            title="Close"
-            aria-label="Close Sub-agent"
-            onClick={onClose}
-          >
-            <X size={14} aria-hidden="true" />
-          </button>
-        </div>
-      </div>
+      <PanelHeader
+        ariaLabel="Sub-agents"
+        activeId={item?.taskId ?? null}
+        onSelect={onSelect}
+        tabs={items.map(i => ({
+          id: i.taskId,
+          title: i.taskId,
+          lead: <StatusIcon state={i.state} />,
+          label: tabLabel(i),
+          closeLabel: `Close ${tabLabel(i)}`,
+          onClose: () => onCloseTab(i.taskId)
+        }))}
+        full={full}
+        onToggleFull={onToggleFull}
+        closeLabel="Close Sub-agent"
+        onClose={onClose}
+      />
+      {item && <SubagentDetails key={item.taskId} item={item} />}
+    </section>
+  )
+}
+
+function SubagentDetails({ item }: { item: SubagentOverlayItem }) {
+  const outRef = useRef<HTMLDivElement>(null)
+  const [copiedId, setCopiedId] = useState(false)
+
+  const handleCopyId = useCallback(() => {
+    void navigator.clipboard.writeText(item.taskId)
+    setCopiedId(true)
+    setTimeout(() => setCopiedId(false), 1500)
+  }, [item.taskId])
+
+  useEffect(() => {
+    const el = outRef.current
+    if (el && item.state === 'running') {
+      el.scrollTop = el.scrollHeight
+    }
+  }, [item.text, item.state])
+
+  return (
       <div className="files-body">
         <div className="files-side subagent-side">
           {/* Subagent Profile Card */}
@@ -221,6 +231,5 @@ export default function SubagentOverlay({ item, full, width, onWidthChange, onTo
           </div>
         </div>
       </div>
-    </section>
   )
 }

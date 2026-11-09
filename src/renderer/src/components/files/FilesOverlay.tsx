@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { beginOcclusion, endOcclusion } from '../common/useBrowserOcclusion'
+import PanelHeader from '../common/PanelHeader'
 import {
-  ArrowUpRight, CircleX, Code, Copy, EllipsisVertical, Files, Folder,
-  ListCollapse, Maximize2, Minimize2, RefreshCw, Search, X
+  ArrowUpRight, CircleX, Code, Copy, FileText, Folder,
+  ListCollapse, MoreHorizontal, RefreshCw, Search
 } from 'lucide-react'
 import BaseDropdown from '../common/BaseDropdown'
 import FilesTree from './FilesTree'
@@ -146,20 +147,24 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
       aria-label="Files"
     >
       {!full && onWidthChange && width !== undefined && <div className="files-resizer" onMouseDown={startDrag} />}
-      <div className="files-head title-bar">
-        <div className="files-head-title">
-          <Files size={14} aria-hidden="true" />
-          <span>Files</span>
-        </div>
-        <div className="files-head-actions">
-          <button
-            className="icon-btn"
-            title="Focus filter"
-            aria-label="Focus filter"
-            onClick={() => filterRef.current?.focus()}
-          >
-            <Search size={14} aria-hidden="true" />
-          </button>
+      <PanelHeader
+        ariaLabel="Open files"
+        activeId={activeTab}
+        onSelect={setActiveTab}
+        full={full}
+        onToggleFull={onToggleFull}
+        closeLabel="Close Files"
+        onClose={onClose}
+        tabs={tabs.map(tab => ({
+          id: tab.path,
+          className: 'files-open-tab',
+          title: tab.path,
+          lead: <FileText size={14} aria-hidden="true" />,
+          label: tab.name,
+          closeLabel: `Close ${tab.name}`,
+          onClose: () => closeTab(tab.path)
+        }))}
+        actions={(
           <div className="pane-menu">
             <BaseDropdown
               open={menuOpen}
@@ -172,10 +177,14 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
                   title="Files menu"
                   aria-label="Files menu"
                 >
-                  <EllipsisVertical size={14} aria-hidden="true" />
+                  <MoreHorizontal size={14} aria-hidden="true" />
                 </button>
               )}
             >
+              <button className="menu-item" onClick={() => { setMenuOpen(false); filterRef.current?.focus() }}>
+                <Search size={16} aria-hidden="true" />
+                Focus filter
+              </button>
               <button className="menu-item" onClick={() => { setMenuOpen(false); setReloadToken(v => v + 1) }}>
                 <RefreshCw size={16} aria-hidden="true" />
                 Refresh
@@ -219,19 +228,8 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
               </button>
             </BaseDropdown>
           </div>
-          <button
-            className="icon-btn"
-            title={full ? 'Restore size' : 'Expand'}
-            aria-label={full ? 'Restore size' : 'Expand'}
-            onClick={onToggleFull}
-          >
-            {full ? <Minimize2 size={14} aria-hidden="true" /> : <Maximize2 size={14} aria-hidden="true" />}
-          </button>
-          <button className="icon-btn" title="Close" aria-label="Close Files" onClick={onClose}>
-            <X size={14} aria-hidden="true" />
-          </button>
-        </div>
-      </div>
+        )}
+      />
       <div className="files-body" ref={bodyRef}>
         <div
           className="files-side"
@@ -268,26 +266,6 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
           />
         </div>
         <div className="files-main">
-          {tabs.length > 0 && (
-            <div className="files-tabs" role="tablist" aria-label="Open files">
-              {tabs.map(tab => (
-                <div key={tab.path} className={`files-tab${tab.path === activeTab ? ' active' : ''}`}>
-                  <button
-                    className="files-tab-name"
-                    role="tab"
-                    aria-selected={tab.path === activeTab}
-                    title={tab.path}
-                    onClick={() => setActiveTab(tab.path)}
-                  >
-                    {tab.name}
-                  </button>
-                  <button className="files-tab-close" aria-label={`Close ${tab.name}`} onClick={() => closeTab(tab.path)}>
-                    <X size={11} aria-hidden="true" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
           <div className="files-content">
             {activeTab ? (
               <FileContentView key={activeTab} path={activeTab} root={projectPath} />

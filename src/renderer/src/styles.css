@@ -1274,7 +1274,6 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .subagent { cursor: pointer; }
 .subagent:hover { border-left-color: var(--accent); border-color: var(--accent-border); }
 .subagent.background { border-left-color: var(--yellow); }
-.subagent-bg { font-size: var(--fs-sm); text-transform: uppercase; color: var(--yellow); border: 0.083333rem solid var(--yellow); padding: 0 0.416667rem; border-radius: 83.25rem; }
 .subagent-live { width: 51.666667rem; max-width: 94vw; max-height: 80vh; overflow-y: auto; }
 .subagent-live-state { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.666667rem; }
 .subagent-live-text { white-space: pre-wrap; word-break: break-word; font-size: var(--fs-md); color: var(--text); user-select: text; max-height: 45vh; overflow-y: auto; }
@@ -3813,6 +3812,45 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 }
 .files-overlay.docked { margin: 0.333333rem; }
 
+/* The header of every right-side panel: its tabs replace the title. */
+.panel-head {
+  flex: 0 0 3.25rem; height: 3.25rem; display: flex; align-items: center; gap: 0.666667rem;
+  padding: 0 0.5rem 0 0.666667rem; border-bottom: 0.083333rem solid var(--hairline);
+  border-radius: 0; background: var(--bg-chat); user-select: none;
+}
+.panel-tabs-wrap { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 0.25rem; container-type: inline-size; }
+.panel-tabs {
+  flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 0.166667rem;
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+}
+.panel-tabs::-webkit-scrollbar { display: none; }
+.panel-tab {
+  flex: 0 1 auto; min-width: 5.5rem; max-width: 15rem; height: 2.333333rem; display: flex; align-items: center;
+  gap: 0.583333rem; padding: 0 0.416667rem 0 0.75rem; border-radius: var(--radius);
+  color: var(--text-dim); cursor: pointer; white-space: nowrap;
+}
+.panel-tab:hover { background: var(--menu-hover); }
+.panel-tab.active { background: var(--bg-active); color: var(--text-strong); }
+.panel-tab:focus-visible { outline: 0.083333rem solid var(--focus-ring); outline-offset: -0.083333rem; }
+.panel-tab-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-base); }
+.panel-tab-close {
+  flex: 0 0 1.5rem; width: 1.5rem; height: 1.5rem; display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; border: none; background: transparent; color: var(--text-dim); cursor: pointer; border-radius: var(--radius-xs);
+}
+.panel-tab-close:hover { background: var(--bg-hover); color: var(--text-strong); }
+/* A narrow panel keeps the close button for the active and hovered tab only. */
+@container (max-width: 26rem) {
+  .panel-tab:not(.active):not(:hover) .panel-tab-close { display: none; }
+}
+.panel-add { flex: 0 0 auto; color: var(--text); }
+.panel-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 0.166667rem; }
+.title-bar-tools { display: flex; align-items: center; gap: 0.166667rem; padding-right: 0.5rem; -webkit-app-region: no-drag; }
+.title-bar-tools .icon-btn { color: var(--text-dim); }
+.title-bar-tools .icon-btn:hover { background: var(--menu-hover); color: var(--text-strong); }
+.title-bar-tools .icon-btn.active { background: var(--bg-active); color: var(--text-strong); }
+.title-bar-tools .icon-btn:disabled { opacity: 0.4; }
+.title-bar-tools-sep { width: 0.083333rem; height: 1.25rem; margin: 0 0.333333rem; background: var(--hairline-strong); }
+
 /* Multi-panel Right Container & Grid Layout */
 .right-panels-container {
   flex: 0 0 auto; position: relative; display: flex; height: 100%; box-sizing: border-box;
@@ -4095,13 +4133,6 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   top: 0.333333rem; left: 0.333333rem; right: 0.333333rem; bottom: 0.333333rem;
   box-shadow: var(--shadow-panel), 0 0 0 0.333333rem var(--bg-chat);
 }
-.files-head { padding: 0 0.5rem; gap: 0.5rem; border-bottom: 0.083333rem solid var(--hairline); }
-.files-head-title {
-  display: inline-flex; align-items: center; gap: 0.5rem;
-  font-family: var(--font-display); font-size: var(--fs-sm); font-weight: var(--fw-semibold);
-  color: var(--text-strong); letter-spacing: 0.02em; text-transform: uppercase;
-}
-.files-head-actions { display: flex; align-items: center; gap: 0.166667rem; -webkit-app-region: no-drag; }
 .files-body { flex: 1; min-height: 0; display: flex; }
 .files-side {
   flex: 0 0 20rem; min-width: 0; display: flex; flex-direction: column; position: relative;
@@ -4137,37 +4168,6 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 .files-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 /* 30px bar, 22px chips: the 4px padding insets the tabs from every edge and the
    gap separates them, so no hairline divider is needed between tabs. */
-.files-tabs {
-  flex: 0 0 2.5rem; display: flex; align-items: stretch; gap: 0.333333rem;
-  padding: 0.333333rem; overflow-x: auto; overflow-y: hidden;
-  /* A scrollbar would eat the 22px chip height — wheel/trackpad still scroll */
-  scrollbar-width: none;
-  border-bottom: 0.083333rem solid var(--hairline); background: var(--bg-chat);
-  border-radius: 0;
-}
-.files-tabs::-webkit-scrollbar { display: none; }
-/* Transparent border on every tab (border-box) so the active one can show a
-   hairline without changing size. */
-.files-tab {
-  display: inline-flex; align-items: center; gap: 0.166667rem; flex: 0 0 auto;
-  padding: 0 0.333333rem 0 0.5rem;
-  border: 0.083333rem solid transparent; border-radius: var(--radius-sm);
-  color: var(--text-dim);
-}
-.files-tab:hover { background: var(--bg-hover); }
-.files-tab.active { background: var(--bg-chat); border-color: var(--hairline); color: var(--text-strong); }
-.files-tab-name {
-  border: none; background: transparent; color: var(--text-dim); cursor: pointer;
-  font: inherit; font-size: var(--fs-base); max-width: 14rem; overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap;
-}
-.files-tab.active .files-tab-name { color: var(--text-strong); }
-.files-tab-close {
-  display: inline-flex; align-items: center; justify-content: center;
-  border: none; background: transparent; color: var(--text-faint); cursor: pointer;
-  border-radius: var(--radius-xs); padding: 0.166667rem;
-}
-.files-tab-close:hover { background: var(--bg-hover); color: var(--text-strong); }
 .files-content { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 0; }
 .files-empty {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -4938,32 +4938,13 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 }
 
 /* Processes overlay: reuses .files-overlay layout; only the inner list/output differ. */
-.processes-side { padding: 6px 0; overflow-y: auto; }
-.processes-group-title {
-  font: var(--font-display);
-  text-transform: uppercase;
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  color: var(--text-faint);
-  padding: 8px 12px 4px;
+.processes-monitors { flex: 1; min-width: 0; padding: 0.333333rem 0; overflow-y: auto; }
+.processes-monitor-row {
+  display: flex; align-items: center; gap: 0.666667rem; padding: 0.5rem 1rem;
+  border-bottom: 0.083333rem solid var(--hairline); font-size: var(--fs-sm);
 }
-.processes-empty { padding: 4px 12px 8px; color: var(--text-faint); font-size: 12px; }
-.processes-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 12px;
-  cursor: pointer;
-  font-size: 12px;
-}
-.processes-row:hover { background: var(--menu-hover); }
-.processes-row.active { background: var(--menu-hover); }
-.processes-cmd { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono, monospace); }
-.processes-exit { color: var(--text-faint); font-variant-numeric: tabular-nums; }
-.processes-until { color: var(--text-faint); font-family: var(--font-mono, monospace); }
-.processes-kill { color: var(--text-faint); }
-.processes-kill:hover { color: var(--red, #e5484d); }
-.processes-monitor { cursor: default; }
+.processes-monitor-target { font-family: var(--font-mono, monospace); color: var(--text-strong); }
+.processes-monitor-until { margin-left: auto; color: var(--text-dim); font-family: var(--font-mono, monospace); }
 .processes-main { display: flex; }
 .processes-output {
   flex: 1;
@@ -5021,14 +5002,19 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 .browser-overlay, .browser-overlay * { border-radius: 0; }
 .browser-overlay .btn,
 .browser-overlay .icon-btn,
-.browser-overlay .browser-url-input { border-radius: var(--radius-sm); }
+.browser-overlay .panel-tab,
+.browser-overlay .panel-tab-close,
+.browser-overlay .browser-url-input { border-radius: var(--radius); }
+.browser-overlay .panel-tab-close { border-radius: var(--radius-xs); }
 .browser-toolbar {
-  display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--hairline);
+  display: flex; align-items: center; gap: 0.166667rem; height: 3.083333rem; flex: 0 0 auto;
+  padding: 0 0.666667rem; border-bottom: 0.083333rem solid var(--hairline);
 }
 .browser-url-input {
-  flex: 1; min-width: 0; height: 24px; padding: 0 8px; font: inherit; color: var(--text);
-  background: var(--bg-chat); border: 1px solid var(--hairline);
+  flex: 1; min-width: 0; height: 2.166667rem; margin-left: 0.5rem; padding: 0 0.833333rem; font: inherit; color: var(--text);
+  background: var(--bg-input); border: 0.083333rem solid transparent; text-align: center;
 }
+.browser-url-input:focus { text-align: left; border-color: var(--accent-border); outline: none; }
 .browser-url-input:disabled { opacity: 0.6; }
 .browser-banner {
   display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-size: 12px;
@@ -5104,6 +5090,7 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 .browser-empty-title { font-size: 12px; }
 .browser-tab-dot { width: 6px; height: 6px; flex: none; border-radius: 50% !important; background: var(--text-dim); }
 .browser-tab-dot.agent { background: var(--accent-strong); }
+/* The title bar's browser button: the dot shows while the agent uses a tab. */
 .pane-browser-toggle { position: relative; }
 .pane-browser-dot {
   position: absolute; top: 3px; right: 3px; width: 5px; height: 5px;
