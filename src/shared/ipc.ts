@@ -144,6 +144,7 @@ export const Channels = {
   BrowserPanelHideFrozen: 'browser-panel:hide-frozen',
   BrowserPanelUnfreeze: 'browser-panel:unfreeze',
   BrowserClearData: 'browser-panel:clear-data',
+  BrowserOpenExternal: 'browser-panel:open-external',
   EventBrowserTabsChanged: 'browser-tab:changed',
   EventBrowserPanelRequest: 'browser-panel:request',
   EventBrowserShortcut: 'browser-panel:shortcut',
@@ -385,6 +386,7 @@ export interface AgentApi {
   browserPanelHideFrozen(generation: number): Promise<void>
   browserPanelUnfreeze(): Promise<void>
   browserClearData(): Promise<void>
+  browserOpenExternal(url: string): Promise<void>
   onBrowserTabsChanged(cb: (e: BrowserTabsChangedEvent) => void): () => void
   onBrowserPanelRequest(cb: (e: BrowserPanelRequestEvent) => void): () => void
   onBrowserShortcut(cb: (e: BrowserShortcutEvent) => void): () => void

@@ -211,6 +211,7 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.BrowserPanelHideFrozen, generation),
   browserPanelUnfreeze: () => ipcRenderer.invoke(Channels.BrowserPanelUnfreeze),
   browserClearData: () => ipcRenderer.invoke(Channels.BrowserClearData),
+  browserOpenExternal: (url: string) => ipcRenderer.invoke(Channels.BrowserOpenExternal, url),
   onBrowserTabsChanged: (cb: (e: BrowserTabsChangedEvent) => void) =>
     subscribe(Channels.EventBrowserTabsChanged, cb),
   onBrowserPanelRequest: (cb: (e: BrowserPanelRequestEvent) => void) =>

@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import {  useState } from 'react'
 import {
+  Globe,
   Terminal,
   SquareTerminal,
   Code,
@@ -24,8 +25,11 @@ interface Props {
   native?: boolean
   active?: boolean
   terminalOpen?: boolean
+  browserOpen?: boolean
+  browserAgentActive?: boolean
   isDraft?: boolean
   onToggleTerminal?: () => void
+  onToggleBrowser?: () => void
   onStop: () => void
   onRestart: () => void
   onInject: (text: string) => void
@@ -47,8 +51,11 @@ export default function PaneHeader({
   native = false,
   active = false,
   terminalOpen = false,
+  browserOpen = false,
+  browserAgentActive = false,
   isDraft = false,
   onToggleTerminal,
+  onToggleBrowser,
   onStop,
   onRestart,
   onInject,
@@ -85,6 +92,18 @@ export default function PaneHeader({
       />
       <span className="pane-title">{name}</span>
       <span className="pane-actions">
+        {onToggleBrowser && (
+          <button
+            className={`icon-btn pane-browser-toggle ${browserOpen ? 'active' : ''}`}
+            title={isDraft ? 'Browser unavailable in draft sessions' : 'Toggle browser'}
+            aria-label="Toggle browser"
+            disabled={isDraft}
+            onClick={onToggleBrowser}
+          >
+            <Globe size={14} aria-hidden="true" />
+            {browserAgentActive && <span className="pane-browser-dot" aria-hidden="true" />}
+          </button>
+        )}
         {onToggleTerminal && (
           <button
             className={`icon-btn ${terminalOpen ? 'active' : ''}`}

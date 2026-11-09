@@ -3812,6 +3812,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .right-panels-grid > .files-overlay.docked,
 .right-panels-grid > .processes-overlay.docked,
 .right-panels-grid > .terminal-overlay.docked,
+.right-panels-grid > .browser-overlay.docked,
 .right-panels-grid > .subagent-overlay.docked {
   width: 100% !important; height: 100% !important; min-width: 0; min-height: 0; margin: 0 !important;
 }
@@ -4995,3 +4996,39 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 /* xterm.css paints the viewport #000; it shows below the last row when the height is not a whole number of rows. */
 .terminal-view-host .xterm,
 .terminal-view-host .xterm .xterm-viewport { background-color: var(--terminal-bg); }
+
+/* Browser panel (built-in browser). The native page view is a rectangle, so the
+   panel, its viewport and their ancestors are square; only controls stay rounded. */
+.browser-overlay { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.browser-overlay, .browser-overlay * { border-radius: 0; }
+.browser-overlay .btn,
+.browser-overlay .icon-btn,
+.browser-overlay .browser-url-input { border-radius: var(--radius-sm); }
+.browser-toolbar {
+  display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--hairline);
+}
+.browser-url-input {
+  flex: 1; min-width: 0; height: 24px; padding: 0 8px; font: inherit; color: var(--text);
+  background: var(--bg-chat); border: 1px solid var(--hairline);
+}
+.browser-url-input:disabled { opacity: 0.6; }
+.browser-banner {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-size: 12px;
+  border-bottom: 1px solid var(--hairline); background: var(--bg-chat);
+}
+.browser-banner-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.browser-banner.agent { color: var(--accent-strong); }
+.browser-banner.approval { color: var(--yellow); }
+.browser-viewport { position: relative; flex: 1; min-height: 0; background: var(--bg-chat); overflow: hidden; }
+.browser-empty {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 8px; color: var(--text-dim);
+}
+.browser-empty-title { font-size: 12px; }
+.browser-tab-dot { width: 6px; height: 6px; flex: none; border-radius: 50% !important; background: var(--text-dim); }
+.browser-tab-dot.agent { background: var(--accent-strong); }
+.pane-browser-toggle { position: relative; }
+.pane-browser-dot {
+  position: absolute; top: 3px; right: 3px; width: 5px; height: 5px;
+  border-radius: 50% !important; background: var(--accent-strong);
+}

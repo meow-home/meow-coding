@@ -15,6 +15,7 @@ import FilesOverlay, { FILES_DEFAULT_WIDTH, FILES_MAX_WIDTH, FILES_MIN_WIDTH } f
 import ProcessesOverlay, { PROCESSES_DEFAULT_WIDTH, PROCESSES_MAX_WIDTH, PROCESSES_MIN_WIDTH } from './components/processes/ProcessesOverlay'
 import SubagentOverlay, { type SubagentOverlayItem } from './components/chat/SubagentOverlay'
 import TerminalOverlay from './components/terminal/TerminalOverlay'
+import BrowserOverlay from './components/browser/BrowserOverlay'
 import SettingsDialog, { type TabId } from './components/settings/SettingsDialog'
 import BrowserDialog from './components/BrowserDialog'
 import InstallGuideDialog from './components/InstallGuideDialog'
@@ -35,7 +36,7 @@ export const MAX_KEEP_ALIVE = 5
 // `.workspace-hidden`; the app toggles which one is visible by swapping the
 // `workspace-active` wrapper, so hidden ChatPanels keep streaming events.
 function WorkspaceView({
-  runtime, backgrounds, activeSessionByPath, onActiveChange, onRemovePane, onSendDraftMessage, onOpenFiles, onOpenProcesses, terminalOpenFor, onToggleTerminal, onOpenSubagent
+  runtime, backgrounds, activeSessionByPath, onActiveChange, onRemovePane, onSendDraftMessage, onOpenFiles, onOpenProcesses, terminalOpenFor, onToggleTerminal, browserOpenFor, onToggleBrowser, browserAgentActiveIds, onOpenSubagent
 }: {
   runtime: WorkspaceRuntime
   backgrounds: Record<string, boolean>
@@ -47,6 +48,9 @@ function WorkspaceView({
   onOpenProcesses: (id: string) => void
   terminalOpenFor: string | null
   onToggleTerminal: (id: string) => void
+  browserOpenFor: string | null
+  onToggleBrowser: (id: string) => void
+  browserAgentActiveIds: Set<string>
   onOpenSubagent: (item: SubagentOverlayItem) => void
 }) {
   const draftPane: PaneModel = useMemo(() => ({
@@ -102,6 +106,9 @@ function WorkspaceView({
         onOpenProcesses={onOpenProcesses}
         terminalOpenFor={terminalOpenFor}
         onToggleTerminal={onToggleTerminal}
+        browserOpenFor={browserOpenFor}
+        onToggleBrowser={onToggleBrowser}
+        browserAgentActiveIds={browserAgentActiveIds}
         onOpenSubagent={onOpenSubagent}
       />
       <BackgroundPanel
@@ -197,6 +204,21 @@ export default function App() {
     setTerminalFull(false)
     setTerminalOpenFor(cur => (cur === agentId ? null : agentId))
   }, [])
+  const [browserOpenFor, setBrowserOpenFor] = useState<string | null>(null)
+  const [browserFull, setBrowserFull] = useState(false)
+  const [browserAgentActiveIds, setBrowserAgentActiveIds] = useState<Set<string>>(new Set())
+  const handleToggleBrowser = useCallback((agentId: string) => {
+    setBrowserFull(false)
+    setBrowserOpenFor(cur => (cur === agentId ? null : agentId))
+  }, [])
+  useEffect(() => window.api.onBrowserTabsChanged((event) => {
+    setBrowserAgentActiveIds(prev => {
+      const next = new Set(prev)
+      if (event.tabs.some(t => t.control === 'agent' || t.control === 'approval')) next.add(event.agentId)
+      else next.delete(event.agentId)
+      return next
+    })
+  }), [])
 
   const [openSubagents, setOpenSubagents] = useState<SubagentOverlayItem[]>([])
   const [subagentFullTaskId, setSubagentFullTaskId] = useState<string | null>(null)
@@ -251,6 +273,15 @@ export default function App() {
       onClose={() => setTerminalOpenFor(null)}
     />
   ) : null
+  const browserPanel = browserOpenFor ? (
+    <BrowserOverlay
+      key={browserOpenFor}
+      agentId={browserOpenFor}
+      full={browserFull}
+      onToggleFull={() => setBrowserFull(v => !v)}
+      onClose={() => setBrowserOpenFor(null)}
+    />
+  ) : null
   const renderSubagentPanel = (item: SubagentOverlayItem) => (
     <SubagentOverlay
       key={item.taskId}
@@ -297,6 +328,14 @@ export default function App() {
       return {}
     }
   })
+  useEffect(() => window.api.onBrowserPanelRequest(({ agentId }) => {
+    // Only the active session of the active project may pull the panel open.
+    const active = activePath ? activeSessionByPath[activePath] : null
+    if (active && active === agentId) {
+      setBrowserFull(false)
+      setBrowserOpenFor(agentId)
+    }
+  }), [activePath, activeSessionByPath])
   // Refs mirror the state so stable mount-once subscriptions and callbacks never
   // read a stale value (state updates run at commit, refs update synchronously).
   const runtimesRef = useRef<Record<string, WorkspaceRuntime>>({})
@@ -641,6 +680,13 @@ export default function App() {
   }, [refreshWorkspaces])
 
   const removeAgent = useCallback(async (path: string, agentId: string) => {
+    setBrowserOpenFor(cur => (cur === agentId ? null : cur))
+    setBrowserAgentActiveIds(prev => {
+      if (!prev.has(agentId)) return prev
+      const next = new Set(prev)
+      next.delete(agentId)
+      return next
+    })
     try {
       await window.api.removeAgent(path, agentId)
     } catch {
@@ -819,7 +865,7 @@ export default function App() {
             onReorder={handleReorderWorkspaces}
           />
         )}
-        <main className={((filesOpenFor ? 1 : 0) + (processesOpenFor ? 1 : 0) + (terminalOpenFor ? 1 : 0) + openSubagents.length) > 0 ? 'main files-open' : 'main'}>
+        <main className={((filesOpenFor ? 1 : 0) + (processesOpenFor ? 1 : 0) + (terminalOpenFor ? 1 : 0) + (browserOpenFor ? 1 : 0) + openSubagents.length) > 0 ? 'main files-open' : 'main'}>
           {/* Each panel renders in one of two places: expanded (`full`) panels are
               direct children of `.main` so they overlay the whole pane area, the
               docked ones share the right-hand grid below. Defined once here and
@@ -838,6 +884,9 @@ export default function App() {
                   onOpenProcesses={agentId => { setProcessesFull(false); setProcessesOpenFor(agentId) }}
                   terminalOpenFor={terminalOpenFor}
                   onToggleTerminal={handleToggleTerminal}
+                  browserOpenFor={browserOpenFor}
+                  onToggleBrowser={handleToggleBrowser}
+                  browserAgentActiveIds={browserAgentActiveIds}
                   onOpenSubagent={handleOpenSubagent}
                 />
               </div>
@@ -860,6 +909,9 @@ export default function App() {
                     onOpenProcesses={agentId => { setProcessesFull(false); setProcessesOpenFor(agentId) }}
                     terminalOpenFor={terminalOpenFor}
                     onToggleTerminal={handleToggleTerminal}
+                    browserOpenFor={browserOpenFor}
+                    onToggleBrowser={handleToggleBrowser}
+                    browserAgentActiveIds={browserAgentActiveIds}
                     onOpenSubagent={handleOpenSubagent}
                   />
                 </div>
@@ -868,17 +920,24 @@ export default function App() {
           {filesPanel && filesFull && filesPanel}
           {processesPanel && processesFull && processesPanel}
           {terminalPanel && terminalFull && terminalPanel}
+          {browserPanel && browserFull && browserPanel}
           {openSubagents.filter(subItem => subItem.taskId === subagentFullTaskId).map(renderSubagentPanel)}
           {(() => {
             const dockedCount =
               (filesOpenFor && !filesFull ? 1 : 0) +
               (processesOpenFor && !processesFull ? 1 : 0) +
               (terminalOpenFor && !terminalFull ? 1 : 0) +
+              (browserOpenFor && !browserFull ? 1 : 0) +
               openSubagents.filter(subItem => subItem.taskId !== subagentFullTaskId).length
             if (dockedCount === 0) return null
             const rows = Math.ceil(Math.sqrt(dockedCount))
             const cols = Math.ceil(dockedCount / (rows || 1))
-            const containerWidth = Math.max(rightPanelsWidth, cols * 360)
+            const MIN_DOCKED_WIDTH = 640
+            const containerWidth = Math.max(
+              rightPanelsWidth,
+              cols * 360,
+              browserOpenFor && !browserFull ? MIN_DOCKED_WIDTH : 0
+            )
             return (
               <div className="right-panels-container" style={{ width: containerWidth }}>
                 <div className="right-panels-resizer" onMouseDown={startRightPanelsDrag} title="Drag to resize panels" />
@@ -891,6 +950,7 @@ export default function App() {
                 >
                   {filesPanel && !filesFull && filesPanel}
                   {processesPanel && !processesFull && processesPanel}
+                  {browserPanel && !browserFull && browserPanel}
                   {terminalPanel && !terminalFull && terminalPanel}
                   {openSubagents.filter(subItem => subItem.taskId !== subagentFullTaskId).map(renderSubagentPanel)}
                 </div>

@@ -303,6 +303,14 @@ test('panel IPC drives bounds, metrics, freeze and logs', async () => {
       await window.locator('.chat-input-field').press('Enter')
       await expect.poll(async () => (await tabs(window, sessionId))[0]?.control, { timeout: 30000 }).toBe('agent')
       const info = (await tabs(window, sessionId))[0]
+      // The agent's panel request may have opened the UI panel; close it so this test
+      // drives the panel through IPC only (the renderer would otherwise keep sending
+      // its own placeholder rect).
+      const closeButton = window.locator('.icon-btn[aria-label="Close Browser"]')
+      if (await closeButton.count()) {
+        await closeButton.click()
+        await expect(window.locator('.browser-overlay')).toHaveCount(0)
+      }
 
       // A second, user-created tab must stay off screen with the background placement.
       await window.evaluate(async (agentId) => {
@@ -324,8 +332,9 @@ test('panel IPC drives bounds, metrics, freeze and logs', async () => {
           webContents?: { getURL(): string }
           getBounds(): { x: number; y: number; width: number; height: number }
         }>
-        const blank = children.find(c => c.webContents?.getURL() === 'about:blank')
-        return blank ? blank.getBounds() : null
+        // The user tab sits in the no-panel placement, whatever its URL is yet.
+        const offscreen = children.find(c => c.getBounds().x === 10_000)
+        return offscreen ? offscreen.getBounds() : null
       })
       expect(offscreen).toMatchObject({ x: 10_000, y: 10_000, width: 1280, height: 800 })
 

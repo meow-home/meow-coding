@@ -20,7 +20,7 @@ React renderer (no direct Node/Electron access).
   status dot and a per-row rename/stop/delete menu, plus a `+` that creates and activates a
   session), `SessionPanes`, `Pane`, `PaneHeader`, `EmptyState`,
   `StatusBar`, `TitleBar`, `BackgroundPanel`, `UpdateDialog`,
-  `BrowserDialog`, `InstallGuideDialog`, `files/` (the Files panel:
+  `BrowserDialog`, `InstallGuideDialog`, `browser/` (the built-in browser panel: `BrowserOverlay`, `BrowserToolbar`, `BrowserControlBanner`, `BrowserViewport`, `normalizeUrlInput`), `files/` (the Files panel:
   `FilesOverlay`, `FilesTree`, `file-path`, `tree-filter`),
   `processes/` (the Processes overlay: `ProcessesOverlay`),
   `file-content/FileContentView`, `chat/`, `settings/`.

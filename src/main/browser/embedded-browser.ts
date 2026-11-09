@@ -233,7 +233,10 @@ export class EmbeddedBrowser implements BrowserBackend {
     if (!entry) return
     entry.onScreen = true
     this.panelActive.set(entry.ownerId, entry.tab.id)
-    await entry.tab.setOnScreen(true, this.panelBounds ?? undefined)
+    const applied = this.panelBounds
+    await entry.tab.setOnScreen(true, applied ?? undefined)
+    // A setBounds that arrived while the placement was in flight wins.
+    if (this.panelBounds && this.panelBounds !== applied) entry.tab.setBounds(this.panelBounds)
     if (this.panelHidden) entry.tab.setVisible(false)
   }
 

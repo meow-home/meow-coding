@@ -1125,6 +1125,10 @@ export function registerIpcHandlers(): void {
     mainApp.embeddedBrowser.hideFrozen(generation))
   ipcMain.handle(Channels.BrowserPanelUnfreeze, () => mainApp.embeddedBrowser.unfreeze())
   ipcMain.handle(Channels.BrowserClearData, () => mainApp.embeddedBrowser.clearData())
+  ipcMain.handle(Channels.BrowserOpenExternal, (_e, url: string) => {
+    if (!/^https?:\/\//i.test(url)) throw new Error(`invalid url: ${url} (http and https only)`)
+    return shell.openExternal(url)
+  })
   ipcMain.handle(Channels.ExternalApiGetStatus, () => mainApp.externalApi.getStatus())
   ipcMain.handle(Channels.ExternalApiSetEnabled, (_e, enabled: boolean) => mainApp.externalApi.setEnabled(enabled))
   ipcMain.handle(Channels.ExternalApiRegenerateToken, () => mainApp.externalApi.regenerateToken())

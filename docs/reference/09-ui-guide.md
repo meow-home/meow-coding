@@ -77,6 +77,15 @@ The session terminal is a right-hand panel (`TerminalOverlay`) hosting interacti
 - **Context menu & clipboard**: Right-clicking the terminal view opens a context menu with Copy, Paste, Clear Buffer, and "Send Selection to Chat". "Send Selection to Chat" dispatches a `meow:composer-insert` custom window event containing the formatted selection (```text ... ```), which `ChatInput.tsx` listens for and appends to the composer.
 - **Always dark**: The terminal ignores the app theme. Its colors come from `--terminal-bg` / `--terminal-fg` (defined once on `:root`, never overridden by `[data-theme="light"]`) plus `--font-mono`, read once when the xterm is created. `styles.css` paints `.terminal-overlay-body`, `.xterm` and `.xterm-viewport` with `--terminal-bg`, because `xterm.css` paints the viewport `#000` and it shows below the last row.
 
+### Built-in browser panel
+
+The built-in browser is a right-hand panel (`BrowserOverlay`) showing one session's tabs; the page itself is a native `WebContentsView` owned by main, so the panel only supplies the chrome and the bounds.
+- **Toggle & state**: The Globe button in `PaneHeader` toggles it for the session; `App` owns `browserOpenFor` (session id or `null`) and `browserFull`. An agent tab request (`onBrowserPanelRequest`) opens it only when that session is the active session of the active project; closing it keeps it closed until the next request. A pane header dot shows while the session has a tab in `agent` or `approval`.
+- **Layout**: Same Files chrome as the terminal: `.files-overlay` + `.files-head` (Browser, `+` new tab, expand/restore, close), `.files-tabs`/`.files-tab` chips with a status dot and a `BaseDropdown` context menu (Close, Close others, Reload). Docked it joins `.right-panels-grid` before the terminal (the grid stacks the two vertically); expanded it overlays the pane area. The panel, its viewport and their ancestors are square because the native view is a rectangle.
+- **Toolbar**: Back, forward, reload/stop, the address field and "Open in default browser" (`browserOpenExternal`, http(s) only). Back/forward/reload/address are disabled while the agent owns the tab. Bare hosts normalize to `https://`, loopback hosts to `http://` (`normalizeUrlInput`); `file:`/`javascript:`/spaces show an inline error.
+- **Control banner**: `agent` → "Meow is using this tab" + **Take over**; `user` → "You have control..." + **Hand back**, or the handoff reason + **I'm signed in**; `approval` → "Meow is waiting for your approval in chat."; `idle` → none.
+- **Viewport**: attaches the panel on mount and detaches on unmount, sends the placeholder rect (rounded CSS px) on resize (rAF-coalesced, skipped when unchanged/zero). A crashed tab freezes the view away and shows "This tab crashed." with a Reload that navigates to the tab URL (re-enables the debugger). No tabs → "No open tabs" + New tab. Tabs live in main, so expand/restore remounts the panel without reloading the page.
+
 ## 9.3 `App.tsx` — the state hub
 
 Owns: workspaces, the mounted `WorkspaceRuntime`s (one per kept-alive project),
@@ -150,6 +159,16 @@ is dismissible (no install button, "Later" only).
 |---|---|
 | `TerminalOverlay.tsx` | Right-hand session terminal panel (Files panel chrome, joins the right-panels grid): tab list, tab renames, new tab (`+`), close tab (`×`), restart exited tab, expand/restore, close. |
 | `TerminalView.tsx` | Individual xterm.js instance: fit addon, IPC data/resize/exit event subscriptions, always-dark `--terminal-*` theme, right-click context menu (Copy, Paste, Clear, Send to Chat via `meow:composer-insert`). |
+
+### Browser (`components/browser/`)
+
+| Component | Responsibility |
+|---|---|
+| `BrowserOverlay.tsx` | Panel shell: tab list (`browserTabsList` + `onBrowserTabsChanged`), tab context menu, toolbar/banner/viewport composition, inline error row. |
+| `BrowserToolbar.tsx` | Back/forward/reload-stop, address field (edit on focus, Enter navigates, Escape reverts), Open in default browser. |
+| `BrowserControlBanner.tsx` | Control-state banner and Take over / Hand back / I'm signed in actions. |
+| `BrowserViewport.tsx` | Placeholder that attaches/detaches the native panel and streams its rect; empty and crashed states. |
+| `normalizeUrlInput.ts` | Pure URL-field normalizer (bare → https, loopback → http, other schemes/spaces → null). |
 
 ### Dialogs
 
