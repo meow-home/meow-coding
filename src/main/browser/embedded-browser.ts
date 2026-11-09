@@ -15,12 +15,14 @@ export interface HostCallbacks {
   onChanged(): void
   onCrashed(): void
   onWindowOpen(url: string): void
+  onShortcut(action: 'toggle-terminal' | 'toggle-browser' | 'focus-url'): void
 }
 
 export interface EmbeddedBrowserDeps {
   createHost(ownerId: string, callbacks: HostCallbacks): TabHost
   /** `userData/browser-snapshots`. */
   snapshotDir: string
+  onShortcut?: (action: 'toggle-terminal' | 'toggle-browser' | 'focus-url') => void
   /** False while the app has no window; commands then fail instead of creating views. */
   hasWindow?: () => boolean
   /** Read per call from meow.json, so a settings change applies without a restart. */
@@ -470,6 +472,7 @@ export class EmbeddedBrowser implements BrowserBackend {
         tab?.markCrashed()
         this.emitTabsChanged(ownerId)
       },
+      onShortcut: (action) => this.deps.onShortcut?.(action),
       onWindowOpen: (url) => {
         const created = this.createTab(ownerId, 'popup', entry ?? undefined)
         if (isError(created)) return

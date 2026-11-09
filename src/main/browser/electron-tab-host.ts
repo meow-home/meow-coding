@@ -4,6 +4,7 @@ import { waitForPageSettle } from '../../shared/browser-ax-snapshot'
 import type { CdpClient, TabHost } from './browser-tab'
 import type { HostCallbacks } from './embedded-browser'
 import { isAllowedNavigation } from './navigation-policy'
+import { decideBrowserShortcut, type InputLike } from './browser-shortcuts'
 
 export const PARTITION = 'persist:meow-browser'
 
@@ -207,8 +208,12 @@ export class ElectronTabHost implements TabHost {
     const wc = this.view.webContents
     if (action === 'back') wc.navigationHistory.goBack()
     else if (action === 'forward') wc.navigationHistory.goForward()
-    else if (action === 'reload') wc.reload()
-    else wc.stop()
+    else if (action === 'reload') {
+      // After a crash wc.reload() leaves the debugger detached; only loadUrl
+      // re-enables it (same recovery as the panel's Reload button).
+      if (this.processGone) void this.loadUrl(wc.getURL()).catch(() => {})
+      else wc.reload()
+    } else wc.stop()
   }
 
   navState(): { loading: boolean; canGoBack: boolean; canGoForward: boolean } {
@@ -366,17 +371,24 @@ export class ElectronTabHost implements TabHost {
       this.processGone = true
       this.deps.callbacks.onCrashed()
     })
-    wc.on('before-input-event', (event) => {
-      // The shield is a transparent overlay, not a focus target: while it is up the
-      // page must not see keys even when it still has focus. Later shortcuts hook in here.
-      if (this.shieldVisible) event.preventDefault()
-    })
+    wc.on('before-input-event', (event, input) => this.handleInput(event, input))
     const changed = (): void => this.deps.callbacks.onChanged()
     wc.on('did-navigate', changed)
     wc.on('did-navigate-in-page', changed)
     wc.on('page-title-updated', changed)
     wc.on('did-start-loading', changed)
     wc.on('did-stop-loading', changed)
+  }
+
+  private handleInput(event: { preventDefault(): void }, input: InputLike): void {
+    const decision = decideBrowserShortcut(input, process.platform, this.shieldVisible)
+    if (decision.preventDefault) event.preventDefault()
+    if (decision.action === 'toggle-terminal' || decision.action === 'toggle-browser' || decision.action === 'focus-url') {
+      this.deps.callbacks.onShortcut(decision.action)
+    }
+    if (decision.navigate === 'reload' || decision.navigate === 'back' || decision.navigate === 'forward') {
+      this.history(decision.navigate)
+    }
   }
 
   private destroyShieldView(): void {
@@ -435,6 +447,7 @@ export class ElectronTabHost implements TabHost {
     const wc = shield.webContents
     wc.setWindowOpenHandler(() => ({ action: 'deny' }))
     wc.on('will-navigate', event => event.preventDefault())
+    wc.on('before-input-event', (event, input) => this.handleInput(event, input))
     wc.on('did-finish-load', () => {
       this.shieldLoaded = true
       this.applyShieldState()

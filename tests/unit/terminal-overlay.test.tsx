@@ -128,7 +128,8 @@ describe('TerminalOverlay & TerminalView', () => {
           return () => {
             terminalsChangedListener = null
           }
-        })
+        }),
+        onBrowserShortcut: vi.fn(() => () => {})
       }
     })
   })

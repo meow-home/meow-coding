@@ -174,6 +174,11 @@ export class MainApp {
   })
   embeddedBrowser = new EmbeddedBrowser({
     createHost: (ownerId, callbacks) => createElectronTabHost({ getWindow: () => win, callbacks }),
+    onShortcut: action => {
+      if (!win || win.isDestroyed()) return
+      if (action === 'focus-url') win.webContents.focus()
+      win.webContents.send(Channels.EventBrowserShortcut, { action })
+    },
     snapshotDir: path.join(app.getPath('userData'), 'browser-snapshots'),
     hasWindow: () => !!win && !win.isDestroyed(),
     // Re-read meow.json per call so a settings change applies without a restart.

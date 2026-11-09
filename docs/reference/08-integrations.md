@@ -179,6 +179,7 @@ per-project profile.
 Every session gets its own tabs inside the app window and the agent drives them with the same
 `browser_*` tools — no extension, no pairing and no Chrome profile.
 
+- **Keyboard** (`browser-shortcuts.ts`): `before-input-event` on the page and the shield forwards `` Ctrl/Cmd+` `` (terminal) and `Ctrl/Cmd+Shift+B` (panel) to the renderer, `Ctrl/Cmd+L` focuses the URL bar, and `reload`/`back`/`forward` (`Ctrl/Cmd+R`, `F5`, `Ctrl/Cmd+Shift+R`, `Alt+Left/Right`, `Cmd+[/]`) run only while the agent's shield is down. Every match calls `preventDefault`, so the default menu never acts on Meow from a page; `Ctrl+W` is blocked outright. A crashed tab's reload routes through `loadUrl`, which re-enables the debugger.
 - **Host** (`src/main/browser/electron-tab-host.ts`): one sandboxed `WebContentsView` per tab
   (`sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`, no preload) on the
   `persist:meow-browser` partition with `backgroundThrottling: false`. It is attached to the main

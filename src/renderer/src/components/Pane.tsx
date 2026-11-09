@@ -66,11 +66,31 @@ export default function Pane({ pane, background, active, gitBranch, terminalOpen
         }
         e.preventDefault()
         handleToggleTerminal()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'B' || e.key === 'b')) {
+        const target = e.target as HTMLElement | null
+        const isInputOrTextarea =
+          !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')
+        const isXtermHelper = !!target?.classList?.contains('xterm-helper-textarea')
+        if (isInputOrTextarea && !isXtermHelper) return
+        e.preventDefault()
+        handleToggleBrowser()
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [active, isDraft, onToggleTerminal, handleToggleTerminal])
+  }, [active, isDraft, onToggleTerminal, onToggleBrowser, handleToggleTerminal, handleToggleBrowser])
+
+  // Keys typed in the native page never reach the window listener: main forwards
+  // the app-level ones here for the active pane only.
+  useEffect(() => {
+    if (!active || isDraft) return
+    return window.api.onBrowserShortcut(({ action }) => {
+      if (action === 'toggle-terminal') handleToggleTerminal()
+      else if (action === 'toggle-browser') handleToggleBrowser()
+    })
+  }, [active, isDraft, handleToggleTerminal, handleToggleBrowser])
 
   return (
     <div className={`pane ${background ? 'backgrounded' : ''} ${active ? 'active' : ''} status-${pane.state.status}`} onClick={onFocus}>

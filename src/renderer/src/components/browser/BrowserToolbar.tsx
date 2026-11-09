@@ -27,6 +27,15 @@ export default function BrowserToolbar({
     if (!editing) setDraft(url)
   }, [url, editing])
 
+  // Ctrl/Cmd+L from a focused page: main already moved OS focus to the renderer.
+  useEffect(() => window.api.onBrowserShortcut(({ action }) => {
+    if (action !== 'focus-url') return
+    const input = inputRef.current
+    if (!input || input.disabled) return
+    input.focus()
+    input.select()
+  }), [])
+
   const submit = (): void => {
     const normalized = normalizeUrlInput(draft)
     setEditing(false)

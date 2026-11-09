@@ -671,3 +671,82 @@ test('occlusion: menus and the resizer hide the native view, and it comes back',
     llm.close()
   }
 })
+
+test('keyboard shortcuts from a focused page', async () => {
+  const { server: fixture, url } = await startFixtureServer()
+  const { server: llm, port } = await startMockLlm([{ content: 'ok' }])
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    seedUserData(userData, project, {
+      provider: { mock: { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}`, models: ['mock-model'] } },
+      model: 'mock'
+    })
+    const { app, window, sessionId } = await launch(userData)
+    try {
+      await window.evaluate(({ id, u }) => window.api.browserTabCreate(id, u), { id: sessionId, u: url })
+      await window.locator('.pane-header .icon-btn[aria-label="Toggle browser"]').click()
+      await expect(window.locator('.browser-overlay')).toBeVisible()
+      await expect.poll(async () => (await viewBounds(app, url))?.visible, { timeout: 15000 }).toBe(true)
+
+      const sendKey = (input: Record<string, unknown>): Promise<void> => app.evaluate(({ BrowserWindow }, { fixtureUrl, event }) => {
+        const win = BrowserWindow.getAllWindows()[0]
+        const child = win.contentView.children.find(c => {
+          const wc = (c as unknown as { webContents?: { getURL(): string } }).webContents
+          return !!wc && wc.getURL().startsWith(fixtureUrl)
+        }) as unknown as { webContents: { focus(): void; sendInputEvent(e: unknown): void } } | undefined
+        if (!child) throw new Error('built-in browser view not found')
+        child.webContents.focus()
+        child.webContents.sendInputEvent(event)
+      }, { fixtureUrl: url, event: input })
+      const pageOrigin = (): Promise<number> => app.evaluate(({ BrowserWindow }, fixtureUrl) => {
+        const win = BrowserWindow.getAllWindows()[0]
+        const child = win.contentView.children.find(c => {
+          const wc = (c as unknown as { webContents?: { getURL(): string } }).webContents
+          return !!wc && wc.getURL().startsWith(fixtureUrl)
+        }) as unknown as { webContents: { executeJavaScript(code: string): Promise<number> } }
+        return child.webContents.executeJavaScript('performance.timeOrigin') as Promise<number>
+      }, url)
+
+      // Ctrl+R reloads the tab, not the app: the page origin changes, the renderer survives.
+      await window.evaluate(() => { (window as unknown as Record<string, unknown>).__e2eMarker = 42 })
+      const originBefore = await pageOrigin()
+      await sendKey({ type: 'keyDown', keyCode: 'r', modifiers: ['control'] })
+      await expect.poll(pageOrigin, { timeout: 15000 }).not.toBe(originBefore)
+      expect(await window.evaluate(() => (window as unknown as Record<string, unknown>).__e2eMarker)).toBe(42)
+
+      // Ctrl+` toggles the terminal from the page.
+      await sendKey({ type: 'keyDown', keyCode: '`', modifiers: ['control'] })
+      await expect(window.locator('.terminal-overlay')).toBeVisible({ timeout: 10000 })
+      await sendKey({ type: 'keyDown', keyCode: '`', modifiers: ['control'] })
+      await expect(window.locator('.terminal-overlay')).toHaveCount(0)
+
+      // Ctrl+L moves focus into the URL input; typing lands there.
+      await sendKey({ type: 'keyDown', keyCode: 'l', modifiers: ['control'] })
+      await window.keyboard.type('127.0.0.1:9')
+      await expect(window.locator('.browser-url-input')).toHaveValue(/127\.0\.0\.1:9/)
+      await window.keyboard.press('Escape')
+
+      // Ctrl+W must not close the app window.
+      await sendKey({ type: 'keyDown', keyCode: 'w', modifiers: ['control'] })
+      expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
+
+      // Ctrl+Shift+B from the page closes the panel.
+      await sendKey({ type: 'keyDown', keyCode: 'B', modifiers: ['control', 'shift'] })
+      await expect(window.locator('.browser-overlay')).toHaveCount(0)
+
+      // Focus in the renderer: Ctrl+Shift+B reopens it.
+      await window.locator('.chat-input-field').click()
+      await window.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+      await window.keyboard.press('Control+Shift+B')
+      await expect(window.locator('.browser-overlay')).toBeVisible({ timeout: 10000 })
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+    fixture.close()
+    llm.close()
+  }
+})
