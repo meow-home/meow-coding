@@ -41,6 +41,10 @@ class FakeHost implements TabHost {
   bounds: { x: number; y: number; width: number; height: number } = { x: 0, y: 0, width: 0, height: 0 }
   visible = true
   captureImpl: (() => Promise<string>) | null = null
+  setOnScreenCalls = 0
+  setBoundsCalls = 0
+  onScreenAtLoad: boolean | null = null
+  setOnScreenImpl: ((onScreen: boolean) => Promise<void>) | null = null
 
   constructor() {
     this.id = FakeHost.nextId++
@@ -55,6 +59,7 @@ class FakeHost implements TabHost {
   }
 
   async loadUrl(url: string): Promise<void> {
+    this.onScreenAtLoad = this.onScreen
     this.loaded.push(url)
   }
 
@@ -67,6 +72,7 @@ class FakeHost implements TabHost {
   setShield(): void {}
 
   setBounds(bounds: { x: number; y: number; width: number; height: number }): void {
+    this.setBoundsCalls++
     this.bounds = { ...bounds }
   }
 
@@ -75,6 +81,8 @@ class FakeHost implements TabHost {
   }
 
   async setOnScreen(onScreen: boolean, bounds?: { x: number; y: number; width: number; height: number }): Promise<void> {
+    this.setOnScreenCalls++
+    if (this.setOnScreenImpl) await this.setOnScreenImpl(onScreen)
     this.onScreen = onScreen
     if (bounds) this.bounds = { ...bounds }
     this.visible = true
@@ -113,6 +121,7 @@ function makeBrowser(options: {
   hasWindow?: () => boolean
   getZoomFactor?: () => number
   clearData?: () => Promise<void>
+  onError?: (message: string) => void
 } = {}): {
   browser: EmbeddedBrowser
   hosts: FakeHost[]
@@ -396,18 +405,23 @@ describe('EmbeddedBrowser logs', () => {
 })
 
 describe('EmbeddedBrowser panel', () => {
-  async function twoTabs(options: { getZoomFactor?: () => number; clearData?: () => Promise<void> } = {}): Promise<{
+  async function twoTabs(options: {
+    getZoomFactor?: () => number
+    clearData?: () => Promise<void>
+    onError?: (message: string) => void
+  } = {}): Promise<{
     browser: EmbeddedBrowser
     hosts: FakeHost[]
     requests: string[]
+    callbacks: HostCallbacks[]
   }> {
-    const { browser, hosts } = makeBrowser(options)
+    const { browser, hosts, callbacks } = makeBrowser(options)
     const requests: string[] = []
     browser.onPanelRequest(agentId => requests.push(agentId))
     await browser.execute('openTab', { url: 'http://127.0.0.1:3000/1' }, call('a'))
     await browser.execute('openTab', { url: 'http://127.0.0.1:3000/2' }, call('a'))
     requests.length = 0
-    return { browser, hosts, requests }
+    return { browser, hosts, requests, callbacks }
   }
 
   it('attaches the working tab with zoomed bounds, updates bounds and detaches', async () => {
@@ -456,6 +470,90 @@ describe('EmbeddedBrowser panel', () => {
     expect((await browser.execute('openTab', { url: 'http://127.0.0.1:3000/agent' }, call('a'))).ok).toBe(true)
     expect(hosts[0].onScreen).toBe(true)
     expect(hosts[2].onScreen).toBe(false)
+  })
+
+  it('a popup activates only from a visible, user-owned opener', async () => {
+    const { browser, hosts, callbacks } = await twoTabs()
+    await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 })
+    const userTab = await browser.createUserTab('a', 'http://127.0.0.1:3000/user')
+    expect(userTab.control).toBe('idle')
+    const userIndex = hosts.findIndex(h => h.id === userTab.id)
+    // The opener is on screen and idle: an ordinary target=_blank click.
+    callbacks[userIndex].onWindowOpen('http://127.0.0.1:3000/popup')
+    await tick()
+    const popupHost = hosts[hosts.length - 1]
+    expect(popupHost.onScreen).toBe(true)
+
+    // An agent-owned opener never hands the panel to a popup.
+    await browser.activateTab('a', hosts[0].id)
+    callbacks[0].onWindowOpen('http://127.0.0.1:3000/popup2')
+    await tick()
+    expect(hosts[hosts.length - 1].onScreen).toBe(false)
+
+    // An off-screen opener does not either.
+    await browser.activateTab('a', hosts[0].id)
+    callbacks[userIndex].onWindowOpen('http://127.0.0.1:3000/popup3')
+    await tick()
+    expect(hosts[hosts.length - 1].onScreen).toBe(false)
+  })
+
+  it('a popup never sets the working tab and never fires a panel request', async () => {
+    const { browser, hosts, callbacks, requests } = await twoTabs()
+    await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 })
+    const userTab = await browser.createUserTab('a', 'http://127.0.0.1:3000/user')
+    const userIndex = hosts.findIndex(h => h.id === userTab.id)
+    requests.length = 0
+    callbacks[userIndex].onWindowOpen('http://127.0.0.1:3000/popup')
+    expect(requests).toEqual([])
+    // The working tab is still the agent's second tab.
+    expect((await browser.execute('navigate', { url: 'http://127.0.0.1:3000/next' }, call('a'))).ok).toBe(true)
+    expect(hosts[1].loaded).toContain('http://127.0.0.1:3000/next')
+  })
+
+  it('a popup in an approval opener does not activate', async () => {
+    const { browser, hosts, callbacks } = await twoTabs()
+    // A non-loopback origin makes the click ask for site approval.
+    expect((await browser.execute('navigate', { url: 'https://example.com/' }, call('a'))).ok).toBe(true)
+    await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 })
+    void browser.execute('click', { selector: '#x' }, {
+      ownerId: 'a', ask: () => new Promise<string | null>(() => {})
+    })
+    await tick()
+    expect(browser.listTabs('a').find(t => t.id === hosts[1].id)?.control).toBe('approval')
+    callbacks[1].onWindowOpen('http://127.0.0.1:3000/popup')
+    await tick()
+    expect(hosts[hosts.length - 1].onScreen).toBe(false)
+  })
+
+  it('setBounds only updates the view, never re-applies the on-screen state', async () => {
+    const { browser, hosts } = await twoTabs()
+    await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 })
+    const before = hosts[1].setOnScreenCalls
+    await browser.setBounds({ x: 5, y: 6, width: 70, height: 80 })
+    expect(hosts[1].setOnScreenCalls).toBe(before)
+    expect(hosts[1].bounds).toEqual({ x: 5, y: 6, width: 70, height: 80 })
+  })
+
+  it('a placement rejection is reported, not left unhandled', async () => {
+    const errors: string[] = []
+    const { browser, hosts } = makeBrowser({ onError: message => errors.push(message) })
+    browser.onPanelRequest(() => {})
+    await browser.execute('openTab', { url: 'http://127.0.0.1:3000/1' }, call('a'))
+    hosts[0].setOnScreenImpl = async () => { throw new Error('boom') }
+    await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 })
+    expect(errors.some(message => message.includes('placement failed'))).toBe(true)
+  })
+
+  it('a user tab is placed before its URL loads and is placed once', async () => {
+    const { browser, hosts } = await twoTabs()
+    await browser.attach('a', { x: 0, y: 0, width: 100, height: 100 })
+    const before = hosts.length
+    const created = await browser.createUserTab('a', 'http://127.0.0.1:3000/user')
+    const host = hosts[before]
+    expect(created.id).toBe(host.id)
+    expect(host.onScreen).toBe(true)
+    expect(host.onScreenAtLoad).toBe(true)
+    expect(host.setOnScreenCalls).toBe(1)
   })
 
   it('enforces the tab cap for user tabs with the cap message', async () => {

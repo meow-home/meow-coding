@@ -29,14 +29,20 @@ export interface EmbeddedBrowserDeps {
   getZoomFactor?: () => number
   /** Clears the browser partition (cookies, storage and cache). */
   clearData?: () => Promise<void>
+  /** Placement failures must not become unhandled rejections. */
+  onError?: (message: string) => void
 }
+
+type TabOrigin = 'agent' | 'user' | 'popup'
 
 interface TabEntry {
   tab: BrowserTab
   host: TabHost
   ownerId: string
-  agentCreated: boolean
+  origin: TabOrigin
   onScreen: boolean
+  /** Panel placement while it is the active tab; always settles. */
+  placement?: Promise<void>
 }
 
 interface PanelBounds {
@@ -211,6 +217,13 @@ export class EmbeddedBrowser implements BrowserBackend {
     return this.entryFor(ownerId, undefined)
   }
 
+  /** Fire-and-forget placement that always settles. */
+  private place(entry: TabEntry | null): Promise<void> {
+    return this.placeOnScreen(entry).catch(err => {
+      this.deps.onError?.(`browser panel placement failed: ${err instanceof Error ? err.message : String(err)}`)
+    })
+  }
+
   private async placeOnScreen(entry: TabEntry | null): Promise<void> {
     for (const other of this.tabs.values()) {
       if (other === entry || !other.onScreen) continue
@@ -229,7 +242,7 @@ export class EmbeddedBrowser implements BrowserBackend {
     this.panelHidden = false
     this.panelOwner = agentId
     this.panelBounds = this.scaleBounds(bounds)
-    await this.placeOnScreen(this.panelEntry(agentId))
+    await this.place(this.panelEntry(agentId))
     this.emitTabsChanged(agentId)
   }
 
@@ -252,9 +265,8 @@ export class EmbeddedBrowser implements BrowserBackend {
     this.panelBounds = this.scaleBounds(bounds)
     const entry = this.onScreenEntry()
     if (!entry || !this.panelBounds) return
-    // While frozen the view stays hidden; only its bounds change.
-    if (this.panelHidden) entry.tab.setBounds(this.panelBounds)
-    else await entry.tab.setOnScreen(true, this.panelBounds)
+    // Bounds only: the metrics override changes with the on-screen state, not per frame.
+    entry.tab.setBounds(this.panelBounds)
   }
 
   /** Capture the visible tab; the view stays visible until hideFrozen. */
@@ -293,15 +305,13 @@ export class EmbeddedBrowser implements BrowserBackend {
   // ---- user actions from the panel ------------------------------------------
 
   async createUserTab(agentId: string, url?: string): Promise<BrowserTabInfo> {
-    const created = this.createTab(agentId, false)
+    const safe = url != null ? this.requireHttpUrl(url) : null
+    const created = this.createTab(agentId, 'user')
     if (isError(created)) throw new Error(created.error)
-    if (url != null) await created.host.loadUrl(this.requireHttpUrl(url))
-    if (this.panelOwner === agentId) {
-      this.panelGeneration++
-      this.panelHidden = false
-      await this.placeOnScreen(created)
-      this.emitTabsChanged(agentId)
-    }
+    // createTab already starts the placement; load only once the view is on screen.
+    await (created.placement ?? Promise.resolve())
+    if (safe) await created.host.loadUrl(safe)
+    this.emitTabsChanged(agentId)
     return created.tab.toInfo()
   }
 
@@ -313,7 +323,7 @@ export class EmbeddedBrowser implements BrowserBackend {
     if (this.panelOwner === agentId) {
       this.panelGeneration++
       this.panelHidden = false
-      await this.placeOnScreen(entry)
+      await this.place(entry)
     }
     this.emitTabsChanged(agentId)
   }
@@ -378,7 +388,7 @@ export class EmbeddedBrowser implements BrowserBackend {
       this.panelGeneration++
       this.panelHidden = false
       const entry = this.tabs.get(tabId)
-      if (entry) void this.placeOnScreen(entry)
+      if (entry) void this.place(entry)
     }
     this.emitTabsChanged(agentId)
     this.emitPanelRequest(agentId)
@@ -400,7 +410,7 @@ export class EmbeddedBrowser implements BrowserBackend {
     let entry = this.entryFor(call.ownerId, params.tabId)
     if (!entry) {
       if (params.tabId != null) return { ok: false, error: `no such tab: ${params.tabId}` }
-      const created = this.createTab(call.ownerId, true)
+      const created = this.createTab(call.ownerId, 'agent')
       if (isError(created)) return created
       entry = created
     }
@@ -411,7 +421,7 @@ export class EmbeddedBrowser implements BrowserBackend {
   private async openTab(call: BrowserCall, params: Record<string, unknown>): Promise<BrowserCommandResult> {
     const url = String(params.url ?? '')
     if (!isHttpUrl(url)) return { ok: false, error: `invalid url: ${url}` }
-    const created = this.createTab(call.ownerId, true)
+    const created = this.createTab(call.ownerId, 'agent')
     if (isError(created)) return created
     const result = await created.tab.run('navigate', { url }, call, NAVIGATE_TIMEOUT_MS)
     if (!result.ok) return result
@@ -435,7 +445,11 @@ export class EmbeddedBrowser implements BrowserBackend {
     return result
   }
 
-  private createTab(ownerId: string, agentCreated: boolean): TabEntry | Extract<BrowserCommandResult, { ok: false }> {
+  private createTab(
+    ownerId: string,
+    origin: TabOrigin,
+    opener?: TabEntry
+  ): TabEntry | Extract<BrowserCommandResult, { ok: false }> {
     if (this.countOwned(ownerId) >= MAX_TABS_PER_SESSION) {
       return { ok: false, error: `tab limit reached: ${MAX_TABS_PER_SESSION} per session` }
     }
@@ -443,6 +457,7 @@ export class EmbeddedBrowser implements BrowserBackend {
       return { ok: false, error: `tab limit reached: ${MAX_TABS_TOTAL} total` }
     }
     let tab: BrowserTab | null = null
+    let entry: TabEntry | null = null
     const callbacks: HostCallbacks = {
       onChanged: () => this.emitTabsChanged(ownerId),
       onCrashed: () => {
@@ -450,9 +465,14 @@ export class EmbeddedBrowser implements BrowserBackend {
         this.emitTabsChanged(ownerId)
       },
       onWindowOpen: (url) => {
-        const created = this.createTab(ownerId, false)
+        const created = this.createTab(ownerId, 'popup', entry ?? undefined)
         if (isError(created)) return
-        void created.tab.run('navigate', { url })
+        const load = (): void => {
+          void created.host.loadUrl(url).catch(err => {
+            this.deps.onError?.(`popup navigation failed: ${err instanceof Error ? err.message : String(err)}`)
+          })
+        }
+        void (created.placement ?? Promise.resolve()).then(load)
       }
     }
     const host = this.deps.createHost(ownerId, callbacks)
@@ -464,21 +484,25 @@ export class EmbeddedBrowser implements BrowserBackend {
       siteApproval: this.deps.siteApproval,
       onHandoff: (reason) => this.onHandoff(ownerId, host.id, reason)
     })
-    const entry: TabEntry = { tab, host, ownerId, agentCreated, onScreen: false }
+    entry = { tab, host, ownerId, origin, onScreen: false }
     this.tabs.set(tab.id, entry)
     // Only an agent-created tab becomes the working tab: a page calling
     // window.open must not redirect the agent's next untargeted command.
-    if (agentCreated) this.setWorking(ownerId, tab.id)
+    if (origin === 'agent') this.setWorking(ownerId, tab.id)
     if (this.panelOwner === ownerId) {
-      // A user tab becomes the panel's tab; an agent tab only when nothing of this
-      // owner is on screen, so the agent does not yank the user's view.
-      if (!agentCreated || !this.onScreenEntryFor(ownerId)) {
+      // User tabs take the panel; agent tabs only when nothing of this owner is on
+      // screen; a popup only when its opener is the visible, user-owned tab.
+      const openerControl = opener?.tab.toInfo().control
+      const activate = origin === 'user'
+        || (origin === 'agent' && !this.onScreenEntryFor(ownerId))
+        || (origin === 'popup' && !!opener?.onScreen && (openerControl === 'user' || openerControl === 'idle'))
+      if (activate) {
         this.panelActive.set(ownerId, tab.id)
-        void this.placeOnScreen(entry)
+        entry.placement = this.place(entry)
       }
     }
     this.emitTabsChanged(ownerId)
-    if (agentCreated) this.emitPanelRequest(ownerId)
+    if (origin === 'agent') this.emitPanelRequest(ownerId)
     return entry
   }
 
@@ -496,7 +520,7 @@ export class EmbeddedBrowser implements BrowserBackend {
       entry.onScreen = false
       this.panelGeneration++
       this.panelHidden = false
-      void this.placeOnScreen(this.panelEntry(entry.ownerId))
+      void this.place(this.panelEntry(entry.ownerId))
     }
     entry.tab.destroy()
     this.emitTabsChanged(entry.ownerId)
