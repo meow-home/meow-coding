@@ -141,7 +141,7 @@ is dismissible (no install button, "Later" only).
 
 | Component | Responsibility |
 |---|---|
-| `TitleBar.tsx` | Custom window chrome for frameless platforms; when collapsed, hovering the title bar brand region reveals a floating full sidebar popover dropdown menu. Between the brand and the panel tools it seats the active session's title (`SessionTitle`); with the sidebar collapsed the brand strip shrinks to the logo + toggle so the title moves left, next to the expand button. |
+| `TitleBar.tsx` | Custom window chrome for frameless platforms, painted with the chat surface (`--bg-chat`) so the header and the conversation read as one panel; when collapsed, hovering the title bar brand region reveals a floating full sidebar popover dropdown menu. Between the brand and the panel tools it seats the active session's title (`SessionTitle`); with the sidebar collapsed the brand strip shrinks to the logo + toggle so the title moves left, next to the expand button. |
 | `PopupTitleBar.tsx` | Same for the FileViewer/GitViewer popups (drag region + Linux min/max/close) |
 | `Sidebar.tsx` | Project list; header action bar features a vertical menu with a single "New session" (`Plus` icon) full-width menu item without border radius or bottom border (adding a folder as a project moved to the new session's footer picker). Each project row is a lightweight group header — the project name (bright on the current project, dim otherwise) followed by a **trailing** expand/collapse chevron, with the `+` (new session) and `...` (project menu) icons revealed on hover / while the project is current. The project path lives on the row's `title`: there is no path line and no session count. An expanded project lists its **sessions**, indented: a status dot (green = running, yellow = waiting on input, none when idle; it hangs in the row indent, so names stay aligned), the name, and a trailing `...` menu that appears on hover / when active. The active session is a full-width rounded pill. The per-row `...` menu holds Rename (via inline input), Stop (when running) and Delete. The project `...` menu holds Open, Open in VS Code, Git, Open Folder, Open Terminal (a real OS terminal window via `openSystemTerminal`) and Remove. The `+` button activates a draft session; deleting a project's last session transitions the workspace to a draft session pane — creating a backend session is deferred until the user sends their first message. Expanded state persists in `localStorage` (`meow.sidebar.expanded`). Also: Providers entry and theme toggle in the footer menu. Projects with sessions waiting on a permission/question prompt show a red count badge (and a dot on the collapsed-rail avatar) |
 | `StatusBar.tsx` | Workspace name, git branch, running count, app version |
@@ -342,7 +342,8 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   `--menu-pad` 6px (container padding), `--menu-item-h` 32px, `--menu-item-pad-x` 10px,
   `--menu-icon` 16px. Rows are **contiguous** (`gap: 0`) and each is `min-height: 32px` with
   `padding: 0 10px`. `.menu-sep` is an inset hairline between groups; `.menu-head` is a muted
-  non-interactive context row.
+  non-interactive context row. A floating menu has **no outline**: it paints `--bg-menu` — a surface
+  that sits above `--bg`/`--bg-chat` in both themes — and relies on `--shadow-3` for separation.
 - **Selector triggers** carry one shared caret, `.dropdown-caret` (lucide `ChevronDown`, 14px), which
   rotates 180° while its menu is open. Rotation is driven purely by the trigger's
   `[aria-expanded="true"]`, so any new select trigger gets it by setting that attribute (`Dropdown.tsx`

@@ -93,13 +93,26 @@ test('the new session footer picks the project, and only before the chat starts'
           bg: cs.backgroundColor,
           radius: cs.borderTopLeftRadius,
           padding: cs.paddingTop,
-          border: cs.borderTopWidth
+          border: cs.borderTopWidth,
+          shadow: cs.boxShadow
         }
       })
-      expect(surface.bg).not.toBe('rgba(0, 0, 0, 0)')
+      const expected = await window.evaluate(() => {
+        const probe = document.createElement('div')
+        probe.style.background = 'var(--bg-menu)'
+        document.body.appendChild(probe)
+        const bg = getComputedStyle(probe).backgroundColor
+        probe.remove()
+        return bg
+      })
+      const chatBg = await window.locator('.pane-slot:not([hidden]) .chat-panel').evaluate(el => getComputedStyle(el).backgroundColor)
+      expect(surface.bg).toBe(expected)
+      expect(surface.bg).not.toBe(chatBg)
       expect(surface.radius).not.toBe('0px')
       expect(surface.padding).not.toBe('0px')
-      expect(surface.border).not.toBe('0px')
+      // No outline: separation comes from the surface step + shadow.
+      expect(surface.border).toBe('0px')
+      expect(surface.shadow).not.toBe('none')
       // Its bottom edge is on top: the composer must not cover the last row.
       const topmostAtBottom = await menu.evaluate(el => {
         const r = el.getBoundingClientRect()

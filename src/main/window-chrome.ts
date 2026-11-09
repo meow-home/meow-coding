@@ -10,7 +10,8 @@ const TITLE_BAR_HEIGHT = 32
 // these when a window is created; they are re-applied live via applyTitleBarTheme.
 export type TitleBarTheme = 'dark' | 'light'
 const TITLE_BAR_COLORS: Record<TitleBarTheme, { color: string; symbolColor: string }> = {
-  dark: { color: '#1a1a1a', symbolColor: '#c2c2c2' },
+  // Must equal `--bg-chat`: the bar paints the chat surface.
+  dark: { color: '#111315', symbolColor: '#c2c2c2' },
   light: { color: '#ffffff', symbolColor: '#1e1e1e' }
 }
 

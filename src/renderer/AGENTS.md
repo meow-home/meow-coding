@@ -80,9 +80,12 @@ Lessons learned from the Git viewer screen (don't repeat them):
   with a container padding override. `.project-actions .btn` and `.btn.small` are both `(0,2,0)`, so
   source order decides and the override is silently ignored (the project `+`/`...` rendered 34 × 25
   and the old pane header's `...` 31 × 21 with the `.btn` 6px radius before the dedicated class existed).
-- **The title bar paints `var(--bg)`** — `.title-bar` paints `var(--bg)`. On Windows the OS paints the caption strip ~0.5px narrower than the reserved `11.5rem`, so a transparent bar exposed `body`'s radial gradient as a 1px line beside the min/max/close buttons. Don't reintroduce a transparent title bar (`window-chrome.test.ts` guards the surface). `.title-bar-brand` (when expanded) and `.sidebar` draw a `--hairline` right border; when collapsed (`.title-bar-brand.collapsed`), it has `background: var(--bg)` to match the chat pane background and `border-right: none`.
+- **The title bar paints `var(--bg-chat)`** — `.title-bar`, `.title-bar-right` and the Linux window-control buttons share the chat surface, so the header and the conversation read as one panel. On Windows the OS paints the caption strip ~0.5px narrower than the reserved `11.5rem`, so a transparent bar exposed `body`'s radial gradient as a 1px line beside the min/max/close buttons. Don't reintroduce a transparent title bar, and keep `TITLE_BAR_COLORS` on the same token (`window-chrome.test.ts` parses this rule). `.title-bar-brand` (when expanded) and `.sidebar` draw a `--hairline` right border; when collapsed (`.title-bar-brand.collapsed`), it has `background: var(--bg-chat)` to match the chat pane background and `border-right: none`.
 - **Dropdowns share the `--menu-*` metric tokens** (`--menu-radius`, `--menu-pad`, `--menu-item-h`,
   `--menu-item-pad-x`, `--menu-icon`). New menu surfaces must consume them, not hardcode padding.
+- **Floating menus carry no outline.** They paint `--bg-menu` (a step above `--bg`/`--bg-chat` in
+  BOTH themes) and separate from the page by `--shadow-3` alone; a 1px `--hairline` border reads as a
+  hard outline against the panels. `menu-surface.test.ts` guards the token and the missing border.
 - **Chat surfaces share one centered lane** (`--chat-lane-w` = 64rem on `:root`, side inset derived once on `.chat-panel` as
   `--chat-inset`). Transcript, todo card, prompt popup, input card and composer footer sit on that column; the composer and
   todo card keep the inset as padding/margin so their background still reaches the panel edge. The feed also spans the full

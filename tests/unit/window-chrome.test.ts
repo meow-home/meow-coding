@@ -43,7 +43,7 @@ describe('getWindowChromeOptions', () => {
   it('uses a hidden title bar with a colored overlay on Windows', () => {
     const opts = getWindowChromeOptions('win32')
     expect(opts.titleBarStyle).toBe('hidden')
-    expect(opts.titleBarOverlay).toEqual({ color: '#1a1a1a', symbolColor: '#c2c2c2', height: 32 })
+    expect(opts.titleBarOverlay).toEqual({ color: '#111315', symbolColor: '#c2c2c2', height: 32 })
     expect(opts.frame).toBeUndefined()
   })
 
@@ -78,7 +78,7 @@ describe('applyTitleBarTheme', () => {
     const setTitleBarOverlay = vi.fn()
     vi.stubGlobal('process', { platform: 'win32' })
     applyTitleBarTheme({ setTitleBarOverlay } as never, 'dark')
-    expect(setTitleBarOverlay).toHaveBeenCalledWith({ color: '#1a1a1a', symbolColor: '#c2c2c2', height: 32 })
+    expect(setTitleBarOverlay).toHaveBeenCalledWith({ color: '#111315', symbolColor: '#c2c2c2', height: 32 })
   })
 
   it('does nothing on non-Windows platforms', () => {
@@ -95,6 +95,10 @@ describe('applyTitleBarTheme', () => {
 })
 
 describe('Windows overlay color tracks the title bar surface', () => {
+  it('paints the title bar with the chat surface, not the shell surface', () => {
+    expect(titleBarSurfaceToken()).toBe('--bg-chat')
+  })
+
   it('creates the window with the dark title bar surface as the overlay color', () => {
     const surface = tokenValue(':root', titleBarSurfaceToken())
     expect(getWindowChromeOptions('win32').titleBarOverlay).toMatchObject({ color: surface })

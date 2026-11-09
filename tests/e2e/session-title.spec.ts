@@ -58,6 +58,13 @@ test('the session title seats the name and menu in the title bar without coverin
     // No pane header row at all — the chat pane starts at the top.
     await expect(window.locator('.pane-header')).toHaveCount(0)
 
+    // The bar takes the chat surface: no lighter strip above the conversation.
+    const surfaces = await window.evaluate(() => ({
+      bar: getComputedStyle(document.querySelector('.title-bar')!).backgroundColor,
+      chat: getComputedStyle(document.querySelector('.chat-panel')!).backgroundColor
+    }))
+    expect(surfaces.bar).toBe(surfaces.chat)
+
     const geometry = await window.evaluate(() => {
       const box = (sel: string) => {
         const el = document.querySelector<HTMLElement>(sel)
