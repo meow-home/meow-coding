@@ -5023,6 +5023,64 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 .browser-banner.approval { color: var(--yellow); }
 .browser-viewport { position: relative; flex: 1; min-height: 0; background: var(--bg-chat); overflow: hidden; }
 .browser-frozen { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; pointer-events: none; user-select: none; }
+.icon-btn[aria-pressed="true"] { background: var(--bg-active); color: var(--text-strong); }
+.browser-drawer {
+  height: 12rem;
+  flex: 0 0 12rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg-card);
+}
+.browser-drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px; }
+.browser-drawer-tabs { display: flex; gap: 2px; }
+.browser-drawer-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.browser-drawer-tab.active { background: var(--bg-active); color: var(--text-strong); }
+.browser-drawer-count {
+  min-width: 1.1em;
+  padding: 0 4px;
+  border-radius: var(--radius-xs);
+  background: var(--red);
+  color: #fff;
+  font-size: var(--fs-xs);
+  text-align: center;
+}
+.browser-drawer-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: calc(var(--fs-sm) * var(--fs-mono-scale));
+}
+.browser-drawer-row {
+  display: flex;
+  gap: 8px;
+  padding: 2px 8px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.browser-drawer-level,
+.browser-drawer-method,
+.browser-drawer-status { flex: none; color: var(--text-faint); }
+.browser-drawer-text { min-width: 0; }
+.browser-drawer-row.level-error { color: var(--red); }
+.browser-drawer-row.level-warning,
+.browser-drawer-row.level-warn { color: var(--yellow); }
+.browser-drawer-empty { padding: 12px; color: var(--text-faint); }
+
 .browser-empty {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
   justify-content: center; gap: 8px; color: var(--text-dim);

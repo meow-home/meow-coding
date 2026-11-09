@@ -272,6 +272,7 @@ export default function App() {
       full={terminalFull}
       onToggleFull={() => setTerminalFull(v => !v)}
       onClose={() => setTerminalOpenFor(null)}
+      onOpenBrowser={(agentId) => { setBrowserFull(false); setBrowserOpenFor(agentId) }}
     />
   ) : null
   const browserPanel = browserOpenFor ? (

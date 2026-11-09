@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { SiteApprovals, isLoopback } from '../../../src/main/browser/site-approval'
+import { SiteApprovals } from '../../../src/main/browser/site-approval'
+import { isLoopback } from '../../../src/shared/loopback'
 
 describe('isLoopback', () => {
   it('accepts the loopback forms', () => {

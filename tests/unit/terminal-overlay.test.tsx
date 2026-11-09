@@ -37,6 +37,7 @@ const mockTerminalInstance = {
   onData: vi.fn(() => ({ dispose: vi.fn() })),
   onTitleChange: vi.fn(() => ({ dispose: vi.fn() })),
   getSelection: vi.fn(() => mockSelection),
+  registerLinkProvider: vi.fn(() => ({ dispose: vi.fn() })),
   cols: 80,
   rows: 24,
   options: {

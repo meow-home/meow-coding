@@ -9,9 +9,10 @@ interface Props {
   full: boolean
   onToggleFull: () => void
   onClose: () => void
+  onOpenBrowser: (agentId: string) => void
 }
 
-export default function TerminalOverlay({ agentId, full, onToggleFull, onClose }: Props) {
+export default function TerminalOverlay({ agentId, full, onToggleFull, onClose, onOpenBrowser }: Props) {
   const [terminals, setTerminals] = useState<TerminalInfo[]>([])
   const [selectedTerminalId, setSelectedTerminalId] = useState<string | null>(null)
   const [inlineError, setInlineError] = useState<string | null>(null)
@@ -229,7 +230,13 @@ export default function TerminalOverlay({ agentId, full, onToggleFull, onClose }
 
       <div className="terminal-overlay-body">
         {selectedTerminalId ? (
-          <TerminalView key={selectedTerminalId} terminalId={selectedTerminalId} agentId={agentId} />
+          <TerminalView
+            key={selectedTerminalId}
+            terminalId={selectedTerminalId}
+            agentId={agentId}
+            onOpenBrowser={onOpenBrowser}
+            onError={setInlineError}
+          />
         ) : (
           <div className="files-empty">
             <div className="files-empty-title">No open terminals</div>

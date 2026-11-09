@@ -3,10 +3,13 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import BaseDropdown from '../common/BaseDropdown'
+import { findLoopbackLinks } from './findLoopbackLinks'
 
 interface TerminalViewProps {
   terminalId: string
   agentId: string
+  onOpenBrowser: (agentId: string) => void
+  onError: (message: string) => void
 }
 
 // The terminal is always dark (--terminal-* tokens are not overridden by the light theme),
@@ -24,10 +27,15 @@ function getTerminalTheme() {
   }
 }
 
-export default function TerminalView({ terminalId, agentId }: TerminalViewProps) {
+export default function TerminalView({ terminalId, agentId, onOpenBrowser, onError }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
+  // Refs keep the terminal effect independent of parent re-renders.
+  const onOpenBrowserRef = useRef(onOpenBrowser)
+  onOpenBrowserRef.current = onOpenBrowser
+  const onErrorRef = useRef(onError)
+  onErrorRef.current = onError
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [hasSelection, setHasSelection] = useState(false)
@@ -62,6 +70,26 @@ export default function TerminalView({ terminalId, agentId }: TerminalViewProps)
     const dataDisposable = term.onData((data) => {
       if (disposed) return
       void window.api.terminalWrite(terminalId, data)
+    })
+
+    const linksDisposable = term.registerLinkProvider({
+      provideLinks(row, callback) {
+        const line = term.buffer.active.getLine(row - 1)?.translateToString(true) ?? ''
+        callback(findLoopbackLinks(line).map(link => ({
+          range: { start: { x: link.start + 1, y: row }, end: { x: link.end, y: row } },
+          text: link.url,
+          activate: () => {
+            void window.api.browserTabCreate(agentId, link.url)
+              .then(async created => {
+                // The panel may be closed: activating here makes the new tab the
+                // one attach shows.
+                await window.api.browserTabActivate(agentId, created.id)
+                onOpenBrowserRef.current(agentId)
+              })
+              .catch(err => onErrorRef.current(err instanceof Error ? err.message : String(err)))
+          }
+        })))
+      }
     })
 
     let resizeObserver: ResizeObserver | null = null
@@ -119,6 +147,7 @@ export default function TerminalView({ terminalId, agentId }: TerminalViewProps)
       resizeObserver?.disconnect()
       unlistenData()
       dataDisposable.dispose()
+      linksDisposable.dispose()
       void window.api.terminalDetach(terminalId).catch(() => {})
       term.dispose()
       xtermRef.current = null

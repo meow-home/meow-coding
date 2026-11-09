@@ -5,7 +5,8 @@ import type {
 import * as commands from './cdp-commands'
 import { staleRefError } from './cdp-commands'
 import type { RefLabel, TargetRect } from './cdp-commands'
-import { SiteApprovals, isLoopback } from './site-approval'
+import { SiteApprovals } from './site-approval'
+import { isLoopback } from '../../shared/loopback'
 
 export interface CdpClient {
   send<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>

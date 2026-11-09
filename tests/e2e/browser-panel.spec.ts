@@ -78,10 +78,16 @@ function startMockLlm(turns: MockTurn[]): Promise<{ server: http.Server; port: n
 }
 
 function startFixtureServer(): Promise<{ server: http.Server; url: string }> {
-  const server = http.createServer((_req, res) => {
+  const server = http.createServer((req, res) => {
+    if (req.url?.startsWith('/missing.png')) {
+      res.writeHead(404)
+      res.end()
+      return
+    }
     res.writeHead(200, { 'Content-Type': 'text/html' })
     res.end('<!doctype html><html><head><title>fixture</title></head><body style="margin:0">' +
-      '<button id="far" onclick="window.__far=(window.__far||0)+1;document.title=\'far:\'+window.__far">Far</button>' +
+      "<button id=\"far\" onclick=\"window.__far=(window.__far||0)+1;document.title='far:'+window.__far\">Far</button>" +
+      "<button id=\"boom\" onclick=\"console.error('fixture boom')\">Boom</button>" +
       '</body></html>')
   })
   return new Promise(resolve => {
@@ -483,6 +489,7 @@ test('occlusion: menus and the resizer hide the native view, and it comes back',
     writeFileSync(path.join(userData, 'workspaces.json'), JSON.stringify(workspaces, null, 2))
     const { app, window, sessionId } = await launch(userData)
     try {
+      window.on('console', m => { if (m.type() === 'error') console.log('[console]', m.text().slice(0, 300)) })
       await window.evaluate(({ id, u }) => window.api.browserTabCreate(id, u), { id: sessionId, u: url })
       await window.locator('.pane-header .icon-btn[aria-label="Toggle browser"]').click()
       await expect(window.locator('.browser-overlay')).toBeVisible()
@@ -740,6 +747,84 @@ test('keyboard shortcuts from a focused page', async () => {
       await window.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
       await window.keyboard.press('Control+Shift+B')
       await expect(window.locator('.browser-overlay')).toBeVisible({ timeout: 10000 })
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+    fixture.close()
+    llm.close()
+  }
+})
+
+
+test('drawer shows console and network logs, sends them to chat, and the view follows', async () => {
+  const { server: fixture, url } = await startFixtureServer()
+  const { server: llm, port, calls } = await startMockLlm([{ content: 'ok' }])
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  const shots = path.join(tmpdir(), 'meow-browser-panel-shots')
+  mkdirSync(shots, { recursive: true })
+  try {
+    seedUserData(userData, project, {
+      provider: { mock: { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}`, models: ['mock-model'] } },
+      model: 'mock'
+    })
+    const { app, window, sessionId } = await launch(userData)
+    try {
+      await window.evaluate(({ id, u }) => window.api.browserTabCreate(id, u), { id: sessionId, u: url })
+      await window.locator('.pane-header .icon-btn[aria-label="Toggle browser"]').click()
+      await expect(window.locator('.browser-overlay')).toBeVisible()
+      await expect.poll(async () => (await viewBounds(app, url))?.visible, { timeout: 15000 }).toBe(true)
+      await expectBounds(app, url, window)
+
+      // Closed drawer: no log polling at all.
+      // Open: console error with a count, then the network request.
+      await window.locator('.icon-btn[aria-label="Console and network"]').click()
+      await window.waitForTimeout(300)
+      const drawer = window.locator('.browser-drawer')
+      await expect(drawer).toBeVisible()
+      // Log and request after the debugger is attached, so the entries are captured.
+      await app.evaluate(({ BrowserWindow }, fixtureUrl) => {
+        const win = BrowserWindow.getAllWindows()[0]
+        const child = win.contentView.children.find(c => {
+          const wc = (c as unknown as { webContents?: { getURL(): string } }).webContents
+          return !!wc && wc.getURL().startsWith(fixtureUrl)
+        }) as unknown as { webContents: { executeJavaScript(code: string): Promise<unknown> } } | undefined
+        if (!child) throw new Error('built-in browser view not found')
+        return child.webContents.executeJavaScript(
+          "document.getElementById('boom').click(); const i=new Image(); i.src='/missing.png?late=1'; document.body.appendChild(i); true"
+        )
+      }, url)
+      await expect(drawer).toContainText('fixture boom', { timeout: 10000 })
+      await expect(drawer.locator('.browser-drawer-count')).toHaveText(/^[1-9]d*$/)
+      await expectBounds(app, url, window)
+      const shot = await compositeShot(app, url, path.join(shots, 'browser-drawer.png'))
+      await drawer.getByRole('tab', { name: 'Network' }).click()
+      await expect(drawer).toContainText('missing.png', { timeout: 10000 })
+      await expect(drawer).toContainText('404')
+
+      // Send to chat fills the composer and never sends.
+      await drawer.getByRole('tab', { name: /Console/ }).click()
+      await expect(drawer).toContainText('fixture boom', { timeout: 10000 })
+      const callsBefore = calls()
+      await drawer.getByRole('button', { name: 'Send to chat' }).click()
+      await expect(window.locator('.chat-input-field')).toHaveValue(/fixture boom/)
+      await window.waitForTimeout(400)
+      expect(calls()).toBe(callsBefore)
+
+      // A tab created while the panel is closed is the active one on attach.
+      await window.locator('.icon-btn[aria-label="Close Browser"]').click()
+      await expect(window.locator('.browser-overlay')).toHaveCount(0)
+      await window.evaluate(async ({ id, u }) => {
+        const created = await window.api.browserTabCreate(id, u)
+        await window.api.browserTabActivate(id, created.id)
+      }, { id: sessionId, u: `${url}?second=1` })
+      await window.locator('.pane-header .icon-btn[aria-label="Toggle browser"]').click()
+      await expect(window.locator('.browser-overlay')).toBeVisible()
+      await expect(window.locator('.browser-url-input')).toHaveValue(/second=1/, { timeout: 10000 })
+      console.log('[e2e] drawer screenshot', JSON.stringify({ file: path.join(shots, 'browser-drawer.png'), bytes: shot }))
     } finally {
       await app.close()
     }

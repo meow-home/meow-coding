@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Globe, Maximize2, Minimize2, Plus, RotateCw, X } from 'lucide-react'
+import { Code, Globe, Maximize2, Minimize2, Plus, RotateCw, X } from 'lucide-react'
 import type { BrowserTabInfo } from '@shared/browser-types'
 import BaseDropdown from '../common/BaseDropdown'
 import BrowserControlBanner from './BrowserControlBanner'
 import BrowserToolbar from './BrowserToolbar'
+import BrowserDrawer from './BrowserDrawer'
 import BrowserViewport from './BrowserViewport'
 
 interface Props {
@@ -30,6 +31,7 @@ export default function BrowserOverlay({ agentId, full, onToggleFull, onClose }:
   const [activeTabId, setActiveTabId] = useState<number | null>(null)
   const [inlineError, setInlineError] = useState<string | null>(null)
   const [tabMenu, setTabMenu] = useState<{ tabId: number; x: number; y: number } | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   const onError = useCallback((message: string) => setInlineError(message), [])
 
@@ -154,6 +156,15 @@ export default function BrowserOverlay({ agentId, full, onToggleFull, onClose }:
           </button>
           <button
             className="icon-btn"
+            title="Console and network"
+            aria-label="Console and network"
+            aria-pressed={drawerOpen}
+            onClick={() => setDrawerOpen(open => !open)}
+          >
+            <Code size={14} aria-hidden="true" />
+          </button>
+          <button
+            className="icon-btn"
             title={full ? 'Restore size' : 'Expand'}
             aria-label={full ? 'Restore size' : 'Expand'}
             onClick={onToggleFull}
@@ -243,6 +254,8 @@ export default function BrowserOverlay({ agentId, full, onToggleFull, onClose }:
         onReloadCrash={handleReloadCrash}
         onError={onError}
       />
+
+      {drawerOpen && <BrowserDrawer agentId={agentId} tab={activeTab} />}
 
       <BaseDropdown
         menuClassName="sidebar-menu-dropdown"
