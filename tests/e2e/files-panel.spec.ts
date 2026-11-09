@@ -1,4 +1,5 @@
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -26,6 +27,30 @@ function seedProject(project: string): void {
   mkdirSync(path.join(project, 'src'), { recursive: true })
   writeFileSync(path.join(project, 'README.md'), '# E2E project\n')
   writeFileSync(path.join(project, 'src', 'index.ts'), 'export const answer = 42\n')
+}
+
+const LONG_NAME = 'this-is-a-very-long-file-name-that-gets-truncated-in-the-tree.ts'
+
+// A real repository: one commit, then one modified tracked file, one modified
+// file in a directory, one untracked file, one ignored file and one long name.
+function seedGitRepo(project: string): void {
+  mkdirSync(path.join(project, 'src'), { recursive: true })
+  writeFileSync(path.join(project, '.gitignore'), 'ignored.txt\n')
+  writeFileSync(path.join(project, 'src', 'index.ts'), 'export const answer = 42\n')
+  writeFileSync(path.join(project, 'committed.txt'), 'one\n')
+  writeFileSync(path.join(project, LONG_NAME), 'export const long = 1\n')
+  execFileSync('git', ['init', '-q'], { cwd: project })
+  execFileSync('git', ['add', '-A'], { cwd: project })
+  // An isolated identity, never the machine's global git config.
+  execFileSync('git', [
+    '-c', 'user.email=e2e@test', '-c', 'user.name=e2e',
+    'commit', '-q', '-m', 'init'
+  ], { cwd: project })
+  writeFileSync(path.join(project, 'committed.txt'), 'two\n')
+  writeFileSync(path.join(project, 'src', 'index.ts'), 'export const answer = 43\n')
+  writeFileSync(path.join(project, LONG_NAME), 'export const long = 2\n')
+  writeFileSync(path.join(project, 'untracked.txt'), 'new\n')
+  writeFileSync(path.join(project, 'ignored.txt'), 'ignored\n')
 }
 
 async function launch(userData: string): Promise<{ app: ElectronApplication; window: Page }> {
@@ -134,6 +159,64 @@ test('the tree toggle hides the tree and the choice survives closing the panel',
       await openFilesPanel(window)
       await expect(window.locator('.files-side')).toBeHidden()
       await expect(window.getByRole('button', { name: 'Toggle file tree', exact: true })).toBeVisible()
+    } finally {
+      await app.close()
+    }
+  } finally {
+    cleanupDir(userData)
+    cleanupDir(project)
+  }
+})
+
+test('the tree shows file type icons and git state', async () => {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    seedGitRepo(project)
+    seedWorkspaces(userData, project)
+    const { app, window } = await launch(userData)
+    try {
+      await openProject(window)
+      await openFilesPanel(window)
+
+      // A modified tracked file: the letter sits at the row's right edge.
+      const committed = window.locator('.files-tree-row', { hasText: 'committed.txt' })
+      await expect(committed.locator('.files-git-letter')).toHaveText('M')
+      // An untracked file.
+      await expect(window.locator('.files-tree-row', { hasText: 'untracked.txt' })
+        .locator('.files-git-letter')).toHaveText('U')
+      // A directory holding a change shows a dot instead of a letter.
+      const srcRow = window.locator('.files-tree-row', { hasText: 'src' })
+      await expect(srcRow.locator('.files-git-dot')).toBeVisible()
+      // `.git` and ignored files stay clean (porcelain never lists them).
+      await expect(window.locator('.files-tree-row', { hasText: /^\.git$/ })
+        .locator('.files-git-dot')).toHaveCount(0)
+      await expect(window.locator('.files-tree-row', { hasText: 'ignored.txt' })
+        .locator('.files-git-letter')).toHaveCount(0)
+
+      // A long name still ellipsizes and keeps its letter on screen.
+      const longRow = window.locator('.files-tree-row', { hasText: 'this-is-a-very-long-file-name' })
+      await expect(longRow.locator('.files-git-letter')).toHaveText('M')
+      expect(await longRow.locator('.tree-name').evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true)
+      const letter = (await longRow.locator('.files-git-letter').boundingBox())!
+      const row = (await longRow.boundingBox())!
+      expect(letter.x + letter.width).toBeLessThanOrEqual(row.x + row.width)
+
+      // File type icons: a code file in the tree and the same icon on its tab.
+      await srcRow.click()
+      const codeRow = window.locator('.files-tree-row', { hasText: 'index.ts' })
+      await expect(codeRow.locator('.file-icon-code')).toHaveCount(1)
+      await codeRow.click()
+      await expect(window.locator('.files-bar .viewer-path')).toHaveText('src/index.ts')
+      await expect(window.locator('.files-open-tab .file-icon-code')).toHaveCount(1)
+
+      // Content-search hits keep their own layout with the typed icon in front.
+      const filter = window.locator('.files-filter-input')
+      await filter.fill('?answer')
+      const hit = window.locator('.files-tree-row', { hasText: 'answer' })
+      await expect(hit.locator('.file-icon-code')).toHaveCount(1)
+      await expect(hit.locator('.files-hit-line')).toHaveText('1')
+      await expect(hit.locator('.files-hit-text')).toBeVisible()
     } finally {
       await app.close()
     }

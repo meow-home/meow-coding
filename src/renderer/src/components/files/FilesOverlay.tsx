@@ -3,12 +3,13 @@ import { createPortal } from 'react-dom'
 import { beginOcclusion, endOcclusion } from '../common/useBrowserOcclusion'
 import PanelHeader from '../common/PanelHeader'
 import {
-  ArrowUpRight, CircleX, Code, Copy, FileText, Folder,
+  ArrowUpRight, CircleX, Code, Copy, Folder,
   ListCollapse, MoreHorizontal, PanelRightClose, PanelRightOpen, RefreshCw, Search
 } from 'lucide-react'
 import BaseDropdown from '../common/BaseDropdown'
 import ConfirmDialog from '../ConfirmDialog'
 import FilesTree from './FilesTree'
+import FileIcon from './file-icon'
 import FileContentView from '../file-content/FileContentView'
 import { baseName } from './file-path'
 
@@ -310,7 +311,7 @@ export default function FilesOverlay({ projectPath, full, width, onWidthChange, 
           id: tab.path,
           className: 'files-open-tab',
           title: tab.path,
-          lead: <FileText size={14} aria-hidden="true" />,
+          lead: <FileIcon name={tab.name} size={14} />,
           label: tab.name,
           trail: dirtyPaths.has(tab.path)
             ? <span className="panel-tab-dirty" role="img" aria-label="Unsaved changes" title="Unsaved changes" />

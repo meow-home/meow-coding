@@ -4167,6 +4167,29 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
   color: var(--text-faint); font-family: var(--font-mono); font-size: var(--fs-xs);
 }
+/* File icons: one colour per kind, all from theme tokens so the light theme
+   reads as well as the dark one. */
+.file-icon-code { color: var(--blue); }
+.file-icon-json { color: var(--yellow); }
+.file-icon-markdown { color: var(--accent-strong); }
+.file-icon-image { color: var(--green); }
+.file-icon-styles { color: var(--red); }
+.file-icon-config { color: var(--text-dim); }
+.file-icon-gitignore { color: var(--accent); }
+.file-icon-file { color: var(--text-dim); }
+/* Git state: a changed name takes its status colour, and the letter (file) or
+   dot (directory) stays at the row's right edge while a long name ellipsizes. */
+.files-git-added { color: var(--green); }
+.files-git-modified { color: var(--yellow); }
+.files-git-deleted { color: var(--red); }
+.files-git-letter {
+  flex: 0 0 auto; margin-left: auto; font-family: var(--font-mono);
+  font-size: var(--fs-xs); line-height: 1;
+}
+.files-git-dot {
+  flex: 0 0 auto; margin-left: auto; width: 0.375rem; height: 0.375rem;
+  border-radius: 50%; background: currentColor;
+}
 .files-side-resizer {
   position: absolute; left: -0.25rem; top: 0; bottom: 0; width: 0.5rem;
   cursor: col-resize; z-index: 5; border-radius: 0;
