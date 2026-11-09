@@ -1,5 +1,5 @@
 import { test, expect, _electron as electron, type Page } from '@playwright/test'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import http from 'node:http'
@@ -116,12 +116,12 @@ async function launch(userData: string, rowIndex = 0): Promise<{ app: ElectronAp
     env: { ...process.env as Record<string, string>, MEOW_USER_DATA: userData }
   })
   const window = await app.firstWindow()
-  await expect(window.locator('.project-row')).toBeVisible()
+  await expect(window.locator('.project-row').first()).toBeVisible()
   const row = window.locator('.session-list .session-row').nth(rowIndex)
   try {
     await row.waitFor({ state: 'visible', timeout: 2000 })
   } catch {
-    await window.locator('.project-toggle').click()
+    await window.locator('.project-toggle').first().click()
   }
   await row.click()
   await expect(window.locator('.chat-panel')).toBeVisible()
@@ -149,6 +149,21 @@ function viewBounds(app: ElectronApp, url: string): Promise<Rect & { visible: bo
     const page = children.find(c => c.webContents?.getURL().startsWith(fixture))
     return page ? { ...page.getBounds(), visible: page.getVisible() } : null
   }, url)
+}
+
+function onscreenView(app: ElectronApp): Promise<{ url: string; visible: boolean; x: number } | null> {
+  return app.evaluate(({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows()[0]
+    const children = win.contentView.children as unknown as Array<{
+      webContents?: { getURL(): string }
+      getBounds(): { x: number; width: number }
+      getVisible(): boolean
+    }>
+    const child = children.find(c => !!c.webContents && c.getBounds().x < 10_000)
+    return child?.webContents
+      ? { url: child.webContents.getURL(), visible: child.getVisible(), x: child.getBounds().x }
+      : null
+  })
 }
 
 async function compositeShot(app: ElectronApp, fixtureUrl: string, file: string): Promise<number> {
@@ -393,6 +408,10 @@ test('occlusion: menus and the resizer hide the native view, and it comes back',
       provider: { mock: { apiKey: 'test-key', baseUrl: `http://127.0.0.1:${port}`, models: ['mock-model'] } },
       model: 'mock'
     })
+    const project2 = mkdtempSync(path.join(tmpdir(), 'meow-e2e-two-'))
+    const workspaces = JSON.parse(readFileSync(path.join(userData, 'workspaces.json'), 'utf8')) as unknown[]
+    workspaces.push({ projectPath: project2, name: 'E2E Two', agents: [{ id: 'e2e-two', name: 'meow', templateId: 'meow', cwd: project2, kind: 'native' }] })
+    writeFileSync(path.join(userData, 'workspaces.json'), JSON.stringify(workspaces, null, 2))
     const { app, window, sessionId } = await launch(userData)
     try {
       await window.evaluate(({ id, u }) => window.api.browserTabCreate(id, u), { id: sessionId, u: url })
@@ -449,7 +468,106 @@ test('occlusion: menus and the resizer hide the native view, and it comes back',
       await expectBounds(app, url, window)
       await window.keyboard.press('Control+`')
 
-      console.log('[e2e] occlusion screenshot', JSON.stringify({ file: path.join(shots, 'browser-occlusion-dropdown.png'), bytes: dropdownBytes }))
+      // Modal (status bar browser pill): hides the view; closing restores the same bounds.
+      const dialog = window.locator('.browser-dialog')
+      await window.locator('.sb-browser').click()
+      await expect(dialog).toBeVisible()
+      await expect.poll(visible, { timeout: 15000 }).toBe(false)
+      const modalBytes = await compositeShot(app, url, path.join(shots, 'browser-occlusion-modal.png'))
+      await window.keyboard.press('Escape')
+      await expect(dialog).toHaveCount(0)
+      await expect.poll(visible, { timeout: 15000 }).toBe(true)
+      await expectBounds(app, url, window)
+
+      // Modal + tab switch: the new tab must not appear over the modal.
+      await window.locator('.sb-browser').click()
+      await expect(dialog).toBeVisible()
+      await expect.poll(visible, { timeout: 15000 }).toBe(false)
+      const created = await window.evaluate(id => window.api.browserTabCreate(id), sessionId)
+      await window.evaluate(({ id, tab }) => window.api.browserTabActivate(id, tab), { id: sessionId, tab: created.id })
+      // The renderer reacts on the next frame; the regression is a view that stays
+      // visible for the whole modal, so start polling after that frame.
+      await window.waitForTimeout(150)
+      for (let i = 0; i < 10; i++) {
+        await window.waitForTimeout(60)
+        expect((await onscreenView(app))?.visible).toBe(false)
+      }
+      await window.keyboard.press('Escape')
+      await expect(dialog).toHaveCount(0)
+      await expect.poll(async () => (await onscreenView(app))?.visible, { timeout: 15000 }).toBe(true)
+      expect((await onscreenView(app))?.url.startsWith('about:blank')).toBe(true)
+      expect(await window.locator('.browser-tab.active').count()).toBe(1)
+      // Back to the fixture tab for the remaining cases.
+      await window.evaluate(async ({ id, u }) => {
+        const tabs = await window.api.browserTabsList(id)
+        const fixture = tabs.find(t => t.url.startsWith(u))
+        if (fixture) await window.api.browserTabActivate(id, fixture.id)
+      }, { id: sessionId, u: url })
+      await expectBounds(app, url, window)
+
+      // Sidebar project menu: far from the panel, no freeze, view stays visible.
+      const freezeWrapped = await window.evaluate(() => {
+        try {
+          const api = window.api as unknown as Record<string, unknown>
+          const original = api.browserPanelFreeze as () => Promise<unknown>
+          let count = 0
+          ;(window as unknown as Record<string, unknown>).__freezeCount = () => count
+          api.browserPanelFreeze = (...args: unknown[]) => { count++; return original.apply(api, args) }
+          return true
+        } catch {
+          return false
+        }
+      })
+      const sidebarMenu = window.locator('button[aria-label^="menu "]').first()
+      await sidebarMenu.click()
+      await expect(window.locator('.project-menu-dropdown')).toBeVisible()
+      for (let i = 0; i < 5; i++) {
+        await window.waitForTimeout(60)
+        expect(await visible()).toBe(true)
+      }
+      await window.keyboard.press('Escape')
+      expect(await visible()).toBe(true)
+      if (freezeWrapped) {
+        expect(await window.evaluate(() => (window as unknown as { __freezeCount(): number }).__freezeCount())).toBe(0)
+      }
+
+      // Project switch away from the panel's session hides it; coming back shows it.
+      await window.locator('button[aria-label="menu E2E Two"]').click()
+      await window.locator('.project-menu-dropdown').getByText('Open', { exact: true }).click()
+      await expect.poll(visible, { timeout: 15000 }).toBe(false)
+      await window.locator('button[aria-label="menu E2E Project"]').click()
+      await window.locator('.project-menu-dropdown').getByText('Open', { exact: true }).click()
+      await expect.poll(visible, { timeout: 15000 }).toBe(true)
+      await expectBounds(app, url, window)
+
+      // Crash: the message replaces the view; a menu does not bring it back; Reload does.
+      await app.evaluate(({ BrowserWindow }, fixtureUrl) => {
+        const win = BrowserWindow.getAllWindows()[0]
+        const view = win.contentView.children.find(child => {
+          const wc = (child as unknown as { webContents?: { getURL(): string } }).webContents
+          return !!wc && wc.getURL().startsWith(fixtureUrl)
+        }) as unknown as { webContents: { forcefullyCrashRenderer(): void } } | undefined
+        if (!view) throw new Error('built-in browser view not found')
+        view.webContents.forcefullyCrashRenderer()
+      }, url)
+      await expect(window.locator('.browser-empty[role="alert"]')).toContainText('This tab crashed.', { timeout: 15000 })
+      await expect.poll(visible, { timeout: 15000 }).toBe(false)
+      const crashedTab = window.locator('.browser-tab.active')
+      await crashedTab.click({ button: 'right' })
+      await expect(menu).toBeVisible()
+      await window.keyboard.press('Escape')
+      await expect(menu).toHaveCount(0)
+      await window.waitForTimeout(300)
+      expect(await visible()).toBe(false)
+      await window.getByRole('button', { name: 'Reload' }).last().click()
+      await expect.poll(visible, { timeout: 20000 }).toBe(true)
+      await expectBounds(app, url, window)
+
+      console.log('[e2e] occlusion screenshots', JSON.stringify({
+        dropdown: { file: path.join(shots, 'browser-occlusion-dropdown.png'), bytes: dropdownBytes },
+        modal: { file: path.join(shots, 'browser-occlusion-modal.png'), bytes: modalBytes },
+        freezeWrapped
+      }))
     } finally {
       await app.close()
     }

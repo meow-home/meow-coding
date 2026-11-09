@@ -3,7 +3,6 @@ import { Plus, RotateCw } from 'lucide-react'
 import type { BrowserTabInfo } from '@shared/browser-types'
 import {
   confirmFrozenImagePainted,
-  refreezeBrowserPanel,
   setBrowserPanelAttached,
   setBrowserViewportElement,
   subscribeFrozenImage,
@@ -63,12 +62,20 @@ export default function BrowserViewport({ agentId, tab, onNewTab, onReloadCrash,
     if (!el) return
     const initial = roundedRect(el)
     lastRect.current = initial
+    let cancelled = false
     setBrowserViewportElement(el)
-    setBrowserPanelAttached(true)
-    window.api.browserPanelAttach(agentId, initial).catch(err => {
-      onError(err instanceof Error ? err.message : String(err))
-    })
+    // Attach first: a reason can be active already (a modal was open before the
+    // panel appeared). Freezing before the attach returns would see no view and
+    // the attach would then paint over the modal.
+    window.api.browserPanelAttach(agentId, initial)
+      .then(() => {
+        if (!cancelled) setBrowserPanelAttached(true)
+      })
+      .catch(err => {
+        onError(err instanceof Error ? err.message : String(err))
+      })
     return () => {
+      cancelled = true
       lastRect.current = null
       if (frame.current) cancelAnimationFrame(frame.current)
       frame.current = 0
@@ -79,12 +86,6 @@ export default function BrowserViewport({ agentId, tab, onNewTab, onReloadCrash,
   }, [agentId, onError])
 
   useEffect(() => subscribeFrozenImage(setFrozenImage), [])
-
-  // Main shows the new tab when it is activated/created/handed off; re-freeze so
-  // an open overlay still covers the page.
-  useEffect(() => {
-    if (tab?.id != null) refreezeBrowserPanel()
-  }, [tab?.id])
 
   useEffect(() => {
     const el = hostRef.current

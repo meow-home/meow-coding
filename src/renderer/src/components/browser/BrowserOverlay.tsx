@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Globe, Maximize2, Minimize2, Plus, RotateCw, X } from 'lucide-react'
 import type { BrowserTabInfo } from '@shared/browser-types'
 import BaseDropdown from '../common/BaseDropdown'
+import { refreezeBrowserPanel } from '../common/useBrowserOcclusion'
 import BrowserControlBanner from './BrowserControlBanner'
 import BrowserToolbar from './BrowserToolbar'
 import BrowserViewport from './BrowserViewport'
@@ -47,6 +48,10 @@ export default function BrowserOverlay({ agentId, full, onToggleFull, onClose }:
       })
     const unlisten = window.api.onBrowserTabsChanged((event) => {
       if (!active || event.agentId !== agentId) return
+      // Main shows the new tab on create/activate/handoff even when the active id
+      // did not change (create already made it active). Re-freeze so an open
+      // overlay keeps covering the page.
+      refreezeBrowserPanel()
       setTabs(event.tabs)
       setActiveTabId(prev => {
         if (event.activeTabId != null) return event.activeTabId

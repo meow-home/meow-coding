@@ -66,17 +66,43 @@ export class BrowserOcclusionController {
   }
 
   remove(reason: string): void {
+    const kind = this.reasons.get(reason)
     if (!this.reasons.delete(reason)) return
-    if (this.reasons.size === 0) this.release()
+    if (this.reasons.size === 0) {
+      this.release()
+      return
+    }
+    // The last overlay went away while a cover reason still hides the view:
+    // drop the stale page image, the placeholder shows its own content now.
+    if (kind === 'overlay' && !this.hasOverlay()) {
+      this.seq++
+      this.pending = false
+      this.frozen = null
+      this.deps.publish(null)
+    }
   }
 
   /** Main showed a new tab (activate/create/handoff) while a reason is active. */
   refreeze(): void {
     if (!this.attached || this.reasons.size === 0) return
-    // Keep the current image; only replace it once the new capture lands.
+    // Main just made the new tab visible, so the view is on screen again even
+    // though a reason is still active: capture and hide it again.
+    const wasHidden = this.hidden || this.hiding
     this.seq++
     this.pending = false
+    this.hidden = false
+    this.hiding = false
+    if (wasHidden) {
+      // Main re-showed the tab just now; hide it again without waiting for the
+      // new capture, so the page does not paint over the open overlay.
+      this.hiding = true
+      void this.deps.hide().catch(() => {})
+    }
     this.engage()
+  }
+
+  private hasOverlay(): boolean {
+    return [...this.reasons.values()].includes('overlay')
   }
 
   /** BrowserViewport painted the frozen image: hide the native view now. */
@@ -95,7 +121,7 @@ export class BrowserOcclusionController {
 
   private engage(): void {
     if (!this.attached || this.reasons.size === 0 || this.pending || this.hidden) return
-    const overlay = [...this.reasons.values()].includes('overlay')
+    const overlay = this.hasOverlay()
     const seq = ++this.seq
     this.pending = true
     if (!overlay) {
