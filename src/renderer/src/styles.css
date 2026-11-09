@@ -493,7 +493,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 /* The name + chevron share one flex button so the whole pair is the
    expand/collapse target; flex:1 + min-width:0 lets the name ellipsis. */
 .project-toggle { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 0.416667rem; background: none; border: none; padding: 0; margin: 0; cursor: pointer; font: inherit; color: inherit; text-align: left; }
-.project-name { color: var(--text-dim); font-weight: var(--fw-medium); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-name { color: var(--text); font-weight: var(--fw-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .project-list li.active .project-name { color: var(--text-strong); }
 .project-expand { display: inline-flex; align-items: center; background: none; border: none; color: var(--text-faint); cursor: pointer; padding: 0; }
 .project-actions { margin-left: auto; display: flex; align-items: center; gap: 0.166667rem; opacity: 0; transition: opacity 120ms ease; }
@@ -3076,16 +3076,17 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 /* Sidebar session rows (one row per session of a project) — indented so the
    ring sits under the project name */
 .session-list { list-style: none; margin: 0 0 0.5rem; padding: 0 0 0 0; display: flex; flex-direction: column; gap: 0.083333rem; }
-.session-row { display: flex; align-items: center; gap: 0.666667rem; padding: 0.25rem 0.666667rem; cursor: pointer; border-radius: var(--radius); color: var(--text-dim); }
+.session-row { display: flex; align-items: center; gap: 0.666667rem; padding: 0.25rem 0.666667rem 0.25rem 1.5rem; cursor: pointer; border-radius: var(--radius); color: var(--text-dim); }
 .session-row:hover { background: var(--menu-hover); color: var(--text); }
 .session-row.active { background: var(--menu-active); color: var(--text); }
 .session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); }
 
-/* Status glyph: idle = hollow ring; running/waiting = solid fill */
-.session-dot { width: 0.75rem; height: 0.75rem; margin-left: 0.666667rem; border-radius: 50%; flex: 0 0 auto; box-sizing: border-box; border: 0.125rem solid var(--text-faint); background: transparent; }
-.session-dot.session-status-running { border-color: var(--green); background: var(--green); }
-.session-dot.session-status-waiting { border-color: var(--yellow); background: var(--yellow); }
-.session-dot.session-status-idle { border-color: var(--text-faint); background: transparent; }
+/* Status glyph: running/waiting = solid fill; idle = removed. The negative margins hang the dot
+   in the row's indent, level with the project name's edge, so names stay aligned either way. */
+.session-dot { width: 0.5rem; height: 0.5rem; margin: 0 -0.333333rem 0 -0.833333rem; border-radius: 50%; flex: 0 0 auto; background: transparent; }
+.session-dot.session-status-running { background: var(--green); }
+.session-dot.session-status-waiting { background: var(--yellow); }
+.session-dot.session-status-idle { display: none; }
 
 /* Session menu button: hidden until hover / active */
 .session-menu { position: relative; display: inline-flex; }
