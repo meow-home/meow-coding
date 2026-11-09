@@ -65,7 +65,7 @@ in Settings → Permissions.
 | `revert` | allow | Restore all files changed this session |
 | `skill` | allow | Load a skill into context |
 | `question` | allow | Ask the user an interactive question |
-| `browser_*` | allow | Drive the paired Chrome profile |
+| `browser_*` | allow | Drive the session's browser backend (Chrome today) |
 | `bash` | **ask** | Run a shell command |
 | `bash_output` | (unset → ask) | Read stdout/stderr from a background shell |
 | `kill_shell` | (unset → ask) | Stop a background shell process tree |
@@ -283,28 +283,30 @@ Examples: `["create","report.docx"]`,
 
 ## 4.3 Browser tools (`browser_*`)
 
-Registered only when the browser bridge and launcher are wired in (`createDefaultTools({ browser })`).
-All default to `allow` via the `browser_*` wildcard rule. They require a paired Chrome extension —
-see [08 — Browser bridge](08-integrations.md#83-chrome-browser-bridge).
+Registered when a browser router is wired in (`createDefaultTools({ browser: { router } })`).
+All default to `allow` via the `browser_*` wildcard rule. The router resolves one backend per session;
+today that is Chrome, which requires a paired extension — see
+[08 — Browser bridge](08-integrations.md#83-chrome-browser-bridge). A call with no session identity
+(`snapshotAgentId ?? agentId`) returns `browser: no session context`.
 
 | Tool | Input | Behavior |
 |---|---|---|
-| `browser_start` | `{}` | Ensure the bridge is connected. If unpaired, opens Chrome, shows install steps, and waits for the user to approve the extension in Meow. Returns bridge status. |
-| `browser_navigate` | `{ url, ... }` | Opens the URL in a **new background tab** of an existing window, grouped under "Meow". Never hijacks an existing tab. Returns a `tabId`. |
-| `browser_open_tab` | `{ url, ... }` | Same, and never opens a new Chrome window unless none are open; does not focus Chrome. |
+| `browser_start` | `{ target?: builtin\|chrome }` | Ensure the browser is ready. The built-in backend returns immediately; Chrome opens, shows the extension install steps, and waits for the user to approve the extension in Meow. `target` switches the session's backend first; a target that is not available in this build returns an error and keeps the previous one. |
+| `browser_navigate` | `{ url, ... }` | Opens the URL in a **new tab** of the session's browser. Never hijacks an existing tab. Returns a `tabId`. |
+| `browser_open_tab` | `{ url, ... }` | Same, without switching the visible tab. |
 | `browser_click` | `{ ref? , selector?, x?, y? }` | Click by snapshot ref (preferred), CSS selector, or viewport coordinates. |
 | `browser_type` | `{ ref?, selector?, text, ... }` | Type into an input/textarea/select. |
 | `browser_select` | `{ ref?, selector?, value }` | Select an option in a `<select>`. |
 | `browser_scroll` | `{ direction?: up\|down\|top\|bottom, selector? }` | Scroll or bring an element into view. |
 | `browser_read` | `{ tabId?, mode? }` | Snapshot the page into a Playwright-MCP-style structure file: one indented line per element as `role "name" [ref]`. Refs feed the other tools. |
 | `browser_list_tabs` | `{}` | id, title, url, active, window and tab-group info. |
-| `browser_switch_tab` | `{ tabId }` | Activate a tab without focusing the Chrome window. |
+| `browser_switch_tab` | `{ tabId }` | Activate a tab without focusing the browser window. |
 | `browser_close_tab` | `{ tabId }` | Close a tab. |
 | `browser_console` | `{ limit? ≤200 }` | Recent console logs. |
 | `browser_network` | `{ limit? ≤200 }` | Recent network requests (method, url, status). |
 | `browser_wait_for` | `{ selector, timeoutMs? }` | Poll until a CSS selector exists. |
 
-Commands time out after 30s at the bridge level. When the bridge is not paired, every command
+Commands time out after 30s at the bridge level. When the Chrome backend is not paired, every command
 returns `browser not connected — run browser_start first`.
 
 ## 4.4 MCP tools

@@ -1,25 +1,17 @@
 import { z } from 'zod'
-import type { ToolDefinition, ToolRunResult } from './types'
-import type { BrowserCommandName, BrowserCommandResult, BrowserStatusInfo } from '../../../shared/browser-types'
+import type { ToolContext, ToolDefinition, ToolRunResult } from './types'
+import type { BrowserCommandResult } from '../../../shared/browser-types'
+import type { BrowserCall, BrowserRouterLike } from '../../browser/browser-backend'
 
-export interface BrowserBridgeLike {
-  getStatus(): BrowserStatusInfo
-  execute(name: BrowserCommandName, params?: Record<string, unknown>, timeoutMs?: number): Promise<BrowserCommandResult>
-  waitForPaired(timeoutMs: number): Promise<boolean>
-  getConsoleLogs(limit?: number): unknown[]
-  getNetworkLogs(limit?: number): unknown[]
+const NO_CONTEXT = 'browser: no session context'
+
+function callFor(ctx: ToolContext): BrowserCall | null {
+  const ownerId = ctx.snapshotAgentId ?? ctx.agentId
+  if (!ownerId) return null
+  return { ownerId, ask: q => ctx.ask(q), ...(ctx.signal ? { signal: ctx.signal } : {}) }
 }
 
-export interface BrowserLauncherLike {
-  openChrome(): Promise<void>
-  openExtensionFolder(): Promise<void>
-  showInstallGuide(): Promise<void>
-}
-
-export function createBrowserTools(
-  bridge: BrowserBridgeLike,
-  launcher: BrowserLauncherLike
-): ToolDefinition[] {
+export function createBrowserTools(router: BrowserRouterLike): ToolDefinition[] {
   const fmt = (r: BrowserCommandResult): ToolRunResult =>
     r.ok ? { output: JSON.stringify(r.data ?? {}, null, 2) } : { error: r.error }
 
@@ -27,48 +19,56 @@ export function createBrowserTools(
     {
       name: 'browser_start',
       description:
-        'Ensure the Chrome bridge is connected. If not paired, opens Chrome, shows install steps, ' +
-        'and waits for the user to approve the extension in Meow. Returns the bridge status.',
-      schema: z.object({}),
-      async run(): Promise<ToolRunResult> {
-        const status = bridge.getStatus()
-        if (status.paired) {
-          return { output: `browser paired (port ${status.port})` }
+        'Ensure the browser is ready for this session. The built-in browser returns immediately; Chrome opens, ' +
+        'shows the extension install steps, and waits for the user to approve the extension in Meow. ' +
+        '`target` switches this session between the built-in browser and Chrome before starting.',
+      schema: z.object({
+        target: z.enum(['builtin', 'chrome']).optional().describe('Backend to use for this session: builtin or chrome.')
+      }),
+      async run(input, ctx): Promise<ToolRunResult> {
+        const call = callFor(ctx)
+        if (!call) return { error: NO_CONTEXT }
+        const { target } = input as unknown as { target?: 'builtin' | 'chrome' }
+        if (target) {
+          try {
+            router.select(call.ownerId, target)
+          } catch (err) {
+            return { error: `browser_start: ${err instanceof Error ? err.message : String(err)}` }
+          }
         }
-        await launcher.openChrome()
-        await launcher.showInstallGuide()
-        const paired = await bridge.waitForPaired(60_000)
-        if (!paired) return { error: 'browser not paired after 60s — approve the extension in Meow → Browser Bridge' }
-        return { output: `browser paired (port ${bridge.getStatus().port})` }
+        return router.backendFor(call.ownerId).start(call)
       }
     },
     {
       name: 'browser_navigate',
       description:
-        'Open a URL in a new background tab of an existing Chrome window, grouped under "Meow". ' +
-        'Never navigates or hijacks an existing tab. Returns a tabId for other browser_* tools.',
+        'Open a URL in a new tab of this session\'s browser. Never navigates or hijacks an existing tab. ' +
+        'Returns a tabId for other browser_* tools.',
       schema: z.object({
         url: z.string().describe('The http(s) URL to open.')
       }),
-      async run(input): Promise<ToolRunResult> {
+      async run(input, ctx): Promise<ToolRunResult> {
+        const call = callFor(ctx)
+        if (!call) return { error: NO_CONTEXT }
         const { url } = input as unknown as { url: string }
         if (!/^https?:\/\//i.test(url)) return { error: `browser_navigate: invalid url: ${url}` }
-        return fmt(await bridge.execute('navigate', { url }))
+        return fmt(await router.backendFor(call.ownerId).execute('navigate', { url }, call))
       }
     },
     {
       name: 'browser_open_tab',
       description:
-        'Open a URL in a new background tab of an existing Chrome window, grouped under "Meow". ' +
-        'Never opens a new Chrome window unless none are open, and does not focus Chrome. ' +
+        'Open a URL in a new tab of this session\'s browser without switching the visible tab. ' +
         'Returns a tabId for other browser_* tools.',
       schema: z.object({
         url: z.string().describe('The http(s) URL to open.')
       }),
-      async run(input): Promise<ToolRunResult> {
+      async run(input, ctx): Promise<ToolRunResult> {
+        const call = callFor(ctx)
+        if (!call) return { error: NO_CONTEXT }
         const { url } = input as unknown as { url: string }
         if (!/^https?:\/\//i.test(url)) return { error: `browser_open_tab: invalid url: ${url}` }
-        return fmt(await bridge.execute('openTab', { url }))
+        return fmt(await router.backendFor(call.ownerId).execute('openTab', { url }, call))
       }
     },
     {
@@ -81,12 +81,14 @@ export function createBrowserTools(
         y: z.number().optional().describe('Viewport y coordinate (requires x).'),
         tabId: z.number().int().optional().describe('Optional tab id to act on; defaults to the active/visible tab.')
       }),
-      async run(input): Promise<ToolRunResult> {
+      async run(input, ctx): Promise<ToolRunResult> {
+        const call = callFor(ctx)
+        if (!call) return { error: NO_CONTEXT }
         const { ref, selector, x, y, tabId } = input as unknown as { ref?: string; selector?: string; x?: number; y?: number; tabId?: number }
         const base: Record<string, unknown> = {}
         if (tabId != null) base.tabId = tabId
-        if (ref != null) return fmt(await bridge.execute('click', { ...base, ref }))
-        return fmt(await bridge.execute('click', selector ? { ...base, selector } : { ...base, x, y }))
+        if (ref != null) return fmt(await router.backendFor(call.ownerId).execute('click', { ...base, ref }, call))
+        return fmt(await router.backendFor(call.ownerId).execute('click', selector ? { ...base, selector } : { ...base, x, y }, call))
       }
     },
     {
@@ -98,11 +100,13 @@ export function createBrowserTools(
         text: z.string().describe('Text to type.'),
         tabId: z.number().int().optional().describe('Optional tab id to act on; defaults to the active/visible tab.')
       }),
-      async run(input): Promise<ToolRunResult> {
+      async run(input, ctx): Promise<ToolRunResult> {
+        const call = callFor(ctx)
+        if (!call) return { error: NO_CONTEXT }
         const { ref, selector, text, tabId } = input as unknown as { ref?: string; selector?: string; text: string; tabId?: number }
         const base: Record<string, unknown> = {}
         if (tabId != null) base.tabId = tabId
-        return fmt(await bridge.execute('type', { ...base, ...(ref != null ? { ref, text } : { selector, text }) }))
+        return fmt(await router.backendFor(call.ownerId).execute('type', { ...base, ...(ref != null ? { ref, text } : { selector, text }) }, call))
       }
     },
     {
@@ -114,11 +118,13 @@ export function createBrowserTools(
         value: z.string().describe('Option value to select.'),
         tabId: z.number().int().optional().describe('Optional tab id to act on; defaults to the active/visible tab.')
       }),
-      async run(input): Promise<ToolRunResult> {
+      async run(input, ctx): Promise<ToolRunResult> {
+        const call = callFor(ctx)
+        if (!call) return { error: NO_CONTEXT }
         const { ref, selector, value, tabId } = input as unknown as { ref?: string; selector?: string; value: string; tabId?: number }
         const base: Record<string, unknown> = {}
         if (tabId != null) base.tabId = tabId
-        return fmt(await bridge.execute('select', { ...base, ...(ref != null ? { ref, value } : { selector, value }) }))
+        return fmt(await router.backendFor(call.ownerId).execute('select', { ...base, ...(ref != null ? { ref, value } : { selector, value }) }, call))
       }
     },
     {
@@ -129,17 +135,19 @@ export function createBrowserTools(
         selector: z.string().optional().describe('CSS selector to scroll into view.'),
         tabId: z.number().int().optional().describe('Optional tab id to act on; defaults to the active/visible tab.')
       }),
-      async run(input): Promise<ToolRunResult> {
+      async run(input, ctx): Promise<ToolRunResult> {
+        const call = callFor(ctx)
+        if (!call) return { error: NO_CONTEXT }
         const { direction, selector, tabId } = input as unknown as { direction?: 'up' | 'down' | 'top' | 'bottom'; selector?: string; tabId?: number }
         const base: Record<string, unknown> = {}
         if (tabId != null) base.tabId = tabId
-        return fmt(await bridge.execute('scroll', selector ? { ...base, selector } : { ...base, direction: direction ?? 'down' }))
+        return fmt(await router.backendFor(call.ownerId).execute('scroll', selector ? { ...base, selector } : { ...base, direction: direction ?? 'down' }, call))
       }
     },
     {
       name: 'browser_read',
       description:
-        'Snapshot the active/visible tab (or tabId) into a page-structure file, Playwright-MCP style: ' +
+        'Snapshot the target tab (or tabId) into a page-structure file, Playwright-MCP style: ' +
         'every element on one indented line as `role "name" [ref]` (anchors <a> are role "link", plus ' +
         'button, textbox, checkbox, ... — the snapshot is complete, never truncated). ' +
         'Returns the file path, node count and a preview. Read the file (with the file read tool, in ' +
@@ -148,31 +156,37 @@ export function createBrowserTools(
         mode: z.enum(['interactive', 'full']).optional().describe('interactive (default) refs interactive elements; full refs every element.'),
         tabId: z.number().int().optional().describe('Optional tab id to snapshot; defaults to the active/visible tab.')
       }),
-      async run(input): Promise<ToolRunResult> {
+      async run(input, ctx): Promise<ToolRunResult> {
+        const call = callFor(ctx)
+        if (!call) return { error: NO_CONTEXT }
         const { mode, tabId } = input as unknown as { mode?: 'interactive' | 'full'; tabId?: number }
         const params: Record<string, unknown> = {}
         if (mode != null) params.mode = mode
         if (tabId != null) params.tabId = tabId
-        return fmt(await bridge.execute('read', params))
+        return fmt(await router.backendFor(call.ownerId).execute('read', params, call))
       }
     },
     {
       name: 'browser_list_tabs',
       description: 'List open tabs with id, title, url, active, window and tab-group info.',
       schema: z.object({}),
-      async run(): Promise<ToolRunResult> {
-        return fmt(await bridge.execute('listTabs'))
+      async run(_input, ctx): Promise<ToolRunResult> {
+        const call = callFor(ctx)
+        if (!call) return { error: NO_CONTEXT }
+        return fmt(await router.backendFor(call.ownerId).execute('listTabs', {}, call))
       }
     },
     {
       name: 'browser_switch_tab',
-      description: 'Activate a tab by its id (from browser_list_tabs) without focusing the Chrome window.',
+      description: 'Activate a tab by its id (from browser_list_tabs) without focusing the browser window.',
       schema: z.object({
         tabId: z.number().describe('Tab id to activate.')
       }),
-      async run(input): Promise<ToolRunResult> {
+      async run(input, ctx): Promise<ToolRunResult> {
+        const call = callFor(ctx)
+        if (!call) return { error: NO_CONTEXT }
         const { tabId } = input as unknown as { tabId: number }
-        return fmt(await bridge.execute('switchTab', { tabId }))
+        return fmt(await router.backendFor(call.ownerId).execute('switchTab', { tabId }, call))
       }
     },
     {
@@ -181,9 +195,11 @@ export function createBrowserTools(
       schema: z.object({
         tabId: z.number().describe('Tab id to close.')
       }),
-      async run(input): Promise<ToolRunResult> {
+      async run(input, ctx): Promise<ToolRunResult> {
+        const call = callFor(ctx)
+        if (!call) return { error: NO_CONTEXT }
         const { tabId } = input as unknown as { tabId: number }
-        return fmt(await bridge.execute('closeTab', { tabId }))
+        return fmt(await router.backendFor(call.ownerId).execute('closeTab', { tabId }, call))
       }
     },
     {
@@ -192,9 +208,11 @@ export function createBrowserTools(
       schema: z.object({
         limit: z.number().int().positive().max(200).optional()
       }),
-      async run(input): Promise<ToolRunResult> {
+      async run(input, ctx): Promise<ToolRunResult> {
+        const call = callFor(ctx)
+        if (!call) return { error: NO_CONTEXT }
         const { limit } = input as unknown as { limit?: number }
-        return { output: JSON.stringify(bridge.getConsoleLogs(limit), null, 2) }
+        return { output: JSON.stringify(router.backendFor(call.ownerId).getConsoleLogs(call, limit), null, 2) }
       }
     },
     {
@@ -203,9 +221,11 @@ export function createBrowserTools(
       schema: z.object({
         limit: z.number().int().positive().max(200).optional()
       }),
-      async run(input): Promise<ToolRunResult> {
+      async run(input, ctx): Promise<ToolRunResult> {
+        const call = callFor(ctx)
+        if (!call) return { error: NO_CONTEXT }
         const { limit } = input as unknown as { limit?: number }
-        return { output: JSON.stringify(bridge.getNetworkLogs(limit), null, 2) }
+        return { output: JSON.stringify(router.backendFor(call.ownerId).getNetworkLogs(call, limit), null, 2) }
       }
     },
     {
@@ -216,11 +236,13 @@ export function createBrowserTools(
         timeoutMs: z.number().int().positive().max(60_000).optional(),
         tabId: z.number().int().optional().describe('Optional tab id to act on; defaults to the active/visible tab.')
       }),
-      async run(input): Promise<ToolRunResult> {
+      async run(input, ctx): Promise<ToolRunResult> {
+        const call = callFor(ctx)
+        if (!call) return { error: NO_CONTEXT }
         const { selector, timeoutMs, tabId } = input as unknown as { selector: string; timeoutMs?: number; tabId?: number }
         const params: Record<string, unknown> = { selector, timeoutMs: timeoutMs ?? 10_000 }
         if (tabId != null) params.tabId = tabId
-        return fmt(await bridge.execute('waitFor', params, (timeoutMs ?? 10_000) + 5000))
+        return fmt(await router.backendFor(call.ownerId).execute('waitFor', params, call, (timeoutMs ?? 10_000) + 5000))
       }
     }
   ]

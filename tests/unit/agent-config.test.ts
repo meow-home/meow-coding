@@ -703,3 +703,32 @@ describe('mcpOutput config', () => {
     expect(back.mcpOutput?.maxTokens).toBe(60000)
   })
 })
+
+describe('browser config', () => {
+  it('defaults to chrome and ask while the built-in backend is absent', () => {
+    const cfg = loadMeowConfig(file)
+    expect(cfg.browser).toEqual({ backend: 'chrome', siteApproval: 'ask' })
+  })
+
+  it('keeps a valid choice through load and a settings round trip', () => {
+    writeFileSync(file, JSON.stringify({ browser: { backend: 'builtin', siteApproval: 'off' } }))
+    const cfg = loadMeowConfig(file)
+    expect(cfg.browser).toEqual({ backend: 'builtin', siteApproval: 'off' })
+    const settings = configToSettings(cfg)
+    expect(settings.browser).toEqual({ backend: 'builtin', siteApproval: 'off' })
+    const back = settingsToConfig(settings, cfg)
+    expect(back.browser).toEqual({ backend: 'builtin', siteApproval: 'off' })
+  })
+
+  it('normalizes invalid values to the defaults', () => {
+    writeFileSync(file, JSON.stringify({ browser: { backend: 'firefox', siteApproval: 'always' } }))
+    expect(loadMeowConfig(file).browser).toEqual({ backend: 'chrome', siteApproval: 'ask' })
+  })
+
+  it('does not erase the choice when a settings save omits browser', () => {
+    writeFileSync(file, JSON.stringify({ browser: { backend: 'builtin', siteApproval: 'off' } }))
+    const cfg = loadMeowConfig(file)
+    const settings = { ...configToSettings(cfg), browser: undefined }
+    expect(settingsToConfig(settings, cfg).browser).toEqual({ backend: 'builtin', siteApproval: 'off' })
+  })
+})

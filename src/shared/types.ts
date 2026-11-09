@@ -447,6 +447,8 @@ export interface MeowSettings {
   subagentModels?: Partial<Record<SubagentType, ModelRef>>
   /** Last model selected by the user across sessions. */
   lastUsedModel?: ModelRef
+  /** Browser backend and site-approval policy (meow.json `browser`). */
+  browser?: { backend: 'builtin' | 'chrome'; siteApproval: 'ask' | 'off' }
 }
 
 export type SubagentType = string

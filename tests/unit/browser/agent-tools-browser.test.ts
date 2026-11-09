@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createBrowserTools, type BrowserBridgeLike, type BrowserLauncherLike } from '../../../src/main/agent/tools/browser'
+import { createBrowserTools } from '../../../src/main/agent/tools/browser'
+import { ChromeBackend } from '../../../src/main/browser/chrome-backend'
+import { BrowserRouter } from '../../../src/main/browser/browser-router'
+import type { BrowserBackend, BrowserBridgeLike, BrowserLauncherLike } from '../../../src/main/browser/browser-backend'
 import type { ToolContext } from '../../../src/main/agent/tools/types'
 import type { BrowserCommandName } from '../../../src/shared/browser-types'
 
-const ctx: ToolContext = { cwd: '/proj', ask: async () => null }
+const ctx: ToolContext = { cwd: '/proj', ask: async () => null, agentId: 'agent-1' }
 
 function fakeBridge(overrides: Partial<BrowserBridgeLike> = {}): BrowserBridgeLike & { calls: Array<{ name: BrowserCommandName; params?: Record<string, unknown> }> } {
   const calls: Array<{ name: BrowserCommandName; params?: Record<string, unknown> }> = []
@@ -30,9 +33,54 @@ function fakeLauncher(overrides: Partial<BrowserLauncherLike> = {}): BrowserLaun
   }
 }
 
+function fakeBackend(overrides: Partial<BrowserBackend> = {}): {
+  backend: BrowserBackend
+  calls: Array<{ name: BrowserCommandName; params?: Record<string, unknown> }>
+  owners: string[]
+} {
+  const calls: Array<{ name: BrowserCommandName; params?: Record<string, unknown> }> = []
+  const owners: string[] = []
+  const backend: BrowserBackend = {
+    start: async (call) => {
+      owners.push(call.ownerId)
+      return { output: 'browser paired (port 3927)' }
+    },
+    execute: async (name, params, call) => {
+      calls.push({ name, params })
+      owners.push(call.ownerId)
+      return { ok: true, data: { echoed: name } }
+    },
+    getConsoleLogs: (call) => {
+      owners.push(call.ownerId)
+      return [{ level: 'error', text: 'boom' }]
+    },
+    getNetworkLogs: (call) => {
+      owners.push(call.ownerId)
+      return [{ method: 'GET', url: 'http://x' }]
+    },
+    ...overrides
+  }
+  return { backend, calls, owners }
+}
+
+function fakeRouter(backend: BrowserBackend): {
+  backendFor(ownerId: string): BrowserBackend
+  select(ownerId: string, target: 'builtin' | 'chrome'): void
+  selections: Array<{ ownerId: string; target: 'builtin' | 'chrome' }>
+} {
+  const selections: Array<{ ownerId: string; target: 'builtin' | 'chrome' }> = []
+  return {
+    backendFor: () => backend,
+    select: (ownerId, target) => { selections.push({ ownerId, target }) },
+    selections
+  }
+}
+
+const toolsFor = (backend: BrowserBackend = fakeBackend().backend) => createBrowserTools(fakeRouter(backend))
+
 describe('browser tools', () => {
   it('registers all 14 tools with names', () => {
-    const tools = createBrowserTools(fakeBridge(), fakeLauncher())
+    const tools = toolsFor()
     expect(tools.map(t => t.name)).toEqual([
       'browser_start', 'browser_navigate', 'browser_open_tab', 'browser_click', 'browser_type',
       'browser_select', 'browser_scroll', 'browser_read', 'browser_list_tabs',
@@ -41,47 +89,47 @@ describe('browser tools', () => {
   })
 
   it('browser_navigate validates the url scheme', async () => {
-    const tools = createBrowserTools(fakeBridge(), fakeLauncher())
+    const tools = toolsFor()
     const nav = tools.find(t => t.name === 'browser_navigate')!
     const bad = await nav.run({ url: 'ftp://x' }, ctx)
     expect(bad.error).toContain('invalid url')
   })
 
-  it('browser_navigate forwards the command to the bridge', async () => {
-    const bridge = fakeBridge()
-    const tools = createBrowserTools(bridge, fakeLauncher())
+  it('browser_navigate forwards the command to the backend', async () => {
+    const { backend, calls } = fakeBackend()
+    const tools = toolsFor(backend)
     const nav = tools.find(t => t.name === 'browser_navigate')!
     const r = await nav.run({ url: 'https://example.com' }, ctx)
     expect(r.output).toContain('navigate')
-    expect(bridge.calls).toEqual([{ name: 'navigate', params: { url: 'https://example.com' } }])
+    expect(calls).toEqual([{ name: 'navigate', params: { url: 'https://example.com' } }])
   })
 
-  it('browser_open_tab forwards the url to the bridge', async () => {
-    const bridge = fakeBridge()
-    const tools = createBrowserTools(bridge, fakeLauncher())
+  it('browser_open_tab forwards the url to the backend', async () => {
+    const { backend, calls } = fakeBackend()
+    const tools = toolsFor(backend)
     const openTab = tools.find(t => t.name === 'browser_open_tab')!
     const r = await openTab.run({ url: 'https://example.com' }, ctx)
     expect(r.output).toContain('openTab')
-    expect(bridge.calls).toEqual([{ name: 'openTab', params: { url: 'https://example.com' } }])
+    expect(calls).toEqual([{ name: 'openTab', params: { url: 'https://example.com' } }])
   })
 
   it('browser_open_tab validates the url scheme', async () => {
-    const tools = createBrowserTools(fakeBridge(), fakeLauncher())
+    const tools = toolsFor()
     const openTab = tools.find(t => t.name === 'browser_open_tab')!
     const bad = await openTab.run({ url: 'ftp://x' }, ctx)
     expect(bad.error).toContain('invalid url')
   })
 
   it('browser_type and browser_select forward ref or selector', async () => {
-    const bridge = fakeBridge()
-    const tools = createBrowserTools(bridge, fakeLauncher())
+    const { backend, calls } = fakeBackend()
+    const tools = toolsFor(backend)
     const typeTool = tools.find(t => t.name === 'browser_type')!
     const selectTool = tools.find(t => t.name === 'browser_select')!
     await typeTool.run({ ref: 'r2', text: 'hi' }, ctx)
     await typeTool.run({ selector: '#q', text: 'bye' }, ctx)
     await selectTool.run({ ref: 'r3', value: 'b' }, ctx)
     await selectTool.run({ selector: '#s', value: 'a' }, ctx)
-    expect(bridge.calls).toEqual([
+    expect(calls).toEqual([
       { name: 'type', params: { ref: 'r2', text: 'hi' } },
       { name: 'type', params: { selector: '#q', text: 'bye' } },
       { name: 'select', params: { ref: 'r3', value: 'b' } },
@@ -90,20 +138,20 @@ describe('browser tools', () => {
   })
 
   it('browser_click uses ref, selector or coordinates', async () => {
-    const bridge = fakeBridge()
-    const tools = createBrowserTools(bridge, fakeLauncher())
+    const { backend, calls } = fakeBackend()
+    const tools = toolsFor(backend)
     const click = tools.find(t => t.name === 'browser_click')!
     await click.run({ ref: 'r4' }, ctx)
-    expect(bridge.calls[0]).toEqual({ name: 'click', params: { ref: 'r4' } })
+    expect(calls[0]).toEqual({ name: 'click', params: { ref: 'r4' } })
     await click.run({ selector: '#btn' }, ctx)
-    expect(bridge.calls[1]).toEqual({ name: 'click', params: { selector: '#btn' } })
+    expect(calls[1]).toEqual({ name: 'click', params: { selector: '#btn' } })
     await click.run({ x: 10, y: 20 }, ctx)
-    expect(bridge.calls[2]).toEqual({ name: 'click', params: { x: 10, y: 20 } })
+    expect(calls[2]).toEqual({ name: 'click', params: { x: 10, y: 20 } })
   })
 
   it('browser_* tools forward an explicit tabId', async () => {
-    const bridge = fakeBridge()
-    const tools = createBrowserTools(bridge, fakeLauncher())
+    const { backend, calls } = fakeBackend()
+    const tools = toolsFor(backend)
     const read = tools.find(t => t.name === 'browser_read')!
     const click = tools.find(t => t.name === 'browser_click')!
     const waitFor = tools.find(t => t.name === 'browser_wait_for')!
@@ -112,7 +160,7 @@ describe('browser tools', () => {
     await click.run({ tabId: 7, ref: 'r1' }, ctx)
     await waitFor.run({ tabId: 7, selector: '#a' }, ctx)
     await scroll.run({ tabId: 7, direction: 'down' }, ctx)
-    expect(bridge.calls).toEqual([
+    expect(calls).toEqual([
       { name: 'read', params: { mode: 'full', tabId: 7 } },
       { name: 'click', params: { tabId: 7, ref: 'r1' } },
       { name: 'waitFor', params: { selector: '#a', timeoutMs: 10_000, tabId: 7 } },
@@ -120,10 +168,28 @@ describe('browser tools', () => {
     ])
   })
 
+  it('resolves the owner from snapshotAgentId, falling back to agentId', async () => {
+    const { backend, owners } = fakeBackend()
+    const tools = toolsFor(backend)
+    const read = tools.find(t => t.name === 'browser_read')!
+    await read.run({}, ctx)
+    await read.run({}, { ...ctx, agentId: 'subagent-9', snapshotAgentId: 'parent-1' })
+    expect(owners).toEqual(['agent-1', 'parent-1'])
+  })
+
+  it('returns a clear error without a session context', async () => {
+    const { backend, calls } = fakeBackend()
+    const tools = toolsFor(backend)
+    const read = tools.find(t => t.name === 'browser_read')!
+    const r = await read.run({}, { cwd: '/proj', ask: async () => null })
+    expect(r.error).toBe('browser: no session context')
+    expect(calls).toEqual([])
+  })
+
   it('browser_start when paired returns immediately without launching', async () => {
     const launcher = fakeLauncher()
     const openChrome = vi.spyOn(launcher, 'openChrome')
-    const tools = createBrowserTools(fakeBridge(), launcher)
+    const tools = toolsFor(new ChromeBackend({ bridge: fakeBridge(), launcher }))
     const start = tools.find(t => t.name === 'browser_start')!
     const r = await start.run({}, ctx)
     expect(r.output).toContain('paired')
@@ -138,7 +204,7 @@ describe('browser tools', () => {
       getStatus: () => ({ status: 'listening', port: 3927, paired: false }),
       waitForPaired: async () => true
     })
-    const tools = createBrowserTools(bridge, launcher)
+    const tools = toolsFor(new ChromeBackend({ bridge, launcher }))
     const start = tools.find(t => t.name === 'browser_start')!
     const r = await start.run({}, ctx)
     expect(openChrome).toHaveBeenCalled()
@@ -151,15 +217,37 @@ describe('browser tools', () => {
       getStatus: () => ({ status: 'listening', port: 3927, paired: false }),
       waitForPaired: async () => false
     })
-    const tools = createBrowserTools(bridge, fakeLauncher())
+    const tools = toolsFor(new ChromeBackend({ bridge, launcher: fakeLauncher() }))
     const start = tools.find(t => t.name === 'browser_start')!
     const r = await start.run({}, ctx)
     expect(r.error).toContain('not paired')
   })
 
-  it('browser_console and browser_network read bridge buffers', async () => {
-    const bridge = fakeBridge()
-    const tools = createBrowserTools(bridge, fakeLauncher())
+  it('browser_start target=chrome records the selection for the owner', async () => {
+    const { backend } = fakeBackend()
+    const router = fakeRouter(backend)
+    const tools = createBrowserTools(router)
+    const start = tools.find(t => t.name === 'browser_start')!
+    const r = await start.run({ target: 'chrome' }, ctx)
+    expect(r.output).toContain('paired')
+    expect(router.selections).toEqual([{ ownerId: 'agent-1', target: 'chrome' }])
+  })
+
+  it('browser_start target=builtin without a built-in backend errors and keeps chrome', async () => {
+    const launcher = fakeLauncher()
+    const openChrome = vi.spyOn(launcher, 'openChrome')
+    const chrome = new ChromeBackend({ bridge: fakeBridge(), launcher })
+    const router = new BrowserRouter({ backends: { chrome }, defaultBackend: () => 'chrome' })
+    const tools = createBrowserTools(router)
+    const start = tools.find(t => t.name === 'browser_start')!
+    const r = await start.run({ target: 'builtin' }, ctx)
+    expect(r.error).toContain('built-in browser is not available')
+    expect(router.backendFor('agent-1')).toBe(chrome)
+    expect(openChrome).not.toHaveBeenCalled()
+  })
+
+  it('browser_console and browser_network read the backend buffers', async () => {
+    const tools = toolsFor()
     const consoleTool = tools.find(t => t.name === 'browser_console')!
     const networkTool = tools.find(t => t.name === 'browser_network')!
     const c = await consoleTool.run({}, ctx)
@@ -169,33 +257,33 @@ describe('browser tools', () => {
   })
 
   it('browser_read forwards mode and tabId', async () => {
-    const bridge = fakeBridge()
-    const tools = createBrowserTools(bridge, fakeLauncher())
+    const { backend, calls } = fakeBackend()
+    const tools = toolsFor(backend)
     const read = tools.find(t => t.name === 'browser_read')!
     await read.run({ mode: 'full', tabId: 7 }, ctx)
-    expect(bridge.calls).toEqual([{ name: 'read', params: { mode: 'full', tabId: 7 } }])
+    expect(calls).toEqual([{ name: 'read', params: { mode: 'full', tabId: 7 } }])
   })
 
-  it('browser_wait_for passes through a longer timeout to the bridge', async () => {
-    const bridge = fakeBridge()
-    const tools = createBrowserTools(bridge, fakeLauncher())
+  it('browser_wait_for passes through a longer timeout to the backend', async () => {
+    const { backend, calls } = fakeBackend()
+    const tools = toolsFor(backend)
     const wait = tools.find(t => t.name === 'browser_wait_for')!
     await wait.run({ selector: '.loaded', timeoutMs: 5000 }, ctx)
-    expect(bridge.calls).toEqual([{ name: 'waitFor', params: { selector: '.loaded', timeoutMs: 5000 } }])
+    expect(calls).toEqual([{ name: 'waitFor', params: { selector: '.loaded', timeoutMs: 5000 } }])
   })
 
   it('maps an error result to ToolRunResult.error', async () => {
-    const bridge = fakeBridge({
+    const { backend } = fakeBackend({
       execute: async () => ({ ok: false, error: 'selector not found: #x' })
     })
-    const tools = createBrowserTools(bridge, fakeLauncher())
+    const tools = toolsFor(backend)
     const read = tools.find(t => t.name === 'browser_read')!
     const r = await read.run({}, ctx)
     expect(r.error).toContain('selector not found')
   })
 
   it('zod schema rejects invalid input', async () => {
-    const tools = createBrowserTools(fakeBridge(), fakeLauncher())
+    const tools = toolsFor()
     const nav = tools.find(t => t.name === 'browser_navigate')!
     const out = await nav.schema.safeParse({ url: 123 })
     expect(out.success).toBe(false)

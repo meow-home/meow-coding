@@ -26,7 +26,7 @@ The tool registry for the native Meow agent. Each file exports a `ToolDefinition
 | `revert.ts` | Revert files via snapshot store. |
 | `skill.ts` | Load a skill into context. |
 | `websearch.ts` / `webfetch.ts` | Web search / page fetch (need API keys). |
-| `browser.ts` | Browser control via the Chrome bridge (navigate/click/read/...). |
+| `browser.ts` | `browser_*` tools over a `BrowserRouterLike`: owner is `snapshotAgentId ?? agentId` (no owner → `browser: no session context`), `browser_start` can switch the session between `builtin` and `chrome`. |
 | `office.ts` | Create/read/edit Office documents via the officecli CLI. |
 | `lsp.ts` | LSP diagnostics for a file (via `../lsp/`). |
 | `snapshot-util.ts` | Snapshot helpers for tools. |

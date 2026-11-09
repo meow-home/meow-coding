@@ -55,6 +55,8 @@ import { E2EConnectionFixtures } from './connections/e2e-fixtures'
 import { TrayManager } from './tray-manager'
 import { BrowserBridge } from './browser/bridge'
 import { createChromeLauncher, ensureExtensionInstalled } from './browser/chrome-launcher'
+import { ChromeBackend } from './browser/chrome-backend'
+import { BrowserRouter } from './browser/browser-router'
 import { TrustedExtensionStore } from './browser/trusted-store'
 import type { TrustedExtension } from '../shared/browser-types'
 import { ExternalApiConfigFile } from './external-api/config-file'
@@ -168,6 +170,11 @@ export class MainApp {
     getWindow: () => win,
     extensionDir: path.join(app.getPath('userData'), 'browser-extension')
   })
+  browserRouter = new BrowserRouter({
+    backends: { chrome: new ChromeBackend({ bridge: this.browserBridge, launcher: this.browserLauncher }) },
+    // Re-read meow.json on every resolution so a settings save applies without a restart.
+    defaultBackend: () => loadMeowConfig(path.join(app.getPath('userData'), 'meow.json')).browser?.backend ?? 'chrome'
+  })
   vault = new Vault(path.join(app.getPath('userData'), 'connections', 'vault.json'))
   connections = new ConnectionsManager({
     store: new ConnectionStore(path.join(app.getPath('userData'), 'connections', 'index.json')),
@@ -189,7 +196,7 @@ export class MainApp {
       getUserSkillsDir: () => path.join(app.getPath('userData'), 'skills'),
       getBuiltinSkillsDir: () => this.builtinSkillsDir,
       getUserDataDir: () => app.getPath('userData'),
-      browser: { bridge: this.browserBridge, launcher: this.browserLauncher }
+      browser: { router: this.browserRouter }
     }),
     userSkillsDir: path.join(app.getPath('userData'), 'skills'),
     userAgentsDir: path.join(app.getPath('userData'), 'agents'),

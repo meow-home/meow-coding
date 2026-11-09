@@ -64,6 +64,12 @@ export interface MeowConfig {
   /** Per-model sampling overrides, keyed by model-id pattern (see agent/sampling.ts). */
   sampling?: SamplingOverrides
   terminal?: { shell?: string; args?: string[] }
+  browser?: { backend?: 'builtin' | 'chrome'; siteApproval?: 'ask' | 'off' }
+}
+
+export interface BrowserConfig {
+  backend: 'builtin' | 'chrome'
+  siteApproval: 'ask' | 'off'
 }
 
 export interface ResolvedAgentConfig {
@@ -142,6 +148,11 @@ export const DEFAULT_LSP: LspConfig = {
 export const DEFAULT_NOTIFICATIONS: NotificationsConfig = {
   needsInput: true,
   onDone: true
+}
+// Chrome stays the effective default until the built-in backend is wired in.
+export const DEFAULT_BROWSER_CONFIG: BrowserConfig = {
+  backend: 'chrome',
+  siteApproval: 'ask'
 }
 
 export const DEFAULT_MEOW_CONFIG: MeowConfig = {
@@ -307,6 +318,16 @@ function normalizeNotifications(raw: Partial<NotificationsConfig> | undefined): 
   }
 }
 
+export function normalizeBrowser(raw: { backend?: unknown; siteApproval?: unknown } | undefined): BrowserConfig {
+  const backend = raw?.backend === 'builtin' || raw?.backend === 'chrome'
+    ? raw.backend
+    : DEFAULT_BROWSER_CONFIG.backend
+  const siteApproval = raw?.siteApproval === 'ask' || raw?.siteApproval === 'off'
+    ? raw.siteApproval
+    : DEFAULT_BROWSER_CONFIG.siteApproval
+  return { backend, siteApproval }
+}
+
 function normalizeMcp(raw: Record<string, McpServerConfig> | undefined): Record<string, McpServerConfig> {
   const out: Record<string, McpServerConfig> = {}
   for (const [name, cfg] of Object.entries(raw ?? {})) {
@@ -395,7 +416,8 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     lastUsedModel: raw.lastUsedModel,
     hooks: normalizeHooks(raw.hooks),
     sampling: normalizeSampling(raw.sampling),
-    terminal: normalizeTerminal(raw.terminal)
+    terminal: normalizeTerminal(raw.terminal),
+    browser: normalizeBrowser(raw.browser)
   }
 }
 
@@ -529,7 +551,8 @@ export function configToSettings(cfg: MeowConfig): MeowSettings {
     lsp: cfg.lsp,
     notifications: cfg.notifications ? normalizeNotifications(cfg.notifications) : DEFAULT_NOTIFICATIONS,
     ...(cfg.subagentModels ? { subagentModels: cfg.subagentModels } : {}),
-    ...(cfg.lastUsedModel ? { lastUsedModel: cfg.lastUsedModel } : {})
+    ...(cfg.lastUsedModel ? { lastUsedModel: cfg.lastUsedModel } : {}),
+    browser: normalizeBrowser(cfg.browser)
   }
 }
 
@@ -584,6 +607,9 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
     // Like hooks, sampling is edited in meow.json only and must survive a settings save.
     sampling: normalizeSampling(base.sampling),
     terminal: normalizeTerminal(base.terminal),
+    // settingsToConfig drops every key it does not list, so a settings save must
+    // carry the browser choice through or it would erase it.
+    browser: normalizeBrowser(settings.browser ?? base.browser),
     ...(settings.subagentModels
       ? { subagentModels: normalizeSubagentModels(settings.subagentModels, providers) }
       : {}),
