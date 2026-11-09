@@ -25,33 +25,33 @@
   --fw-semibold: 600;
   --fw-bold: 700;
 
-  /* surfaces — near-black base for max contrast; panels barely lifted from bg */
-  --bg: #0a0a0b;
-  --bg-panel: #0f0f11;
-  --bg-raised: #161618;
-  --bg-hover: #1c1c20;
-  --bg-active: #242428;
+  /* surfaces — neutral charcoal shell (#1a1a1a) around a darker work area (#111315) */
+  --bg: #1a1a1a;
+  --bg-panel: #1a1a1a;
+  --bg-raised: #1f2123;
+  --bg-hover: #242627;
+  --bg-active: #2c2e2f;
   /* Surface floating above the feed (jump-to-end button). Brighter than --bg-raised in BOTH themes,
      which --bg-active cannot do: it means "selected", so it darkens in the light theme. */
-  --bg-elevated: #383842;
-  --bg-elevated-hover: #484854;
+  --bg-elevated: #3a3d3f;
+  --bg-elevated-hover: #4a4d50;
   /* Sidebar surface — its own token so it can differ from panels (near-white in light). */
-  --bg-sidebar: #0f0f11;
+  --bg-sidebar: #1a1a1a;
   /* Paler hover/active for dropdown & select menu items (subtle overlay over the menu bg). */
   --menu-hover: rgba(255, 255, 255, 0.05);
   --menu-active: rgba(255, 255, 255, 0.09);
-  --bg-tab-inactive: #0f0f11;
-  --bg-input: #1a1a1d;
-  --bg-input-hover: #242428;
-  --bg-code: #0a0a0b;
+  --bg-tab-inactive: #1f2123;
+  --bg-input: #1f2123;
+  --bg-input-hover: #27292b;
+  --bg-code: #111315;
   --code-text: #ffb454;
-  --bg-chat: #0a0a0b;
+  --bg-chat: #111315;
   /* Session terminals stay dark in every theme; the light block does not override these. */
-  --terminal-bg: #0a0a0b;
-  --terminal-fg: #e5e5e5;
-  --bg-bubble: #161618;
-  --bg-bubble-user: #1a3a5c;
-  --chat-text: #ffffff;
+  --terminal-bg: #111315;
+  --terminal-fg: #cccccc;
+  --bg-bubble: #1f2123;
+  --bg-bubble-user: #21475a;
+  --chat-text: #cccccc;
   /* Chat lane — transcript, composer and todo list are centered at this width,
      ChatGPT/Claude style. The scrolling element (.chat-feed) stays full width so
      the scrollbar sits on the panel edge instead of being pulled inside the lane. */
@@ -60,22 +60,23 @@
      and the gutter the chat feed must subtract from its lane inset. */
   --scrollbar-w: 0.666667rem;
 
-  /* text — white-dominant for pop on near-black */
-  --text: #ffffff;
-  --text-strong: #ffffff;
-  --text-dim: #b0b0b0;
-  --text-faint: #707076;
+  /* text — soft greys, white is reserved for emphasis */
+  --text: #c2c2c2;
+  --text-strong: #ededed;
+  --text-dim: #8f8f8f;
+  --text-faint: #7a7c7d;
 
-  /* accent — VSCode blue (#007acc family), the single dominant hue */
-  --accent: #007acc;
-  --accent-strong: #1f9cf0;
-  --accent-dim: rgba(0, 122, 204, 0.18);
-  --accent-dim-hover: rgba(0, 122, 204, 0.26);
-  --accent-border: rgba(0, 122, 204, 0.45);
-  --focus-ring: rgba(0, 122, 204, 0.45);
-  --status-bg: #007acc;
+  /* accent — muted teal blue, the single dominant hue. --accent is darker than --accent-strong
+     because white text sits on it (user bubble, primary button) and needs 4.5:1. */
+  --accent: #297aa3;
+  --accent-strong: #3995bc;
+  --accent-dim: rgba(57, 149, 188, 0.18);
+  --accent-dim-hover: rgba(57, 149, 188, 0.26);
+  --accent-border: rgba(57, 149, 188, 0.45);
+  --focus-ring: rgba(57, 149, 188, 0.45);
+  --status-bg: #297aa3;
 
-  /* semantic — yellow/orange kept from VSCode; rest tuned for contrast on near-black */
+  /* semantic — yellow/orange kept from VSCode; rest tuned for contrast on the dark surfaces */
   --blue: #4fc3ff;
   --green: #4ade9f;
   --green-deep: #34d6a4;
@@ -84,7 +85,7 @@
   --red: #ff5f56;
 
   /* context breakdown — one hue per bucket in the context panel's bar */
-  --ctx-system: #1f9cf0;
+  --ctx-system: #3995bc;
   --ctx-tools: #4ade9f;
   --ctx-mcp: #ffb454;
   --ctx-messages: #a78bfa;

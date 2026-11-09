@@ -21,7 +21,7 @@ export function openGitViewer(projectPath: string, getMainWindow: () => BrowserW
     width: 940,
     height: 700,
     title: `${path.basename(projectPath)} — Git`,
-    backgroundColor: '#1e1e1e',
+    backgroundColor: '#1a1a1a',
     // Match the main app: custom title bar + overlay so min/max/close blend
     // with the theme instead of drawing a native frame.
     ...getWindowChromeOptions(process.platform),

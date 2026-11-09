@@ -443,8 +443,10 @@ string edits fail. Edit them with a script (e.g. python) if the edit tool cannot
 
 ## 9.6 Theming
 
-- Dark is the default (`--bg: #0a0a0b`, near-black, VSCode-Dark+-derived with a `#007acc` accent
-  family). Light mode is a full token override under `[data-theme="light"]` on `<html>` using the
+- Dark is the default: a neutral charcoal shell (`--bg`, `--bg-panel`, `--bg-sidebar`: `#1a1a1a`)
+  around a darker work area (`--bg-chat`, `--terminal-bg`: `#111315`), soft grey text and a muted teal
+  accent. `--accent` (`#297aa3`) is the fill under white text, `--accent-strong` (`#3995bc`) the
+  brighter hover/edge shade. Light mode is a full token override under `[data-theme="light"]` on `<html>` using the
   VSCode Light+ palette.
 - The choice persists in `localStorage` under `meow.theme`; the toggle lives in the Sidebar footer
   menu (Sun/Moon).

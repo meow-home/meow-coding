@@ -86,7 +86,7 @@ export function openFileViewer(payload: FileViewerPayload, getMainWindow: () => 
     width: 900,
     height: 700,
     title: path.basename(abs),
-    backgroundColor: '#1e1e1e',
+    backgroundColor: '#1a1a1a',
     // Match the main app: custom title bar + overlay so min/max/close blend
     // with the theme instead of drawing a native frame.
     ...getWindowChromeOptions(process.platform),

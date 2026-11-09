@@ -16,13 +16,13 @@ interface TerminalViewProps {
 // so the theme is read once and never follows a data-theme flip.
 function getTerminalTheme() {
   const style = window.getComputedStyle(document.documentElement)
-  const background = style.getPropertyValue('--terminal-bg').trim() || '#0a0a0b'
+  const background = style.getPropertyValue('--terminal-bg').trim() || '#111315'
   const foreground = style.getPropertyValue('--terminal-fg').trim() || '#e5e5e5'
   return {
     background,
     foreground,
     cursor: foreground,
-    selectionBackground: 'rgba(0, 122, 204, 0.35)',
+    selectionBackground: 'rgba(57, 149, 188, 0.35)',
     fontFamily: style.getPropertyValue('--font-mono').trim() || 'monospace'
   }
 }
