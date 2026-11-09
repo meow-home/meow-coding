@@ -84,6 +84,29 @@ test('the new session footer picks the project, and only before the chat starts'
       await picker.click()
       const menu = window.locator('.base-dropdown-menu.project-switch-dropdown')
       await expect(menu).toBeVisible()
+      // The picker is a menu like every other one: it must carry the shared menu
+      // surface. Without it the list renders as a transparent column over the chat
+      // (the composer shows through it) instead of a panel above everything.
+      const surface = await menu.evaluate(el => {
+        const cs = getComputedStyle(el)
+        return {
+          bg: cs.backgroundColor,
+          radius: cs.borderTopLeftRadius,
+          padding: cs.paddingTop,
+          border: cs.borderTopWidth
+        }
+      })
+      expect(surface.bg).not.toBe('rgba(0, 0, 0, 0)')
+      expect(surface.radius).not.toBe('0px')
+      expect(surface.padding).not.toBe('0px')
+      expect(surface.border).not.toBe('0px')
+      // Its bottom edge is on top: the composer must not cover the last row.
+      const topmostAtBottom = await menu.evaluate(el => {
+        const r = el.getBoundingClientRect()
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.bottom - 2)
+        return !!hit && el.contains(hit)
+      })
+      expect(topmostAtBottom).toBe(true)
       await expect(menu).toContainText('Alpha')
       await expect(menu).toContainText('Beta')
       await expect(menu).toContainText('Choose folder…')

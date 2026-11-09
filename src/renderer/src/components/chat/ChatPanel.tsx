@@ -1496,7 +1496,7 @@ if (e.type === 'usage') {
                 open={projectMenuOpen}
                 onOpenChange={setProjectMenuOpen}
                 placement="top-start"
-                menuClassName="project-switch-dropdown"
+                menuClassName="sidebar-menu-dropdown project-switch-dropdown"
                 trigger={(
                   <button
                     type="button"
