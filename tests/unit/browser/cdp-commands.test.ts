@@ -10,9 +10,11 @@ import type { BrowserCommandResult } from '../../../src/shared/browser-types'
 class FakeCdp implements CdpClient {
   calls: Array<{ method: string; params?: Record<string, unknown> }> = []
   responses: Record<string, unknown> = {}
+  onSend: ((method: string) => Promise<void> | void) | null = null
 
   async send<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T> {
     this.calls.push({ method, params })
+    if (this.onSend) await this.onSend(method)
     return (this.responses[method] ?? {}) as T
   }
 
@@ -34,11 +36,12 @@ function fakeCdp(): FakeCdp {
   const cdp = new FakeCdp()
   cdp.responses['DOM.getDocument'] = { root: { nodeId: 1 } }
   cdp.responses['DOM.querySelector'] = { nodeId: 7 }
-  cdp.responses['DOM.pushNodesByBackendIdsToFrontend'] = { nodeIds: [9] }
   cdp.responses['DOM.resolveNode'] = { object: { objectId: 'obj-1' } }
   cdp.responses['DOM.getBoxModel'] = {
     model: { content: [10, 20, 110, 20, 110, 70, 10, 70], width: 100, height: 50 }
   }
+  // `isConnected` checks return true; callers that need another value override it.
+  cdp.responses['Runtime.callFunctionOn'] = { result: { value: true } }
   return cdp
 }
 
@@ -65,14 +68,53 @@ describe('cdp click', () => {
     ])
   })
 
-  it('resolves a snapshot ref through the backend node id', async () => {
+  it('uses the backend node id for a ref without a prior DOM.getDocument', async () => {
     const cdp = fakeCdp()
     const result = await click(cdp, new Map([['r1', 42]]), { ref: 'r1' })
     expect(result).toEqual({ ok: true, data: { ref: 'r1' } })
-    expect(cdp.calls[0]).toEqual({
-      method: 'DOM.pushNodesByBackendIdsToFrontend',
-      params: { backendNodeIds: [42] }
-    })
+    expect(cdp.calls.map(c => c.method)).toEqual([
+      'DOM.scrollIntoViewIfNeeded',
+      'DOM.getBoxModel',
+      'Input.dispatchMouseEvent',
+      'Input.dispatchMouseEvent',
+      'Input.dispatchMouseEvent'
+    ])
+    expect(paramsOf(cdp.calls[0])).toEqual({ backendNodeId: 42 })
+    expect(paramsOf(cdp.calls[1])).toEqual({ backendNodeId: 42 })
+  })
+
+  it('maps a CDP missing-node error for a known ref to the stale message', async () => {
+    const cdp = fakeCdp()
+    cdp.onSend = (method) => {
+      if (method === 'DOM.scrollIntoViewIfNeeded') throw new Error('Could not find node with given id')
+    }
+    const result = await click(cdp, new Map([['r1', 42]]), { ref: 'r1' })
+    expect(errorOf(result)).toBe('snapshot stale: re-read the page (ref r1 no longer valid)')
+  })
+
+  it('maps the real Chromium detached-node error to the stale message', async () => {
+    const cdp = fakeCdp()
+    cdp.onSend = (method) => {
+      if (method === 'DOM.scrollIntoViewIfNeeded') throw new Error('Node is detached from document')
+    }
+    const result = await click(cdp, new Map([['r1', 42]]), { ref: 'r1' })
+    expect(errorOf(result)).toBe('snapshot stale: re-read the page (ref r1 no longer valid)')
+  })
+
+  it('reports an attached but invisible element as not visible, not stale', async () => {
+    const cdp = fakeCdp()
+    cdp.onSend = (method) => {
+      if (method === 'DOM.getBoxModel') throw new Error('Could not compute box model.')
+    }
+    expect(errorOf(await click(cdp, new Map(), { selector: '#hidden' }))).toContain('not visible')
+  })
+
+  it('does not mask a missing-node error for a selector target', async () => {
+    const cdp = fakeCdp()
+    cdp.onSend = (method) => {
+      if (method === 'DOM.scrollIntoViewIfNeeded') throw new Error('Could not find node with given id')
+    }
+    await expect(click(cdp, new Map(), { selector: '#btn' })).rejects.toThrow('Could not find node')
   })
 
   it('rejects a stale ref with the extension wording and touches nothing', async () => {
@@ -135,10 +177,25 @@ describe('cdp select', () => {
     const cdp = fakeCdp()
     const result = await select(cdp, new Map([['r2', 5]]), { ref: 'r2', value: 'b' })
     expect(result).toEqual({ ok: true, data: { ref: 'r2' } })
+    expect(cdp.calls.map(c => c.method)).toEqual([
+      'DOM.resolveNode',
+      'Runtime.callFunctionOn',
+      'Runtime.callFunctionOn'
+    ])
+    expect(paramsOf(cdp.calls[0])).toEqual({ backendNodeId: 5 })
+    expect(String(paramsOf(cdp.calls[1]).functionDeclaration)).toContain('isConnected')
     const call = paramsOf(cdp.calls[2])
     expect(call.objectId).toBe('obj-1')
     expect(call.arguments).toEqual([{ value: 'b' }])
     expect(String(call.functionDeclaration)).toContain("new Event('change'")
+  })
+
+  it('reports a detached ref as stale before typing into it', async () => {
+    const cdp = fakeCdp()
+    cdp.responses['Runtime.callFunctionOn'] = { result: { value: false } }
+    const result = await type(cdp, new Map([['r3', 7]]), { ref: 'r3', text: 'x' })
+    expect(errorOf(result)).toBe('snapshot stale: re-read the page (ref r3 no longer valid)')
+    expect(cdp.calls.some(c => c.method === 'Input.insertText')).toBe(false)
   })
 })
 

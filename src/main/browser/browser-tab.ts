@@ -27,6 +27,8 @@ export interface TabHost {
 
 export const LOG_BUFFER_ENTRIES = 200
 export const MAX_PENDING_REQUESTS = 400
+/** Matches the bridge's 30 s command timeout. */
+export const DEFAULT_COMMAND_TIMEOUT_MS = 30_000
 
 export interface BrowserTabDeps {
   agentId: string
@@ -95,16 +97,66 @@ export class BrowserTab {
    * Commands run one at a time: subagents share their parent's tabs, and two
    * concurrent CDP sequences on one page would interleave.
    */
-  run(name: BrowserCommandName, params: Record<string, unknown> = {}, _call?: BrowserCall): Promise<BrowserCommandResult> {
+  run(
+    name: BrowserCommandName,
+    params: Record<string, unknown> = {},
+    call?: BrowserCall,
+    timeoutMs = DEFAULT_COMMAND_TIMEOUT_MS
+  ): Promise<BrowserCommandResult> {
     // Later tasks add the pipeline steps here, in this order: wait for control (6),
     // acquire + shield, sensitive check (9), site approval (8), execute, decorate.
-    const task = this.queue.then(() => this.dispatch(name, params))
-    // A failed command must not stop the queue for the commands behind it.
+    const task = this.queue.then(() => this.executeTimed(name, params, call, timeoutMs))
+    // A failed (or abandoned) command must not stop the queue for the commands behind it.
     this.queue = task.then(() => undefined, () => undefined)
-    return task.then(
-      result => this.decorate(result),
-      err => this.decorate({ ok: false, error: `${name}: ${errorMessage(err)}` })
-    )
+    return task
+  }
+
+  private executeTimed(
+    name: BrowserCommandName,
+    params: Record<string, unknown>,
+    call: BrowserCall | undefined,
+    timeoutMs: number
+  ): Promise<BrowserCommandResult> {
+    // The clock starts here, when the command actually runs, not when it was
+    // enqueued: Task 6's wait for control happens inside this step and must not
+    // spend the command's budget.
+    return new Promise(resolve => {
+      let settled = false
+      let timer: ReturnType<typeof setTimeout> | null = null
+      const signal = call?.signal
+
+      function finish(result: BrowserCommandResult): void {
+        if (settled) return
+        settled = true
+        if (timer) {
+          clearTimeout(timer)
+          timer = null
+        }
+        signal?.removeEventListener('abort', onAbort)
+        resolve(result)
+      }
+
+      function onAbort(): void {
+        finish({ ok: false, error: `browser command aborted: ${name}` })
+      }
+
+      if (signal?.aborted) {
+        onAbort()
+        return
+      }
+      signal?.addEventListener('abort', onAbort, { once: true })
+      timer = setTimeout(() => finish({ ok: false, error: `browser command timed out: ${name}` }), timeoutMs)
+      this.dispatch(name, params).then(
+        // A late result from an abandoned command is dropped without decorating
+        // (which would consume dialog notes) or resolving anything.
+        result => {
+          if (!settled) finish(this.decorate(result))
+        },
+        err => {
+          if (!settled) finish(this.decorate({ ok: false, error: `${name}: ${errorMessage(err)}` }))
+        }
+      )
+    })
   }
 
   toInfo(): BrowserTabInfo {

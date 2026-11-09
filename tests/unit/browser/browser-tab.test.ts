@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -140,6 +140,86 @@ describe('BrowserTab queue', () => {
     ])
     expect(errorOf(clicked)).toBe('click: boom')
     expect(scrolled).toEqual({ ok: true })
+  })
+})
+
+describe('BrowserTab timeouts', () => {
+  it('times out a hung command and keeps the queue moving', async () => {
+    vi.useFakeTimers()
+    try {
+      const cdp = new FakeCdp()
+      let hung = false
+      cdp.onSend = (method) => {
+        if (method === 'Runtime.evaluate' && !hung) {
+          hung = true
+          return new Promise<void>(() => {})
+        }
+      }
+      cdp.responses['Runtime.evaluate'] = { result: { value: true } }
+      const tab = makeTab(cdp)
+      const first = tab.run('scroll', { direction: 'down' }, undefined, 1000)
+      const second = tab.run('scroll', { direction: 'up' })
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(await first).toEqual({ ok: false, error: 'browser command timed out: scroll' })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(await second).toEqual({ ok: true })
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not count time spent queued against the timeout', async () => {
+    vi.useFakeTimers()
+    try {
+      const cdp = new FakeCdp()
+      let evaluations = 0
+      cdp.onSend = async (method) => {
+        if (method !== 'Runtime.evaluate') return
+        evaluations++
+        if (evaluations === 1) {
+          await new Promise<void>(resolve => setTimeout(resolve, 5000))
+          return
+        }
+        await new Promise<void>(() => {})
+      }
+      cdp.responses['Runtime.evaluate'] = { result: { value: true } }
+      const tab = makeTab(cdp)
+      const first = tab.run('scroll', { direction: 'down' }, undefined, 10_000)
+      const second = tab.run('scroll', { direction: 'up' }, undefined, 1000)
+      let secondSettled = false
+      void second.then(() => { secondSettled = true })
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(await first).toEqual({ ok: true })
+      await vi.advanceTimersByTimeAsync(999)
+      expect(secondSettled).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(await second).toEqual({ ok: false, error: 'browser command timed out: scroll' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('settles a command on abort, removes the listener and frees the queue', async () => {
+    const cdp = new FakeCdp()
+    let hung = false
+    cdp.onSend = (method) => {
+      if (method === 'Runtime.evaluate' && !hung) {
+        hung = true
+        return new Promise<void>(() => {})
+      }
+    }
+    cdp.responses['Runtime.evaluate'] = { result: { value: true } }
+    const tab = makeTab(cdp)
+    const controller = new AbortController()
+    const remove = vi.spyOn(controller.signal, 'removeEventListener')
+    const call = { ownerId: 'agent-1', ask: async () => null, signal: controller.signal }
+    const pending = tab.run('scroll', { direction: 'down' }, call)
+    await tick()
+    controller.abort()
+    expect(await pending).toEqual({ ok: false, error: 'browser command aborted: scroll' })
+    expect(remove).toHaveBeenCalledWith('abort', expect.any(Function))
+    expect(await tab.run('scroll', { direction: 'up' })).toEqual({ ok: true })
   })
 })
 

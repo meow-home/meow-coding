@@ -3,8 +3,12 @@ import { readInteractiveTree } from '../../shared/browser-ax-snapshot'
 import type { CdpClient } from './browser-tab'
 import { writeSnapshotFile } from './snapshot-output'
 
-interface NodeRef {
-  nodeId: number
+// DOM.scrollIntoViewIfNeeded / DOM.getBoxModel / DOM.resolveNode accept either key.
+// A ref keeps the backend id from the snapshot: frontend nodeIds only exist after a
+// DOM.getDocument and are invalidated by the next one.
+interface NodeTarget {
+  nodeId?: number
+  backendNodeId?: number
 }
 
 interface BoxModel {
@@ -15,22 +19,25 @@ function stale(ref: string): BrowserCommandResult {
   return { ok: false, error: `snapshot stale: re-read the page (ref ${ref} no longer valid)` }
 }
 
-/** Ref → frontend nodeId, or a selector → nodeId. Returns the error result when it cannot resolve. */
+// Chromium says "Node is detached from document" for a removed backend node and
+// "Could not find node with given id" for other stale ids.
+const MISSING_NODE = /node is detached|could not find node|no node with given id|node with given id|cannot find node|node not found/i
+
+function isMissingNode(err: unknown): boolean {
+  return MISSING_NODE.test(err instanceof Error ? err.message : String(err))
+}
+
+/** Ref → backendNodeId, or a selector → frontend nodeId. Returns the error result when it cannot resolve. */
 async function resolveNode(
   cdp: CdpClient,
   refs: Map<string, number>,
   params: Record<string, unknown>
-): Promise<NodeRef | BrowserCommandResult> {
+): Promise<NodeTarget | BrowserCommandResult> {
   if (params.ref != null) {
     const ref = String(params.ref)
     const backendNodeId = refs.get(ref)
     if (backendNodeId == null) return stale(ref)
-    const pushed = await cdp.send<{ nodeIds: number[] }>('DOM.pushNodesByBackendIdsToFrontend', {
-      backendNodeIds: [backendNodeId]
-    })
-    const nodeId = pushed.nodeIds?.[0]
-    if (!nodeId) return stale(ref)
-    return { nodeId }
+    return { backendNodeId }
   }
   const selector = params.selector != null ? String(params.selector) : null
   if (!selector) return { ok: false, error: 'ref or selector required' }
@@ -40,13 +47,42 @@ async function resolveNode(
   return { nodeId: found.nodeId }
 }
 
-function isErrorResult<T extends object>(value: T | BrowserCommandResult): value is BrowserCommandResult {
-  return 'ok' in value
+function isErrorResult(value: unknown): value is BrowserCommandResult {
+  return typeof value === 'object' && value !== null && 'ok' in value
+}
+
+async function withTarget(
+  cdp: CdpClient,
+  refs: Map<string, number>,
+  params: Record<string, unknown>,
+  action: (target: NodeTarget, ref: string | null) => Promise<BrowserCommandResult>
+): Promise<BrowserCommandResult> {
+  const target = await resolveNode(cdp, refs, params)
+  if (isErrorResult(target)) return target
+  const ref = params.ref != null ? String(params.ref) : null
+  try {
+    return await action(target, ref)
+  } catch (err) {
+    // The node was removed or replaced since the snapshot: answer like an unknown ref,
+    // not with the raw CDP "could not find node" text.
+    if (ref && isMissingNode(err)) return stale(ref)
+    throw err
+  }
 }
 
 /** Centre of the `content` quad; a zero-size box is a real failure (a 0×0 viewport reports exactly this). */
-async function clickPoint(cdp: CdpClient, nodeId: number): Promise<{ x: number; y: number } | BrowserCommandResult> {
-  const { model } = await cdp.send<BoxModel>('DOM.getBoxModel', { nodeId })
+async function clickPoint(cdp: CdpClient, target: NodeTarget): Promise<{ x: number; y: number } | BrowserCommandResult> {
+  let model: BoxModel['model']
+  try {
+    ({ model } = await cdp.send<BoxModel>('DOM.getBoxModel', { ...target }))
+  } catch (err) {
+    // An attached but hidden element (display:none) has no box; a detached ref is
+    // caught earlier by scrollIntoViewIfNeeded and mapped to the stale error.
+    if (/could not compute box model/i.test(err instanceof Error ? err.message : String(err))) {
+      return { ok: false, error: 'element is not visible (no box model)' }
+    }
+    throw err
+  }
   const q = model?.content
   if (!q || q.length < 8 || q.some(v => !Number.isFinite(v))) {
     return { ok: false, error: 'element is not visible (no box model)' }
@@ -67,9 +103,25 @@ async function pressAt(cdp: CdpClient, x: number, y: number): Promise<void> {
   await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 })
 }
 
-async function resolveObject(cdp: CdpClient, nodeId: number): Promise<string> {
-  const { object } = await cdp.send<{ object: { objectId: string } }>('DOM.resolveNode', { nodeId })
+async function resolveObject(cdp: CdpClient, target: NodeTarget): Promise<string> {
+  const { object } = await cdp.send<{ object: { objectId: string } }>('DOM.resolveNode', { ...target })
   return object.objectId
+}
+
+/**
+ * `DOM.resolveNode` succeeds even for a detached node, so a ref target is checked
+ * for attachment before typing or selecting into it.
+ */
+async function resolveAttachedObject(
+  cdp: CdpClient,
+  target: NodeTarget,
+  ref: string | null
+): Promise<string | BrowserCommandResult> {
+  const objectId = await resolveObject(cdp, target)
+  if (ref == null) return objectId
+  const connected = await callOnObject(cdp, objectId, 'function(){ return this.isConnected === true }')
+  if (connected !== true) return stale(ref)
+  return objectId
 }
 
 async function callOnObject(
@@ -146,16 +198,13 @@ export async function click(
     await pressAt(cdp, x, y)
     return { ok: true, data: { x, y } }
   }
-  const target = await resolveNode(cdp, refs, params)
-  if (isErrorResult(target)) return target
-  await cdp.send('DOM.scrollIntoViewIfNeeded', { nodeId: target.nodeId })
-  const point = await clickPoint(cdp, target.nodeId)
-  if (isErrorResult(point)) return point
-  await pressAt(cdp, point.x, point.y)
-  return {
-    ok: true,
-    data: params.ref != null ? { ref: String(params.ref) } : { selector: String(params.selector) }
-  }
+  return withTarget(cdp, refs, params, async (target, ref) => {
+    await cdp.send('DOM.scrollIntoViewIfNeeded', { ...target })
+    const point = await clickPoint(cdp, target)
+    if (isErrorResult(point)) return point
+    await pressAt(cdp, point.x, point.y)
+    return { ok: true, data: ref != null ? { ref } : { selector: String(params.selector) } }
+  })
 }
 
 export async function type(
@@ -166,16 +215,14 @@ export async function type(
   if (params.ref == null && params.selector == null) {
     return { ok: false, error: 'type requires ref or selector' }
   }
-  const target = await resolveNode(cdp, refs, params)
-  if (isErrorResult(target)) return target
-  const objectId = await resolveObject(cdp, target.nodeId)
-  await callOnObject(cdp, objectId, FOCUS_AND_SELECT)
-  await cdp.send('Input.insertText', { text: String(params.text ?? '') })
-  await callOnObject(cdp, objectId, DISPATCH_CHANGE)
-  return {
-    ok: true,
-    data: params.ref != null ? { ref: String(params.ref) } : { selector: String(params.selector) }
-  }
+  return withTarget(cdp, refs, params, async (target, ref) => {
+    const objectId = await resolveAttachedObject(cdp, target, ref)
+    if (isErrorResult(objectId)) return objectId
+    await callOnObject(cdp, objectId, FOCUS_AND_SELECT)
+    await cdp.send('Input.insertText', { text: String(params.text ?? '') })
+    await callOnObject(cdp, objectId, DISPATCH_CHANGE)
+    return { ok: true, data: ref != null ? { ref } : { selector: String(params.selector) } }
+  })
 }
 
 export async function select(
@@ -186,14 +233,12 @@ export async function select(
   if (params.ref == null && params.selector == null) {
     return { ok: false, error: 'select requires ref or selector' }
   }
-  const target = await resolveNode(cdp, refs, params)
-  if (isErrorResult(target)) return target
-  const objectId = await resolveObject(cdp, target.nodeId)
-  await callOnObject(cdp, objectId, SET_VALUE_AND_CHANGE, [String(params.value ?? '')])
-  return {
-    ok: true,
-    data: params.ref != null ? { ref: String(params.ref) } : { selector: String(params.selector) }
-  }
+  return withTarget(cdp, refs, params, async (target, ref) => {
+    const objectId = await resolveAttachedObject(cdp, target, ref)
+    if (isErrorResult(objectId)) return objectId
+    await callOnObject(cdp, objectId, SET_VALUE_AND_CHANGE, [String(params.value ?? '')])
+    return { ok: true, data: ref != null ? { ref } : { selector: String(params.selector) } }
+  })
 }
 
 export async function scroll(
