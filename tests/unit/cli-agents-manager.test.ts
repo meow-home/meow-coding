@@ -9,6 +9,7 @@ import type {
   CliTranscriptItem
 } from '../../src/shared/types'
 import { CliAgentsManager, type CliAgentsManagerOptions } from '../../src/main/cli-agents'
+import { CliLoginManager, type PtyProcessLike, type PtySpawn } from '../../src/main/cli-agents/login-session'
 import type { VaultLike } from '../../src/main/cli-agents/profiles'
 import type { CliRunManager, RunTaskInput } from '../../src/main/cli-agents/run-manager'
 import type { CliTerminalResult } from '../../src/main/cli-agents/parsers/types'
@@ -47,6 +48,42 @@ class MemoryVault implements VaultLike {
   }
 }
 
+class FakePty implements PtyProcessLike {
+  pid?: number
+  private dataCbs: ((chunk: string) => void)[] = []
+  private exitCbs: ((e: { exitCode: number; signal?: number }) => void)[] = []
+  writes: string[] = []
+  killCount = 0
+
+  constructor(pid?: number) {
+    this.pid = pid
+  }
+
+  onData(cb: (chunk: string) => void): void {
+    this.dataCbs.push(cb)
+  }
+
+  onExit(cb: (e: { exitCode: number; signal?: number }) => void): void {
+    this.exitCbs.push(cb)
+  }
+
+  write(data: string): void {
+    this.writes.push(data)
+  }
+
+  kill(): void {
+    this.killCount++
+  }
+
+  emitData(chunk: string): void {
+    for (const cb of this.dataCbs) cb(chunk)
+  }
+
+  emitExit(exitCode = 0, signal?: number): void {
+    for (const cb of this.exitCbs) cb({ exitCode, signal })
+  }
+}
+
 describe('CliAgentsManager', () => {
   let tmpDir = ''
   let vault: MemoryVault
@@ -55,6 +92,10 @@ describe('CliAgentsManager', () => {
   let fakeCancelAll: ReturnType<typeof vi.fn>
   let fakeRunManager: CliRunManager
   let fakeCommandRunner: ReturnType<typeof vi.fn>
+  let fakeLoginPtyList: FakePty[] = []
+  let fakeSpawnPty: ReturnType<typeof vi.fn>
+  let fakeKillTree: ReturnType<typeof vi.fn>
+  let fakeLoginManager: CliLoginManager
   let events: { sessionId: string; item: CliTranscriptItem }[]
   let statuses: { sessionId: string; status: CliSessionStatus }[]
   let agentsChangedCalls: number
@@ -87,6 +128,18 @@ describe('CliAgentsManager', () => {
       exitCode: 0
     })
 
+    fakeLoginPtyList = []
+    fakeSpawnPty = vi.fn().mockImplementation((file: string, args: string[]) => {
+      const p = new FakePty(7777 + fakeLoginPtyList.length)
+      fakeLoginPtyList.push(p)
+      return p
+    })
+    fakeKillTree = vi.fn().mockResolvedValue(undefined)
+    fakeLoginManager = new CliLoginManager({
+      spawnPty: fakeSpawnPty as unknown as PtySpawn,
+      killTree: fakeKillTree
+    })
+
     events = []
     statuses = []
     agentsChangedCalls = 0
@@ -108,6 +161,7 @@ describe('CliAgentsManager', () => {
       userDataDir: tmpDir,
       vault,
       runManager: fakeRunManager,
+      loginManager: fakeLoginManager,
       runCommand: fakeCommandRunner,
       now: () => nowTime,
       onEvent: (sessionId, item) => events.push({ sessionId, item }),
@@ -137,7 +191,7 @@ describe('CliAgentsManager', () => {
     }).toThrow(/Secret is required/)
 
     // Valid gemini-key agent
-    const agyAgent = manager.addAgent({
+    const { agent: agyAgent } = manager.addAgent({
       runtime: 'antigravity',
       kind: 'gemini-key',
       label: 'Antigravity Gemini',
@@ -153,7 +207,7 @@ describe('CliAgentsManager', () => {
     expect(manager.getStatus().defaultAgentId).toBe(agyAgent.id)
 
     // OpenCode profile agent
-    const ocAgent = manager.addAgent({
+    const { agent: ocAgent } = manager.addAgent({
       runtime: 'opencode',
       kind: 'profile',
       label: 'OpenCode Anthropic',
@@ -172,7 +226,7 @@ describe('CliAgentsManager', () => {
   it('renames, activates, sets default, and removes agents', async () => {
     const manager = createManager()
 
-    const agent = manager.addAgent({
+    const { agent } = manager.addAgent({
       runtime: 'antigravity',
       kind: 'gemini-key',
       label: 'Old Label',
@@ -223,7 +277,7 @@ describe('CliAgentsManager', () => {
 
   it('creates, renames, lists, and deletes sessions', async () => {
     const manager = createManager()
-    const agent = manager.addAgent({
+    const { agent } = manager.addAgent({
       runtime: 'antigravity',
       kind: 'gemini-key',
       label: 'Agent 1',
@@ -250,10 +304,11 @@ describe('CliAgentsManager', () => {
 
   it('throws a clear [meow] error when sending a task to an agent that is not ready', async () => {
     const manager = createManager()
-    const agent = manager.addAgent({
+    const { agent } = manager.addAgent({
       runtime: 'opencode',
       kind: 'profile',
-      label: 'OpenCode Unauthed'
+      label: 'OpenCode Unauthed',
+      provider: 'anthropic'
     })
     expect(agent.status).toBe('needs-login')
 
@@ -269,7 +324,7 @@ describe('CliAgentsManager', () => {
     const manager = createManager()
     manager.agentStore.setRuntimePath('antigravity', binPath)
 
-    const agent = manager.addAgent({
+    const { agent } = manager.addAgent({
       runtime: 'antigravity',
       kind: 'gemini-key',
       label: 'Antigravity Ready',
@@ -324,7 +379,7 @@ describe('CliAgentsManager', () => {
     const manager = createManager()
     manager.agentStore.setRuntimePath('antigravity', binPath)
 
-    const agent = manager.addAgent({
+    const { agent } = manager.addAgent({
       runtime: 'antigravity',
       kind: 'gemini-key',
       label: 'Antigravity Ready',
@@ -351,7 +406,7 @@ describe('CliAgentsManager', () => {
       deniedActions: ['bash("rm -rf /")']
     })
 
-    const agent = manager.addAgent({
+    const { agent } = manager.addAgent({
       runtime: 'antigravity',
       kind: 'gemini-key',
       label: 'Antigravity Ready',
@@ -365,7 +420,7 @@ describe('CliAgentsManager', () => {
 
   it('deleteSession cancels running task', async () => {
     const manager = createManager()
-    const agent = manager.addAgent({
+    const { agent } = manager.addAgent({
       runtime: 'antigravity',
       kind: 'gemini-key',
       label: 'Agy',
@@ -383,7 +438,7 @@ describe('CliAgentsManager', () => {
     const manager = createManager()
     manager.agentStore.setRuntimePath('antigravity', binPath)
 
-    const agent = manager.addAgent({
+    const { agent } = manager.addAgent({
       runtime: 'antigravity',
       kind: 'gemini-key',
       label: 'Agy',
@@ -422,13 +477,13 @@ describe('CliAgentsManager', () => {
 
   it('removeAgent cancels and deletes all sessions referencing the agent', async () => {
     const manager = createManager()
-    const agent1 = manager.addAgent({
+    const { agent: agent1 } = manager.addAgent({
       runtime: 'antigravity',
       kind: 'gemini-key',
       label: 'Agent 1',
       secret: 'key1'
     })
-    const agent2 = manager.addAgent({
+    const { agent: agent2 } = manager.addAgent({
       runtime: 'antigravity',
       kind: 'gemini-key',
       label: 'Agent 2',
@@ -458,7 +513,7 @@ describe('CliAgentsManager', () => {
     const manager = createManager()
     manager.agentStore.setRuntimePath('antigravity', binPath)
 
-    const agent = manager.addAgent({
+    const { agent } = manager.addAgent({
       runtime: 'antigravity',
       kind: 'gemini-key',
       label: 'Agy',
@@ -492,7 +547,7 @@ describe('CliAgentsManager', () => {
 
   it('restore marks running sessions as failed with interruption notice and result', () => {
     const manager = createManager()
-    const agent = manager.addAgent({
+    const { agent } = manager.addAgent({
       runtime: 'antigravity',
       kind: 'gemini-key',
       label: 'Agy',
@@ -585,18 +640,179 @@ describe('CliAgentsManager', () => {
 
   it('addAgent defaults label when not provided', () => {
     const manager = createManager()
-    const ocAgent = manager.addAgent({
+    const { agent: ocAgent } = manager.addAgent({
       runtime: 'opencode',
       kind: 'profile',
       provider: 'anthropic'
     })
     expect(ocAgent.label).toBe('OpenCode (anthropic)')
 
-    const agyAgent = manager.addAgent({
+    const { agent: agyAgent } = manager.addAgent({
       runtime: 'antigravity',
       kind: 'gemini-key',
       secret: 'secret-key'
     })
     expect(agyAgent.label).toBe('Antigravity')
+  })
+
+  it('addAgent for google starts login, returns loginId, and wires PTY with agy with no args', () => {
+    const manager = createManager()
+    const result = manager.addAgent({
+      runtime: 'antigravity',
+      kind: 'google',
+      label: 'Antigravity Google'
+    })
+
+    expect(result.agent.status).toBe('needs-login')
+    expect(result.loginId).toBeDefined()
+    expect(result.loginId!.startsWith('clil_')).toBe(true)
+    expect(fakeSpawnPty.mock.calls[0][0]).toMatch(/agy(\.exe)?$/i)
+    expect(fakeSpawnPty.mock.calls[0][1]).toEqual([])
+    expect(fakeSpawnPty.mock.calls[0][2]).toEqual(expect.objectContaining({
+      cwd: tmpDir,
+      cols: 100,
+      rows: 30
+    }))
+    expect(fakeLoginManager.activeCount()).toBe(1)
+  })
+
+  it('antigravity login success detection sets agent to ready, cancels PTY, and calls onAgentsChanged', () => {
+    const manager = createManager()
+    const { agent, loginId } = manager.addAgent({
+      runtime: 'antigravity',
+      kind: 'google'
+    })
+
+    expect(agent.status).toBe('needs-login')
+    expect(loginId).toBeDefined()
+
+    const pty = fakeLoginPtyList[0]
+    agentsChangedCalls = 0
+
+    pty.emitData('Authenticating with Google...\r\n✓ Signed in as meow-coder@google.com\r\n')
+
+    expect(manager.agentStore.getAgent(agent.id)?.status).toBe('ready')
+    expect(pty.killCount).toBe(1)
+    expect(fakeKillTree).toHaveBeenCalledTimes(1)
+    expect(agentsChangedCalls).toBe(1)
+  })
+
+  it('cancelling login leaves agent as needs-login and cancels login process', () => {
+    const manager = createManager()
+    const { agent, loginId } = manager.addAgent({
+      runtime: 'antigravity',
+      kind: 'google'
+    })
+
+    const pty = fakeLoginPtyList[0]
+    expect(manager.agentStore.getAgent(agent.id)?.status).toBe('needs-login')
+
+    manager.cancelLogin(loginId!)
+    expect(pty.killCount).toBe(1)
+    expect(manager.agentStore.getAgent(agent.id)?.status).toBe('needs-login')
+  })
+
+  it('opencode login requires provider and throws if missing', () => {
+    const manager = createManager()
+    expect(() => {
+      manager.addAgent({
+        runtime: 'opencode',
+        kind: 'profile'
+      })
+    }).toThrow(/Provider is required for OpenCode login/)
+  })
+
+  it('opencode login spawns auth login with provider, and sets ready on exit code 0', () => {
+    const manager = createManager()
+    const { agent, loginId } = manager.addAgent({
+      runtime: 'opencode',
+      kind: 'profile',
+      provider: 'github'
+    })
+
+    expect(loginId).toBeDefined()
+    expect(fakeSpawnPty).toHaveBeenCalledWith(
+      'opencode',
+      ['auth', 'login', 'github'],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          XDG_DATA_HOME: expect.any(String),
+          OPENCODE_DB: expect.any(String)
+        })
+      })
+    )
+
+    const pty = fakeLoginPtyList[0]
+    agentsChangedCalls = 0
+    pty.emitExit(0)
+
+    expect(manager.agentStore.getAgent(agent.id)?.status).toBe('ready')
+    expect(agentsChangedCalls).toBe(1)
+  })
+
+  it('opencode login leaves agent as needs-login on non-zero exit code', () => {
+    const manager = createManager()
+    const { agent, loginId } = manager.addAgent({
+      runtime: 'opencode',
+      kind: 'profile',
+      provider: 'github'
+    })
+
+    expect(loginId).toBeDefined()
+    const pty = fakeLoginPtyList[0]
+    agentsChangedCalls = 0
+    pty.emitExit(1)
+
+    expect(manager.agentStore.getAgent(agent.id)?.status).toBe('needs-login')
+    expect(agentsChangedCalls).toBe(0)
+  })
+
+  it('loginInput forwards data to the login PTY session', () => {
+    const manager = createManager()
+    const { loginId } = manager.addAgent({
+      runtime: 'antigravity',
+      kind: 'google'
+    })
+
+    const pty = fakeLoginPtyList[0]
+    manager.loginInput(loginId!, 'auth-code-123\n')
+    expect(pty.writes).toEqual(['auth-code-123\n'])
+  })
+
+  it('cancelAll cancels running tasks and login sessions', async () => {
+    const manager = createManager()
+    manager.addAgent({
+      runtime: 'antigravity',
+      kind: 'google'
+    })
+
+    expect(fakeLoginManager.activeCount()).toBe(1)
+    await manager.cancelAll()
+
+    expect(fakeCancelAll).toHaveBeenCalledTimes(1)
+    expect(fakeLoginManager.activeCount()).toBe(0)
+  })
+
+  it('onLogin forwards stream chunks and extracted URLs', () => {
+    const received: { loginId: string; chunk: string; url?: string }[] = []
+    const manager = createManager({
+      onLogin: (loginId, chunk, url) => received.push({ loginId, chunk, url })
+    })
+
+    const { loginId } = manager.addAgent({
+      runtime: 'antigravity',
+      kind: 'google'
+    })
+
+    const pty = fakeLoginPtyList[0]
+    pty.emitData('Open this URL: https://accounts.google.com/o/oauth2/v2/auth?client_id=xyz\r\n')
+
+    expect(received).toEqual([
+      {
+        loginId,
+        chunk: 'Open this URL: https://accounts.google.com/o/oauth2/v2/auth?client_id=xyz\r\n',
+        url: 'https://accounts.google.com/o/oauth2/v2/auth?client_id=xyz'
+      }
+    ])
   })
 })

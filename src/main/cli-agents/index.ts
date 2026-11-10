@@ -1,4 +1,5 @@
 import path from 'node:path'
+import * as pty from '@lydell/node-pty'
 import type {
   CliAgent,
   CliAgentKind,
@@ -12,10 +13,20 @@ import type {
   CliSessionStatus,
   CliTranscriptItem
 } from '../../shared/types'
+import { buildSpawnCommand } from '../pty-manager'
 import { CliAgentStore } from './agents'
 import { CliBinaryManager, type CliCommandRunner, defaultRunCommand } from './binary-manager'
+import {
+  CliLoginManager,
+  type CliLoginManagerOptions,
+  DEFAULT_LOGIN_TIMEOUT_MS,
+  LOGIN_BUFFER_MAX_BYTES,
+  type PtyProcessLike,
+  type PtySpawn,
+  type StartLoginInput
+} from './login-session'
 import { CliProfileManager, type VaultLike } from './profiles'
-import { CliRunManager } from './run-manager'
+import { buildCliEnv, CliRunManager } from './run-manager'
 import type { CliTerminalResult } from './parsers/types'
 import { deriveCliPolicy } from './policy'
 import { getCliRuntime } from './runtimes'
@@ -38,6 +49,15 @@ export {
   isSemverGte,
   parseSemver
 } from './binary-manager'
+export {
+  CliLoginManager,
+  type CliLoginManagerOptions,
+  DEFAULT_LOGIN_TIMEOUT_MS,
+  LOGIN_BUFFER_MAX_BYTES,
+  type PtyProcessLike,
+  type PtySpawn,
+  type StartLoginInput
+} from './login-session'
 export { CliProfileManager, type VaultLike } from './profiles'
 export {
   ALLOWED_INPUT_ENV_KEYS,
@@ -75,6 +95,7 @@ export interface AddCliAgentInput {
   secret?: string
   mode?: CliAgentMode
   model?: string
+  cwd?: string
 }
 
 export interface CliAgentsManagerOptions {
@@ -84,6 +105,7 @@ export interface CliAgentsManagerOptions {
   platform?: NodeJS.Platform
   runManager?: CliRunManager
   binaryManager?: CliBinaryManager
+  loginManager?: CliLoginManager
   runCommand?: CliCommandRunner
   now?: () => number
   getPermission?: () => Record<string, 'allow' | 'ask' | 'deny'>
@@ -91,6 +113,7 @@ export interface CliAgentsManagerOptions {
   onStatus?: (sessionId: string, status: CliSessionStatus) => void
   onAgentsChanged?: () => void
   onSessionsChanged?: () => void
+  onLogin?: (loginId: string, chunk: string, url?: string) => void
 }
 
 export class CliAgentsManager {
@@ -100,12 +123,15 @@ export class CliAgentsManager {
   private readonly now: () => number
   private readonly runCommand: CliCommandRunner
   private readonly inFlightTasks = new Map<string, Promise<CliTerminalResult>>()
+  private readonly activeLogins = new Map<string, { agentId: string; lastUrl?: string; buffer: string }>()
+  private readonly loginListeners = new Set<(loginId: string, chunk: string, url?: string) => void>()
 
   readonly agentStore: CliAgentStore
   readonly profileManager: CliProfileManager
   readonly sessionStore: CliSessionStore
   readonly binaryManager: CliBinaryManager
   readonly runManager: CliRunManager
+  readonly loginManager: CliLoginManager
 
   constructor(opts: CliAgentsManagerOptions) {
     this.opts = opts
@@ -126,6 +152,42 @@ export class CliAgentsManager {
       platform: this.platform,
       runCommand: this.runCommand
     })
+
+    if (opts.loginManager) {
+      this.loginManager = opts.loginManager
+      this.loginManager.onData((loginId, chunk) => this.handleLoginData(loginId, chunk))
+      this.loginManager.onExit((loginId, code) => this.handleLoginExit(loginId, code))
+      this.loginManager.onUrl((loginId, url) => this.handleLoginUrl(loginId, url))
+    } else {
+      this.loginManager = new CliLoginManager({
+        spawnPty: (file, args, spawnOpts) => {
+          const resolved = buildSpawnCommand(file, args, this.platform)
+          const proc = pty.spawn(resolved.command, resolved.args, {
+            name: 'xterm-256color',
+            cols: spawnOpts.cols ?? 100,
+            rows: spawnOpts.rows ?? 30,
+            cwd: spawnOpts.cwd,
+            env: spawnOpts.env as Record<string, string>
+          })
+          return {
+            pid: proc.pid,
+            onData: (cb) => proc.onData(cb),
+            onExit: (cb) => proc.onExit(cb),
+            write: (data) => {
+              const normalized = this.platform === 'win32'
+                ? data.replace(/\r\n/g, '\r').replace(/\n/g, '\r')
+                : data
+              proc.write(normalized)
+            },
+            kill: () => proc.kill()
+          }
+        },
+        now: this.now,
+        onData: (loginId, chunk) => this.handleLoginData(loginId, chunk),
+        onExit: (loginId, code) => this.handleLoginExit(loginId, code),
+        onUrl: (loginId, url) => this.handleLoginUrl(loginId, url)
+      })
+    }
 
     this.runManager = opts.runManager ?? new CliRunManager({
       now: this.now,
@@ -246,7 +308,11 @@ export class CliAgentsManager {
     return result
   }
 
-  addAgent(input: AddCliAgentInput): CliAgent {
+  addAgent(input: AddCliAgentInput): { agent: CliAgent; loginId?: string } {
+    if (input.runtime === 'opencode' && input.kind === 'profile' && (!input.provider || !input.provider.trim())) {
+      throw new Error('[meow] Provider is required for OpenCode login')
+    }
+
     const prefix = input.runtime === 'antigravity' ? 'agy_' : 'oc_'
     const rand = Math.random().toString(36).slice(2, 10)
     const id = `${prefix}${rand}`
@@ -286,7 +352,129 @@ export class CliAgentsManager {
 
     const created = this.agentStore.addAgent(agent)
     this.opts.onAgentsChanged?.()
-    return created
+
+    if (input.kind === 'google' || input.kind === 'profile') {
+      const { loginId } = this.startLogin(created.id, input.cwd)
+      return { agent: created, loginId }
+    }
+
+    return { agent: created }
+  }
+
+  startLogin(agentId: string, cwd?: string): { loginId: string } {
+    const agent = this.agentStore.getAgent(agentId)
+    if (!agent) {
+      throw new Error(`[meow] Agent not found: ${agentId}`)
+    }
+    if (agent.kind === 'gemini-key') {
+      throw new Error(`[meow] Gemini-key agent does not require login: ${agentId}`)
+    }
+
+    const runtimeConfig = this.agentStore.getRuntimeConfig(agent.runtime)
+    const binaryPath = this.binaryManager.resolveBinary(agent.runtime, runtimeConfig.binaryPath) || (agent.runtime === 'antigravity' ? 'agy' : 'opencode')
+
+    let file = binaryPath
+    let args: string[] = []
+
+    if (agent.runtime === 'antigravity') {
+      args = []
+    } else if (agent.runtime === 'opencode') {
+      if (!agent.provider || !agent.provider.trim()) {
+        throw new Error('[meow] Provider is required for OpenCode login')
+      }
+      args = ['auth', 'login', agent.provider.trim()]
+    }
+
+    const firstSession = this.sessionStore.list().find(s => s.agentId === agentId)
+    const effectiveCwd = cwd || firstSession?.cwd || firstSession?.projectPath || this.opts.userDataDir
+
+    const extraEnv: Record<string, string> = {}
+    if (agent.runtime === 'opencode') {
+      const profileDir = this.profileManager.ensureOpenCodeProfileDir(agent.id)
+      extraEnv.XDG_DATA_HOME = profileDir
+      extraEnv.OPENCODE_DB = path.join(profileDir, 'opencode.db')
+    }
+
+    const loginEnv = buildCliEnv(agent, extraEnv, this.env, this.platform)
+
+    for (const [prevLoginId, prev] of this.activeLogins.entries()) {
+      if (prev.agentId === agentId) {
+        this.cancelLogin(prevLoginId)
+      }
+    }
+
+    const loginId = `clil_${Math.random().toString(36).slice(2, 10)}`
+    this.activeLogins.set(loginId, { agentId, buffer: '' })
+
+    this.loginManager.start({
+      loginId,
+      file,
+      args,
+      cwd: effectiveCwd,
+      env: loginEnv
+    })
+
+    return { loginId }
+  }
+
+  loginInput(loginId: string, data: string): void {
+    this.loginManager.write(loginId, data)
+  }
+
+  cancelLogin(loginId: string): void {
+    this.loginManager.cancel(loginId)
+  }
+
+  onLogin(cb: (loginId: string, chunk: string, url?: string) => void): () => void {
+    this.loginListeners.add(cb)
+    return () => this.loginListeners.delete(cb)
+  }
+
+  private handleLoginData(loginId: string, chunk: string): void {
+    const login = this.activeLogins.get(loginId)
+    if (!login) return
+
+    login.buffer += chunk
+    const agent = this.agentStore.getAgent(login.agentId)
+
+    if (agent && agent.runtime === 'antigravity') {
+      if (
+        /signed in as/i.test(chunk) ||
+        /✓ signed in/i.test(chunk) ||
+        /signed in as/i.test(login.buffer) ||
+        /✓ signed in/i.test(login.buffer)
+      ) {
+        this.agentStore.updateAgent(agent.id, { status: 'ready' })
+        this.loginManager.cancel(loginId)
+        this.opts.onAgentsChanged?.()
+      }
+    }
+
+    const url = login.lastUrl
+    this.opts.onLogin?.(loginId, chunk, url)
+    this.loginListeners.forEach(cb => cb(loginId, chunk, url))
+  }
+
+  private handleLoginUrl(loginId: string, url: string): void {
+    const login = this.activeLogins.get(loginId)
+    if (login) {
+      login.lastUrl = url
+    }
+  }
+
+  private handleLoginExit(loginId: string, code: number): void {
+    const login = this.activeLogins.get(loginId)
+    if (!login) return
+
+    const agent = this.agentStore.getAgent(login.agentId)
+    if (agent && agent.runtime === 'opencode') {
+      if (code === 0) {
+        this.agentStore.updateAgent(agent.id, { status: 'ready' })
+        this.opts.onAgentsChanged?.()
+      }
+    }
+
+    this.activeLogins.delete(loginId)
   }
 
   renameAgent(id: string, label: string): CliAgent {
@@ -296,6 +484,11 @@ export class CliAgentsManager {
   }
 
   async removeAgent(id: string): Promise<void> {
+    for (const [loginId, login] of this.activeLogins.entries()) {
+      if (login.agentId === id) {
+        this.cancelLogin(loginId)
+      }
+    }
     const sessions = this.sessionStore.list().filter(s => s.agentId === id)
     for (const session of sessions) {
       await this.deleteSession(session.id)
@@ -511,7 +704,10 @@ export class CliAgentsManager {
   }
 
   async cancelAll(): Promise<void> {
-    await this.runManager.cancelAll()
+    await Promise.all([
+      this.runManager.cancelAll(),
+      this.loginManager.cancelAll()
+    ])
   }
 
   restore(): void {

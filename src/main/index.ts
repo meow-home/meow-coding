@@ -1237,7 +1237,8 @@ export function registerIpcHandlers(): void {
   registerCliAgentsIpc({
     ipcMain,
     manager: mainApp.cliAgents,
-    log: (msg) => mainApp.systemLogger.log('ERROR', 'main', msg)
+    log: (msg) => mainApp.systemLogger.log('ERROR', 'main', msg),
+    broadcast: (channel, payload) => mainApp.broadcast(channel, payload)
   })
 }
 

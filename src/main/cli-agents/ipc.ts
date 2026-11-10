@@ -10,10 +10,11 @@ export interface RegisterCliAgentsIpcOptions {
   ipcMain: IpcMain
   manager: CliAgentsManager
   log?: (msg: string) => void
+  broadcast?: (channel: string, payload: unknown) => void
 }
 
 export function registerCliAgentsIpc(opts: RegisterCliAgentsIpcOptions): void {
-  const { ipcMain, manager, log } = opts
+  const { ipcMain, manager, log, broadcast } = opts
 
   ipcMain.handle(Channels.CliAgentsStatus, () => {
     return manager.getStatus()
@@ -40,8 +41,7 @@ export function registerCliAgentsIpc(opts: RegisterCliAgentsIpcOptions): void {
   })
 
   ipcMain.handle(Channels.CliAgentAdd, (_e, runtime: CliRuntimeId, kind: CliAgentKind, provider?: string, secret?: string) => {
-    const agent = manager.addAgent({ runtime, kind, provider, secret })
-    return { agent }
+    return manager.addAgent({ runtime, kind, provider, secret })
   })
 
   ipcMain.handle(Channels.CliAgentRename, (_e, id: string, label: string) => {
@@ -60,13 +60,23 @@ export function registerCliAgentsIpc(opts: RegisterCliAgentsIpcOptions): void {
     manager.setDefaultAgent(id)
   })
 
-  ipcMain.handle(Channels.CliLoginInput, () => {
-    throw new Error('[meow] CLI login is not available yet')
+  ipcMain.handle(Channels.CliLoginInput, (_e, loginId: string, data: string) => {
+    manager.loginInput(loginId, data)
   })
 
-  ipcMain.handle(Channels.CliLoginCancel, () => {
-    throw new Error('[meow] CLI login is not available yet')
+  ipcMain.handle(Channels.CliLoginCancel, (_e, loginId: string) => {
+    manager.cancelLogin(loginId)
   })
+
+  if (broadcast) {
+    manager.onLogin((loginId, chunk, url) => {
+      broadcast(Channels.EventCliLogin, {
+        loginId,
+        chunk,
+        ...(url ? { url } : {})
+      })
+    })
+  }
 
   ipcMain.handle(Channels.CliSessionCreate, (_e, agentId: string, projectPath: string) => {
     return manager.createSession(agentId, projectPath)
