@@ -179,6 +179,7 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
     todowrite: 'allow',
     task: 'allow',
     'delegate_session': 'allow',
+    'delegate_cli': 'allow',
     revert: 'allow',
     skill: 'allow',
     bash: 'ask',

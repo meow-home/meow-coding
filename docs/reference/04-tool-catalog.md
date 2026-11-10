@@ -62,6 +62,7 @@ in Settings → Permissions.
 | `todowrite` | allow | Maintain the session todo list |
 | `task` | allow | Dispatch a subagent |
 | `delegate_session` | allow | Route a focused task to another persistent session in the same project (plan: ask) |
+| `delegate_cli` | allow | Route a focused task to a CLI worker agent (plan: ask) |
 | `revert` | allow | Restore all files changed this session |
 | `skill` | allow | Load a skill into context |
 | `question` | allow | Ask the user an interactive question |
@@ -254,6 +255,14 @@ and returns its result durably to the source. Only a user-origin run may delegat
 never call `delegate_session`, keeping delegation one level deep). Returns
 `Delegation <id> queued for session <target>`, with the id also carried in `metadata.delegationId` so the
 renderer never parses prose.
+
+### `delegate_cli`
+
+`{ agent: string, task: string, session_id?: string }` — routes a focused task to a CLI worker agent
+(Antigravity/OpenCode). The task is queued in a CLI session; the result is appended to this session and
+wakes it. The CLI agent has its own tools and permissions; verify the result independently and do not
+edit the delegated scope while it runs. `session_id` is used to send feedback into the same CLI conversation.
+Only a user-origin run may delegate. Returns `Delegation <id> queued for <label>.` with `metadata: { delegationId, cliAgentId }`.
 
 ### `revert`
 

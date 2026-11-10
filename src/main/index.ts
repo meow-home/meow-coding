@@ -261,6 +261,19 @@ export class MainApp {
         if (!this.delegationService) throw new Error('session delegation is not enabled.')
         return this.delegationService.createCli(options)
       },
+      resolveCliAgent: (query) => {
+        const agents = this.cliAgents?.agentStore?.getAgents() ?? []
+        const trimmed = query.trim()
+        const exact = agents.find(a => a.id === trimmed)
+        if (exact) return { id: exact.id, label: exact.label, status: exact.status }
+        const lower = trimmed.toLowerCase()
+        const byLabel = agents.find(a => a.label.toLowerCase() === lower)
+        return byLabel ? { id: byLabel.id, label: byLabel.label, status: byLabel.status } : undefined
+      },
+      listCliAgents: () => {
+        const agents = this.cliAgents?.agentStore?.getAgents() ?? []
+        return agents.map(a => ({ id: a.id, label: a.label, status: a.status }))
+      },
       peers: (agentId) => this.delegatePeers(agentId)
     },
     // Notification click: focus the window and tell the renderer to switch to

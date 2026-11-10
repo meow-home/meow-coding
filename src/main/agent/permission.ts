@@ -23,6 +23,7 @@ export const PLAN_RULES: Record<string, PermissionRule> = {
   // plan mode, and the subagent inherits plan mode so its own writes stay denied.
   task: 'allow',
   'delegate_session': 'ask',
+  'delegate_cli': 'ask',
   'browser_*': 'ask'
 }
 

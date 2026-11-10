@@ -57,7 +57,7 @@ handlers and the app lifecycle.
   them via `getPendingPrompt` instead of leaving the agent waiting forever. Emits `onPromptStateChange`
   (agent started/stopped waiting on input) and exposes `listPendingPrompts()` for the sidebar "needs input"
   badges; notification clicks call `onActivateAgent(agentId)` so the renderer can jump to the agent's
-  project + session. Registers the `delegate_session` tool per runner (bound to a narrow `deps.delegation`
+  project + session. Registers the `delegate_session` and `delegate_cli` tools per runner (bound to a narrow `deps.delegation`
   adapter), tracks a fixed `AgentRunContext` + correlated output per in-flight turn (`activeRuns`;
   `runSessionId(agentId)` routes transcript/usage/todos/artifacts to the fixed run session even if the UI
   switches session mid-run), exposes the delegation runtime

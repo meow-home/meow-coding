@@ -53,6 +53,7 @@ import type { VariantBody, VariantDescriptor } from './model-variants'
 import { revertTool } from './agent/tools/revert'
 import { createTaskTool } from './agent/tools/task'
 import { createDelegateSessionTool } from './agent/tools/delegate-session'
+import { createDelegateCliTool } from './agent/tools/delegate-cli'
 import type { ResolvedSubagentModel } from './agent/tools/task'
 import type { AgentRunContext } from './agent/run-context'
 import type { SessionPeer } from './agent/env'
@@ -133,6 +134,8 @@ export interface MeowAgentManagerDeps {
   delegation?: {
     create(options: { sourceRun: AgentRunContext; targetAgentId: string; task: string }): SessionDelegation
     createCli?(options: { sourceRun: AgentRunContext; targetCliAgentId: string; task: string; cliSessionId?: string }): SessionDelegation
+    resolveCliAgent?(query: string): { id: string; label: string; status: string } | undefined
+    listCliAgents?(): { id: string; label: string; status: string }[]
     /** Same-project delegatable peers for the turn reminder. */
     peers(agentId: string): SessionPeer[]
   }
@@ -1756,6 +1759,20 @@ ${content}` : content
     const runnerTools = new Map<string, ToolDefinition>([...this.tools])
     runnerTools.set('task', taskTool)
     runnerTools.set('delegate_session', delegateTool)
+    if (this.deps.delegation?.createCli) {
+      const delegateCliTool = createDelegateCliTool({
+        createDelegation: (input) => {
+          if (!this.deps.delegation?.createCli) {
+            throw new Error('delegate_cli: CLI delegation is not enabled.')
+          }
+          return Promise.resolve(this.deps.delegation.createCli(input))
+        },
+        resolveCliAgent: (query) => this.deps.delegation?.resolveCliAgent?.(query),
+        listCliAgents: () => this.deps.delegation?.listCliAgents?.() ?? [],
+        runContext: () => this.activeRunCtx(agent.id)
+      })
+      runnerTools.set('delegate_cli', delegateCliTool)
+    }
     runnerTools.set('revert', revertTool)
     if (cfg.lsp.enabled && this.deps.lsp) runnerTools.set('lsp', createLspTool(this.deps.lsp))
     this.runnerTools.set(agent.id, runnerTools)
