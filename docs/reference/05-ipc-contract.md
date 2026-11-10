@@ -205,6 +205,31 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `WindowMinimize` / `WindowToggleMaximize` / `WindowClose` / `WindowIsMaximized` | `window:*` | `minimizeWindow` / `toggleMaximizeWindow` / `closeWindow` / `isWindowMaximized` |
 | `WindowSetTheme` | `window:set-theme` | `setTitleBarTheme('dark' \| 'light')` |
 
+### CLI agents
+
+| Key | Channel | Method |
+|---|---|---|
+| `CliAgentsStatus` | `cli-agents:status` | `getCliAgentsStatus(): CliAgentsStatus` |
+| `CliRuntimeDetect` | `cli-runtime:detect` | `detectCliRuntime(runtime: CliRuntimeId): CliRuntimeDetectResult` |
+| `CliRuntimeInstall` | `cli-runtime:install` | `installCliRuntime(runtime: CliRuntimeId): CliInstallDescriptor \| null` |
+| `CliRuntimeSetPath` | `cli-runtime:set-path` | `setCliRuntimePath(runtime: CliRuntimeId, path: string \| null)` |
+| `CliRuntimeSetEnabled` | `cli-runtime:set-enabled` | `setCliRuntimeEnabled(runtime: CliRuntimeId, enabled: boolean)` |
+| `CliModelsList` | `cli-models:list` | `listCliModels(runtime: CliRuntimeId, agentId?: string): string[]` |
+| `CliAgentAdd` | `cli-agent:add` | `addCliAgent(runtime: CliRuntimeId, kind: CliAgentKind, provider?: string): { loginId?: string; agent?: CliAgent }` |
+| `CliAgentRename` | `cli-agent:rename` | `renameCliAgent(agentId: string, label: string)` |
+| `CliAgentRemove` | `cli-agent:remove` | `removeCliAgent(agentId: string)` |
+| `CliAgentActivate` | `cli-agent:activate` | `activateCliAgent(agentId: string)` |
+| `CliAgentSetDefault` | `cli-agent:set-default` | `setDefaultCliAgent(agentId: string)` |
+| `CliLoginInput` | `cli-login:input` | `cliLoginInput(loginId: string, data: string)` |
+| `CliLoginCancel` | `cli-login:cancel` | `cancelCliLogin(loginId: string)` |
+| `CliSessionCreate` | `cli-session:create` | `createCliSession(agentId: string, projectPath: string): CliSessionMeta` |
+| `CliSessionRename` | `cli-session:rename` | `renameCliSession(sessionId: string, title: string)` |
+| `CliSessionDelete` | `cli-session:delete` | `deleteCliSession(sessionId: string)` |
+| `CliSessionOpenTerminal` | `cli-session:open-terminal` | `openCliSessionTerminal(sessionId: string)` |
+| `CliTaskSend` | `cli-task:send` | `sendCliTask(sessionId: string, text: string)` |
+| `CliTaskCancel` | `cli-task:cancel` | `cancelCliTask(sessionId: string)` |
+| `CliDelegationCancel` | `cli-delegation:cancel` | `cancelCliDelegation(delegationId: string)` |
+
 Window handlers resolve their target via `BrowserWindow.fromWebContents(e.sender)`, so the same
 calls work from the Git viewer and File viewer popup windows.
 
@@ -237,6 +262,10 @@ captured in preload).
 | `EventWindowMaximizedChange` | `window:maximized-change` | `{ maximized }` | `onWindowMaximizedChange` |
 | `EventExternalApiStatus` | `external-api:status` | `ExternalApiStatus { enabled, listening, port, error?, cliPath, configPath }` | `onExternalApiStatus` |
 | `EventWorkspaceChanged` | `workspace:changed` | `WorkspaceChangedEvent { runtime: WorkspaceRuntime }` — fires when external delegation auto-adds a project or session from main, so the renderer can refresh without a manual reload | `onWorkspaceChanged` |
+| `EventCliAgentsChanged` | `cli-agents:changed` | `CliAgentsChangedEvent { status? }` | `onCliAgentsChanged` |
+| `EventCliLogin` | `cli-login:event` | `CliLoginEvent { loginId, chunk, url? }` | `onCliLogin` |
+| `EventCliSessionsChanged` | `cli-sessions:changed` | `CliSessionsChangedEvent { sessions? }` | `onCliSessionsChanged` |
+| `EventCliRun` | `cli-run:event` | `CliRunEvent { sessionId, item?, status? }` | `onCliRun` |
 
 `EventAgentState` is emitted only when `status`, `exitCode`, or `alert` actually changed —
 `lastOutputAt` alone never triggers a send (it changes on every byte of PTY output).

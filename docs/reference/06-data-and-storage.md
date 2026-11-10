@@ -47,6 +47,9 @@ in `src/main/index.ts`).
 | `connections/index.json` | `connections/connection-store.ts` | `{ version: 1, accounts: ConnectionAccount[] }` | **Metadata only** — never secrets |
 | `connections/vault.json` | `vault.ts` | `{ ref: base64 }` | `safeStorage`-encrypted secrets |
 | `connections/runtime/` | `connections/codex-proxy-manager.ts` | random owner-only dir | Sidecar config containing OAuth tokens; removed on graceful shutdown, stale dirs cleaned at next launch |
+| `cli-agents.json` | `cli-agents/agents.ts` | object | CLI agent configurations, runtimes status, default agent, delegation settings. Metadata only — no secrets |
+| `cli-sessions.json` | `cli-agents/session-store.ts` | `CliSessionMeta[]` | Index of CLI sessions (id, agentId, projectPath, title, status, timestamps) |
+| `cli-profiles/` | `cli-agents/profiles.ts` | directories | Owner-only profile directories for external CLIs (e.g. `cli-profiles/opencode/<agentId>/`) |
 | `browser-screenshots/`, `browser-snapshots/` | `browser/bridge.ts`, `browser/embedded-browser.ts`, `browser/snapshot-output.ts` | png / text | Page screenshots and structure snapshots produced by `browser_*` tools |
 | `browser-extension/` | `browser/chrome-launcher.ts` | files | The unpacked MV3 extension copied from the build output so the user can Load unpacked |
 | `Partitions/meow-browser/` | Chromium (`persist:meow-browser`) | Chromium storage | Cookies and site data for the built-in browser, shared by every session. **Not** a Chrome profile — never point it at the user's Chrome data |
