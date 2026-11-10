@@ -286,6 +286,82 @@ The `office` tool spawns the binary directly with an argv array (**no shell**), 
 sets `OFFICECLI_SKIP_UPDATE=1`. 120s default timeout, `tree-kill` on timeout, 1MB output cap per
 stream. It defaults to permission `ask`.
 
+## 8.5 CLI agents (Antigravity / OpenCode)
+
+External coding CLIs run as first-class **worker agents**. An agent is a runtime plus an account
+(`Antigravity · Personal`, `OpenCode · Anthropic Work`); it owns its own sessions, tools, permission
+engine, context and conversation history. The user gives it a task directly in the sidebar, and a Meow
+session can delegate with `delegate_cli` (queue → result wakes the source → verify → feedback).
+
+### Modules
+
+| Path | Role |
+|---|---|
+| `src/main/cli-agents/runtimes.ts` | Static catalog: binaries, minimum versions, install descriptors, models command |
+| `src/main/cli-agents/binary-manager.ts` | Detection on PATH + known dirs, `--version` semver check, manual path, install descriptor |
+| `src/main/cli-agents/agents.ts` | `cli-agents.json`: agents, runtimes, default agent, delegation settings; refuses secret keys |
+| `src/main/cli-agents/profiles.ts` | OpenCode profile dirs, vault refs (`cli:agent:<id>`), removal cleanup |
+| `src/main/cli-agents/login-session.ts` | PTY login for `agy` / `opencode auth login`, URL extraction, timeout, single kill |
+| `src/main/cli-agents/policy.ts` | Agent mode + Meow permissions → CLI flags / `--settings` allow rules |
+| `src/main/cli-agents/parsers/*` | NDJSON → `CliTranscriptItem` + terminal result (Antigravity exact, OpenCode tolerant) |
+| `src/main/cli-agents/run-manager.ts` | Spawn, per-session lock, runtime caps, Google credential lock, env allowlist, timeout, tree-kill |
+| `src/main/cli-agents/session-store.ts` | `cli-sessions.json` + `cli-sessions/<id>.jsonl` (5 MiB cap) |
+| `src/main/cli-agents/index.ts` | `CliAgentsManager` facade (agents, sessions, runs, models, login) |
+| `src/main/cli-agents/ipc.ts` | All `cli-*` IPC handlers |
+| `src/renderer/src/components/cli/` | `CliSessionPane` + transcript helpers |
+| `src/renderer/src/components/settings/CliAgentsTab.tsx` | Settings → CLI Agents + `CliLoginDialog` |
+
+### Runtimes
+
+- **Antigravity CLI** (`agy >= 1.5`): headless `-p`, `--output-format stream-json`,
+  `--mode plan|accept-edits`, per-run `--settings` permissions, `--conversation <id>` resume,
+  `--print-timeout <duration>` (Go duration, e.g. `1800s`). It keeps **one Google sign-in per machine**
+  in the OS keyring (`gemini` / `antigravity`); `/logout` clears it.
+- **OpenCode** (`opencode >= 2`): `opencode run --format json --standalone`; each account gets its own
+  profile (`XDG_DATA_HOME` + `OPENCODE_DB`), so accounts never share credentials and can run in parallel.
+
+Detection searches PATH plus known install dirs (`%LOCALAPPDATA%\agy\bin`, npm global,
+`~/.opencode/bin`, Homebrew). “Install” only returns the vendor command; nothing is executed silently.
+
+### Accounts
+
+| Kind | Auth | Parallel? |
+|---|---|---|
+| Antigravity Google | OS keyring, one active account per machine; activating a saved agent starts a sign-in | No — serialized |
+| Antigravity Gemini API key | `GEMINI_API_KEY` + `modelProvider: gemini` per run | Yes |
+| OpenCode profile | Provider login inside the profile's SQLite DB | Yes |
+
+Secrets live in the vault (`cli:agent:<id>`) or an owner-only profile directory; the renderer only
+ever receives metadata. Keyring snapshots (option B) are **not shipped** — deferred to P4.
+
+### Sessions and runs
+
+A CLI session is a conversation with one agent in one project: `cli-sessions.json` holds the index and
+`cli-sessions/<id>.jsonl` the transcript. The UI loads it with `cli-sessions:list` /
+`cli-transcript:get` and streams new items from `EventCliRun`. One task runs per session; the run
+manager enforces per-runtime caps (Antigravity 2, OpenCode 3), serializes Antigravity Google runs behind
+one machine lock, and tree-kills on cancel, timeout, session delete and app quit.
+
+The child environment is an allowlist (PATH/HOME/TEMP/locale/proxy) plus the account's own keys; every
+other `*_API_KEY` and caller key is dropped. Result text is capped at 64 KiB, stderr at 16 KiB.
+
+### Delegation from Meow
+
+`delegate_cli({ agent, task, session_id? })` is available to user-origin Meow runs. It queues a
+`SessionDelegation` with `targetKind: 'cli'` (caps: 5 nonterminal per CLI agent), reuses the agent's
+most recent session in the project unless `session_id` is given, and on completion appends the result
+to the source Meow session and wakes it — the same delivery path as session-to-session delegation.
+`cancel` stops the CLI task; `session_id` sends feedback into the same CLI conversation.
+
+### Limitations
+
+- Antigravity has no profile flag; only one Google account is active at a time. Switching starts a
+  sign-in and replaces the machine credential.
+- Keyring snapshot switching (option B) is deferred.
+- “Open in terminal” (Task 14) is not shipped; sessions are read/continued in the CLI session pane.
+- The OpenCode parser tolerates the documented shapes; capturing the exact v2 NDJSON with a real
+  provider is a follow-up.
+
 ## 8.6 External delegation (Claude Code → Meow)
 
 Lets an external coding agent — Claude Code running in the Claude desktop app — hand plan tasks to

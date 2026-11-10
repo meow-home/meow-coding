@@ -63,6 +63,8 @@ and the tsconfigs.
 |---|---|
 | `index.ts` | `MainApp` — the composition root. Constructs every store/service, wires PTY and chat events to the renderer, registers all IPC handlers, manages the window/tray/quit lifecycle. |
 | `meow-agent-manager.ts` | `MeowAgentManager` — orchestrates the native agent: registration, sessions, turns, the message queue, permissions prompts, subagent wiring, MCP/user tools, settings, stats. **The only place that orchestrates the native agent.** |
+| `cli-agents/` | External CLI worker agents (Antigravity/OpenCode): runtime detection, agents/profiles, PTY login, policy + parsers, run manager, CLI sessions, and the `delegate_cli` target. See its AGENTS.md. |
+
 
 ### Process & terminal
 

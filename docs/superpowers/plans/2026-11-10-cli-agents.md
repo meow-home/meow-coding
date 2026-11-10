@@ -1,6 +1,6 @@
 # CLI Agents (External Worker Sessions) Implementation Plan
 
-Status: approved direction — implementation not started
+Status: implemented — Tasks 0–13 + 15 done; Task 14 (terminal handoff) and option B (keyring snapshots, P4) deferred
 Spec: [CLI Agents as Delegated Worker Sessions](../specs/2026-11-10-cli-agents-design.md)
 Mockup: [`docs/design/cli-subagents-mockup/`](../../design/cli-subagents-mockup/index.html)
 
@@ -352,3 +352,22 @@ One commit per task, in order. Suggested messages:
 13. `feat(cli-agents): antigravity multi-account activation`
 14. `feat(cli-agents): terminal handoff and polish`
 15. `docs(cli-agents): reference and agent docs`
+
+## Deferred
+
+- **Task 14 — terminal handoff.** The CLI session pane reads and continues sessions; `openCliSessionTerminal`
+  is still a placeholder. A follow-up should add a session terminal tab that resumes `agy --conversation <id>` /
+  the OpenCode session in the existing dock.
+- **Option B — keyring snapshots.** Antigravity account switching is option A (start a sign-in and only then
+  flip the active agent). Snapshot save/restore stays P4.
+- **OpenCode parser.** The parser tolerates the documented NDJSON shapes; capturing the exact v2 stream with a
+  real provider is a follow-up.
+
+## Verification notes
+
+- `npm run typecheck` and `npm test` pass (191 files, 2185 tests).
+- `npm run build` passes.
+- `npm run e2e`: 66 passed, 10 failed. The failures are pre-existing UI expectations that do not match this
+  branch (settings rendered as a modal rather than a `.settings-screen` with “Back to app”; the sidebar
+  draft-row test; menu/selector metric tests). No CLI-agents e2e exists yet; the new surfaces are covered by
+  unit tests and manual checks.

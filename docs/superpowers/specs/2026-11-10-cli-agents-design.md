@@ -1,7 +1,7 @@
 # CLI Agents as Delegated Worker Sessions — Design / Brainstorm
 
-Date: 2026-11-10 · Status: **approved** — implementation plan:
-[2026-11-10-cli-agents.md](../plans/2026-11-10-cli-agents.md) (not started)
+Date: 2026-11-10 · Status: **implemented** — Tasks 0–13 + docs; Task 14 (terminal handoff) and option B (keyring snapshots, P4) deferred
+[2026-11-10-cli-agents.md](../plans/2026-11-10-cli-agents.md) (implemented)
 Mockup: [`docs/design/cli-subagents-mockup/`](../../design/cli-subagents-mockup/index.html)
 Scope: install and sign in to external coding CLIs from Settings, give them tasks directly, and let a Meow session
 delegate a task to them the same way Claude delegates to Meow.
