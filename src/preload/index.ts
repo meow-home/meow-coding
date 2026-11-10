@@ -269,8 +269,8 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.CliRuntimeSetEnabled, runtime, enabled),
   listCliModels: (runtime: CliRuntimeId, agentId?: string) =>
     ipcRenderer.invoke(Channels.CliModelsList, runtime, agentId),
-  addCliAgent: (runtime: CliRuntimeId, kind: CliAgentKind, provider?: string) =>
-    ipcRenderer.invoke(Channels.CliAgentAdd, runtime, kind, provider),
+  addCliAgent: (runtime: CliRuntimeId, kind: CliAgentKind, provider?: string, secret?: string) =>
+    ipcRenderer.invoke(Channels.CliAgentAdd, runtime, kind, provider, secret),
   renameCliAgent: (agentId: string, label: string) =>
     ipcRenderer.invoke(Channels.CliAgentRename, agentId, label),
   removeCliAgent: (agentId: string) =>

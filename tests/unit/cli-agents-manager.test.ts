@@ -546,4 +546,57 @@ describe('CliAgentsManager', () => {
     expect(manager.cancelTask('any-session')).toBe(true)
     expect(sessionsChangedCalls).toBe(1)
   })
+
+  it('provides install descriptors for runtimes across platforms', () => {
+    const managerWin = createManager({ platform: 'win32' })
+    const agyWin = managerWin.getInstallDescriptor('antigravity')
+    expect(agyWin).toEqual({
+      runtime: 'antigravity',
+      command: 'powershell.exe',
+      args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'irm https://antigravity.google/cli/install.ps1 | iex'],
+      docUrl: 'https://antigravity.google/docs'
+    })
+
+    const ocWin = managerWin.getInstallDescriptor('opencode')
+    expect(ocWin).toEqual({
+      runtime: 'opencode',
+      command: 'cmd.exe',
+      args: ['/d', '/s', '/c', 'npm install -g @opencode/cli'],
+      docUrl: 'https://opencode.ai/docs'
+    })
+
+    const managerLinux = createManager({ platform: 'linux' })
+    const agyLinux = managerLinux.getInstallDescriptor('antigravity')
+    expect(agyLinux).toEqual({
+      runtime: 'antigravity',
+      command: 'bash',
+      args: ['-c', 'curl -fsSL https://antigravity.google/cli/install.sh | bash'],
+      docUrl: 'https://antigravity.google/docs'
+    })
+
+    const ocLinux = managerLinux.getInstallDescriptor('opencode')
+    expect(ocLinux).toEqual({
+      runtime: 'opencode',
+      command: 'npm',
+      args: ['install', '-g', '@opencode/cli'],
+      docUrl: 'https://opencode.ai/docs'
+    })
+  })
+
+  it('addAgent defaults label when not provided', () => {
+    const manager = createManager()
+    const ocAgent = manager.addAgent({
+      runtime: 'opencode',
+      kind: 'profile',
+      provider: 'anthropic'
+    })
+    expect(ocAgent.label).toBe('OpenCode (anthropic)')
+
+    const agyAgent = manager.addAgent({
+      runtime: 'antigravity',
+      kind: 'gemini-key',
+      secret: 'secret-key'
+    })
+    expect(agyAgent.label).toBe('Antigravity')
+  })
 })

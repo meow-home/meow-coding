@@ -460,7 +460,7 @@ export interface AgentApi {
   setCliRuntimePath(runtime: CliRuntimeId, path: string | null): Promise<void>
   setCliRuntimeEnabled(runtime: CliRuntimeId, enabled: boolean): Promise<void>
   listCliModels(runtime: CliRuntimeId, agentId?: string): Promise<string[]>
-  addCliAgent(runtime: CliRuntimeId, kind: CliAgentKind, provider?: string): Promise<{ loginId?: string; agent?: CliAgent }>
+  addCliAgent(runtime: CliRuntimeId, kind: CliAgentKind, provider?: string, secret?: string): Promise<{ loginId?: string; agent?: CliAgent }>
   renameCliAgent(agentId: string, label: string): Promise<void>
   removeCliAgent(agentId: string): Promise<void>
   activateCliAgent(agentId: string): Promise<void>

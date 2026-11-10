@@ -7,9 +7,10 @@ handlers and the app lifecycle.
 
 - `index.ts` — `MainApp` coordinates everything: setState, forwards `agent:state`/`git:status` events
   to the renderer; `registerIpcHandlers`; window lifecycle; `before-quit` → `terminals.flush()`,
-  `Promise.allSettled([terminals.stopAll(), pty.stopAll()])`.
+  `Promise.allSettled([terminals.stopAll(), pty.stopAll(), cliAgents.cancelAll()])`.
   Composes `TerminalManager` (`userData/terminals`, dedicated `PtyManager`, `resolveTerminalShell` via `meow.json`)
   and exposes session terminal IPC channels; cleans up terminals on `agent:remove` before workspace removal.
+  Composes `CliAgentsManager` (`cli-agents/`): wires CLI runtimes, profiles, sessions, and runs, registers IPC handlers via `registerCliAgentsIpc`, restores interrupted sessions on ready, and terminates active runs on quit.
   Composes the delegation runtime: owns the `SessionDelegationStore` (`userData/delegations.json`) +
   `SessionDelegationService`, passes the narrow `delegation` adapter (create/peers) into `MeowAgentManager`,
   starts the service on ready, suspends+flushes on quit, drives `notifyAgentAvailable` on each turn

@@ -5,6 +5,7 @@ import type {
   CliAgentMode,
   CliAgentsStatus,
   CliAgentStatus,
+  CliInstallDescriptor,
   CliRuntimeDetectResult,
   CliRuntimeId,
   CliSessionMeta,
@@ -56,6 +57,7 @@ export {
 } from './policy'
 export { CLI_RUNTIMES, type CliRuntimeDefinition, getCliRuntime } from './runtimes'
 export type { CliTerminalResult } from './parsers/types'
+export { registerCliAgentsIpc, type RegisterCliAgentsIpcOptions } from './ipc'
 
 const DEFAULT_PERMISSIONS: Record<string, 'allow' | 'ask' | 'deny'> = {
   bash: 'ask',
@@ -68,7 +70,7 @@ const DEFAULT_PERMISSIONS: Record<string, 'allow' | 'ask' | 'deny'> = {
 export interface AddCliAgentInput {
   runtime: CliRuntimeId
   kind: CliAgentKind
-  label: string
+  label?: string
   provider?: string
   secret?: string
   mode?: CliAgentMode
@@ -147,6 +149,11 @@ export class CliAgentsManager {
 
   getStatus(): CliAgentsStatus {
     return this.agentStore.getStatus()
+  }
+
+  getInstallDescriptor(runtime: CliRuntimeId): CliInstallDescriptor | null {
+    const runtimeDef = getCliRuntime(runtime)
+    return runtimeDef.installCommand(this.platform)
   }
 
   async detectRuntime(runtime: CliRuntimeId): Promise<CliRuntimeDetectResult> {
@@ -261,11 +268,14 @@ export class CliAgentsManager {
       profileDir = this.profileManager.getRelativeOpenCodeProfileDir(id)
     }
 
+    const runtimeDef = getCliRuntime(input.runtime)
+    const label = input.label?.trim() || (input.provider ? `${runtimeDef.label} (${input.provider})` : runtimeDef.label)
+
     const agent: CliAgent = {
       id,
       runtime: input.runtime,
       kind: input.kind,
-      label: input.label,
+      label,
       provider: input.provider,
       profileDir,
       model: input.model,

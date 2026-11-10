@@ -64,6 +64,8 @@ import type { TrustedExtension } from '../shared/browser-types'
 import { ExternalApiConfigFile } from './external-api/config-file'
 import { ExternalApiManager } from './external-api/manager'
 import { ExternalDelegationFacade } from './external-api/facade'
+import { CliAgentsManager } from './cli-agents'
+import { registerCliAgentsIpc } from './cli-agents/ipc'
 import { Channels } from '../shared/ipc'
 import { formatLogArg, safeJson } from '../shared/log-helpers'
 import type { AgentState, Command, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, ProjectSearchHit, PromptResponse, SessionDelegation, TerminalCreateOptions, TranscriptWindowOpts, UpdaterStatusEvent, Workspace, WorkspaceRuntime } from '../shared/types'
@@ -319,6 +321,15 @@ export class MainApp {
       })
     }
   })
+  cliAgents = new CliAgentsManager({
+    userDataDir: app.getPath('userData'),
+    vault: this.vault,
+    getPermission: () => this.meowAgent.getSettings().permission,
+    onEvent: (sessionId, item) => this.broadcast(Channels.EventCliRun, { sessionId, item }),
+    onStatus: (sessionId, status) => this.broadcast(Channels.EventCliRun, { sessionId, status }),
+    onAgentsChanged: () => this.broadcast(Channels.EventCliAgentsChanged, { status: this.cliAgents.getStatus() }),
+    onSessionsChanged: () => this.broadcast(Channels.EventCliSessionsChanged, { sessions: this.cliAgents.listSessions() })
+  })
   delegations = new SessionDelegationStore(
     createJsonStore<SessionDelegation>(path.join(app.getPath('userData'), 'delegations.json'))
   )
@@ -515,6 +526,14 @@ export class MainApp {
       next.alert !== prev.alert
     if (visibleChanged) {
       win?.webContents.send(Channels.EventAgentState, { agentId, state: next })
+    }
+  }
+
+  broadcast(channel: string, payload: unknown): void {
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.isDestroyed()) {
+        w.webContents.send(channel, payload)
+      }
     }
   }
 
@@ -1214,6 +1233,12 @@ export function registerIpcHandlers(): void {
     mainApp.terminals.rename(id, userTitle))
   ipcMain.handle(Channels.TerminalRestart, (_e, id: string) => mainApp.terminals.restart(id))
   ipcMain.handle(Channels.TerminalKill, (_e, id: string) => mainApp.terminals.kill(id))
+
+  registerCliAgentsIpc({
+    ipcMain,
+    manager: mainApp.cliAgents,
+    log: (msg) => mainApp.systemLogger.log('ERROR', 'main', msg)
+  })
 }
 
 app.whenReady().then(async () => {
@@ -1301,6 +1326,7 @@ app.whenReady().then(async () => {
     }
   }
   registerIpcHandlers()
+  mainApp.cliAgents.restore()
   createWindow()
   tray = TrayManager.create({
     userDataDir: app.getPath('userData'),
@@ -1343,7 +1369,7 @@ app.on('before-quit', (event) => {
   }).then(() => {
     tray?.dispose()
     tray = null
-    Promise.allSettled([mainApp.terminals.stopAll(), mainApp.pty.stopAll()])
+    Promise.allSettled([mainApp.terminals.stopAll(), mainApp.pty.stopAll(), mainApp.cliAgents.cancelAll()])
       .finally(() => app.exit(0))
   })
 })
