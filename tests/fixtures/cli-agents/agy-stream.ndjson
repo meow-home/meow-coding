@@ -1,0 +1,8 @@
+{"event":"init","conversation_id":"c-agy-12345","init":{"cwd":"C:\\Users\\user\\project","tools":["run_command","read_file","write_file"],"permission_mode":"request-review"}}
+{"event":"step_update","step_update":{"conversation_id":"c-agy-12345","step_index":1,"state":"DONE","step_type":"user_input","text_delta":"Check git status"}}
+{"event":"step_update","step_update":{"conversation_id":"c-agy-12345","step_index":2,"state":"ACTIVE","step_type":"agent_response","text_delta":"I will check the "}}
+{"event":"step_update","step_update":{"conversation_id":"c-agy-12345","step_index":2,"state":"DONE","step_type":"agent_response","text_delta":"git status for you."}}
+{"event":"step_update","step_update":{"conversation_id":"c-agy-12345","step_index":3,"state":"ACTIVE","step_type":"tool","tool_name":"run_command","tool_info":{"name":"run_command","parameters":{"CommandLine":"git status"}}}}
+{"event":"step_update","step_update":{"conversation_id":"c-agy-12345","step_index":3,"state":"DONE","step_type":"tool","tool_name":"run_command","tool_info":{"name":"run_command","parameters":{"CommandLine":"git status"},"output":"On branch main\nnothing to commit, working tree clean"},"duration_seconds":0.2}}
+{"event":"step_update","step_update":{"conversation_id":"c-agy-12345","step_index":4,"state":"DONE","step_type":"checkpoint"}}
+{"event":"result","result":{"conversation_id":"c-agy-12345","status":"SUCCESS","response":"Working directory is clean.","duration_seconds":1.5,"num_turns":1,"usage":{"input_tokens":120,"output_tokens":45,"total_tokens":165},"denied_actions":[{"action":"command","display_name":"RunCommand","parameters":{"CommandLine":"git push"}}]}}

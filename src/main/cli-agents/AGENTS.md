@@ -8,6 +8,9 @@ CLI agent subsystem: manages external coding CLIs (Antigravity `agy`, OpenCode `
 - `binary-manager.ts` — `CliBinaryManager`: resolves binaries on PATH and known install directories (`%LOCALAPPDATA%\agy\bin`, npm global, `~/.opencode/bin`), parses `--version`, compares semver, supports manual path override, generates install descriptors. Electron-free.
 - `agents.ts` — `CliAgentStore`: CRUD for agents, `defaultAgentId`, Antigravity `active` Google account bookkeeping, status transitions, versioned `cli-agents.json` atomic store. Refuses to persist secrets.
 - `profiles.ts` — `CliProfileManager`: OpenCode profile directories (`userData/cli-profiles/opencode/<agentId>/`, created owner-only), vault secret storage (`cli:agent:<agentId>`), removal cleanup wiping both directory and vault secret. Injected `VaultLike` interface.
+- `policy.ts` — `deriveCliPolicy`: maps mode (`read`/`edit`/`full`) and Meow tool permissions (`bash`, `write`/`edit`/`apply-patch`, `webfetch`) to `CliPolicy`; `buildAntigravityArgs` and `buildOpenCodeArgs` for CLI spawn flags and settings JSON.
+- `parsers/antigravity.ts` — `createAntigravityParser`, `parseAntigravityLine`: stateful parser for Antigravity stream-json NDJSON (`init`, `step_update`, `result`), deduplicates tool steps, parses usage, extracts denied actions.
+- `parsers/opencode.ts` — `createOpenCodeParser`, `parseOpenCodeLine`: tolerant NDJSON parser for OpenCode events (text/delta, tool use/result, usage, errors, terminal results).
 
 ## Conventions
 
