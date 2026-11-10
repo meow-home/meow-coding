@@ -1733,14 +1733,16 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .chat-image-name { max-width: 11.666667rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
 .chat-image-remove { appearance: none; background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 1.166667rem; line-height: 1; padding: 0.166667rem; border-radius: var(--radius-sm); }
 .chat-image-remove:hover { color: var(--red); }
-/* Composer mascot — the logo's cat head with two round eyes, 30px, perched on the top border
-   of the input card, left of the queue rows' action block. The head path is the logo's own path
-   (64-grid) scaled by
-   the SVG viewBox, so it never drifts from the icon. Moods come from ChatPanel: idle, look
-   (hover), type (turn running), happy (turn done / clicked), error (turn failed). Decoration
-   only: it is aria-hidden and never takes focus, so it cannot get between the user and the field. */
+/* Composer mascot — the logo's cat head with two round eyes, 36px, perched on the top border of
+   the input card, left of the queue rows' action block. The head path is the logo's own path
+   (64-grid) scaled by the SVG viewBox, so it never drifts from the icon. Moods come from
+   ChatPanel plus the pet's own clock: idle, look (hover), think (turn running, no token yet),
+   type (streaming), sleep (45 s idle), happy (turn done / clicked), notify (prompt, or a turn
+   that lands while the window is unfocused), error (failed turn), drag (pointer down).
+   Decoration only: it is aria-hidden and never takes focus, so it cannot get between the user
+   and the field. */
 .meow-pet {
-  --s: 30px;
+  --s: 36px;
   --meow-blue: #3b8bf5;
   --meow-orange: #f7941d;
   --meow-red: #ff6159;

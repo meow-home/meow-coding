@@ -42,7 +42,7 @@ const SLEEP_AFTER_MS = 45000
  * the chat input card. Pure decoration — it never takes focus and never blocks the field.
  */
 const MeowPet = memo(function MeowPet({
-  size = 30,
+  size = 36,
   running = false,
   phase,
   event = null,
