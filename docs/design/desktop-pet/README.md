@@ -23,7 +23,7 @@ Open `index.html` in a browser (any static server; the page also works from `fil
 - **B · Round eyes** — two blue eyes with a highlight and an orange smile. Reads as a pet first.
 - **C · Terminal head** — a mini window with traffic lights on the head, prompt inside the screen.
 
-**Shipped: B**, 36px, perched on the input card's top border, 7.5rem in from the right edge
+**Shipped: B in Calico**, 36px, perched on the input card's top border, 7.5rem in from the right edge
 (`src/renderer/src/components/chat/MeowPet.tsx`) — the feet land on the hairline and the shadow falls
 on the card. The inset is not cosmetic: the queued-messages card sits right above the input card, and
 its send-now / edit / remove block is ~6.2rem wide at the row's trailing edge, so a pet over that

@@ -14,8 +14,11 @@
   var HEAD =
     'M8 28 Q8 20 13 20 C14.1 15 16.1 11.4 17.9 10.7 C19.7 11.4 21.9 15 24.5 20 H39.5 C42.1 15 44.3 11.4 46.1 10.7 C47.9 11.4 49.9 15 50.5 20 Q56 20 56 28 V48 Q56 56 48 56 H16 Q8 56 8 48 Z'
 
-  var BLUE = '#3b8bf5'
-  var ORANGE = '#f7941d'
+  // Calico, the shipped colourway: cream body, charcoal + orange patches, blue eyes.
+  var BLUE = '#2f7ae5'
+  var ORANGE = '#cf7208'
+  var PATCH_DARK = '#1b1e23'
+  var PATCH_WARM = '#f7941d'
 
   // Face parts live in the 64-grid of the logo, so they line up with the shell exactly.
   function prompt(sw) {
@@ -207,8 +210,13 @@
       '<linearGradient id="mpg-' +
       id +
       '" x1="0" y1="0" x2="0" y2="1">' +
-      '<stop offset="0" stop-color="#2a3038"/><stop offset="0.55" stop-color="#1d2127"/><stop offset="1" stop-color="#15181c"/>' +
+      '<stop offset="0" stop-color="#f8efdf"/><stop offset="0.55" stop-color="#ecdec8"/><stop offset="1" stop-color="#d8c4a6"/>' +
       '</linearGradient>' +
+      '<clipPath id="mpc-' +
+      id +
+      '"><path d="' +
+      HEAD +
+      '"/></clipPath>' +
       '</defs>' +
       '<g class="mp-feet">' +
       '<rect class="mp-foot mp-foot--l" x="30" y="75" width="13" height="13" rx="6.5"/>' +
@@ -222,9 +230,19 @@
       '" fill="url(#mpg-' +
       id +
       ')"/>' +
+      '<g clip-path="url(#mpc-' +
+      id +
+      ')">' +
+      '<path d="M5 21 L18.6 8.6 L25.6 20.4 Q22 26.5 14 27 Q7.5 24 5 21 Z" fill="' +
+      PATCH_DARK +
+      '" opacity=".92"/>' +
+      '<path d="M59 21 L45.4 8.6 L38.4 20.4 Q42 26.5 50 27 Q56.5 24 59 21 Z" fill="' +
+      PATCH_WARM +
+      '" opacity=".95"/>' +
+      '</g>' +
       '<path d="' +
       HEAD +
-      '" fill="none" stroke="rgba(255,255,255,.075)" stroke-width="1.1"/>' +
+      '" fill="none" stroke="rgba(0,0,0,.16)" stroke-width="1.1"/>' +
       '<path class="mp-ear mp-ear--l" d="M15.9 19.7 L17.7 13.6 L20.1 19.7 Z" fill="' +
       BLUE +
       '" opacity=".3"/>' +

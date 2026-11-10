@@ -435,15 +435,18 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   the triggers quiet inside the card (smaller type, no pill background at rest). The footer under the
   card carries project + branch on the left and the context ring + `ModePicker` on the right.
 - **The composer mascot is decoration with a mood, not a control.** `MeowPet.tsx` renders the logo's
-  cat head (the logo path with softened ear tips and the ears pulled out toward the sides, same
-  blue/orange) at 36px, perched on the input
-  card's top border 7.5rem in from
+  cat head (the logo path with softened ear tips and the ears pulled out toward the sides) at 36px in
+  the **Calico** colourway — cream body, charcoal patch over the left ear, orange patch over the
+  right, blue eyes and an orange-brown mouth — perched on the input card's top border 7.5rem in from
   the right edge (`.meow-pet--edge`: absolute, `bottom: calc(100% - 0.166667rem)`, so the feet land on
   the hairline and the shadow falls on the card). The horizontal inset is load-bearing: the
   queued-messages card sits right above the input card, and its send-now / edit / remove block is
   ~6.2rem wide at the row's trailing edge — a pet anywhere over that block swallowed the clicks
   (`composer.spec.ts` failed on `.chat-queue-action.edit`). At 7.5rem the pet clears every control and
-  only ever covers the tail of a long queued message, which is text, not a target. It is `aria-hidden`,
+  only ever covers the tail of a long queued message, which is text, not a target. Every colour is a
+  custom property on `.meow-pet` (`--meow-shell-1..3`, `--meow-rim`, `--meow-eye`, `--meow-mouth`,
+  `--meow-patch-dark`, `--meow-patch-warm`, `--meow-foot`), so another colourway is a one-block change
+  and the light theme can override the rim without touching the SVG. It is `aria-hidden`,
   never focusable, and has no hit area outside its own 36px box. Nine moods, driven by `ChatPanel`
   and by the pet's own idle clock: `idle` at rest; `look` on hover; `think` while a turn is running
   but has not produced its first token, `type` once it streams (the panel flips a `turnOutput` flag

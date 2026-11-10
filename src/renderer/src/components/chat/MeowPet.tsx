@@ -202,10 +202,13 @@ const MeowPet = memo(function MeowPet({
         <svg className="meow-pet__svg" viewBox="0 0 96 96" aria-hidden="true" focusable="false">
           <defs>
             <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#3a424c" />
-              <stop offset="0.55" stopColor="#262c34" />
-              <stop offset="1" stopColor="#181c21" />
+              <stop offset="0" stopColor="var(--meow-shell-1)" />
+              <stop offset="0.55" stopColor="var(--meow-shell-2)" />
+              <stop offset="1" stopColor="var(--meow-shell-3)" />
             </linearGradient>
+            <clipPath id={`${gid}-clip`}>
+              <path d={HEAD} />
+            </clipPath>
           </defs>
           <g>
             <rect className="meow-pet__foot" x="30" y="75" width="13" height="13" rx="6.5" />
@@ -220,23 +223,36 @@ const MeowPet = memo(function MeowPet({
           <g transform="translate(3.2 4) scale(1.4)">
             <g className="meow-pet__head">
               <path d={HEAD} fill={`url(#${gid})`} />
-              <path d={HEAD} fill="none" stroke="rgba(255,255,255,.11)" strokeWidth="1.1" />
+              {/* Calico: charcoal over the left ear, orange over the right, clipped to the head. */}
+              <g clipPath={`url(#${gid}-clip)`}>
+                <path
+                  d="M5 21 L18.6 8.6 L25.6 20.4 Q22 26.5 14 27 Q7.5 24 5 21 Z"
+                  fill="var(--meow-patch-dark)"
+                  opacity=".92"
+                />
+                <path
+                  d="M59 21 L45.4 8.6 L38.4 20.4 Q42 26.5 50 27 Q56.5 24 59 21 Z"
+                  fill="var(--meow-patch-warm)"
+                  opacity=".95"
+                />
+              </g>
+              <path d={HEAD} fill="none" stroke="var(--meow-rim)" strokeWidth="1.1" />
               <path className="meow-pet__ear" d="M15.9 19.7 L17.7 13.6 L20.1 19.7 Z" fill={BLUE} opacity=".3" />
               <path className="meow-pet__ear" d="M48.1 19.7 L46.3 13.6 L43.9 19.7 Z" fill={ORANGE} opacity=".3" />
 
               <g className={'meow-pet__face' + (face === 'open' ? ' is-on' : '')} data-face="open">
                 <g className="meow-pet__eye">
-                  <ellipse cx="25.5" cy="35.5" rx="4.7" ry="5.3" fill={BLUE} />
+                  <ellipse cx="25.5" cy="35.5" rx="4.7" ry="5.3" fill="var(--meow-eye)" />
                   <circle cx="23.7" cy="33.3" r="1.4" fill="#fff" opacity=".82" />
                 </g>
                 <g className="meow-pet__eye">
-                  <ellipse cx="38.5" cy="35.5" rx="4.7" ry="5.3" fill={BLUE} />
+                  <ellipse cx="38.5" cy="35.5" rx="4.7" ry="5.3" fill="var(--meow-eye)" />
                   <circle cx="36.7" cy="33.3" r="1.4" fill="#fff" opacity=".82" />
                 </g>
                 <path
                   d="M28.5 45 Q32 48.4 35.5 45"
                   fill="none"
-                  stroke={ORANGE}
+                  stroke="var(--meow-mouth)"
                   strokeWidth="3.2"
                   strokeLinecap="round"
                 />
@@ -246,21 +262,21 @@ const MeowPet = memo(function MeowPet({
                 <path
                   d="M20.5 38 Q25.5 31.6 30.5 38"
                   fill="none"
-                  stroke={BLUE}
+                  stroke="var(--meow-eye)"
                   strokeWidth="3.6"
                   strokeLinecap="round"
                 />
                 <path
                   d="M33.5 38 Q38.5 31.6 43.5 38"
                   fill="none"
-                  stroke={BLUE}
+                  stroke="var(--meow-eye)"
                   strokeWidth="3.6"
                   strokeLinecap="round"
                 />
                 <path
                   d="M28 44.4 Q32 49.2 36 44.4"
                   fill="none"
-                  stroke={ORANGE}
+                  stroke="var(--meow-mouth)"
                   strokeWidth="3.6"
                   strokeLinecap="round"
                 />
@@ -270,21 +286,21 @@ const MeowPet = memo(function MeowPet({
                 <path
                   d="M21 36.6 Q25.5 40 30 36.6"
                   fill="none"
-                  stroke={BLUE}
+                  stroke="var(--meow-eye)"
                   strokeWidth="3.4"
                   strokeLinecap="round"
                 />
                 <path
                   d="M34 36.6 Q38.5 40 43 36.6"
                   fill="none"
-                  stroke={BLUE}
+                  stroke="var(--meow-eye)"
                   strokeWidth="3.4"
                   strokeLinecap="round"
                 />
                 <path
                   d="M29 45.4 H35"
                   fill="none"
-                  stroke={ORANGE}
+                  stroke="var(--meow-mouth)"
                   strokeWidth="3"
                   strokeLinecap="round"
                 />
@@ -294,21 +310,21 @@ const MeowPet = memo(function MeowPet({
                 <path
                   d="M21.4 32.4 L28.6 39.6 M28.6 32.4 L21.4 39.6"
                   fill="none"
-                  stroke={BLUE}
+                  stroke="var(--meow-eye)"
                   strokeWidth="3.4"
                   strokeLinecap="round"
                 />
                 <path
                   d="M35.4 32.4 L42.6 39.6 M42.6 32.4 L35.4 39.6"
                   fill="none"
-                  stroke={BLUE}
+                  stroke="var(--meow-eye)"
                   strokeWidth="3.4"
                   strokeLinecap="round"
                 />
                 <path
                   d="M29 45.4 H35"
                   fill="none"
-                  stroke={ORANGE}
+                  stroke="var(--meow-mouth)"
                   strokeWidth="3"
                   strokeLinecap="round"
                 />

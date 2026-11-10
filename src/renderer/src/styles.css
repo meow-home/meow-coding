@@ -1748,6 +1748,19 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
    and the field. */
 .meow-pet {
   --s: 36px;
+  /* Calico — the shipped colourway. Cream body, charcoal patch over the left ear, orange over the
+     right. It is the only two-tone option that separates from BOTH the dark card (#1f2123) and the
+     light one (#ffffff): the charcoal patch holds the silhouette on white, the orange one keeps it
+     warm on dark, and the cream base carries the blue eyes. */
+  --meow-shell-1: #f8efdf;
+  --meow-shell-2: #ecdec8;
+  --meow-shell-3: #d8c4a6;
+  --meow-rim: rgba(0, 0, 0, 0.16);
+  --meow-eye: #2f7ae5;
+  --meow-mouth: #cf7208;
+  --meow-patch-dark: #1b1e23;
+  --meow-patch-warm: #f7941d;
+  --meow-foot: #d8c4a6;
   --meow-blue: #3b8bf5;
   --meow-orange: #f7941d;
   --meow-red: #ff6159;
@@ -1771,7 +1784,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 /* The tail curls up on the right: its base is tucked under the body's lower-right corner, so one
    end reads as attached while the rest of the curve clears the silhouette and the tip is free. */
 .meow-pet__tail {
-  fill: none; stroke: #1b1e23; stroke-width: 5;
+  fill: none; stroke: var(--meow-foot); stroke-width: 5;
   transform-box: fill-box; transform-origin: 15% 90%;
 }
 .meow-pet[data-mood='idle'] .meow-pet__tail { animation: meow-pet-tail-sway 4.4s ease-in-out infinite; }
@@ -1779,7 +1792,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   0%, 100% { transform: rotate(0deg); }
   50% { transform: rotate(-5deg); }
 }
-.meow-pet__foot { fill: #1b1e23; }
+.meow-pet__foot { fill: var(--meow-foot); }
 .meow-pet__face { opacity: 0; transition: opacity 140ms ease; }
 .meow-pet__face.is-on { opacity: 1; }
 .meow-pet__eye { transform-box: fill-box; transform-origin: 50% 50%; transition: transform 100ms ease; }
