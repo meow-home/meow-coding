@@ -1733,6 +1733,201 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .chat-image-name { max-width: 11.666667rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
 .chat-image-remove { appearance: none; background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 1.166667rem; line-height: 1; padding: 0.166667rem; border-radius: var(--radius-sm); }
 .chat-image-remove:hover { color: var(--red); }
+/* Composer mascot — the logo's cat head with two round eyes, 30px, perched on the top border
+   of the input card, left of the queue rows' action block. The head path is the logo's own path
+   (64-grid) scaled by
+   the SVG viewBox, so it never drifts from the icon. Moods come from ChatPanel: idle, look
+   (hover), type (turn running), happy (turn done / clicked), error (turn failed). Decoration
+   only: it is aria-hidden and never takes focus, so it cannot get between the user and the field. */
+.meow-pet {
+  --s: 30px;
+  --meow-blue: #3b8bf5;
+  --meow-orange: #f7941d;
+  --meow-red: #ff6159;
+  position: relative; z-index: 2; width: var(--s); height: var(--s);
+  cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none;
+}
+/* Perched on the card's top border, left of the queued-messages card's action buttons. The box
+   hangs 2px below the border, which puts the feet on the hairline and the shadow on the card
+   surface. `right` clears both the 14px corner radius and the send-now / edit / remove block of
+   the queue rows above it, so the pet never covers a clickable control. */
+.meow-pet--edge {
+  position: absolute; right: 7.5rem; bottom: calc(100% - 0.166667rem); z-index: 3;
+}
+.meow-pet__shadow {
+  position: absolute; left: 15%; right: 15%; bottom: 0; height: 10%; border-radius: 50%;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.24) 52%, rgba(0,0,0,0) 76%);
+}
+.meow-pet__body { position: absolute; inset: 0; transform-origin: 50% 88%; will-change: transform; }
+.meow-pet__svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.meow-pet__head { transform-box: fill-box; transform-origin: 50% 82%; }
+.meow-pet__foot { fill: #1b1e23; }
+.meow-pet__face { opacity: 0; transition: opacity 140ms ease; }
+.meow-pet__face.is-on { opacity: 1; }
+.meow-pet__eye { transform-box: fill-box; transform-origin: 50% 50%; transition: transform 100ms ease; }
+.meow-pet[data-blink='1'] .meow-pet__face[data-face='open'] .meow-pet__eye { transform: scaleY(0.1); }
+
+.meow-pet[data-mood='idle'] .meow-pet__body { animation: meow-pet-breathe 3.6s ease-in-out infinite; }
+.meow-pet__ear { transform-box: fill-box; transform-origin: 50% 100%; }
+/* Ears twitch one at a time: the notch is a flat triangle, so a rotate around its base
+   reads as a flick rather than the whole head wobbling. */
+.meow-pet[data-mood='idle'] .meow-pet__ear { animation: meow-pet-ear-twitch 7.5s ease-in-out infinite; }
+.meow-pet[data-mood='idle'] .meow-pet__ear + .meow-pet__ear { animation-delay: 3.7s; }
+.meow-pet[data-mood='look'] .meow-pet__head { animation: meow-pet-look 3.2s ease-in-out infinite; }
+.meow-pet[data-mood='look'] .meow-pet__face.is-on { animation: meow-pet-gaze 3.2s ease-in-out infinite; }
+.meow-pet[data-mood='type'] .meow-pet__body { animation: meow-pet-type 0.72s ease-in-out infinite; }
+.meow-pet[data-mood='think'] .meow-pet__head { animation: meow-pet-think 2.4s ease-in-out infinite; }
+.meow-pet[data-mood='sleep'] .meow-pet__body { animation: meow-pet-sleep 4.4s ease-in-out infinite; }
+.meow-pet[data-mood='sleep'] .meow-pet__head { transform: rotate(5deg) translateY(1%); }
+.meow-pet[data-mood='happy'] .meow-pet__body { animation: meow-pet-happy 1.35s ease-in-out infinite; }
+.meow-pet[data-mood='error'] .meow-pet__body { animation: meow-pet-error 2.2s ease-in-out infinite; }
+.meow-pet[data-mood='notify'] .meow-pet__body { animation: meow-pet-jump 0.95s cubic-bezier(0.3, 0.8, 0.4, 1) infinite; }
+/* Picked up: squashed under the cursor, and it stays squashed until the click resolves. */
+.meow-pet[data-mood='drag'] .meow-pet__body { transform: scale(1.06, 0.92); }
+
+@keyframes meow-pet-breathe {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  50% { transform: translateY(-1.4%) scale(1.018, 0.985); }
+}
+@keyframes meow-pet-ear-twitch {
+  0%, 86%, 100% { transform: rotate(0deg); }
+  89% { transform: rotate(-4deg); }
+  92% { transform: rotate(2deg); }
+  95% { transform: rotate(-1deg); }
+}
+@keyframes meow-pet-look {
+  0%, 100% { transform: rotate(0deg); }
+  22% { transform: rotate(-6deg) translateY(-1%); }
+  54% { transform: rotate(6deg) translateY(-1%); }
+  78% { transform: rotate(-2deg); }
+}
+@keyframes meow-pet-gaze {
+  0%, 100% { transform: translateX(0); }
+  22% { transform: translateX(-1.6px); }
+  54% { transform: translateX(1.6px); }
+  78% { transform: translateX(-0.6px); }
+}
+@keyframes meow-pet-type {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  50% { transform: rotate(2.4deg) translateY(-0.8%); }
+}
+@keyframes meow-pet-think {
+  0%, 100% { transform: rotate(-3deg) translateY(-0.6%); }
+  50% { transform: rotate(-6deg) translateY(-1.4%); }
+}
+@keyframes meow-pet-sleep {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  50% { transform: translateY(1.2%) scale(1.022, 0.976); }
+}
+@keyframes meow-pet-jump {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  18% { transform: translateY(0) scale(1.1, 0.88); }
+  45% { transform: translateY(-26%) scale(0.95, 1.07); }
+  70% { transform: translateY(0) scale(1.06, 0.94); }
+  86% { transform: translateY(-6%) scale(0.99, 1.01); }
+}
+@keyframes meow-pet-happy {
+  0% { transform: translateY(0) scale(1, 1); }
+  12% { transform: translateY(0) scale(1.12, 0.86); }
+  38% { transform: translateY(-20%) scale(0.94, 1.08); }
+  62% { transform: translateY(0) scale(1.08, 0.92); }
+  80% { transform: translateY(-7%) scale(0.98, 1.02); }
+  100% { transform: translateY(0) scale(1, 1); }
+}
+/* One shake burst per cycle, then a long rest — a continuously shaking pet would read
+   as an animation bug rather than a reaction. */
+@keyframes meow-pet-error {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  4% { transform: translateX(-4%) rotate(-3deg); }
+  8% { transform: translateX(4%) rotate(3deg); }
+  12% { transform: translateX(-3%) rotate(-2deg); }
+  16% { transform: translateX(2%) rotate(1.5deg); }
+  22% { transform: translateX(0) rotate(0deg); }
+}
+
+.meow-pet__fx { position: absolute; inset: 0; pointer-events: none; }
+.meow-pet__glow {
+  position: absolute; inset: -14%; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255,97,89,0.5), rgba(255,97,89,0) 72%);
+  opacity: 0; transition: opacity 200ms ease;
+}
+.meow-pet[data-mood='error'] .meow-pet__glow { opacity: 1; animation: meow-pet-glow 1.1s ease-in-out infinite; }
+@keyframes meow-pet-glow {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.95; }
+}
+.meow-pet__spark { position: absolute; inset: 0; opacity: 0; }
+.meow-pet[data-mood='happy'] .meow-pet__spark { opacity: 1; }
+.meow-pet__spark i {
+  position: absolute; width: calc(var(--s) * 0.05); height: calc(var(--s) * 0.05);
+  border-radius: 50%; background: var(--meow-orange); animation: meow-pet-spark 1.15s ease-out infinite;
+}
+.meow-pet__spark i:nth-child(1) { left: 12%; top: 30%; animation-delay: 0s; }
+.meow-pet__spark i:nth-child(2) { left: 84%; top: 24%; animation-delay: 0.18s; }
+.meow-pet__spark i:nth-child(3) { left: 20%; top: 6%; animation-delay: 0.34s; }
+.meow-pet__spark i:nth-child(4) { left: 76%; top: 52%; animation-delay: 0.52s; }
+.meow-pet__spark i:nth-child(5) { left: 46%; top: 0%; animation-delay: 0.7s; background: var(--meow-blue); }
+@keyframes meow-pet-spark {
+  0% { opacity: 0; transform: scale(0.3); }
+  30% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.2) translateY(-30%); }
+}
+.meow-pet__think {
+  position: absolute; right: 2%; top: 2%; display: flex; gap: calc(var(--s) * 0.05);
+  opacity: 0; transition: opacity 200ms ease;
+}
+.meow-pet[data-mood='think'] .meow-pet__think { opacity: 1; }
+.meow-pet__think i {
+  width: calc(var(--s) * 0.07); height: calc(var(--s) * 0.07); border-radius: 50%;
+  background: var(--meow-blue); animation: meow-pet-dot 1.2s ease-in-out infinite;
+}
+.meow-pet__think i:nth-child(2) { animation-delay: 0.16s; }
+.meow-pet__think i:nth-child(3) { animation-delay: 0.32s; }
+@keyframes meow-pet-dot {
+  0%, 100% { opacity: 0.3; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-0.35em); }
+}
+.meow-pet__zzz {
+  position: absolute; right: -6%; top: -8%; width: 46%; height: 46%;
+  opacity: 0; transition: opacity 300ms ease;
+}
+.meow-pet[data-mood='sleep'] .meow-pet__zzz { opacity: 1; }
+.meow-pet__zzz i {
+  position: absolute; font: 700 1em/1 var(--font-mono); font-style: normal;
+  color: var(--meow-blue); opacity: 0; animation: meow-pet-zzz 3.6s ease-out infinite;
+}
+.meow-pet__zzz i:nth-child(1) { font-size: calc(var(--s) * 0.2); left: 0; top: 62%; animation-delay: 0s; }
+.meow-pet__zzz i:nth-child(2) { font-size: calc(var(--s) * 0.16); left: 26%; top: 34%; animation-delay: 1.2s; }
+.meow-pet__zzz i:nth-child(3) { font-size: calc(var(--s) * 0.12); left: 52%; top: 10%; animation-delay: 2.4s; }
+@keyframes meow-pet-zzz {
+  0% { opacity: 0; transform: translateY(0.6em) scale(0.7); }
+  25% { opacity: 0.95; }
+  70% { opacity: 0.5; }
+  100% { opacity: 0; transform: translateY(-1.1em) scale(1.05); }
+}
+.meow-pet__heart {
+  position: absolute; left: 50%; bottom: 42%; font-style: normal;
+  font-size: calc(var(--s) * 0.26); line-height: 1; color: var(--meow-red);
+  animation: meow-pet-heart 1.15s ease-out forwards; pointer-events: none;
+}
+@keyframes meow-pet-heart {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(0.4); }
+  22% { opacity: 1; transform: translate(-50%, -0.35em) scale(1); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--dx, 0px)), -2em) scale(1.05); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meow-pet__body,
+  .meow-pet__head,
+  .meow-pet__face,
+  .meow-pet__glow,
+  .meow-pet__spark i,
+  .meow-pet__think i,
+  .meow-pet__zzz i {
+    animation: none !important;
+  }
+}
+
 .context-footer-wrap { position: relative; display: inline-flex; }
 
 /* Context ring — circular progress showing % of context remaining. The arc

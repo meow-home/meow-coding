@@ -1,0 +1,653 @@
+/*
+ * Meow desktop pet — component styles.
+ * Everything is driven by two attributes on the root: data-variant (a|b|c) and data-mood.
+ * Sized by --s; all inner metrics are relative to it, so one class works at 48px and 320px.
+ */
+
+.mp {
+  --s: 128px;
+  --mp-ink: #1b1e23;
+  --mp-blue: #3b8bf5;
+  --mp-orange: #f7941d;
+  --mp-red: #ff6159;
+  --mp-mono: 'JetBrainsMonoNerdFontMono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo,
+    Consolas, monospace;
+
+  position: relative;
+  width: var(--s);
+  height: var(--s);
+  display: block;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  isolation: isolate;
+}
+
+/* ---------- shadow ---------- */
+
+.mp__shadow {
+  position: absolute;
+  left: 15%;
+  right: 15%;
+  bottom: 0;
+  height: 10%;
+  border-radius: 50%;
+  background: radial-gradient(
+    50% 50% at 50% 50%,
+    rgba(0, 0, 0, 0.5) 0%,
+    rgba(0, 0, 0, 0.24) 52%,
+    rgba(0, 0, 0, 0) 76%
+  );
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+.mp[data-mood='sleep'] .mp__shadow {
+  transform: scaleX(1.06);
+  opacity: 0.85;
+}
+.mp[data-mood='drag'] .mp__shadow {
+  transform: scale(0.66);
+  opacity: 0.35;
+}
+
+/* ---------- body / head ---------- */
+
+.mp__body {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 88%;
+  will-change: transform;
+}
+.mp__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transform-origin: 50% 50%;
+}
+.mp__head {
+  transform-box: fill-box;
+  transform-origin: 50% 82%;
+}
+.mp-foot {
+  fill: var(--mp-ink);
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+.mp-ear {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+/* ---------- faces ---------- */
+
+.mp-face {
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+.mp-face.is-on {
+  opacity: 1;
+}
+.mp-eye {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  transition: transform 0.1s ease;
+}
+.mp[data-blink='1'] .mp-face[data-face='open'] .mp-eye {
+  transform: scaleY(0.1);
+}
+/* The cursor doubles as the mouth, so it stays lit most of the cycle — a 50/50 terminal
+   blink reads as "the pet has no mouth" half the time. */
+.mp-cursor {
+  animation: mp-cursor-pulse 1.9s steps(1, end) infinite;
+}
+.mp[data-blink='1'] .mp-face[data-face='open'] .mp-cursor {
+  opacity: 0;
+}
+
+/* ---------- mood: idle ---------- */
+
+.mp[data-mood='idle'] .mp__body {
+  animation: mp-breathe 3.6s ease-in-out infinite;
+}
+.mp[data-mood='idle'] .mp-ear--l {
+  animation: mp-ear-twitch 7.5s ease-in-out infinite;
+}
+.mp[data-mood='idle'] .mp-ear--r {
+  animation: mp-ear-twitch 7.5s ease-in-out 3.7s infinite;
+}
+
+/* ---------- mood: look ---------- */
+
+.mp[data-mood='look'] .mp__head {
+  animation: mp-look-head 3.2s ease-in-out infinite;
+}
+.mp[data-mood='look'] .mp-face.is-on {
+  animation: mp-gaze 3.2s ease-in-out infinite;
+}
+
+/* ---------- mood: walk / run ---------- */
+
+.mp[data-mood='walk'] .mp__body {
+  animation: mp-walk 0.46s ease-in-out infinite;
+}
+.mp[data-mood='walk'] .mp-foot--l {
+  animation: mp-step 0.46s ease-in-out infinite;
+}
+.mp[data-mood='walk'] .mp-foot--r {
+  animation: mp-step 0.46s ease-in-out -0.23s infinite;
+}
+.mp[data-mood='run'] .mp__body {
+  animation: mp-run 0.28s ease-in-out infinite;
+}
+.mp[data-mood='run'] .mp-foot--l {
+  animation: mp-step 0.28s ease-in-out infinite;
+}
+.mp[data-mood='run'] .mp-foot--r {
+  animation: mp-step 0.28s ease-in-out -0.14s infinite;
+}
+.mp[data-mood='run'] .mp__head {
+  animation: mp-lean 0.28s ease-in-out infinite;
+}
+
+/* ---------- mood: type ---------- */
+
+.mp[data-mood='type'] .mp__body {
+  animation: mp-type 0.72s ease-in-out infinite;
+}
+
+/* ---------- mood: think ---------- */
+
+.mp[data-mood='think'] .mp__head {
+  animation: mp-think-head 2.4s ease-in-out infinite;
+}
+
+/* ---------- mood: sleep ---------- */
+
+.mp[data-mood='sleep'] .mp__body {
+  animation: mp-sleep-breathe 4.4s ease-in-out infinite;
+}
+.mp[data-mood='sleep'] .mp__head {
+  transform: rotate(5deg) translateY(1%);
+}
+
+/* ---------- mood: happy ---------- */
+
+.mp[data-mood='happy'] .mp__body {
+  animation: mp-happy 1.35s ease-in-out infinite;
+}
+
+/* ---------- mood: error ---------- */
+
+.mp[data-mood='error'] .mp__body {
+  animation: mp-error 2.2s ease-in-out infinite;
+}
+
+/* ---------- mood: drag ---------- */
+
+.mp[data-mood='drag'] .mp__body {
+  transform: rotate(var(--mp-tilt, 0deg)) scale(1.06, 0.92);
+  transition: transform 0.12s ease;
+}
+
+/* ---------- mood: notify ---------- */
+
+.mp[data-mood='notify'] .mp__body {
+  animation: mp-jump 0.95s cubic-bezier(0.3, 0.8, 0.4, 1) infinite;
+}
+
+/* ---------- keyframes ---------- */
+
+@keyframes mp-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  50% {
+    transform: translateY(-1.4%) scale(1.018, 0.985);
+  }
+}
+@keyframes mp-ear-twitch {
+  0%,
+  86%,
+  100% {
+    transform: rotate(0deg);
+  }
+  89% {
+    transform: rotate(-9deg);
+  }
+  92% {
+    transform: rotate(4deg);
+  }
+  95% {
+    transform: rotate(-1.5deg);
+  }
+}
+@keyframes mp-look-head {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  22% {
+    transform: rotate(-6deg) translateY(-1%);
+  }
+  54% {
+    transform: rotate(6deg) translateY(-1%);
+  }
+  78% {
+    transform: rotate(-2deg);
+  }
+}
+@keyframes mp-gaze {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  22% {
+    transform: translateX(-1.6px);
+  }
+  54% {
+    transform: translateX(1.6px);
+  }
+  78% {
+    transform: translateX(-0.6px);
+  }
+}
+@keyframes mp-walk {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1.4deg);
+  }
+  50% {
+    transform: translateY(-4.5%) rotate(1.4deg);
+  }
+}
+@keyframes mp-run {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-3.5deg) scale(1, 1);
+  }
+  50% {
+    transform: translateY(-9%) rotate(3.5deg) scale(0.975, 1.03);
+  }
+}
+@keyframes mp-step {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-2.8px);
+  }
+  62% {
+    transform: translateY(0);
+  }
+}
+@keyframes mp-lean {
+  0%,
+  100% {
+    transform: rotate(-2.5deg);
+  }
+  50% {
+    transform: rotate(2.5deg);
+  }
+}
+@keyframes mp-type {
+  0%,
+  100% {
+    transform: rotate(0deg) translateY(0);
+  }
+  50% {
+    transform: rotate(2.4deg) translateY(-0.8%);
+  }
+}
+@keyframes mp-think-head {
+  0%,
+  100% {
+    transform: rotate(-3deg) translateY(-0.6%);
+  }
+  50% {
+    transform: rotate(-6deg) translateY(-1.4%);
+  }
+}
+@keyframes mp-sleep-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  50% {
+    transform: translateY(1.2%) scale(1.022, 0.976);
+  }
+}
+@keyframes mp-happy {
+  0% {
+    transform: translateY(0) scale(1, 1);
+  }
+  12% {
+    transform: translateY(0) scale(1.12, 0.86);
+  }
+  38% {
+    transform: translateY(-20%) scale(0.94, 1.08);
+  }
+  62% {
+    transform: translateY(0) scale(1.08, 0.92);
+  }
+  80% {
+    transform: translateY(-7%) scale(0.98, 1.02);
+  }
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+}
+@keyframes mp-error {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0deg);
+  }
+  4% {
+    transform: translateX(-4%) rotate(-3deg);
+  }
+  8% {
+    transform: translateX(4%) rotate(3deg);
+  }
+  12% {
+    transform: translateX(-3%) rotate(-2deg);
+  }
+  16% {
+    transform: translateX(2%) rotate(1.5deg);
+  }
+  22% {
+    transform: translateX(0) rotate(0deg);
+  }
+}
+@keyframes mp-jump {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  18% {
+    transform: translateY(0) scale(1.1, 0.88);
+  }
+  45% {
+    transform: translateY(-26%) scale(0.95, 1.07);
+  }
+  70% {
+    transform: translateY(0) scale(1.06, 0.94);
+  }
+  86% {
+    transform: translateY(-6%) scale(0.99, 1.01);
+  }
+}
+@keyframes mp-cursor-pulse {
+  0%,
+  64% {
+    opacity: 1;
+  }
+  65%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes mp-cursor-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ---------- fx layer ---------- */
+
+.mp__fx {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.mp__glow {
+  position: absolute;
+  inset: -14%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 97, 89, 0.5), rgba(255, 97, 89, 0) 72%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.mp[data-mood='error'] .mp__glow {
+  opacity: 1;
+  animation: mp-glow 1.1s ease-in-out infinite;
+}
+@keyframes mp-glow {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+.mp__think {
+  position: absolute;
+  right: 2%;
+  top: 2%;
+  display: flex;
+  gap: calc(var(--s) * 0.045);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.mp[data-mood='think'] .mp__think {
+  opacity: 1;
+}
+.mp__think i {
+  width: calc(var(--s) * 0.058);
+  height: calc(var(--s) * 0.058);
+  border-radius: 50%;
+  background: var(--mp-blue);
+  animation: mp-dot 1.2s ease-in-out infinite;
+}
+.mp__think i:nth-child(2) {
+  animation-delay: 0.16s;
+}
+.mp__think i:nth-child(3) {
+  animation-delay: 0.32s;
+}
+@keyframes mp-dot {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-0.35em);
+  }
+}
+
+.mp__zzz {
+  position: absolute;
+  right: -2%;
+  top: -2%;
+  width: 42%;
+  height: 42%;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.mp[data-mood='sleep'] .mp__zzz {
+  opacity: 1;
+}
+.mp__zzz i {
+  position: absolute;
+  font: 700 1em/1 var(--mp-mono);
+  font-style: normal;
+  color: var(--mp-blue);
+  opacity: 0;
+  animation: mp-zzz 3.6s ease-out infinite;
+}
+.mp__zzz i:nth-child(1) {
+  font-size: calc(var(--s) * 0.14);
+  left: 0;
+  top: 62%;
+  animation-delay: 0s;
+}
+.mp__zzz i:nth-child(2) {
+  font-size: calc(var(--s) * 0.11);
+  left: 26%;
+  top: 34%;
+  animation-delay: 1.2s;
+}
+.mp__zzz i:nth-child(3) {
+  font-size: calc(var(--s) * 0.085);
+  left: 52%;
+  top: 10%;
+  animation-delay: 2.4s;
+}
+@keyframes mp-zzz {
+  0% {
+    opacity: 0;
+    transform: translateY(0.6em) scale(0.7);
+  }
+  25% {
+    opacity: 0.95;
+  }
+  70% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-1.1em) scale(1.05);
+  }
+}
+
+.mp__spark {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+.mp[data-mood='happy'] .mp__spark {
+  opacity: 1;
+}
+.mp__spark i {
+  position: absolute;
+  width: calc(var(--s) * 0.05);
+  height: calc(var(--s) * 0.05);
+  border-radius: 50%;
+  background: var(--mp-orange);
+  animation: mp-spark 1.15s ease-out infinite;
+}
+.mp__spark i:nth-child(1) {
+  left: 12%;
+  top: 30%;
+  animation-delay: 0s;
+}
+.mp__spark i:nth-child(2) {
+  left: 84%;
+  top: 24%;
+  animation-delay: 0.18s;
+}
+.mp__spark i:nth-child(3) {
+  left: 20%;
+  top: 6%;
+  animation-delay: 0.34s;
+}
+.mp__spark i:nth-child(4) {
+  left: 76%;
+  top: 52%;
+  animation-delay: 0.52s;
+}
+.mp__spark i:nth-child(5) {
+  left: 46%;
+  top: 0%;
+  animation-delay: 0.7s;
+  background: var(--mp-blue);
+}
+@keyframes mp-spark {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.2) translateY(-30%);
+  }
+}
+
+.mp-heart {
+  position: absolute;
+  bottom: 42%;
+  font-style: normal;
+  font-size: calc(var(--s) * 0.17);
+  line-height: 1;
+  color: var(--mp-red);
+  animation: mp-heart 1.15s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes mp-heart {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.4);
+  }
+  22% {
+    opacity: 1;
+    transform: translate(-50%, -0.35em) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx, 0px)), -2.4em) scale(1.05);
+  }
+}
+
+/* ---------- terminal chip above the head ---------- */
+
+.mp__bubble {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  margin-bottom: 2%;
+  display: flex;
+  align-items: center;
+  gap: 0.28em;
+  padding: 0.34em 0.55em;
+  border-radius: 7px;
+  background: #0e1014;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
+  font: 500 calc(var(--s) * 0.105) / 1.15 var(--mp-mono);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 6px) scale(0.94);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.mp__bubble.is-on {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+.mp-bubble__p {
+  color: var(--mp-blue);
+}
+.mp-bubble__t {
+  color: #cfd4da;
+}
+.mp-bubble__c {
+  width: 0.52em;
+  height: 1em;
+  border-radius: 1px;
+  background: var(--mp-orange);
+  animation: mp-cursor-blink 1s steps(1, end) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mp *,
+  .mp {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
