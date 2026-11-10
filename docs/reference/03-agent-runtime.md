@@ -257,7 +257,7 @@ Notable details:
 | `snapshots`, `snapshotAgentId` | Undo support; a subagent snapshots under the **parent's** id |
 | `diagnostics(filePath, text)` | LSP diagnostics, injected only when `lsp.enabled` |
 | `setTodos(todos)` | Todo sink (absent for subagents, which is why they never get `todowrite`) |
-| `getTodos()` | Reads the session's current todo list back (a `LoopDeps` dep, not a `ToolContext` field) so the loop can nudge a stale one; absent for subagents, which is also why they never get the nudge |
+| `getTodos()` | Reads the session's current todo list back (a `LoopDeps` dep, also passed through to `ToolContext` so `todowrite` can compare against the previous list) so the loop can nudge a stale one and restate a carried-over list at turn start; absent for subagents, which is also why they never get the nudge |
 | `emitSubagent(taskId, e)` | Bubbles subagent progress up as `subagent-event` |
 | `ask(question)` | Emits `prompt-request` (`kind: 'question'`) and awaits the answer |
 | `onFileRead(filePath)` | Returns a `<system-reminder>` block with nearby `AGENTS.md`/`CLAUDE.md` content, deduped across the session |

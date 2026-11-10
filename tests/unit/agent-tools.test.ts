@@ -221,6 +221,41 @@ describe('todowrite', () => {
     expect(saved[0]).toHaveLength(2)
     expect(r.output).not.toContain('cleared')
   })
+
+  it('description forbids todos that only wait on the user', () => {
+    expect(todowriteTool.description).toContain('Never add items for waiting on the user')
+  })
+
+  it('reminds the model to complete the in_progress item before the next one', async () => {
+    const todoCtx: ToolContext = { cwd: '', ask: async () => null, setTodos: () => {} }
+    const r = await todowriteTool.run({
+      todos: [
+        { content: 'a', status: 'completed' },
+        { content: 'b', status: 'in_progress' },
+        { content: 'c', status: 'pending' }
+      ]
+    }, todoCtx)
+    expect(r.output).toContain('2 item(s) open')
+    expect(r.output).toContain('When "b" is done')
+    expect(r.output).not.toContain('in one update')
+  })
+
+  it('flags several items completed in one update', async () => {
+    const previous = [
+      { content: 'a', status: 'in_progress' as const },
+      { content: 'b', status: 'pending' as const },
+      { content: 'c', status: 'pending' as const }
+    ]
+    const todoCtx: ToolContext = { cwd: '', ask: async () => null, setTodos: () => {}, getTodos: () => previous }
+    const r = await todowriteTool.run({
+      todos: [
+        { content: 'a', status: 'completed' },
+        { content: 'b', status: 'completed' },
+        { content: 'c', status: 'in_progress' }
+      ]
+    }, todoCtx)
+    expect(r.output).toContain('You marked 2 items completed in one update')
+  })
 })
 
 describe('question', () => {

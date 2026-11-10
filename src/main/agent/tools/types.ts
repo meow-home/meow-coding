@@ -28,6 +28,7 @@ export interface ToolContext {
   runContext?: AgentRunContext
   ask(question: QuestionPrompt): Promise<string | null>
   setTodos?(todos: TodoItem[]): void
+  getTodos?(): TodoItem[]
   emitSubagent?(taskId: string, e: SubagentToolEvent): void
   signal?: AbortSignal
   agentId?: string

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_TODO_NUDGES, TODO_NUDGE_AFTER_CALLS, openTodos, todoEndOfTurnNote, todoNudgeDetector } from '../../src/main/agent/todo-nudge'
+import { MAX_TODO_NUDGES, TODO_NUDGE_AFTER_CALLS, openTodos, todoCarryOverNote, todoEndOfTurnNote, todoNudgeDetector } from '../../src/main/agent/todo-nudge'
 import type { TodoItem } from '../../src/shared/types'
 
 const working: TodoItem[] = [
@@ -32,8 +32,17 @@ describe('todoNudgeDetector', () => {
     const detector = todoNudgeDetector()
     observeCalls(detector, TODO_NUDGE_AFTER_CALLS - 1, working)
     const note = detector.observe('read', working)
-    expect(note).toContain('write the fix')
-    expect(note).not.toContain('run the tests')
+    expect(note).toContain('"write the fix" is still in_progress')
+  })
+
+  it('lists the open items so the model can mark them', () => {
+    const detector = todoNudgeDetector()
+    observeCalls(detector, TODO_NUDGE_AFTER_CALLS - 1, working)
+    const note = detector.observe('read', working)!
+    expect(note).toContain('- [in_progress] write the fix')
+    expect(note).toContain('- [pending] run the tests')
+    expect(note).not.toContain('read the code')
+    expect(note).toContain('next tool call must be todowrite')
   })
 
   it('falls back to the first pending item when nothing is in progress', () => {
@@ -95,6 +104,14 @@ describe('todoEndOfTurnNote', () => {
     expect(note).toContain('todowrite')
   })
 
+  it('treats items that only wait on the user as finished and asks for no more text', () => {
+    const note = todoEndOfTurnNote(working)!
+    expect(note).toContain('only wait on the user')
+    expect(note).toContain('complete or cancel them')
+    expect(note).not.toContain('leave those items as they are')
+    expect(note).toContain('without writing any more text')
+  })
+
   it('is null for an empty or finished list', () => {
     expect(todoEndOfTurnNote([])).toBeNull()
     expect(todoEndOfTurnNote([{ content: 'a', status: 'completed' }, { content: 'b', status: 'cancelled' }])).toBeNull()
@@ -107,5 +124,21 @@ describe('todoEndOfTurnNote', () => {
     expect(note).not.toContain('step 8')
     expect(note).toContain('and 4 more')
     expect(openTodos(todos)).toHaveLength(12)
+  })
+})
+
+describe('todoCarryOverNote', () => {
+  it('lists the open items left by an earlier turn', () => {
+    const note = todoCarryOverNote(working)!
+    expect(note).toContain('<system-reminder>')
+    expect(note).toContain('2 open item(s) from an earlier turn')
+    expect(note).toContain('- [in_progress] write the fix')
+    expect(note).not.toContain('read the code')
+    expect(note).toContain('todowrite')
+  })
+
+  it('is null for an empty or finished list', () => {
+    expect(todoCarryOverNote([])).toBeNull()
+    expect(todoCarryOverNote([{ content: 'a', status: 'completed' }])).toBeNull()
   })
 })

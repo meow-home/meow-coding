@@ -204,7 +204,11 @@ a skip action — the model can rename it but cannot change its behaviour.
 
 Writes to the session's todo list and emits `todo-updated`. Its description is a full usage policy
 ported from opencode (use for 3+ step work, exactly one `in_progress`, update in real time, never
-mark complete on intent). A malformed `todos` value (a string instead of an array) is sanitized to
+mark complete on intent, never add items that only wait on the user, send the finished list before
+the final answer). Its output restates the per-item rule after the JSON: how many items are open and
+"when `<in_progress item>` is done, mark it completed before starting the next" — and, when the
+previous list (`ToolContext.getTodos`) shows two or more items newly `completed` in one call, a line
+telling the model not to batch completions. A malformed `todos` value (a string instead of an array) is sanitized to
 `[]` before persisting. Once every item is `completed` or `cancelled` the stored list resets to `[]`
 (the pill disappears and the next turn starts clean); the tool output says the list was cleared, so
 the model is not surprised by the empty state. **Subagents never receive this tool** — their runner
@@ -213,7 +217,8 @@ has no `setTodos` sink.
 A description alone does not hold: models build the list and then stop updating it. So the loop
 also nudges — `todo-nudge.ts` counts tool calls since the last `todowrite` and, once
 `TODO_NUDGE_AFTER_CALLS` (6) have passed while the list still has an `in_progress` (else a `pending`)
-item, attaches a `<system-reminder>[meow]` note to the next tool result naming that item. The counter
+item, attaches a `<system-reminder>[meow]` note to the next tool result naming that item, listing
+the open items (up to 8) and saying the next tool call must be `todowrite`. The counter
 resets on every `todowrite` (and after each note, so notes are a window apart), at most
 `MAX_TODO_NUDGES` (4) per run, and a list that is empty or entirely `completed`/`cancelled` is never
 nudged. The note rides on the tool result like every other harness note — it is never a user message.
@@ -222,9 +227,16 @@ Mid-turn notes only fire on tool calls, so a model that writes its final answer 
 list open. The loop therefore gates the end of the turn too: when a normal (`complete`) finish arrives
 while the list still has `pending`/`in_progress` items, it appends `todoEndOfTurnNote` (the open items,
 up to 8, as a hidden `<system-reminder>` user message) and runs one more step so the model can call
-`todowrite`, keep working, or leave the items open if it is waiting on the user. The gate fires at most
-once per run and never on `max-steps`, `length`, or `refusal` endings.
-A runner without `getTodos` (a subagent) never nudges or gates.
+`todowrite` or keep working. Items that only wait on the user (review, approval, sign-in, restart,
+manual testing) must be completed or cancelled — only work the model will still do itself after the
+reply may stay open — and the model is told to end without more text after the update, so the gate
+does not produce a second copy of the answer. The gate fires at most once per run and never on
+`max-steps`, `length`, or `refusal` endings.
+
+A list still open when a run starts (left by an earlier turn) is restated in the turn context via
+`todoCarryOverNote` (ephemeral, appended to `turnContext`, never stored), asking the model to keep
+updating it if it belongs to the new request and otherwise complete, cancel or replace it first.
+A runner without `getTodos` (a subagent) never nudges, gates, or gets the carry-over note.
 
 ### `task`
 

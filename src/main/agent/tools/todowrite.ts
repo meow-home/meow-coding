@@ -27,13 +27,44 @@ const TODOWRITE_DESCRIPTION = [
   '- `cancelled` — no longer needed',
   '',
   '## Rules',
-  '- Update status in real time; don\'t batch completions',
+  '- Update status in real time; don\'t batch completions: the moment an item is done, call todowrite to mark it `completed` and set the next item `in_progress`, before you start working on that next item',
   '- Mark `completed` only after the work is actually done, including verification — never based on intent',
-  '- When every item is `completed` or `cancelled`, the list is cleared automatically — send the final finished list, no empty-list call is needed',
+  '- The list tracks work YOU do. Never add items for waiting on the user (review, approval, sign-in, restart, manual testing); say what you need from the user in your answer instead',
+  '- Before your final answer, send the list with every finished item `completed` (or `cancelled`). When every item is `completed` or `cancelled`, the list is cleared automatically — no empty-list call is needed',
   '- Keep exactly one `in_progress` while work remains',
   '- If blocked or partial, keep it `in_progress` and add a follow-up todo describing the blocker',
   '- Items should be specific and actionable; break large work into smaller steps'
 ].join('\n')
+
+const CONTENT_MAX = 80
+
+function short(content: string): string {
+  const flat = content.replace(/\s+/g, ' ').trim()
+  return flat.length > CONTENT_MAX ? `${flat.slice(0, CONTENT_MAX - 1)}…` : flat
+}
+
+function isDone(t: TodoItem): boolean {
+  return t.status === 'completed' || t.status === 'cancelled'
+}
+
+// Tool results are where the model looks when it picks its next step, so the
+// per-item rule is restated here rather than only in the description.
+function followUp(todos: TodoItem[], previous: TodoItem[]): string {
+  const lines: string[] = []
+  const wasDone = new Set(previous.filter(isDone).map(t => t.content))
+  const newlyDone = todos.filter(t => t.status === 'completed' && !wasDone.has(t.content)).length
+  if (previous.length > 0 && newlyDone >= 2) {
+    lines.push(`You marked ${newlyDone} items completed in one update. Mark each item completed as soon as it is done, not in a batch.`)
+  }
+  const current = todos.find(t => t.status === 'in_progress')
+  const open = todos.filter(t => !isDone(t)).length
+  if (current) {
+    lines.push(`${open} item(s) open. When "${short(current.content)}" is done, call todowrite to mark it completed before starting the next item.`)
+  } else {
+    lines.push(`${open} item(s) open and none is in_progress. Set the item you work on next to in_progress.`)
+  }
+  return lines.join('\n')
+}
 
 export const todowriteTool: ToolDefinition = {
   name: 'todowrite',
@@ -53,16 +84,17 @@ export const todowriteTool: ToolDefinition = {
     let todos: TodoItem[] = Array.isArray(input.todos)
       ? (input.todos as unknown as TodoItem[])
       : []
+    const previous = ctx.getTodos?.() ?? []
     // A finished list has served its purpose: once nothing is pending or in
     // progress the session todos reset to [], so the renderer's pill disappears
     // and a later turn starts from a clean slate instead of inheriting a stale
     // all-completed list.
-    const cleared = todos.length > 0 && todos.every(t => t.status === 'completed' || t.status === 'cancelled')
+    const cleared = todos.length > 0 && todos.every(isDone)
+    const note = todos.length > 0 && !cleared ? followUp(todos, previous) : ''
     if (cleared) todos = []
     ctx.setTodos?.(todos)
-    const output = cleared
-      ? `${JSON.stringify(todos, null, 2)}\n\nTodo list cleared: every item was completed or cancelled.`
-      : JSON.stringify(todos, null, 2)
-    return { output }
+    const json = JSON.stringify(todos, null, 2)
+    if (cleared) return { output: `${json}\n\nTodo list cleared: every item was completed or cancelled.` }
+    return { output: note ? `${json}\n\n${note}` : json }
   }
 }
