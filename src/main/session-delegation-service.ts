@@ -24,12 +24,31 @@ export interface DelegationRuntime {
   appendResult(input: DelegationResultInput): Promise<void>
   wakeSource(input: DelegationResultInput): Promise<void>
   stopRun(agentId: string): void
+  resolveCliAgent(agentId: string): { id: string; label: string } | undefined
+  resolveOrCreateCliSession(input: { projectPath: string; agentId: string; cliSessionId?: string }): { id: string; title: string }
+  runCliTask(input: {
+    delegationId: string
+    sourceAgentId: string
+    sourceName: string
+    targetCliAgentId: string
+    cliSessionId: string
+    task: string
+  }): Promise<AgentTurnResult>
+  stopCliTask(cliSessionId: string): void
+  isCliBusy?(cliSessionId: string): boolean
 }
 
 export interface CreateDelegationInput {
   sourceRun: AgentRunContext
   targetAgentId: string
   task: string
+}
+
+export interface CreateCliDelegationInput {
+  sourceRun: AgentRunContext
+  targetCliAgentId: string
+  task: string
+  cliSessionId?: string
 }
 
 export interface CreateExternalDelegationInput {
@@ -173,6 +192,43 @@ export class SessionDelegationService {
     return record
   }
 
+  createCli(input: CreateCliDelegationInput): SessionDelegation {
+    const { sourceRun } = input
+    if (sourceRun.origin !== 'user') {
+      throw new Error('[meow] Only a user-origin run may delegate.')
+    }
+    const source = this.runtime.resolveAgent(sourceRun.agentId)
+    if (!source) throw new Error(`[meow] Source session does not exist: ${sourceRun.agentId}`)
+    const cliAgent = this.runtime.resolveCliAgent(input.targetCliAgentId)
+    if (!cliAgent) throw new Error(`[meow] CLI agent does not exist: ${input.targetCliAgentId}`)
+
+    const cliSession = this.runtime.resolveOrCreateCliSession({
+      projectPath: source.projectPath,
+      agentId: input.targetCliAgentId,
+      cliSessionId: input.cliSessionId
+    })
+
+    const task = this.validateTask(input.task, input.targetCliAgentId)
+
+    const record = this.store.create({
+      id: this.id(),
+      projectPath: source.projectPath,
+      sourceAgentId: sourceRun.agentId,
+      sourceSessionId: sourceRun.sessionId,
+      targetAgentId: input.targetCliAgentId,
+      targetSessionId: cliSession.id,
+      targetBusyAtCreation: this.runtime.isCliBusy?.(cliSession.id) ?? false,
+      task,
+      sourceKind: 'session',
+      targetKind: 'cli',
+      targetCliAgentId: input.targetCliAgentId,
+      targetCliSessionId: cliSession.id
+    })
+    this.emit(record)
+    this.notifyAgentAvailable(input.targetCliAgentId)
+    return record
+  }
+
   private validateTask(rawTask: string, targetAgentId: string): string {
     const task = validateTaskText(rawTask)
     const active = this.store.list({ targetAgentId })
@@ -237,11 +293,9 @@ export class SessionDelegationService {
       while (!this.suspended) {
         const next = this.selectNextQueued(targetAgentId)
         if (!next) break
-        const target = this.runtime.resolveAgent(targetAgentId)
-        if (!target) break
-        if (next.sourceKind !== 'external') {
+        if (next.targetKind === 'cli') {
           const source = this.runtime.resolveAgent(next.sourceAgentId)
-          if (!source || source.projectPath !== target.projectPath) {
+          if (!source || normalizeProjectPath(source.projectPath) !== normalizeProjectPath(next.projectPath)) {
             const failed = this.store.transition(next.id, next.revision, 'failed', {
               finishedAt: this.now(),
               error: '[meow] A participant session is no longer available.'
@@ -249,12 +303,32 @@ export class SessionDelegationService {
             if (failed) this.emit(failed)
             continue
           }
+          const cliSessionId = next.targetCliSessionId ?? next.targetSessionId
+          if (this.runtime.isCliBusy?.(cliSessionId)) {
+            await this.waitForAvailable(targetAgentId)
+            continue
+          }
+          await this.runQueued(next)
+        } else {
+          const target = this.runtime.resolveAgent(targetAgentId)
+          if (!target) break
+          if (next.sourceKind !== 'external') {
+            const source = this.runtime.resolveAgent(next.sourceAgentId)
+            if (!source || source.projectPath !== target.projectPath) {
+              const failed = this.store.transition(next.id, next.revision, 'failed', {
+                finishedAt: this.now(),
+                error: '[meow] A participant session is no longer available.'
+              })
+              if (failed) this.emit(failed)
+              continue
+            }
+          }
+          if (this.runtime.isBusy(targetAgentId)) {
+            await this.waitForAvailable(targetAgentId)
+            continue
+          }
+          await this.runQueued(next)
         }
-        if (this.runtime.isBusy(targetAgentId)) {
-          await this.waitForAvailable(targetAgentId)
-          continue
-        }
-        await this.runQueued(next)
       }
     } finally {
       // New work arriving after this point is picked up by `notifyAgentAvailable`
@@ -282,16 +356,30 @@ export class SessionDelegationService {
     const running = this.store.transition(record.id, record.revision, 'running', { startedAt: this.now() })
     if (!running) return
     this.emit(running)
-    const result = await this.runtime.runDelegatedTurn({
-      delegationId: running.id,
-      sourceAgentId: running.sourceAgentId,
-      sourceName: running.sourceKind === 'external'
-        ? EXTERNAL_SOURCE_NAME
-        : this.runtime.resolveAgent(running.sourceAgentId)?.name ?? running.sourceAgentId,
-      targetAgentId: running.targetAgentId,
-      targetSessionId: running.targetSessionId,
-      task: running.task
-    })
+    const sourceName = running.sourceKind === 'external'
+      ? EXTERNAL_SOURCE_NAME
+      : this.runtime.resolveAgent(running.sourceAgentId)?.name ?? running.sourceAgentId
+
+    let result: AgentTurnResult
+    if (running.targetKind === 'cli') {
+      result = await this.runtime.runCliTask({
+        delegationId: running.id,
+        sourceAgentId: running.sourceAgentId,
+        sourceName,
+        targetCliAgentId: running.targetCliAgentId ?? running.targetAgentId,
+        cliSessionId: running.targetCliSessionId ?? running.targetSessionId,
+        task: running.task
+      })
+    } else {
+      result = await this.runtime.runDelegatedTurn({
+        delegationId: running.id,
+        sourceAgentId: running.sourceAgentId,
+        sourceName,
+        targetAgentId: running.targetAgentId,
+        targetSessionId: running.targetSessionId,
+        task: running.task
+      })
+    }
     const status = result.reason
     // Re-read the current record: the run may have passed through
     // `waiting_for_input` (a prompt answer) while it was executing, so the
@@ -324,12 +412,19 @@ export class SessionDelegationService {
       if (delivered) this.emit(delivered)
       return
     }
+    const isCli = record.targetKind === 'cli'
+    const targetCliAgentId = record.targetCliAgentId ?? record.targetAgentId
+    const targetAgentId = isCli ? targetCliAgentId : record.targetAgentId
+    const targetName = isCli
+      ? this.runtime.resolveCliAgent(targetCliAgentId)?.label ?? targetCliAgentId
+      : this.runtime.resolveAgent(record.targetAgentId)?.name ?? record.targetAgentId
+
     const input: DelegationResultInput = {
       delegationId: record.id,
       sourceAgentId: record.sourceAgentId,
       sourceSessionId: record.sourceSessionId,
-      targetAgentId: record.targetAgentId,
-      targetName: this.runtime.resolveAgent(record.targetAgentId)?.name ?? record.targetAgentId,
+      targetAgentId,
+      targetName,
       status: statusToReason(record.status),
       ...(record.result !== undefined ? { result: record.result } : {}),
       ...(record.error !== undefined ? { error: record.error } : {}),
@@ -384,7 +479,14 @@ export class SessionDelegationService {
     if (!record) throw new Error(`[meow] Unknown delegation: ${id}`)
     if (record.status === 'queued') return this.cancelQueued(id)
     if (record.status === 'running' || record.status === 'waiting_for_input') {
-      this.runtime.stopRun(record.targetAgentId)
+      if (record.targetKind === 'cli') {
+        const cliSessionId = record.targetCliSessionId ?? record.targetSessionId
+        if (cliSessionId) {
+          this.runtime.stopCliTask(cliSessionId)
+        }
+      } else {
+        this.runtime.stopRun(record.targetAgentId)
+      }
       await this.waitForTerminal(id, CANCEL_SETTLE_MS)
     }
     return this.store.get(id) ?? record
@@ -395,6 +497,16 @@ export class SessionDelegationService {
       const next = this.store.transition(d.id, d.revision, 'failed', {
         finishedAt: this.now(),
         error: '[meow] Target session was removed.'
+      })
+      if (next) this.emit(next)
+    }
+  }
+
+  async handleCliAgentRemoved(agentId: string): Promise<void> {
+    for (const d of this.store.list({ targetAgentId: agentId }).filter(x => x.status === 'queued' && x.targetKind === 'cli')) {
+      const next = this.store.transition(d.id, d.revision, 'failed', {
+        finishedAt: this.now(),
+        error: '[meow] CLI agent was removed.'
       })
       if (next) this.emit(next)
     }

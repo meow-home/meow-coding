@@ -38,9 +38,10 @@ the session transcript through callbacks (`getItems`, `appendMessage`, `appendTo
 delegation by pumping one scheduler loop per target agent through a `DelegationRuntime`. It is the
 only writer of `SessionDelegationStore` records.
 
-- **Creation** (`create`) is validated up front and persists a durable `queued` record before any
+- **Creation** (`create`, `createCli`) is validated up front and persists a durable `queued` record before any
   scheduling: only a user-origin run may delegate; self-delegation, a missing target, cross-project
   targets, a blank/`>32 KiB` task, and `>5` nonterminal records for the same target are all rejected.
+  `createCli` delegates to a CLI agent (`targetKind: 'cli'`), resolving/reusing a CLI session in the same project.
 - **Scheduling** — `start()`/`notifyAgentAvailable(agentId)` kick a target loop that selects queued
   work FIFO by `createdAt`. A busy target (per the runtime) parks the loop on a waiter that
   `notifyAgentAvailable` resolves; the loop never polls. `flush()` awaits until all pumps idle and

@@ -27,6 +27,9 @@ export interface CreateDelegationRecord {
   sourceKind?: 'session' | 'external'
   externalClient?: 'claude'
   planKey?: string
+  targetKind?: 'session' | 'cli'
+  targetCliSessionId?: string
+  targetCliAgentId?: string
 }
 
 export interface TransitionPatch {
@@ -119,7 +122,10 @@ export class SessionDelegationStore {
       updatedAt: now,
       ...(input.sourceKind !== undefined ? { sourceKind: input.sourceKind } : {}),
       ...(input.externalClient !== undefined ? { externalClient: input.externalClient } : {}),
-      ...(input.planKey !== undefined ? { planKey: input.planKey } : {})
+      ...(input.planKey !== undefined ? { planKey: input.planKey } : {}),
+      ...(input.targetKind !== undefined ? { targetKind: input.targetKind } : {}),
+      ...(input.targetCliSessionId !== undefined ? { targetCliSessionId: input.targetCliSessionId } : {}),
+      ...(input.targetCliAgentId !== undefined ? { targetCliAgentId: input.targetCliAgentId } : {})
     }
     this.save([...this.all(), record])
     return clone(record)

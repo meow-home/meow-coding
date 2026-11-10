@@ -132,6 +132,7 @@ export interface MeowAgentManagerDeps {
   /** Runtime adapter for durable session-to-session delegation (composed in main). */
   delegation?: {
     create(options: { sourceRun: AgentRunContext; targetAgentId: string; task: string }): SessionDelegation
+    createCli?(options: { sourceRun: AgentRunContext; targetCliAgentId: string; task: string; cliSessionId?: string }): SessionDelegation
     /** Same-project delegatable peers for the turn reminder. */
     peers(agentId: string): SessionPeer[]
   }

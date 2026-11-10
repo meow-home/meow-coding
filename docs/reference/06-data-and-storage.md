@@ -309,6 +309,9 @@ interface SessionDelegation {
   sourceKind?: 'session' | 'external'   // absent = 'session' (existing records stay valid)
   externalClient?: 'claude'             // set when sourceKind is 'external'
   planKey?: string                      // normalized plan path; external records only
+  targetKind?: 'session' | 'cli'        // absent = 'session'
+  targetCliSessionId?: string
+  targetCliAgentId?: string
 }
 ```
 

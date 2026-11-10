@@ -34,7 +34,7 @@ import { createDefaultTools } from './agent/tools/registry'
 import { isTextPath, openFileViewer, openWithSystemApp, readFileContent, readImageDataUrl } from './file-viewer'
 import { MeowAgentManager } from './meow-agent-manager'
 import { SessionDelegationService } from './session-delegation-service'
-import { SessionDelegationStore } from './session-delegation-store'
+import { SessionDelegationStore, normalizeProjectPath } from './session-delegation-store'
 import { computePeerTargets } from './peer-roster'
 import type { SessionPeer } from './agent/env'
 import { CommandStore } from './agent/commands'
@@ -257,6 +257,10 @@ export class MainApp {
         if (!this.delegationService) throw new Error('session delegation is not enabled.')
         return this.delegationService.create(options)
       },
+      createCli: (options) => {
+        if (!this.delegationService) throw new Error('session delegation is not enabled.')
+        return this.delegationService.createCli(options)
+      },
       peers: (agentId) => this.delegatePeers(agentId)
     },
     // Notification click: focus the window and tell the renderer to switch to
@@ -346,7 +350,62 @@ export class MainApp {
       },
       appendResult: (input) => this.meowAgent.appendDelegationResult(input),
       wakeSource: (input) => this.meowAgent.wakeDelegationSource(input),
-      stopRun: (agentId) => this.meowAgent.stop(agentId)
+      stopRun: (agentId) => this.meowAgent.stop(agentId),
+      resolveCliAgent: (id) => {
+        const a = this.cliAgents.agentStore.getAgent(id)
+        return a ? { id: a.id, label: a.label } : undefined
+      },
+      resolveOrCreateCliSession: (input) => {
+        if (input.cliSessionId) {
+          const existing = this.cliAgents.sessionStore.get(input.cliSessionId)
+          if (!existing) {
+            throw new Error(`[meow] CLI session not found: ${input.cliSessionId}`)
+          }
+          if (normalizeProjectPath(existing.projectPath) !== normalizeProjectPath(input.projectPath)) {
+            throw new Error('[meow] CLI session belongs to a different project.')
+          }
+          return { id: existing.id, title: existing.title }
+        }
+        const sessions = this.cliAgents.listSessions(input.projectPath)
+          .filter(s => s.agentId === input.agentId)
+        if (sessions.length > 0) {
+          const sorted = [...sessions].sort((a, b) => {
+            const aDelegated = a.delegatedBy ? 1 : 0
+            const bDelegated = b.delegatedBy ? 1 : 0
+            if (aDelegated !== bDelegated) return bDelegated - aDelegated
+            const aTime = a.updatedAt ?? a.createdAt
+            const bTime = b.updatedAt ?? b.createdAt
+            return bTime - aTime
+          })
+          const best = sorted[0]
+          return { id: best.id, title: best.title }
+        }
+        const created = this.cliAgents.createSession(input.agentId, input.projectPath)
+        return { id: created.id, title: created.title }
+      },
+      runCliTask: async (input) => {
+        try {
+          const res = await this.cliAgents.sendTask(input.cliSessionId, input.task)
+          return {
+            runId: input.delegationId,
+            reason: res.status === 'completed' ? 'completed' : res.status === 'cancelled' ? 'cancelled' : 'failed',
+            finalText: res.text,
+            error: res.error,
+            touchedFiles: []
+          }
+        } catch (err) {
+          return {
+            runId: input.delegationId,
+            reason: 'failed',
+            error: err instanceof Error ? err.message : String(err),
+            touchedFiles: []
+          }
+        }
+      },
+      stopCliTask: (sessionId) => {
+        this.cliAgents.cancelTask(sessionId)
+      },
+      isCliBusy: () => false
     },
     onChanged: (d) => { if (d.sourceKind === 'external') this.externalApi.notifyChanged(d.id) }
   })
