@@ -35,7 +35,7 @@ main window's theme (see [9.6](#96-theming)).
 ```
 
 Overlays: `SettingsDialog` (centered modal size xl tabbed),
-`BrowserDialog`, `InstallGuideDialog`, `UpdateDialog`, `BackgroundPanel`, `FileContextMenu`.
+`BrowserDialog`, `InstallGuideDialog`, `UpdateDialog`, `UpdateToast`, `BackgroundPanel`, `FileContextMenu`.
 
 ### Files overlay
 
@@ -152,12 +152,19 @@ expanded one is a direct child of `.main` so its absolute insets resolve against
 covers the chat pane. Nesting the expanded panel inside the grid container would confine it to the
 docked column (the container is `position: relative` for its resizer).
 
-Update-dialog policy: `update-available` and `downloaded` open the dialog **only for a manual check**
-(`manualCheckRef`); `error` and `not-supported` close it; `up-to-date` only opens a dialog when the
-check was manual, so the automatic startup check never pops anything. The download itself is
-automatic (no click needed) and the install is silent on quit — the dialog's "Update & Restart" /
-"Restart now" only brings that moment forward, and while a background download is running the dialog
-is dismissible (no install button, "Later" only).
+Update-dialog policy: `update-available`, `downloaded` and `download-progress` open the dialog **only
+for a manual check** (`manualCheckRef`); `error` and `not-supported` close it; `up-to-date` only opens
+a dialog when the check was manual, so the automatic startup check never pops anything. The download
+itself is automatic (no click needed) and the install is silent on quit — the dialog's
+"Update & Restart" / "Restart now" only brings that moment forward. Clicking it while the download is
+still running schedules the restart for the moment the download finishes ("Restarting when ready…"),
+and "Keep working" cancels that (`cancelInstall`).
+
+A background download that finishes announces itself without stealing focus: the status bar version
+slot becomes an "Updating 42%" / "Restart to update" pill (`StatusBar` `update`/`onUpdateClick`, the
+way back into the dialog), and the renderer raises an `UpdateToast` in the bottom-right corner (body
+opens the dialog, "Restart now" installs, "Later" dismisses it for that version). The status is
+replayed on mount through `getUpdaterStatus`, so a window that loads after the check still shows it.
 
 ## 9.4 Component inventory
 
@@ -168,12 +175,13 @@ is dismissible (no install button, "Later" only).
 | `TitleBar.tsx` | Custom window chrome for frameless platforms, painted with the chat surface (`--bg-chat`) so the header and the conversation read as one panel; when collapsed, hovering the title bar brand region reveals a floating full sidebar popover dropdown menu. Between the brand and the panel tools it seats the active session's title (`SessionTitle`); with the sidebar collapsed the brand strip shrinks to the logo + toggle so the title moves left, next to the expand button. |
 | `PopupTitleBar.tsx` | Same for the FileViewer/GitViewer popups (drag region + Linux min/max/close) |
 | `Sidebar.tsx` | Project list; header action bar features a vertical menu with a single "New session" (`Plus` icon) full-width menu item without border radius or bottom border (adding a folder as a project moved to the new session's footer picker). Each project row is a lightweight group header — the project name (bright on the current project, dim otherwise) followed by a **trailing** expand/collapse chevron, with the `+` (new session) and `...` (project menu) icons revealed on hover / while the project is current. The project path lives on the row's `title`: there is no path line and no session count. An expanded project lists its **sessions**, indented: a status dot (green = running, yellow = waiting on input, none when idle; it hangs in the row indent, so names stay aligned), the name, and a trailing `...` menu that appears on hover / when active. The active session is a full-width rounded pill. The per-row `...` menu holds Rename (via inline input), Stop (when running) and Delete. The project `...` menu holds Open, Open in VS Code, Git, Open Folder, Open Terminal (a real OS terminal window via `openSystemTerminal`) and Remove. The `+` button activates a draft session; deleting a project's last session transitions the workspace to a draft session pane, and adding a folder as a project (`Choose folder…` in the draft footer) registers the project only — no default `meow` session is created. Creating a backend session is deferred until the user sends their first message. Expanded state persists in `localStorage` (`meow.sidebar.expanded`). Also: Providers entry and theme toggle in the footer menu. Projects with sessions waiting on a permission/question prompt show a red count badge (and a dot on the collapsed-rail avatar) |
-| `StatusBar.tsx` | Workspace name, git branch, running count, app version |
+| `StatusBar.tsx` | Workspace name, git branch, running count, app version — the version slot turns into an "Update available" / "Updating 42%" / "Restart to update" pill while an update is downloading or downloaded, and clicking it opens the update dialog |
 | `SessionPanes.tsx` | Session layout of one project: **every session stays mounted** (inactive ones carry the `hidden` attribute, hidden by CSS and never unmounted) so a session that is not showing keeps streaming/answering. The active session is **controlled** by `App` (`activeId` + `onActiveChange`, remembered per project path so switching workspaces restores the session that was showing); it reports the first session when the stored id no longer exists |
 | `Pane.tsx` | One session: `ChatPanel` only — there is no header row, the session identity lives in the title bar; background badge mode |
 | `SessionTitle.tsx` | The active session's identity in the title bar, between the brand and `PanelToolbar`: the status dot (which carries the status as its accessible name — `role="img"` + the status label, with any exit code folded in), the name (ellipsized with the full name on `title`, so a long name never pushes the tools), and the `...` menu (Open Folder / Open in VS Code / Delete session, with a confirm dialog). The `...` button is the shared `.icon-btn`. No status word (the dot already shows it) and no git readout (the status bar owns branch + dirty count) |
 | `EmptyState.tsx` | No-pane hint (differs for "no workspace" vs "workspace open") |
 | `BackgroundPanel.tsx` | Background agents; open/stop |
+| `UpdateToast.tsx` | Bottom-right notice for an update that finished downloading in the background (body opens the update dialog, "Restart now" installs, "Later" dismisses it for that version); paired with the OS notification, which main only sends when the window is not focused |
 | `RightPanel.tsx` | Resizable panel with a fixed header; **both tabs stay mounted** for instant switching (**parked** — nothing renders it since the Files panel took its slot) |
 | `RightPanelTree.tsx` | Lazy directory tree; auto-expands the project root; background refresh (**parked**) |
 | `RightPanelArtifacts.tsx` | `.md` files agents created/edited (**parked**) |
@@ -209,7 +217,7 @@ is dismissible (no install button, "Later" only).
 
 ### Dialogs
 
-`AddProjectDialog`, `UpdateDialog`, `BrowserDialog` (bridge status + extension approval),
+`AddProjectDialog`, `UpdateDialog` (update status, progress, restart), `BrowserDialog` (bridge status + extension approval),
 `InstallGuideDialog` (extension install steps).
 
 ### Chat (`components/chat/`)
@@ -217,7 +225,7 @@ is dismissible (no install button, "Later" only).
 | Component | Responsibility |
 |---|---|
 | `ChatPanel.tsx` | The container: subscribes to chat events, owns feed state (items / todos / queue / pendingPrompt), rAF-batches stream deltas, and merges transcript loads with live rows by stable id. Tool start/result events upsert the same row, and a result recreates a missing start row, so an in-flight transcript-load race cannot hide tool output. At render time the feed map folds **every** `tool` item into a `cluster` row via `clusterToolRows` (a pure helper that walks `items`) — so the agent's back-to-back tool bursts read as one tight group, and even a lone tool call renders as a 1-tool cluster with the same chrome. The helper also drops empty assistant messages (no text / reasoning / images) entirely from the feed; the agent's loop persists these between tool batches, so without that drop otherwise-consecutive tools would scatter across 1-tool clusters on reload. State stays flat, so paging and live upserts are unchanged. Renders feed (`FeedMessage` with hover copy action bar for assistant messages) + composer + context footer. The todo list is a feed row (`TodoCard`) rendered after the transcript rows and right above the pending prompt, so it scrolls with the feed (not sticky): a neutral hairline card headed `Tasks` + `done/total`, one row per todo with a status mark (check / spinner / circle / x); the in-progress task spins and pulses (off under `prefers-reduced-motion`). The header toggles it collapsed, where it keeps naming the active task. It disappears when the list is empty. An incoming delegated message renders as a user bubble with a `delegation` badge and a `From session: <name>` label (`.chat-delegation-label`); the metadata travels on `FeedItem`/`toFeedItem` so a reload reproduces it, and `direction: 'result'` rows stay unlabelled. The permission/question prompt with type badge tag is the **last row of the chat feed** (the meow-chatui `PromptCard` placement), not a composer child: it scrolls with the transcript it interrupts, and a prompt that arrives while the user is reading history is scrolled into view, since the agent stays blocked until it is answered. Answering a `question` prompt also lands the answer in the feed as a user bubble (the loop's `user-message` event, right after the tool row), so the transcript reads as a conversation. The composer is two stacked blocks — the **queued-messages card** (`.chat-queue`, rendered only while the queue is non-empty: a header with the count and a caret that collapses it, then one row per message with always-present send-now / edit / remove actions) directly above the **input card** (`ChatInput`) — plus a one-line **footer** (`chat-footer-project-group` on the left: project folder name and a git branch chip that opens the Git view; `chat-footer-controls` on the right: context readout + `ModePicker`). In a **new session** (the draft, before the first message) the folder name is a `BaseDropdown` project picker — the known projects (current one checked) plus `Choose folder…`, which adds the picked folder as a project and starts the session there; once the session has started its cwd is fixed and the footer shows plain text. Memoized. |
-| `ChatInput.tsx` | Composer, **one rounded card** with everything inside it: an optional edit banner (`.chat-input-editing`), image/mention chips, the auto-growing field (`rows=1`, `field-sizing: content`, capped at 8 lines and then scrolling) and, on its own bottom row (`chat-input-bar`), the `+` add menu, the model picker, then the right group — variant picker + one round 2.25rem button: Send (arrow) at rest, disabled while empty, Stop while a turn runs, and Send again (check, `Save edit`) while a queued message is edited. Enter sends, Shift+Enter inserts a newline, Esc cancels an edit when no menu is open, and Alt+Enter sends the head of the queue now. Placeholder: `Ask anything, @ to mention, / for actions`, or `Processing...` while running. Paste/drop image chips (≤4, ≤5MB), `@` file-mention dropdown + chips, `/` command menu, edit-queued flow. Leaving edit mode without saving (the queued message was removed, or it drained into its own turn) drops the text that edit loaded into the field — the field is uncontrolled, so otherwise that text would sit there and a later Enter would submit it as a brand-new message; anything the user typed after it stays. Memoized, **uncontrolled**. |
+| `ChatInput.tsx` | Composer, **one rounded card** with everything inside it: a 36px mascot (`MeowPet`) perched on the card's top border (absolutely positioned, so it costs no layout), an optional edit banner (`.chat-input-editing`), image/mention chips, the auto-growing field (`rows=1`, `field-sizing: content`, capped at 8 lines and then scrolling) and, on its own bottom row (`chat-input-bar`), the `+` add menu, the model picker, then the right group — variant picker + one round 2.25rem button: Send (arrow) at rest, disabled while empty, Stop while a turn runs, and Send again (check, `Save edit`) while a queued message is edited. Enter sends, Shift+Enter inserts a newline, Esc cancels an edit when no menu is open, and Alt+Enter sends the head of the queue now. Placeholder: `Ask anything, @ to mention, / for actions`, or `Processing...` while running. Paste/drop image chips (≤4, ≤5MB), `@` file-mention dropdown + chips, `/` command menu, edit-queued flow. Leaving edit mode without saving (the queued message was removed, or it drained into its own turn) drops the text that edit loaded into the field — the field is uncontrolled, so otherwise that text would sit there and a later Enter would submit it as a brand-new message; anything the user typed after it stays. Memoized, **uncontrolled**. |
 | `useChatScroll.ts` | Feed scroll controller: follow / anchored / manual modes, turn-top anchoring, jump-to-end button. Detach is gesture-driven: only wheel, touch, keyboard nav, or a scrollbar drag leaves follow mode — a `scroll` event observed off the bottom while the DOM itself grows (streamed deltas, `content-visibility` rows resolving their height, history paging) must NOT detach it, so `scrollEventAction()` classifies each scroll event into none/follow/detach instead of trusting the position alone. After the user scrolls away (manual mode) following only resumes at the literal bottom — re-arming from the loose 80px follow zone would make a slight upward nudge on a long, still-streaming turn snap the viewport back down next delta (up/down jitter). Pure geometry helpers live in `chat-scroll-geometry.ts`. |
 | `ToolCallCard.tsx` | One tool call in a compact micro-bar layout (badge, file/command summary, status hairline, expandable diff/output body). Memoized. When `collapseWhileRunning` is true (set by `ToolCluster`), the card never auto-opens — even while the call is `pending` — so a long run of tool steps stays collapsed. Edit-style calls (`edit`, `write`, `apply-patch`) show their `+N −M` line counts (from `diffStats`) in the header. Inside a cluster a step renders as a plain list row (no coloured left rule, no caret, lowercase badge; the ✓/✗ carries status), and a bash row drops the leading `cd <dir> &&` (`stripCdPrefix`; the hover title keeps the full command). |
 | `ToolCluster.tsx` | **Every** tool call renders inside a cluster, even lone ones. Takes `steps` (`ClusterStep`: a tool call or a `thought` — reasoning-only messages between the calls render as quiet `thought` rows in the list) and `live` (newest row of a running turn: with no step pending the line reads `Thinking…`). A run of consecutive tool calls folds into one Claude-style line, **collapsed by default** and without card chrome: a summary of what the run did built by `toolSummary.ts` (`summarizeCalls`, e.g. `Read 2 files, edited a.ts, ran a command`), the run's `+N −M` line counts (`diffStats`), a red `· N failed` when a step was denied or errored, and a trailing caret. While a step is `pending` the line instead names that step with a spinner and progress (`Running npm test… 2/3`, via `describeRunning`). Opening it shows the inner `.tool-call` cards in one framed list, stacked with a 1px hairline between them. Always passes `collapseWhileRunning` to every inner `ToolCallCard` so clustered steps stay collapsed even while running (the cluster header already shows progress). Inner rows keep their own expand toggle, so the user can still drill into one tool by clicking it. Clustering happens at render time inside `ChatPanel.tsx`. |
@@ -370,8 +378,11 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   `--menu-pad` 6px (container padding), `--menu-item-h` 32px, `--menu-item-pad-x` 10px,
   `--menu-icon` 16px. Rows are **contiguous** (`gap: 0`) and each is `min-height: 32px` with
   `padding: 0 10px`. `.menu-sep` is an inset hairline between groups; `.menu-head` is a muted
-  non-interactive context row. A floating menu has **no outline**: it paints `--bg-menu` — a surface
-  that sits above `--bg`/`--bg-chat` in both themes — and relies on `--shadow-3` for separation.
+  non-interactive context row. A floating menu paints `--bg-menu` — a surface that sits above
+  `--bg`/`--bg-chat` in both themes — separates from the page with `--shadow-3`, and draws one faint
+  rim: `border: 1px solid var(--menu-border)`, a token a step *below* `--hairline` (white 6% dark /
+  black 7% light). The rim is there to give the menu edge definition against whatever it floats over,
+  never to read as an outline; `--hairline` was too dark for that job.
 - **Selector triggers** carry one shared caret, `.dropdown-caret` (lucide `ChevronDown`, 14px), which
   rotates 180° while its menu is open. Rotation is driven purely by the trigger's
   `[aria-expanded="true"]`, so any new select trigger gets it by setting that attribute (`Dropdown.tsx`
@@ -416,11 +427,39 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   The panel refreshes when it opens, so the breakdown reflects the transcript as it is now.
 - **The composer is one card, so its controls live in a bar, not in a toolbar row beside the field.**
   `.chat-input` is a column: edit banner, chips, the field, then `.chat-input-bar` (add menu, model
-  picker, right group with variant picker + the round send/stop button). The field's `max-height` is
+  picker, right group with variant picker + the round send/stop button). The mascot is positioned
+  against the card's top border rather than laid out in that column, so the send button stays the
+  card's trailing element. The field's `max-height` is
   `calc(8 * 1.5rem + 0.916667rem)` — 8 line boxes plus the field's own vertical padding — so the
   8-line cap stays exactly the field box at any root font size. The bar-scoped picker overrides keep
   the triggers quiet inside the card (smaller type, no pill background at rest). The footer under the
   card carries project + branch on the left and the context ring + `ModePicker` on the right.
+- **The composer mascot is decoration with a mood, not a control.** `MeowPet.tsx` renders the logo's
+  cat head (the logo path with softened ear tips and the ears pulled out toward the sides) at 36px in
+  the **Calico** colourway — cream body, charcoal patch over the left ear, orange patch over the
+  right, blue eyes and an orange-brown mouth — perched on the input card's top border 7.5rem in from
+  the right edge (`.meow-pet--edge`: absolute, `bottom: calc(100% - 0.166667rem)`, so the feet land on
+  the hairline and the shadow falls on the card). The horizontal inset is load-bearing: the
+  queued-messages card sits right above the input card, and its send-now / edit / remove block is
+  ~6.2rem wide at the row's trailing edge — a pet anywhere over that block swallowed the clicks
+  (`composer.spec.ts` failed on `.chat-queue-action.edit`). At 7.5rem the pet clears every control and
+  only ever covers the tail of a long queued message, which is text, not a target. Every colour is a
+  custom property on `.meow-pet` (`--meow-shell-1..3`, `--meow-rim`, `--meow-eye`, `--meow-mouth`,
+  `--meow-patch-dark`, `--meow-patch-warm`, `--meow-foot`), so another colourway is a one-block change
+  and the light theme can override the rim without touching the SVG. It is `aria-hidden`,
+  never focusable, and has no hit area outside its own 36px box. Nine moods, driven by `ChatPanel`
+  and by the pet's own idle clock: `idle` at rest; `look` on hover; `think` while a turn is running
+  but has not produced its first token, `type` once it streams (the panel flips a `turnOutput` flag
+  once per turn, not per delta); `sleep` after 45 s with no activity — typing, hovering, clicking or a
+  new turn wakes it; `happy` when a turn finishes or the pet is clicked (hearts burst); `notify` when a
+  permission/question prompt arrives, or when a turn lands while the window is in the background;
+  `error` when a turn fails (shake + red halo); `drag` while the pointer is down (squashed, and a press
+  that slides away is not a click). A user Stop is not an outcome and leaves the mood alone. One-shots
+  revert to the resting mood, so the pet cannot get stuck celebrating. `walk` / `run` from the design
+  mockup are the only ones left out — a small pet on a border has nowhere to walk. It costs no layout:
+  it is absolutely positioned, so the card's height is unchanged; it hangs 34px above the border, and
+  the composer's top padding plus the feed's bottom padding absorb most of that.
+
 - **The chat surfaces share one centered lane (`--chat-lane-w`, 64rem = 768px).** Transcript (the todo card
   and prompt popup included — they are the feed's last rows), input card and composer footer all sit on the same
   centered column, ChatGPT/Claude style. The width lives in the token; the side inset is derived once on `.chat-panel` as
@@ -472,16 +511,21 @@ string edits fail. Edit them with a script (e.g. python) if the edit tool cannot
 
 ## 9.6 Theming
 
-- Dark is the default: a neutral charcoal shell (`--bg`, `--bg-panel`, `--bg-sidebar`: `#1a1a1a`)
-  around a darker work area (`--bg-chat`, `--terminal-bg`: `#111315`), soft grey text and a muted teal
-  accent. `--accent` (`#297aa3`) is the fill under white text, `--accent-strong` (`#3995bc`) the
-  brighter hover/edge shade. Light mode is a full token override under `[data-theme="light"]` on `<html>` using the
+- Dark is the default and mirrors VS Code's **One Dark Pro Darker** (Atom One Dark): `#1e2227`
+  chrome (`--bg`, `--bg-panel`, `--bg-sidebar`, `--bg-tab-inactive`) around a `#23272e` work area
+  (`--bg-chat` — the chat, the panes and the title bar, plus `--terminal-bg`), with cards and floating
+  menus a step above it (`--bg-raised`, `--bg-menu`: `#2c313a`), `--bg-hover` `#323842`, `--bg-active`
+  `#3a4150`, `--bg-code` `#1d1f23`, `#abb2bf` text. The accent is One Dark's blue: `--accent`
+  (`#4d78cc`) is the fill under white text (user bubble, primary button), `--accent-hover`
+  (`#3f66b0`) its hover/pressed fill and `--accent-strong` (`#61afef`) the link/edge blue. Semantic
+  hues follow One Dark's syntax palette (green `#98c379`, yellow `#e5c07b`, orange `#d19a66`, red
+  `#e06c75`). Light mode is a full token override under `[data-theme="light"]` on `<html>` using the
   VSCode Light+ palette.
 - The choice persists in `localStorage` under `meow.theme`; the toggle lives in the Sidebar footer
   menu (Sun/Moon).
 - `applyTheme(theme?)` sets `data-theme` **and** calls `window.api.setTitleBarTheme(resolved)` so the
   Windows `titleBarOverlay` min/max/close buttons follow the app theme (without this they stay dark
-  in light mode). The bar itself paints `var(--bg)` — the same surface as that overlay strip (see [11.5](11-conventions-and-pitfalls.md) for the subpixel seam behind this).
+  in light mode). The bar itself paints `var(--bg-chat)` — the same surface as that overlay strip (see [11.5](11-conventions-and-pitfalls.md) for the subpixel seam behind this).
 - `watchTheme()` listens for `storage` events, which fire across same-origin windows — this is how
   the Git viewer and File viewer popups re-theme when the main window toggles.
 - App-wide font size persists in `localStorage` under `meow.fontSize` (default 13, range 8–40px,

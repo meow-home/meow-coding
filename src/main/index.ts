@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Notification, screen, session, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Notification, powerMonitor, screen, session, shell } from 'electron'
 import { spawn } from 'node:child_process'
 import { existsSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { stat, writeFile } from 'node:fs/promises'
@@ -66,10 +66,15 @@ import { ExternalApiManager } from './external-api/manager'
 import { ExternalDelegationFacade } from './external-api/facade'
 import { Channels } from '../shared/ipc'
 import { formatLogArg, safeJson } from '../shared/log-helpers'
-import type { AgentState, Command, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, ProjectSearchHit, PromptResponse, SessionDelegation, TerminalCreateOptions, TranscriptWindowOpts, Workspace, WorkspaceRuntime } from '../shared/types'
+import type { AgentState, Command, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, ProjectSearchHit, PromptResponse, SessionDelegation, TerminalCreateOptions, TranscriptWindowOpts, UpdaterStatusEvent, Workspace, WorkspaceRuntime } from '../shared/types'
 
 let win: BrowserWindow | null = null
 let isQuitting = false
+
+// Periodic update check (a long-running app must still pick up releases) and the
+// delay before a failed background check retries on its own.
+const UPDATE_POLL_MS = 4 * 60 * 60 * 1000
+const UPDATE_RETRY_MS = 5 * 60 * 1000
 
 function binaryName(): string {
   return process.platform === 'win32' ? 'meow-cliproxy.exe' : 'meow-cliproxy'
@@ -366,6 +371,9 @@ export class MainApp {
   })
   private prices = new Map<string, { input?: number; output?: number; cacheRead?: number; cacheWrite?: number }>()
   private updater: Updater
+  private updatePollTimer: ReturnType<typeof setInterval> | null = null
+  private updateRetryTimer: ReturnType<typeof setTimeout> | null = null
+  private updateRetries = 0
 
   constructor() {
     this.pty.on('data', ({ agentId, data }) => {
@@ -416,16 +424,23 @@ export class MainApp {
     this.updater = new Updater(
       (e) => {
         win?.webContents.send(Channels.EventUpdaterStatus, e)
+        // A background check that fails (offline, GitHub hiccup) retries on its
+        // own instead of waiting for the next periodic check.
+        if (e.type === 'error') this.scheduleUpdateRetry()
+        if (e.type === 'up-to-date' || e.type === 'downloaded') this.updateRetries = 0
         if (e.type === 'downloaded') {
           // Download finished in the background — let the user know even with
           // the dialog closed. The update installs silently on quit; clicking
-          // restarts now to apply it immediately.
-          const n = new Notification({
-            title: 'Meow Coding',
-            body: `[meow] v${e.version} is ready and will install when you quit. Click to restart now.`
-          })
-          n.on('click', () => this.updater.install())
-          n.show()
+          // restarts now to apply it immediately. With the window in front the
+          // renderer shows its own toast, so the OS notification would be noise.
+          if (!win || !win.isFocused()) {
+            const n = new Notification({
+              title: 'Meow Coding',
+              body: `[meow] v${e.version} is ready and will install when you quit. Click to restart now.`
+            })
+            n.on('click', () => this.updater.install())
+            n.show()
+          }
         }
       },
       {
@@ -437,16 +452,55 @@ export class MainApp {
     )
   }
 
-  checkForUpdates(): void {
-    void this.updater.check(true)
+  // Returns the check promise so the settings button can stay busy until the
+  // answer arrives instead of flipping back immediately.
+  checkForUpdates(): Promise<void> {
+    return this.updater.check(true)
   }
 
   installUpdate(): void {
     this.updater.install()
   }
 
+  cancelUpdateInstall(): void {
+    this.updater.cancelInstall()
+  }
+
+  getUpdaterStatus(): UpdaterStatusEvent | null {
+    return this.updater.getStatus()
+  }
+
   checkForUpdatesAuto(): void {
     if (app.isPackaged) void this.updater.check(false)
+  }
+
+  /**
+   * Startup check, a periodic one (an app left open for days must still pick up
+   * releases) and a re-check after the machine wakes from sleep.
+   */
+  startUpdatePolling(): void {
+    if (!app.isPackaged) return
+    const run = (): void => {
+      if (isQuitting) return
+      try {
+        this.checkForUpdatesAuto()
+      } catch (err) {
+        console.error('[meow] auto update check failed:', err)
+      }
+    }
+    setTimeout(run, 1500)
+    this.updatePollTimer = setInterval(run, UPDATE_POLL_MS)
+    powerMonitor.on('resume', () => setTimeout(run, 5000))
+  }
+
+  // One silent retry per failure, capped, so an offline start is not a dead end.
+  private scheduleUpdateRetry(): void {
+    if (this.updateRetries >= 2 || this.updateRetryTimer) return
+    this.updateRetries += 1
+    this.updateRetryTimer = setTimeout(() => {
+      this.updateRetryTimer = null
+      if (app.isPackaged && !isQuitting) void this.updater.check(false)
+    }, UPDATE_RETRY_MS)
   }
 
   private setState(agentId: string, patch: Partial<AgentState>): void {
@@ -765,7 +819,7 @@ function createWindow(): void {
     width,
     height,
     title: 'Meow Coding',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#1e2227',
     ...getWindowChromeOptions(process.platform),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
@@ -805,7 +859,7 @@ function createWindow(): void {
   win.on('maximize', () => win?.webContents.send(Channels.EventWindowMaximizedChange, { maximized: true }))
   win.on('unmaximize', () => win?.webContents.send(Channels.EventWindowMaximizedChange, { maximized: false }))
   // Crash/hang observability: a dead renderer paints the window background
-  // (#1a1a1a — near black) and freezes all interaction, which looks exactly
+  // (#1e2227 — near black) and freezes all interaction, which looks exactly
   // like a "black screen, must restart the app" fault. Log the renderer's
   // death reason/exit code and unresponsiveness so those episodes are
   // actionable instead of invisible. A dead renderer cannot log for itself,
@@ -1086,6 +1140,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.AppVersion, () => app.getVersion())
   ipcMain.handle(Channels.UpdaterCheck, () => mainApp.checkForUpdates())
   ipcMain.handle(Channels.UpdaterInstall, () => mainApp.installUpdate())
+  ipcMain.handle(Channels.UpdaterCancelInstall, () => mainApp.cancelUpdateInstall())
+  ipcMain.handle(Channels.UpdaterGetStatus, () => mainApp.getUpdaterStatus())
   ipcMain.handle(Channels.WindowMinimize, e => BrowserWindow.fromWebContents(e.sender)?.minimize())
   ipcMain.handle(Channels.WindowToggleMaximize, e => {
     const w = BrowserWindow.fromWebContents(e.sender)
@@ -1251,13 +1307,7 @@ app.whenReady().then(async () => {
     getWindow: () => win,
     onQuit: () => app.quit()
   })
-  setTimeout(() => {
-    try {
-      mainApp.checkForUpdatesAuto()
-    } catch (err) {
-      console.error('[meow] auto update check failed:', err)
-    }
-  }, 1500)
+  mainApp.startUpdatePolling()
   app.on('activate', () => {
     const w = BrowserWindow.getAllWindows()[0]
     if (!w) {

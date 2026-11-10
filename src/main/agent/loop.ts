@@ -19,7 +19,7 @@ import { DEFAULT_MAX_CONTEXT_TOKENS } from './config'
 import { classifyContextOverflowError } from './limits'
 import { toolLoopDetector } from './repetition'
 import type { ToolLoopDetector, ToolLoopVerdict } from './repetition'
-import { todoEndOfTurnNote, todoNudgeDetector } from './todo-nudge'
+import { todoCarryOverNote, todoEndOfTurnNote, todoNudgeDetector } from './todo-nudge'
 import type { TodoNudgeDetector } from './todo-nudge'
 import { createResponseGuard, MAX_TOOL_CALLS_PER_RESPONSE } from './response-guard'
 import type { GuardVerdict } from './response-guard'
@@ -295,6 +295,8 @@ export class SessionRunner {
     this.compaction = this.resolveCompaction()
     const runUsage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 }
     this.turnContext = signal?.aborted ? '' : await this.snapshotTurnContext()
+    const carryOver = this.deps.getTodos ? todoCarryOverNote(this.deps.getTodos()) : null
+    if (carryOver) this.turnContext = this.turnContext ? `${this.turnContext}\n\n${carryOver}` : carryOver
     this.runContext = this.deps.runContext?.()
     while (true) {
       if (signal?.aborted) {
@@ -783,6 +785,7 @@ export class SessionRunner {
           snapshotAgentId: this.deps.snapshotAgentId,
           diagnostics: this.deps.diagnostics,
           setTodos: (todos) => this.deps.setTodos?.(todos),
+          getTodos: this.deps.getTodos ? () => this.deps.getTodos!() : undefined,
           emitSubagent: (taskId, e) => this.deps.onEvent({
             type: 'subagent-event',
             agentId: this.deps.agentId,

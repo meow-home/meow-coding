@@ -10,9 +10,11 @@ import {
   CheckCircle2,
   RefreshCw,
   Radio,
-  ShieldAlert
+  ShieldAlert,
+  ArrowUpCircle,
+  DownloadCloud
 } from 'lucide-react'
-import type { AgentState, GitStatus } from '@shared/types'
+import type { AgentState, GitStatus, UpdaterStatusEvent } from '@shared/types'
 import type { BrowserStatusInfo } from '@shared/browser-types'
 import { browserPillLabel } from './browserPillLabel'
 
@@ -23,6 +25,8 @@ interface Props {
   agents: AgentState[]
   browser?: BrowserStatusInfo | null
   browserBackend?: 'builtin' | 'chrome'
+  update?: UpdaterStatusEvent | null
+  onUpdateClick?: () => void
   onBrowserClick?: () => void
   onGitClick?: () => void
 }
@@ -34,6 +38,8 @@ export default function StatusBar({
   agents,
   browser,
   browserBackend,
+  update,
+  onUpdateClick,
   onBrowserClick,
   onGitClick
 }: Props) {
@@ -45,6 +51,21 @@ export default function StatusBar({
   }, [])
 
   const pill = browserPillLabel(browserBackend, browser)
+  const updateReady = update?.type === 'downloaded' ? update.version : null
+  const updateAvailable = update?.type === 'update-available' ? update.version : null
+  const updatePercent = update?.type === 'download-progress' ? update.percent : null
+  const updateVersion = update?.type === 'download-progress' ? update.version : updateAvailable
+  const updateActive = updateReady !== null || updateAvailable !== null || updatePercent !== null
+  const updateLabel = updateReady
+    ? 'Restart to update'
+    : updatePercent !== null
+      ? `Updating ${updatePercent}%`
+      : 'Update available'
+  const updateTitle = updateReady
+    ? `v${updateReady} is downloaded — click to restart and apply it`
+    : updatePercent !== null
+      ? `Downloading${updateVersion ? ` v${updateVersion}` : ' the update'} in the background (${updatePercent}%) — click for details`
+      : `v${updateVersion} is available — downloading in the background. Click for details`
   const paired = pill.tone === 'paired'
   const pending = Boolean(browser?.pendingExtension)
   const waiting = pill.tone === 'waiting' && !pending
@@ -130,11 +151,27 @@ export default function StatusBar({
           )}
         </button>
 
-        {version && (
-          <div className="sb-item sb-version" title={`Meow Coding v${version}`}>
-            <Tag size={12} className="sb-icon sb-dim" />
-            <span className="sb-label sb-mono sb-dim">v{version}</span>
-          </div>
+        {updateActive ? (
+          <button
+            className={`sb-item sb-button sb-update ${updateReady ? 'ready' : 'downloading'}`}
+            onClick={onUpdateClick}
+            title={updateTitle}
+          >
+            {updateReady ? (
+              <ArrowUpCircle size={13} className="sb-icon sb-icon-accent" />
+            ) : (
+              <DownloadCloud size={13} className="sb-icon sb-icon-accent" />
+            )}
+            <span className="sb-label sb-mono">{updateLabel}</span>
+            {updateReady && <span className="sb-pulse-dot" />}
+          </button>
+        ) : (
+          version && (
+            <div className="sb-item sb-version" title={`Meow Coding v${version}`}>
+              <Tag size={12} className="sb-icon sb-dim" />
+              <span className="sb-label sb-mono sb-dim">v{version}</span>
+            </div>
+          )
         )}
       </div>
     </footer>

@@ -161,7 +161,9 @@ describe('Updater', () => {
     const { events } = makeUpdater()
     const emit = listeners.get('download-progress')!
     emit({ percent: 45.6, total: 100, transferred: 45.6, delta: 0, bytesPerSecond: 0 })
-    expect(events).toEqual([{ type: 'download-progress', percent: 46 }])
+    expect(events).toEqual([
+      { type: 'download-progress', percent: 46, version: undefined, restartWhenReady: false }
+    ])
   })
 
   it('forwards update-downloaded as downloaded with the new version', async () => {
@@ -184,10 +186,98 @@ describe('Updater', () => {
     expect(mockAutoUpdater.autoInstallOnAppQuit).toBe(true)
   })
 
-  it('install before download starts the download instead of quitting', () => {
+  it('install before any check runs a check instead of quitting', async () => {
     const { updater } = makeUpdater()
     updater.install()
-    expect(mockAutoUpdater.downloadUpdate).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(mockAutoUpdater.checkForUpdates).toHaveBeenCalledTimes(1))
+    expect(mockAutoUpdater.quitAndInstall).not.toHaveBeenCalled()
+  })
+
+  it('install with a known version and no download in flight starts the download', async () => {
+    const { updater } = makeUpdater()
+    mockAutoUpdater.checkForUpdates.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: '2.1.0', releaseDate: '2026-08-18T00:00:00.000Z' },
+      downloadPromise: null
+    })
+    await updater.check(true)
+    updater.install()
+    await vi.waitFor(() => expect(mockAutoUpdater.downloadUpdate).toHaveBeenCalledTimes(1))
+    expect(mockAutoUpdater.quitAndInstall).not.toHaveBeenCalled()
+  })
+
+  it('install during a background download defers the restart until it finishes', async () => {
+    const { events, updater } = makeUpdater()
+    let finishDownload!: () => void
+    mockAutoUpdater.checkForUpdates.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: '2.1.0', releaseDate: '2026-08-18T00:00:00.000Z' },
+      downloadPromise: new Promise<void>(resolve => { finishDownload = resolve })
+    })
+    await updater.check(true)
+
+    updater.install()
+    // The download is already running: no second download, no premature quit.
+    expect(mockAutoUpdater.downloadUpdate).not.toHaveBeenCalled()
+    expect(mockAutoUpdater.quitAndInstall).not.toHaveBeenCalled()
+    expect(events.at(-1)).toEqual({
+      type: 'download-progress',
+      percent: 0,
+      version: '2.1.0',
+      restartWhenReady: true
+    })
+
+    listeners.get('update-downloaded')!({ version: '2.1.0', downloadedFile: '/tmp/update' })
+    expect(mockAutoUpdater.quitAndInstall).toHaveBeenCalledWith(true, true)
+    finishDownload()
+  })
+
+  it('cancelInstall drops a pending restart so the finished download waits for quit', async () => {
+    const { events, updater } = makeUpdater()
+    mockAutoUpdater.checkForUpdates.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: '2.1.0', releaseDate: '2026-08-18T00:00:00.000Z' },
+      downloadPromise: new Promise<void>(() => {})
+    })
+    await updater.check(true)
+    updater.install()
+    updater.cancelInstall()
+    expect(events.at(-1)).toEqual({
+      type: 'download-progress',
+      percent: 0,
+      version: '2.1.0',
+      restartWhenReady: false
+    })
+
+    listeners.get('update-downloaded')!({ version: '2.1.0', downloadedFile: '/tmp/update' })
+    expect(mockAutoUpdater.quitAndInstall).not.toHaveBeenCalled()
+  })
+
+  it('a check that finds nothing clears the pending restart', async () => {
+    const { updater } = makeUpdater()
+    mockAutoUpdater.checkForUpdates.mockResolvedValue({
+      isUpdateAvailable: false,
+      updateInfo: { version: '1.0.0', releaseDate: '2026-08-18T00:00:00.000Z' }
+    })
+    await updater.check(true)
+    updater.install()
+    await updater.check(true)
+    // A later release must not install itself just because a stale click is set.
+    listeners.get('update-downloaded')!({ version: '2.0.0', downloadedFile: '/tmp/update' })
+    expect(mockAutoUpdater.quitAndInstall).not.toHaveBeenCalled()
+  })
+
+  it('a download error clears the pending restart', async () => {
+    const { updater } = makeUpdater()
+    mockAutoUpdater.checkForUpdates.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: '2.1.0', releaseDate: '2026-08-18T00:00:00.000Z' },
+      downloadPromise: new Promise<void>(() => {})
+    })
+    await updater.check(true)
+    updater.install()
+    listeners.get('error')!(new Error('network down'))
+    listeners.get('update-downloaded')!({ version: '2.1.0', downloadedFile: '/tmp/update' })
     expect(mockAutoUpdater.quitAndInstall).not.toHaveBeenCalled()
   })
 
@@ -203,6 +293,12 @@ describe('Updater', () => {
 
   it('a failed download rejects and surfaces as an error', async () => {
     const { events, updater } = makeUpdater()
+    mockAutoUpdater.checkForUpdates.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: '2.1.0', releaseDate: '2026-08-18T00:00:00.000Z' },
+      downloadPromise: null
+    })
+    await updater.check(true)
     mockAutoUpdater.downloadUpdate.mockRejectedValueOnce(new Error('disk full'))
     updater.install()
     await vi.waitFor(() => {
@@ -210,7 +306,7 @@ describe('Updater', () => {
     })
   })
 
-  it('does not re-announce a version that is already downloaded', async () => {
+  it('reports an already-downloaded version instead of re-announcing it as available', async () => {
     const { events, updater } = makeUpdater()
     mockAutoUpdater.checkForUpdates.mockResolvedValue({
       isUpdateAvailable: true,
@@ -219,14 +315,26 @@ describe('Updater', () => {
     await updater.check(true)
     expect(events.filter(e => e.type === 'update-available')).toHaveLength(1)
 
-    // The background download finished; a later check for the same version
-    // must stay silent instead of re-notifying the user — including the
-    // `update-downloaded` re-fire from the cached installer.
+    // The background download finished; a later check for the same version must
+    // not re-announce it as available, but the caller still needs an answer (a
+    // silent return left the UI stuck on "Checking…").
     listeners.get('update-downloaded')!({ version: '2.1.0', downloadedFile: '/tmp/update' })
     events.length = 0
     await updater.check(true)
+    expect(events).toEqual([{ type: 'checking' }, { type: 'downloaded', version: '2.1.0' }])
     listeners.get('update-downloaded')!({ version: '2.1.0', downloadedFile: '/tmp/update' })
-    expect(events).toEqual([{ type: 'checking' }])
+    expect(events).toEqual([{ type: 'checking' }, { type: 'downloaded', version: '2.1.0' }])
+  })
+
+  it('replays the last status for a renderer that mounts late', async () => {
+    const { updater } = makeUpdater()
+    expect(updater.getStatus()).toBeNull()
+    mockAutoUpdater.checkForUpdates.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: '2.1.0', releaseDate: '2026-08-18T00:00:00.000Z' }
+    })
+    await updater.check(false)
+    expect(updater.getStatus()).toMatchObject({ type: 'update-available', version: '2.1.0' })
   })
 
   it('announces a different version after one was already downloaded', async () => {

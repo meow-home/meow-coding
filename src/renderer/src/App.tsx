@@ -24,6 +24,7 @@ import BrowserDialog from './components/BrowserDialog'
 import ConfirmDialog from './components/ConfirmDialog'
 import InstallGuideDialog from './components/InstallGuideDialog'
 import UpdateDialog from './components/UpdateDialog'
+import UpdateToast from './components/UpdateToast'
 import { beginOcclusion, endOcclusion, overlapsBrowserViewport, useBrowserOcclusion } from './components/common/useBrowserOcclusion'
 import BaseModal from './components/common/BaseModal'
 import { isLastSession } from './session-guard'
@@ -165,11 +166,21 @@ export default function App() {
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
   const [updateChecking, setUpdateChecking] = useState(false)
   const [upToDateOpen, setUpToDateOpen] = useState(false)
+  // Version of the update announced by the bottom-right toast; cleared when the
+  // user dismisses it or opens the dialog.
+  const [updateToast, setUpdateToast] = useState<string | null>(null)
   const manualCheckRef = useRef(false)
+  const updateDialogOpenRef = useRef(false)
+  const dismissedUpdateRef = useRef<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('meow.sidebar.collapsed') === '1')
   const [sidebarHovered, setSidebarHovered] = useState(false)
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const suppressHoverRef = useRef(false)
+
+  useEffect(() => {
+    updateDialogOpenRef.current = updateDialogOpen
+    if (updateDialogOpen) setUpdateToast(null)
+  }, [updateDialogOpen])
 
   const handleMouseEnterBrand = useCallback(() => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
@@ -576,22 +587,37 @@ export default function App() {
     const offInstallGuide = window.api.onBrowserOpenInstallGuide((e) => {
       setInstallGuide(e)
     })
+    let sawUpdateEvent = false
     const offUpdater = window.api.onUpdaterStatus((e) => {
+      sawUpdateEvent = true
       setUpdateStatus(e)
       setUpdateChecking(e.type === 'checking')
+      if (e.type === 'error' || e.type === 'not-supported') {
+        manualCheckRef.current = false
+        setUpdateDialogOpen(false)
+      }
       // Only a manual check opens the dialog (the user is waiting for the
       // answer). A background download stays out of the way: the update
-      // installs on quit, and the native notification offers a restart.
-      if ((e.type === 'update-available' || e.type === 'downloaded') && manualCheckRef.current) {
-        setUpdateDialogOpen(true)
+      // installs on quit, and a toast plus the status bar offer a restart.
+      if (e.type === 'update-available' || e.type === 'downloaded' || e.type === 'download-progress') {
+        if (manualCheckRef.current) {
+          manualCheckRef.current = false
+          setUpdateDialogOpen(true)
+        } else if (e.type === 'downloaded' && !updateDialogOpenRef.current && dismissedUpdateRef.current !== e.version) {
+          setUpdateToast(e.version)
+        }
       }
-      if (e.type === 'error' || e.type === 'not-supported') setUpdateDialogOpen(false)
       // Only surface "up to date" when the user asked for a manual check —
       // the automatic check on startup must not pop a dialog.
       if (e.type === 'up-to-date' && manualCheckRef.current) {
         manualCheckRef.current = false
         setUpToDateOpen(true)
       }
+    })
+    // A renderer that mounts (or reloads) after the check already ran would miss
+    // every event: replay the last status main holds instead of showing nothing.
+    void window.api.getUpdaterStatus().then((s) => {
+      if (s && !sawUpdateEvent) setUpdateStatus(s)
     })
     void window.api.getBrowserStatus().then(setBrowser)
     return () => {
@@ -1093,6 +1119,8 @@ export default function App() {
         agents={activeRuntime?.agents ?? []}
         browser={browser}
         browserBackend={browserBackend}
+        update={updateStatus}
+        onUpdateClick={() => setUpdateDialogOpen(true)}
         onBrowserClick={() => setBrowserDialogOpen(true)}
         onGitClick={activeRuntime ? () => void window.api.gitOpenViewer(activeRuntime.workspace.projectPath) : undefined}
       />
@@ -1126,6 +1154,18 @@ export default function App() {
           status={updateStatus}
           onClose={() => setUpdateDialogOpen(false)}
           onInstall={() => void window.api.installUpdate()}
+          onCancelInstall={() => void window.api.cancelUpdateInstall()}
+        />
+      )}
+      {updateToast && (
+        <UpdateToast
+          version={updateToast}
+          onRestart={() => void window.api.installUpdate()}
+          onOpen={() => setUpdateDialogOpen(true)}
+          onDismiss={() => {
+            dismissedUpdateRef.current = updateToast
+            setUpdateToast(null)
+          }}
         />
       )}
       {upToDateOpen && (

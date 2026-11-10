@@ -7,6 +7,7 @@ import { appendStreamDelta } from '@shared/text'
 import { contextTokens } from '@shared/usage'
 import ChatInput from './ChatInput'
 import type { ChatInputHandle } from './ChatInput'
+import type { MeowPetEvent } from './MeowPet'
 import { useChatScroll } from './useChatScroll'
 import { buildQuestionAnswer } from './questionAnswer'
 import ToolCallCard from './ToolCallCard'
@@ -251,6 +252,19 @@ function RetryCountdown({ id, attempt, maxAttempts, delayMs, unbounded }: { id: 
 function ChatPanel({ agentId, cwd, gitBranch, mode = 'build', variant, onModeChange, onVariantChange, onSendDraftMessage, onOpenSubagent, projects, onSelectProject, onChooseFolder }: Props) {
   const [items, setItems] = useState<FeedItem[]>([])
   const [running, setRunning] = useState(false)
+  // One-shot reaction for the composer mascot: a finished turn bounces, a failed one shakes.
+  // The counter (not a timestamp) is what makes two reactions in the same millisecond replay.
+  const [petEvent, setPetEvent] = useState<MeowPetEvent | null>(null)
+  const petSeqRef = useRef(0)
+  // The mascot waits at three dots until the turn produces its first token, then types.
+  // Flipped once per turn (not per delta) so streaming never re-renders the panel for it.
+  const [turnOutput, setTurnOutput] = useState(false)
+  const turnOutputRef = useRef(false)
+  const markTurnOutput = useCallback(() => {
+    if (turnOutputRef.current) return
+    turnOutputRef.current = true
+    setTurnOutput(true)
+  }, [])
   const [currentMode, setCurrentMode] = useState<AgentMode>(mode)
   const [currentVariant, setCurrentVariant] = useState<string>(variant ?? '')
   // Keep local state in sync with the authoritative main-process config pushed
@@ -754,6 +768,16 @@ if (e.type === 'usage') {
       flushDeltas()
       setRunning(false)
       setPendingPrompt(null)
+      turnOutputRef.current = false
+      setTurnOutput(false)
+      // A user Stop is not an outcome, so the pet stays put; every other ending is one. A turn
+      // that lands while the window is in the background gets a hop instead of a celebration —
+      // you were not looking at the transcript.
+      if (e.type === 'error' || (e.type === 'done' && e.reason !== 'complete' && e.reason !== 'stopped')) {
+        setPetEvent({ kind: 'error', nonce: ++petSeqRef.current })
+      } else if (e.type === 'done') {
+        setPetEvent({ kind: document.hasFocus() ? 'happy' : 'notify', nonce: ++petSeqRef.current })
+      }
       if (e.type === 'error') {
         // The id comes from main (the persisted error item), so the card and a
         // later error-removed event refer to the same row.
@@ -788,10 +812,14 @@ if (e.type === 'usage') {
     }
     if (e.type === 'turn-started') {
       clearRetry()
+      turnOutputRef.current = false
+      setTurnOutput(false)
       setRunning(true)
       return
     }
     if (e.type === 'prompt-request') {
+      // The agent is blocked until this is answered, so the pet hops to get your attention.
+      setPetEvent({ kind: 'notify', nonce: ++petSeqRef.current })
       setPendingPrompt({
         promptId: e.promptId,
         promptType: e.kind,
@@ -839,6 +867,7 @@ if (e.type === 'usage') {
       return
     }
     if (e.type === 'text-delta' || e.type === 'reasoning-delta') {
+      markTurnOutput()
       clearRetry()
       clearNotice()
       const buf = deltaBufRef.current
@@ -859,6 +888,7 @@ if (e.type === 'usage') {
     // thought opens a second bubble after it — one thought reads as two, the
     // second one cut. Flushing first keeps the thought whole and above its tool.
     flushDeltas()
+    markTurnOutput()
     setItems(prev => {
       const next = [...prev]
       if (e.type === 'tool-start') {
@@ -874,7 +904,7 @@ if (e.type === 'usage') {
       }
       return next
     })
-  }, [agentId, flushDeltas, resetView, scroll.replaceActiveAnchorId, scroll.startTurnAnchor])
+  }, [agentId, flushDeltas, markTurnOutput, resetView, scroll.replaceActiveAnchorId, scroll.startTurnAnchor])
 
   const send = useCallback((text: string, images?: ImageAttachment[]) => {
     const trimmed = text.trim()
@@ -1476,6 +1506,8 @@ if (e.type === 'usage') {
           ref={chatInputRef}
           agentId={agentId}
           running={running}
+          phase={turnOutput ? 'typing' : 'thinking'}
+          petEvent={petEvent}
           mode={currentMode}
           commands={commands}
           variant={currentVariant}

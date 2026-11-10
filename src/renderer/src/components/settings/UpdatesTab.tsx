@@ -9,6 +9,8 @@ export default function UpdatesTab() {
 
   useEffect(() => {
     void window.api.getAppVersion().then(setVersion)
+    // The startup check may already have run before this tab mounted.
+    void window.api.getUpdaterStatus().then(s => { if (s) setStatus(s) })
     const off = window.api.onUpdaterStatus(setStatus)
     return off
   }, [])
@@ -97,9 +99,22 @@ export default function UpdatesTab() {
               <div className="updates-info-group">
                 <DownloadCloud size={20} className="spin" style={{ color: '#3b82f6', flexShrink: 0 }} />
                 <div className="updates-status-text" style={{ flex: 1 }}>
-                  <span className="updates-status-title">Downloading update… ({status.percent}%)</span>
+                  <span className="updates-status-title">
+                    {status.restartWhenReady
+                      ? `Downloading update… (${status.percent}%) — restarting when it finishes`
+                      : `Downloading update… (${status.percent}%)`}
+                  </span>
                   <span className="updates-status-desc">Fetching release package from GitHub.</span>
                 </div>
+                {status.restartWhenReady ? (
+                  <button className="btn small" onClick={() => void window.api.cancelUpdateInstall()}>
+                    Keep Working
+                  </button>
+                ) : (
+                  <button className="btn primary small" onClick={() => void window.api.installUpdate()}>
+                    Update &amp; Restart
+                  </button>
+                )}
               </div>
               <div className="updates-progress-bar" style={{ marginTop: '0.5rem' }}>
                 <div className="updates-progress-inner" style={{ width: `${status.percent}%` }} />

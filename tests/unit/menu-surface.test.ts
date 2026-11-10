@@ -3,9 +3,10 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 // Every floating menu (dropdowns, pickers, context popover, command palette, branch
-// switcher) carries no outline any more: a 1px hairline read as a hard border against
-// the panels. Without it the menu's own surface has to sit above the app's surfaces in
-// BOTH themes, which is what `--bg-menu` is for.
+// switcher) shares ONE rim: `--menu-border`, a step fainter than `--hairline`. The menu
+// keeps an edge against the surface behind it without the border reading as a drawn
+// outline; the surface itself still sits above the app's surfaces in BOTH themes, which
+// is what `--bg-menu` is for.
 
 const MENU_SURFACES = [
   '.context-panel',
@@ -40,11 +41,19 @@ function token(theme: ':root' | '[data-theme="light"]', name: string): string {
 }
 
 describe('floating menu surfaces', () => {
-  it('paint the menu surface and carry no outline', () => {
+  it('paint the menu surface and carry the faint rim', () => {
     for (const selector of MENU_SURFACES) {
       const body = ruleBody(selector)
       expect(body, `${selector} does not use --bg-menu`).toContain('background: var(--bg-menu)')
-      expect(body, `${selector} still draws a border`).not.toMatch(/border:\s*0\.083333rem/)
+      expect(body, `${selector} draws no rim`).toContain('border: 0.083333rem solid var(--menu-border)')
+    }
+  })
+
+  it('keeps the rim fainter than the default hairline in both themes', () => {
+    for (const theme of [':root', '[data-theme="light"]'] as const) {
+      const alpha = (value: string) => Number(value.match(/rgba\([^)]*?,\s*([\d.]+)\s*\)/)![1])
+      expect(alpha(token(theme, '--menu-border')), `${theme} --menu-border is not fainter than --hairline`)
+        .toBeLessThan(alpha(token(theme, '--hairline')))
     }
   })
 

@@ -125,7 +125,14 @@ handlers and the app lifecycle.
 - `models-catalog.ts` / `model-variants.ts` — model provider catalog + variants (reasoning, pricing); `fetchLiveModelsInfo` syncs any OpenAI-compatible `/models` endpoint (used when connecting a provider or clicking "Sync models"). `meow-agent-manager.connectProvider` accepts a hand-typed `models[]` (the way to add an arbitrary OpenAI-compatible baseUrl + key), falling back to live `/models` → catalog → stored list.
 - `updater.ts` — electron-updater wrapper, emits `UpdaterStatusEvent`. Background updates:
   `autoDownload` + `autoInstallOnAppQuit` are on, and `install()` uses `quitAndInstall(true, true)`
-  so the NSIS installer runs silently and relaunches the app.
+  so the NSIS installer runs silently and relaunches the app. `install()` while a download is in
+  flight does not call `downloadUpdate()` again (it returns the running promise and would do nothing):
+  it sets `restartWhenReady`, reports it on `download-progress`, and restarts on `update-downloaded`;
+  `cancelInstall()` drops it. `getStatus()` replays the last event for `updater:get-status`, and a
+  manual check on an already-downloaded version re-emits `downloaded` instead of returning silently.
+  `MainApp.startUpdatePolling()` checks at startup, every 4 hours and after `powerMonitor` resume, and
+  a failed background check retries once after 5 minutes (max 2 per session). The `downloaded` OS
+  notification is skipped while the window is focused (the renderer shows its own toast).
 - `window-chrome.ts` — `getWindowChromeOptions`: hides the title-bar on Windows/Linux; `applyTitleBarTheme` re-colors the Windows overlay (min/max/close) live when the app theme toggles dark/light. The OS draws those buttons, so `TITLE_BAR_COLORS` is their only color source and must equal the renderer's title bar surface (`.title-bar-right` → `var(--bg-chat)`, the chat surface); `tests/unit/window-chrome.test.ts` parses `styles.css` and fails if the two drift apart.
 - `vault.ts` — encrypted secret store (safeStorage) for provider API keys.
 - `browser/` — backend contract, per-session router (built-in default), built-in backend (`embedded-browser.ts`) with the Electron host (`electron-tab-host.ts`: page + shield views), Chrome backend (BrowserBridge + Chrome launcher), Electron-free tab/command core (`browser-tab.ts` with the control state, lease, site approval and handoff, `cdp-commands.ts` with the sensitive-field refusal, `site-approval.ts`; `isLoopback` lives in `src/shared/loopback.ts`), the panel/IPC surface in `embedded-browser.ts` (one on-screen tab, freeze generation guard, user tab actions), trusted-extension store, snapshot format and snapshot file output.

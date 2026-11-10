@@ -7,9 +7,10 @@ interface Props {
   status: UpdaterStatusEvent | null
   onClose: () => void
   onInstall: () => void
+  onCancelInstall: () => void
 }
 
-export default function UpdateDialog({ status, onClose, onInstall }: Props) {
+export default function UpdateDialog({ status, onClose, onInstall, onCancelInstall }: Props) {
   const [meta, setMeta] = useState<{ version: string; currentVersion?: string; releaseNotes?: string } | null>(null)
 
   useEffect(() => {
@@ -24,24 +25,28 @@ export default function UpdateDialog({ status, onClose, onInstall }: Props) {
 
   const downloading = status.type === 'download-progress'
   const ready = status.type === 'downloaded'
+  const restartWhenReady = downloading && status.restartWhenReady
   const version = status.type === 'downloaded' ? status.version : status.type === 'update-available' ? status.version : meta?.version
   const currentVersion = status.type === 'update-available' ? status.currentVersion : meta?.currentVersion
   const releaseNotes = status.type === 'update-available' ? status.releaseNotes : meta?.releaseNotes
 
-  const actionsNode = (
+  const actionsNode = restartWhenReady ? (
+    <>
+      <button className="btn" onClick={onCancelInstall}>Keep working</button>
+      <button className="btn primary" disabled>Restarting when ready…</button>
+    </>
+  ) : (
     <>
       <button className="btn" onClick={onClose}>Later</button>
-      {!downloading && (
-        <button className="btn primary" onClick={onInstall}>
-          {ready ? 'Restart now' : 'Update & Restart'}
-        </button>
-      )}
+      <button className="btn primary" onClick={onInstall}>
+        {ready ? 'Restart now' : 'Update & Restart'}
+      </button>
     </>
   )
 
   return (
     <BaseModal
-      title={ready ? 'Update ready' : 'Update available'}
+      title={ready ? 'Update ready' : downloading ? 'Downloading update' : 'Update available'}
       onClose={onClose}
       actions={actionsNode}
       size="lg"
@@ -63,9 +68,22 @@ export default function UpdateDialog({ status, onClose, onInstall }: Props) {
             <div className="update-progress-fill" style={{ width: `${status.percent}%` }} />
           </div>
           <div className="update-progress-label">
-            {status.percent}% — downloading in the background, it installs when you quit.
+            {status.percent}% — {restartWhenReady
+              ? 'restarting as soon as the download finishes.'
+              : 'downloading in the background, it installs when you quit.'}
           </div>
         </>
+      )}
+      {status.type === 'update-available' && (
+        <p className="settings-hint">
+          Downloading in the background — it installs when you quit. Restart when it is ready to
+          apply it sooner.
+        </p>
+      )}
+      {ready && (
+        <p className="settings-hint">
+          Downloaded and ready — it installs when you quit. Restart now to apply it immediately.
+        </p>
       )}
     </BaseModal>
   )

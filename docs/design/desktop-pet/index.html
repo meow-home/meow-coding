@@ -1,0 +1,895 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meow desktop pet — shapes and animations</title>
+    <link rel="stylesheet" href="meow-pet.css" />
+    <style>
+      :root {
+        --bg: #0d0f11;
+        --bg-panel: #15181b;
+        --bg-raised: #1b1f23;
+        --bg-hover: #23272b;
+        --text: #e6e8ea;
+        --text-dim: #9aa0a6;
+        --text-faint: #6d7378;
+        --blue: #3b8bf5;
+        --orange: #f7941d;
+        --line: rgba(255, 255, 255, 0.08);
+        --font-ui: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+        --font-mono: 'JetBrainsMonoNerdFontMono', 'JetBrains Mono', ui-monospace, Menlo, Consolas,
+          monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font-ui);
+        font-size: 14px;
+        line-height: 1.55;
+      }
+      .page {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 2.75rem 2rem 5rem;
+      }
+      h1 {
+        font-size: 1.65rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        margin: 0 0 0.35rem;
+      }
+      h2 {
+        font-size: 0.82rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.09em;
+        color: var(--text-faint);
+        margin: 3rem 0 0.9rem;
+      }
+      h3 {
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin: 0 0 0.15rem;
+      }
+      p {
+        margin: 0;
+      }
+      .sub {
+        color: var(--text-dim);
+        max-width: 74ch;
+      }
+      .sub code,
+      code {
+        font-family: var(--font-mono);
+        font-size: 0.86em;
+        color: var(--orange);
+      }
+
+      /* ---------- toolbar ---------- */
+      .bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 1.5rem;
+        margin-top: 1.75rem;
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--bg-panel);
+        position: sticky;
+        top: 0.75rem;
+        z-index: 40;
+        backdrop-filter: blur(10px);
+      }
+      .bar__group {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+      }
+      .bar__label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-faint);
+      }
+      .seg {
+        display: inline-flex;
+        padding: 2px;
+        border-radius: 8px;
+        background: var(--bg-raised);
+        border: 1px solid var(--line);
+      }
+      .seg button {
+        appearance: none;
+        border: 0;
+        background: transparent;
+        color: var(--text-dim);
+        font: inherit;
+        font-size: 0.82rem;
+        padding: 0.32rem 0.7rem;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .seg button[aria-pressed='true'] {
+        background: var(--bg-hover);
+        color: var(--text);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+      }
+      .seg button:hover {
+        color: var(--text);
+      }
+      input[type='range'] {
+        accent-color: var(--blue);
+        width: 130px;
+      }
+      .switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.82rem;
+        color: var(--text-dim);
+        cursor: pointer;
+      }
+      .switch input {
+        accent-color: var(--blue);
+      }
+      .bar__hint {
+        margin-left: auto;
+        font-size: 0.78rem;
+        color: var(--text-faint);
+      }
+
+      /* ---------- cards ---------- */
+      .grid {
+        display: grid;
+        gap: 0.9rem;
+      }
+      .grid--shapes {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .grid--moods {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      @media (max-width: 980px) {
+        .grid--shapes,
+        .grid--moods {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--bg-panel);
+        overflow: hidden;
+      }
+      .card__stage {
+        position: relative;
+        display: grid;
+        place-items: center;
+        min-height: 190px;
+        padding: 1.25rem 1rem 1.5rem;
+        background: radial-gradient(120% 100% at 50% 0%, #1c2126 0%, #121518 70%);
+        cursor: pointer;
+      }
+      .card__meta {
+        padding: 0.7rem 0.9rem 0.85rem;
+        border-top: 1px solid var(--line);
+      }
+      .card__meta p {
+        color: var(--text-dim);
+        font-size: 0.8rem;
+        min-height: 2.4em;
+      }
+      .card__tag {
+        display: inline-block;
+        margin-bottom: 0.35rem;
+        font-family: var(--font-mono);
+        font-size: 0.68rem;
+        letter-spacing: 0.04em;
+        color: var(--text-faint);
+      }
+      .card__stage--wide {
+        min-height: 250px;
+      }
+      .sizes {
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        gap: 1.4rem;
+        margin-top: 1.2rem;
+        padding-top: 1rem;
+        border-top: 1px dashed rgba(255, 255, 255, 0.07);
+      }
+      .sizes figure {
+        margin: 0;
+        display: grid;
+        justify-items: center;
+        gap: 0.45rem;
+      }
+      .sizes figcaption {
+        font-family: var(--font-mono);
+        font-size: 0.68rem;
+        color: var(--text-faint);
+      }
+      .card__stage .mp {
+        margin-bottom: 0.5rem;
+      }
+
+      /* ---------- playground ---------- */
+      .desk {
+        position: relative;
+        height: 540px;
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        background: radial-gradient(120% 90% at 18% -10%, #1d2b38 0%, #12171b 46%, #0a0d10 100%);
+        cursor: crosshair;
+      }
+      .desk__grid {
+        position: absolute;
+        inset: 0;
+        background-image: linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+        background-size: 44px 44px;
+        mask-image: radial-gradient(120% 90% at 40% 0%, #000 20%, transparent 78%);
+      }
+      .win {
+        position: absolute;
+        inset: 30px 44px 60px;
+        display: flex;
+        flex-direction: column;
+        border-radius: 11px;
+        background: #14171a;
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        box-shadow: 0 30px 70px rgba(0, 0, 0, 0.55);
+        overflow: hidden;
+      }
+      .win__bar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: 34px;
+        padding: 0 12px;
+        background: #191d21;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+      }
+      .dot--r {
+        background: #ff6159;
+      }
+      .dot--y {
+        background: #ffbd2e;
+      }
+      .dot--g {
+        background: #28c840;
+      }
+      .win__title {
+        margin-left: 8px;
+        font-size: 11.5px;
+        color: #7d848b;
+        font-family: var(--font-mono);
+      }
+      .win__body {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+      }
+      .win__side {
+        width: 196px;
+        padding: 10px 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        border-right: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .srow {
+        height: 27px;
+        display: flex;
+        align-items: center;
+        padding: 0 9px;
+        border-radius: 6px;
+        font-size: 11.5px;
+        color: #868c93;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .srow.is-on {
+        background: #23272b;
+        color: #e4e7ea;
+      }
+      .win__main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+        padding: 16px 18px;
+        min-width: 0;
+      }
+      .bubble {
+        max-width: 76%;
+        padding: 8px 11px;
+        border-radius: 9px;
+        background: #1e2226;
+        color: #cfd4da;
+        font-size: 12px;
+      }
+      .bubble--me {
+        align-self: flex-end;
+        background: #21475a;
+        color: #e8f1f5;
+      }
+      .composer {
+        margin-top: auto;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        padding: 0 12px;
+        border-radius: 9px;
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        background: #1a1e22;
+        color: #6f757b;
+        font-size: 12px;
+      }
+      .desk__pet {
+        position: absolute;
+        left: 0;
+        top: 0;
+        z-index: 6;
+        cursor: grab;
+        will-change: transform;
+      }
+      .desk__pet:active {
+        cursor: grabbing;
+      }
+      .desk__hint {
+        position: absolute;
+        left: 18px;
+        bottom: 14px;
+        z-index: 7;
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.32);
+        font-family: var(--font-mono);
+        pointer-events: none;
+      }
+      .desk-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.7rem;
+        margin-top: 0.75rem;
+      }
+      .desk-bar__label {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-faint);
+      }
+      .desk-bar__chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .desk-bar__hint {
+        margin-left: auto;
+        font-size: 0.75rem;
+        color: var(--text-faint);
+      }
+      .chip {
+        appearance: none;
+        border: 1px solid var(--line);
+        background: var(--bg-raised);
+        color: #b9bfc5;
+        font: inherit;
+        font-size: 0.76rem;
+        padding: 0.28rem 0.62rem;
+        border-radius: 999px;
+        cursor: pointer;
+      }
+      .chip:hover {
+        background: var(--bg-hover);
+        color: #fff;
+      }
+
+      /* ---------- notes ---------- */
+      .notes {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.9rem;
+      }
+      @media (max-width: 900px) {
+        .notes {
+          grid-template-columns: 1fr;
+        }
+      }
+      .note {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--bg-panel);
+        padding: 0.95rem 1.1rem 1.05rem;
+      }
+      .note h3 {
+        margin-bottom: 0.4rem;
+      }
+      .note ul {
+        margin: 0;
+        padding-left: 1.05rem;
+        color: var(--text-dim);
+        font-size: 0.82rem;
+      }
+      .note li + li {
+        margin-top: 0.25rem;
+      }
+      .note code {
+        color: var(--blue);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <h1>Meow desktop pet</h1>
+      <p class="sub">
+        A mascot built from <code>meow-coding-logo.svg</code>: same rounded-square head, same ear
+        notches, same blue prompt chevron and orange cursor. Three shapes, eleven moods. Everything
+        below is live — click a card to replay its animation.
+      </p>
+
+      <div class="bar">
+        <div class="bar__group">
+          <span class="bar__label">Shape</span>
+          <div class="seg" id="segVariant">
+            <button type="button" data-variant="a" aria-pressed="true">A · Prompt</button>
+            <button type="button" data-variant="b" aria-pressed="false">B · Eyes</button>
+            <button type="button" data-variant="c" aria-pressed="false">C · Terminal</button>
+          </div>
+        </div>
+        <div class="bar__group">
+          <span class="bar__label">Size</span>
+          <input type="range" id="size" min="72" max="220" step="4" value="120" />
+          <span id="sizeOut" style="font-family: var(--font-mono); font-size: 0.76rem">120px</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="blink" checked />
+          Auto-blink
+        </label>
+        <span class="bar__hint">Applies to the animation gallery and the playground</span>
+      </div>
+
+      <h2>1 · Shapes</h2>
+      <div class="grid grid--shapes" id="shapes"></div>
+
+      <h2>2 · Animations</h2>
+      <div class="grid grid--moods" id="moods"></div>
+
+      <h2>3 · On the working screen</h2>
+      <div class="desk" id="desk">
+        <div class="desk__grid"></div>
+        <div class="win">
+          <div class="win__bar">
+            <span class="dot dot--r"></span>
+            <span class="dot dot--y"></span>
+            <span class="dot dot--g"></span>
+            <span class="win__title">meow-coding — session</span>
+          </div>
+          <div class="win__body">
+            <aside class="win__side">
+              <div class="srow is-on">Desktop pet concept</div>
+              <div class="srow">Refactor session store</div>
+              <div class="srow">Fix provider fallback</div>
+              <div class="srow">Browser bridge review</div>
+              <div class="srow">Changelog 0.9.4</div>
+            </aside>
+            <main class="win__main">
+              <div class="bubble">Add a mascot that lives on the desktop?</div>
+              <div class="bubble bubble--me">
+                I sketched one from the logo — three shapes, eleven moods.
+              </div>
+              <div class="bubble">Cute. Does it get in the way while I type?</div>
+              <div class="composer">Ask meow…</div>
+            </main>
+          </div>
+        </div>
+        <div class="desk__pet" id="deskPet"></div>
+        <div class="desk__hint">move the cursor · click the pet · drag it around</div>
+      </div>
+      <div class="desk-bar">
+        <span class="desk-bar__label">Trigger</span>
+        <div class="desk-bar__chips" id="deskActions">
+          <button class="chip" type="button" data-mood="walk">Walk</button>
+          <button class="chip" type="button" data-mood="run">Run</button>
+          <button class="chip" type="button" data-mood="type">Working</button>
+          <button class="chip" type="button" data-mood="think">Thinking</button>
+          <button class="chip" type="button" data-mood="sleep">Sleep</button>
+          <button class="chip" type="button" data-mood="happy">Happy</button>
+          <button class="chip" type="button" data-mood="error">Error</button>
+          <button class="chip" type="button" data-mood="notify">Notify</button>
+          <button class="chip" type="button" data-mood="idle">Idle</button>
+        </div>
+        <span class="desk-bar__hint">A manual trigger parks the pet for 4 s</span>
+      </div>
+
+      <h2>4 · Notes</h2>
+      <div class="notes">
+        <div class="note">
+          <h3>Why this reads as “Meow”</h3>
+          <ul>
+            <li>The head path is copied from the logo, not redrawn — no drift at any size.</li>
+            <li>
+              Shape A keeps the logo face literally: the blue <code>&gt;</code> is the eye, the
+              orange <code>_</code> is the mouth.
+            </li>
+            <li>
+              Shape B trades the chevron for two round eyes (friendlier, weaker brand read). Shape
+              C puts the prompt inside a mini terminal window on the head.
+            </li>
+            <li>
+              Palette is locked to the logo: <code>#1b1e23</code> shell, <code>#3b8bf5</code> blue,
+              <code>#f7941d</code> orange.
+            </li>
+          </ul>
+        </div>
+        <div class="note">
+          <h3>Motion rules</h3>
+          <ul>
+            <li>Nothing translates the whole pet except the host — moods animate the body box.</li>
+            <li>Squash and stretch around a fixed floor point (transform-origin 50% 88%).</li>
+            <li>Blink is a <code>scaleY(0.1)</code> on the eye group, 130 ms, every 2.2–6 s.</li>
+            <li>Ear twitch fires twice per 7.5 s cycle, one ear offset by half a period.</li>
+            <li>One-shots (<code>happy</code>, <code>notify</code>) revert to the previous mood.</li>
+          </ul>
+        </div>
+        <div class="note">
+          <h3>If this ships as a real desktop pet</h3>
+          <ul>
+            <li>
+              A second BrowserWindow: <code>transparent: true</code>, <code>frame: false</code>,
+              <code>alwaysOnTop</code>, <code>skipTaskbar</code>, <code>hasShadow: false</code>,
+              <code>resizable: false</code>.
+            </li>
+            <li>
+              Drag moves the window (<code>setPosition</code>); position persists per display in
+              <code>userData</code>.
+            </li>
+            <li>
+              Click-through outside the pet silhouette:
+              <code>setIgnoreMouseEvents(true, { forward: true })</code> and flip it off over the
+              body.
+            </li>
+            <li>Moods map to app state: working, thinking, error, notify — no new IPC surface needed beyond one event channel.</li>
+            <li>The pet is decoration: it must never steal focus from the main window.</li>
+          </ul>
+        </div>
+        <div class="note">
+          <h3>Decided</h3>
+          <ul>
+            <li>
+              Shape B shipped: 36px, perched on the input card's top border, 7.5rem in from the
+              right edge (<code>src/renderer/src/components/chat/MeowPet.tsx</code>).
+            </li>
+            <li>
+              Nine moods wired in the app: idle, look (hover), think (waiting for the first token),
+              type (streaming), sleep (45 s idle), happy (done / click), notify (prompt / background
+              turn), error (failed), drag (pointer down). Only walk / run stay unused.
+            </li>
+            <li>No speech chip at this size — the text would be unreadable.</li>
+            <li>Open: light theme (keep the dark shell), and whether it should ever sleep.</li>
+          </ul>
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <script src="meow-pet.js"></script>
+    <script>
+      ;(function () {
+        'use strict'
+
+        var state = { variant: 'a', size: 120, blink: true }
+
+        var SHAPES = [
+          {
+            variant: 'a',
+            name: 'A · Prompt face',
+            tag: 'logo verbatim',
+            text: 'The blue chevron is the eye, the orange cursor is the mouth. Closest to the icon, most distinctive.'
+          },
+          {
+            variant: 'b',
+            name: 'B · Round eyes',
+            tag: 'friendlier',
+            text: 'Two blue eyes with a highlight and an orange smile. Reads as a pet first, an icon second.'
+          },
+          {
+            variant: 'c',
+            name: 'C · Terminal head',
+            tag: 'on-product',
+            text: 'A mini window with traffic lights sits on the head, prompt inside. The pet is the app.'
+          }
+        ]
+
+        var MOODS = [
+          { id: 'idle', name: 'Idle', text: 'Breathes, blinks every few seconds, ears twitch.' },
+          { id: 'look', name: 'Look around', text: 'Head tilts left and right while the gaze follows.' },
+          { id: 'walk', name: 'Walk', text: 'Alternating feet, body bob, small lean.' },
+          { id: 'run', name: 'Run', text: 'Faster stride, bigger bounce, forward lean.' },
+          {
+            id: 'type',
+            name: 'Working',
+            text: 'Leans in and types a command into a floating terminal chip.'
+          },
+          { id: 'think', name: 'Thinking', text: 'Head tips up while three dots pulse.' },
+          { id: 'sleep', name: 'Sleep', text: 'Eyes closed, slow breathing, floating z z z.' },
+          { id: 'happy', name: 'Happy', text: 'Squash-and-stretch bounce with sparkles.' },
+          { id: 'error', name: 'Error', text: 'Shakes twice, X eyes, red halo.' },
+          { id: 'drag', name: 'Picked up', text: 'Squashed and tilted, shadow shrinks underneath.' },
+          { id: 'notify', name: 'Notify', text: 'One hop to get your attention.' }
+        ]
+
+        // ---------- shapes ----------
+        var shapesHost = document.getElementById('shapes')
+        SHAPES.forEach(function (shape) {
+          var card = document.createElement('article')
+          card.className = 'card'
+          card.innerHTML =
+            '<div class="card__stage card__stage--wide">' +
+            '<div class="pet-slot"></div>' +
+            '<div class="sizes">' +
+            '<figure><div class="pet-slot-sm" data-size="64"></div><figcaption>64</figcaption></figure>' +
+            '<figure><div class="pet-slot-sm" data-size="40"></div><figcaption>40</figcaption></figure>' +
+            '<figure><div class="pet-slot-sm" data-size="28"></div><figcaption>28</figcaption></figure>' +
+            '</div>' +
+            '</div>' +
+            '<div class="card__meta"><span class="card__tag">' +
+            shape.tag +
+            '</span><h3>' +
+            shape.name +
+            '</h3><p>' +
+            shape.text +
+            '</p></div>'
+          shapesHost.appendChild(card)
+
+          MeowPet.create(card.querySelector('.pet-slot'), {
+            variant: shape.variant,
+            size: 168,
+            mood: 'idle'
+          })
+          card.querySelectorAll('.pet-slot-sm').forEach(function (slot) {
+            MeowPet.create(slot, {
+              variant: shape.variant,
+              size: Number(slot.dataset.size),
+              mood: 'idle',
+              autoBlink: false
+            })
+          })
+        })
+
+        // ---------- mood gallery ----------
+        var moodsHost = document.getElementById('moods')
+        var gallery = []
+
+        MOODS.forEach(function (mood) {
+          var card = document.createElement('article')
+          card.className = 'card'
+          card.innerHTML =
+            '<div class="card__stage"><div class="pet-slot"></div></div>' +
+            '<div class="card__meta"><span class="card__tag">' +
+            mood.id +
+            '</span><h3>' +
+            mood.name +
+            '</h3><p>' +
+            mood.text +
+            '</p></div>'
+          moodsHost.appendChild(card)
+
+          var pet = MeowPet.create(card.querySelector('.pet-slot'), {
+            variant: state.variant,
+            size: state.size,
+            mood: mood.id,
+            autoBlink: state.blink
+          })
+          if (mood.id === 'drag') pet.el.style.setProperty('--mp-tilt', '-9deg')
+
+          gallery.push({ card: card, pet: pet, mood: mood.id })
+
+          card.querySelector('.card__stage').addEventListener('click', function () {
+            pet.setMood('idle')
+            requestAnimationFrame(function () {
+              pet.setMood(mood.id)
+            })
+          })
+        })
+
+        // ---------- toolbar ----------
+        var seg = document.getElementById('segVariant')
+        seg.addEventListener('click', function (e) {
+          var btn = e.target.closest('button[data-variant]')
+          if (!btn) return
+          state.variant = btn.dataset.variant
+          seg.querySelectorAll('button').forEach(function (b) {
+            b.setAttribute('aria-pressed', String(b === btn))
+          })
+          gallery.forEach(function (item) {
+            item.pet.setVariant(state.variant)
+          })
+          deskPet.setVariant(state.variant)
+        })
+
+        var sizeInput = document.getElementById('size')
+        var sizeOut = document.getElementById('sizeOut')
+        sizeInput.addEventListener('input', function () {
+          state.size = Number(sizeInput.value)
+          sizeOut.textContent = state.size + 'px'
+          gallery.forEach(function (item) {
+            item.pet.setSize(state.size)
+          })
+        })
+
+        document.getElementById('blink').addEventListener('change', function (e) {
+          state.blink = e.target.checked
+          gallery.forEach(function (item) {
+            item.pet.setAutoBlink(state.blink)
+          })
+        })
+
+        // ---------- playground ----------
+        var desk = document.getElementById('desk')
+        var petHost = document.getElementById('deskPet')
+        var deskPet = MeowPet.create(petHost, {
+          variant: state.variant,
+          size: 132,
+          mood: 'idle'
+        })
+
+        var SIZE = 132
+        var pos = { x: 0, y: 0 }
+        var pointer = null
+        var lastMove = performance.now()
+        var dragging = null
+        var manualUntil = 0
+
+        function bounds() {
+          return {
+            w: desk.clientWidth,
+            h: desk.clientHeight
+          }
+        }
+        function clamp() {
+          var b = bounds()
+          pos.x = Math.max(4, Math.min(b.w - SIZE - 4, pos.x))
+          pos.y = Math.max(4, Math.min(b.h - SIZE - 4, pos.y))
+        }
+        function place() {
+          petHost.style.transform = 'translate(' + pos.x + 'px,' + pos.y + 'px)'
+        }
+
+        var b0 = bounds()
+        pos.x = b0.w - SIZE - 60
+        pos.y = b0.h - SIZE - 26
+        place()
+
+        function mood(next) {
+          if (deskPet.mood !== next) deskPet.setMood(next)
+        }
+
+        desk.addEventListener('pointermove', function (e) {
+          var r = desk.getBoundingClientRect()
+          pointer = { x: e.clientX - r.left, y: e.clientY - r.top }
+          lastMove = performance.now()
+        })
+        desk.addEventListener('pointerleave', function () {
+          pointer = null
+        })
+
+        // drag + click
+        petHost.addEventListener('pointerdown', function (e) {
+          e.preventDefault()
+          petHost.setPointerCapture(e.pointerId)
+          dragging = {
+            sx: e.clientX,
+            sy: e.clientY,
+            ox: pos.x,
+            oy: pos.y,
+            moved: false,
+            t: performance.now()
+          }
+          deskPet.el.style.setProperty('--mp-tilt', '0deg')
+          mood('drag')
+        })
+        petHost.addEventListener('pointermove', function (e) {
+          if (!dragging) return
+          var dx = e.clientX - dragging.sx
+          var dy = e.clientY - dragging.sy
+          if (Math.hypot(dx, dy) > 6) dragging.moved = true
+          pos.x = dragging.ox + dx
+          pos.y = dragging.oy + dy
+          clamp()
+          place()
+          deskPet.el.style.setProperty(
+            '--mp-tilt',
+            Math.max(-14, Math.min(14, dx * 0.14)).toFixed(1) + 'deg'
+          )
+        })
+        petHost.addEventListener('pointerup', function (e) {
+          var wasClick = dragging && !dragging.moved && performance.now() - dragging.t < 450
+          dragging = null
+          deskPet.el.style.setProperty('--mp-tilt', '0deg')
+          if (wasClick) {
+            manualUntil = performance.now() + 1900
+            deskPet.spawnHearts(4)
+            deskPet.play('happy', 1800)
+          } else {
+            manualUntil = performance.now() + 1200
+            mood('idle')
+          }
+        })
+        petHost.addEventListener('pointercancel', function () {
+          dragging = null
+          deskPet.el.style.setProperty('--mp-tilt', '0deg')
+          mood('idle')
+        })
+
+        document.getElementById('deskActions').addEventListener('click', function (e) {
+          var btn = e.target.closest('button[data-mood]')
+          if (!btn) return
+          var next = btn.dataset.mood
+          manualUntil = performance.now() + 4000
+          if (next === 'happy' || next === 'notify') {
+            deskPet.spawnHearts(next === 'happy' ? 4 : 0)
+            deskPet.play(next, 2000)
+          } else {
+            mood(next)
+          }
+        })
+
+        var last = performance.now()
+        function loop(now) {
+          var dt = Math.min(0.05, (now - last) / 1000)
+          last = now
+          var manual = now < manualUntil
+
+          if (!dragging && !manual) {
+            var idleFor = now - lastMove
+            if (pointer && idleFor < 2600) {
+              var tx = pointer.x - SIZE / 2
+              var ty = pointer.y - SIZE * 0.74
+              var dx = tx - pos.x
+              var dy = ty - pos.y
+              var dist = Math.hypot(dx, dy)
+              if (dist > 30) {
+                var speed = Math.min(420, 70 + dist * 1.9)
+                pos.x += (dx / dist) * speed * dt
+                pos.y += (dy / dist) * speed * dt
+                clamp()
+                mood(speed > 250 ? 'run' : 'walk')
+              } else {
+                mood('idle')
+              }
+            } else if (idleFor > 9000) {
+              mood('sleep')
+            } else if (deskPet.mood !== 'type') {
+              mood('idle')
+            }
+          }
+
+          place()
+          requestAnimationFrame(loop)
+        }
+        requestAnimationFrame(loop)
+
+        window.addEventListener('resize', function () {
+          clamp()
+          place()
+        })
+      })()
+    </script>
+  </body>
+</html>

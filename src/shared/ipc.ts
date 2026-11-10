@@ -68,6 +68,8 @@ export const Channels = {
   AppVersion: 'app:version',
   UpdaterCheck: 'updater:check',
   UpdaterInstall: 'updater:install',
+  UpdaterCancelInstall: 'updater:cancel-install',
+  UpdaterGetStatus: 'updater:get-status',
   EventUpdaterStatus: 'updater:status',
   ChatSend: 'chat:send',
   ChatStop: 'chat:stop',
@@ -311,6 +313,8 @@ export interface AgentApi {
   getAppVersion(): Promise<string>
   checkForUpdates(): Promise<void>
   installUpdate(): Promise<void>
+  cancelUpdateInstall(): Promise<void>
+  getUpdaterStatus(): Promise<UpdaterStatusEvent | null>
   sendChat(agentId: string, text: string, images?: ImageAttachment[]): Promise<void>
   stopChat(agentId: string): Promise<void>
   suggestFiles(agentId: string, prefix: string): Promise<FileSuggestion[]>

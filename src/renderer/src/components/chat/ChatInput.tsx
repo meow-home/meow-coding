@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import type { AgentMode, Command, FileSuggestion, ImageAttachment } from '@shared/types'
 import { ArrowRight, Check, Pencil, Square } from 'lucide-react'
 import AddMenu from './AddMenu'
+import MeowPet from './MeowPet'
+import type { MeowPetEvent } from './MeowPet'
 import ModelPicker from './ModelPicker'
 import VariantPicker from './VariantPicker'
 import { parseCommandInput } from './parseCommandInput'
@@ -17,6 +19,10 @@ export interface ChatInputHandle {
 interface Props {
   agentId: string
   running: boolean
+  /** One-shot mascot reaction pushed by the panel when a turn ends. */
+  petEvent?: MeowPetEvent | null
+  /** Which half of the running turn: waiting for the first token, or streaming it. */
+  phase?: 'thinking' | 'typing'
   mode: AgentMode
   commands: Command[]
   variant: string
@@ -65,7 +71,7 @@ const CommandMenuItem = memo(function CommandMenuItem({
 })
 
 const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
-  agentId, running, mode, commands, variant, variants, editTarget, queuedCount,
+  agentId, running, petEvent, phase, mode, commands, variant, variants, editTarget, queuedCount,
   onSubmit, onEditSubmit, onEditCancel, onStop, onVariantChange, onSendQueuedNow
 }: Props, ref) {
   const fieldRef = useRef<HTMLTextAreaElement>(null)
@@ -316,6 +322,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
 
   return (
     <div className="chat-input">
+      <MeowPet className="meow-pet--edge" running={running} phase={phase} event={petEvent} />
       {menu.open && filtered.length > 0 && (
         <div className="command-menu">
           {filtered.map(c => (
