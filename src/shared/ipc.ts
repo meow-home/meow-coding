@@ -5,7 +5,7 @@ import type {
   ImageAttachment, LogLevel, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PendingPromptInfo, ProjectSearchHit, PromptResponse,
   StatsSummary, TerminalCreateOptions, TerminalInfo, TodoItem, TranscriptWindow, TranscriptWindowOpts,
   UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary,
-  CliAgent, CliAgentKind, CliAgentsStatus, CliInstallDescriptor, CliRunEvent, CliRuntimeDetectResult, CliRuntimeId, CliSessionMeta
+  CliAgent, CliAgentKind, CliAgentsStatus, CliInstallDescriptor, CliRunEvent, CliRuntimeDetectResult, CliRuntimeId, CliSessionMeta, CliTranscriptItem
 } from './types'
 import type { BrowserStatusInfo, BrowserTabInfo, TrustedExtension } from './browser-types'
 import type { ExternalApiStatus } from './external-api-types'
@@ -195,7 +195,9 @@ export const Channels = {
   CliSessionCreate: 'cli-session:create',
   CliSessionRename: 'cli-session:rename',
   CliSessionDelete: 'cli-session:delete',
+  CliSessionsList: 'cli-sessions:list',
   CliSessionOpenTerminal: 'cli-session:open-terminal',
+  CliTranscriptGet: 'cli-transcript:get',
   CliTaskSend: 'cli-task:send',
   CliTaskCancel: 'cli-task:cancel',
   CliDelegationCancel: 'cli-delegation:cancel',
@@ -470,7 +472,9 @@ export interface AgentApi {
   createCliSession(agentId: string, projectPath: string): Promise<CliSessionMeta>
   renameCliSession(sessionId: string, title: string): Promise<void>
   deleteCliSession(sessionId: string): Promise<void>
+  listCliSessions(projectPath?: string): Promise<CliSessionMeta[]>
   openCliSessionTerminal(sessionId: string): Promise<void>
+  getCliTranscript(sessionId: string, limit?: number): Promise<CliTranscriptItem[]>
   sendCliTask(sessionId: string, text: string): Promise<void>
   cancelCliTask(sessionId: string): Promise<void>
   cancelCliDelegation(delegationId: string): Promise<void>

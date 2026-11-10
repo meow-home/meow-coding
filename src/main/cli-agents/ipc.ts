@@ -90,8 +90,16 @@ export function registerCliAgentsIpc(opts: RegisterCliAgentsIpcOptions): void {
     await manager.deleteSession(id)
   })
 
+  ipcMain.handle(Channels.CliSessionsList, (_e, projectPath?: string) => {
+    return manager.listSessions(projectPath)
+  })
+
   ipcMain.handle(Channels.CliSessionOpenTerminal, () => {
     throw new Error('[meow] Opening a CLI session terminal is not available yet')
+  })
+
+  ipcMain.handle(Channels.CliTranscriptGet, (_e, sessionId: string, limit?: number) => {
+    return manager.getTranscript(sessionId, limit)
   })
 
   ipcMain.handle(Channels.CliTaskSend, (_e, sessionId: string, text: string) => {

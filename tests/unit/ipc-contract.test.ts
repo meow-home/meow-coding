@@ -44,7 +44,7 @@ describe('IPC contract', () => {
       'getCliAgentsStatus', 'detectCliRuntime', 'installCliRuntime', 'setCliRuntimePath', 'setCliRuntimeEnabled',
       'listCliModels', 'addCliAgent', 'renameCliAgent', 'removeCliAgent', 'activateCliAgent', 'setDefaultCliAgent',
       'cliLoginInput', 'cancelCliLogin', 'createCliSession', 'renameCliSession', 'deleteCliSession',
-      'openCliSessionTerminal', 'sendCliTask', 'cancelCliTask', 'cancelCliDelegation',
+      'listCliSessions', 'openCliSessionTerminal', 'getCliTranscript', 'sendCliTask', 'cancelCliTask', 'cancelCliDelegation',
       'onCliAgentsChanged', 'onCliLogin', 'onCliSessionsChanged', 'onCliRun'
     ]
     const api: AgentApi = {
@@ -246,7 +246,9 @@ describe('IPC contract', () => {
       }),
       renameCliSession: async () => {},
       deleteCliSession: async () => {},
+      listCliSessions: async () => [],
       openCliSessionTerminal: async () => {},
+      getCliTranscript: async () => [],
       sendCliTask: async () => {},
       cancelCliTask: async () => {},
       cancelCliDelegation: async () => {},
@@ -377,7 +379,9 @@ describe('IPC contract', () => {
     expect(Channels.CliSessionCreate).toBe('cli-session:create')
     expect(Channels.CliSessionRename).toBe('cli-session:rename')
     expect(Channels.CliSessionDelete).toBe('cli-session:delete')
+    expect(Channels.CliSessionsList).toBe('cli-sessions:list')
     expect(Channels.CliSessionOpenTerminal).toBe('cli-session:open-terminal')
+    expect(Channels.CliTranscriptGet).toBe('cli-transcript:get')
     expect(Channels.CliTaskSend).toBe('cli-task:send')
     expect(Channels.CliTaskCancel).toBe('cli-task:cancel')
     expect(Channels.CliDelegationCancel).toBe('cli-delegation:cancel')

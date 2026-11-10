@@ -289,8 +289,12 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.CliSessionRename, sessionId, title),
   deleteCliSession: (sessionId: string) =>
     ipcRenderer.invoke(Channels.CliSessionDelete, sessionId),
+  listCliSessions: (projectPath?: string) =>
+    ipcRenderer.invoke(Channels.CliSessionsList, projectPath),
   openCliSessionTerminal: (sessionId: string) =>
     ipcRenderer.invoke(Channels.CliSessionOpenTerminal, sessionId),
+  getCliTranscript: (sessionId: string, limit?: number) =>
+    ipcRenderer.invoke(Channels.CliTranscriptGet, sessionId, limit),
   sendCliTask: (sessionId: string, text: string) =>
     ipcRenderer.invoke(Channels.CliTaskSend, sessionId, text),
   cancelCliTask: (sessionId: string) =>

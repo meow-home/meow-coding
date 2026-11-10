@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import BaseDropdown from './common/BaseDropdown'
 import ConfirmDialog from './ConfirmDialog'
-import type { WorkspaceRuntime, WorkspaceSummary } from '@shared/types'
+import type { CliAgent, CliSessionMeta, WorkspaceRuntime, WorkspaceSummary } from '@shared/types'
 import { DRAFT_SESSION_ID } from '@shared/types'
 import { applyTheme, type Theme } from '../theme'
 
@@ -39,6 +39,12 @@ interface Props {
   onDeleteSession: (path: string, id: string) => void
   onStopSession: (id: string) => void
   onReorder?: (newPaths: string[]) => void
+  cliSessions?: CliSessionMeta[]
+  cliAgents?: CliAgent[]
+  activeCliSessionId?: string | null
+  onSelectCliSession?: (projectPath: string, sessionId: string) => void
+  onNewCliSession?: (agentId: string) => void
+  onDeleteCliSession?: (sessionId: string) => void
 }
 
 // Must match the .project-menu-dropdown / .sidebar-footer-dropdown CSS min-width;
@@ -49,10 +55,13 @@ export default function Sidebar({
   collapsed = false,
   workspaces, needsInput, activePath, runtimes, activeSessionByPath, onOpen, onRemove, onRefresh,
   onOpenSettings, onOpenProviders, onOpenGit, onCheckUpdate, updateChecking,
-  onNewSession, onSelectSession, onRenameSession, onDeleteSession, onStopSession, onReorder
+  onNewSession, onSelectSession, onRenameSession, onDeleteSession, onStopSession, onReorder,
+  cliSessions, cliAgents, activeCliSessionId, onSelectCliSession, onNewCliSession, onDeleteCliSession
 }: Props) {
   const [openProjectMenu, setOpenProjectMenu] = useState<string | null>(null)
   const [confirmRemovePath, setConfirmRemovePath] = useState<string | null>(null)
+  const [newCliMenuProject, setNewCliMenuProject] = useState<string | null>(null)
+  const [confirmDeleteCliId, setConfirmDeleteCliId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [footerMenuOpen, setFooterMenuOpen] = useState(false)
   const [version, setVersion] = useState('')
@@ -344,29 +353,110 @@ export default function Sidebar({
               </div>
             </div>
             {expanded[ws.projectPath] && (
-              <ul className="session-list">
-                {ws.sessions.filter(s => s.id !== DRAFT_SESSION_ID).map(s => {
-                  const status = sessionStatus(ws.projectPath, s.id)
-                  const running = isSessionRunning(ws.projectPath, s.id)
-                  const activeSession = activeSessionByPath[ws.projectPath] === s.id && ws.projectPath === activePath
+              <>
+                <ul className="session-list">
+                  {ws.sessions.filter(s => s.id !== DRAFT_SESSION_ID).map(s => {
+                    const status = sessionStatus(ws.projectPath, s.id)
+                    const running = isSessionRunning(ws.projectPath, s.id)
+                    const activeSession = activeSessionByPath[ws.projectPath] === s.id && ws.projectPath === activePath && !activeCliSessionId
+                    return (
+                      <li
+                        key={s.id}
+                        className={`session-row ${activeSession ? 'active' : ''}`}
+                        onClick={() => onSelectSession(ws.projectPath, s.id)}
+                      >
+                        <span className={`session-dot session-status-${status}`} aria-label={status} />
+                        <span className="session-name">{s.name}</span>
+                        <SessionRowMenu
+                          running={running}
+                          onRename={name => onRenameSession(ws.projectPath, s.id, name)}
+                          onDelete={() => onDeleteSession(ws.projectPath, s.id)}
+                          onStop={() => onStopSession(s.id)}
+                        />
+                      </li>
+                    )
+                  })}
+                </ul>
+                {(() => {
+                  const isProjectActive = ws.projectPath === activePath
+                  const projectCliSessions = (cliSessions ?? []).filter(s => s.projectPath === ws.projectPath)
+                  const readyAgents = (cliAgents ?? []).filter(a => a.status === 'ready')
+                  const showCli = projectCliSessions.length > 0 || (isProjectActive && readyAgents.length > 0)
+                  if (!showCli) return null
+
                   return (
-                    <li
-                      key={s.id}
-                      className={`session-row ${activeSession ? 'active' : ''}`}
-                      onClick={() => onSelectSession(ws.projectPath, s.id)}
-                    >
-                      <span className={`session-dot session-status-${status}`} aria-label={status} />
-                      <span className="session-name">{s.name}</span>
-                      <SessionRowMenu
-                        running={running}
-                        onRename={name => onRenameSession(ws.projectPath, s.id, name)}
-                        onDelete={() => onDeleteSession(ws.projectPath, s.id)}
-                        onStop={() => onStopSession(s.id)}
-                      />
-                    </li>
+                    <div className="sidebar-cli-group">
+                      <div className="sidebar-cli-header">
+                        <span className="sidebar-cli-title">CLI</span>
+                        {isProjectActive && readyAgents.length > 0 && onNewCliSession && (
+                          <BaseDropdown
+                            open={newCliMenuProject === ws.projectPath}
+                            onOpenChange={open => setNewCliMenuProject(open ? ws.projectPath : null)}
+                            placement="bottom-end"
+                            menuClassName="sidebar-menu-dropdown"
+                            trigger={(
+                              <button
+                                type="button"
+                                className="icon-btn"
+                                title="New session with CLI agent"
+                                aria-label={`New session with CLI agent for ${ws.name}`}
+                              >
+                                <Plus size={13} aria-hidden="true" />
+                              </button>
+                            )}
+                          >
+                            {readyAgents.map(ag => (
+                              <button
+                                key={ag.id}
+                                type="button"
+                                className="menu-item"
+                                onClick={() => {
+                                  setNewCliMenuProject(null)
+                                  onNewCliSession(ag.id)
+                                }}
+                              >
+                                New session with {ag.label}
+                              </button>
+                            ))}
+                          </BaseDropdown>
+                        )}
+                      </div>
+                      {projectCliSessions.length > 0 && (
+                        <ul className="session-list cli-session-list">
+                          {projectCliSessions.map(cs => {
+                            const agent = (cliAgents ?? []).find(a => a.id === cs.agentId)
+                            const isCsActive = activeCliSessionId === cs.id
+                            const dotStatus = cs.status === 'running' ? 'running' : (cs.status === 'needs-attention' || cs.status === 'failed') ? 'waiting' : 'idle'
+                            const runtimeChip = agent?.runtime === 'opencode' ? 'oc' : 'agy'
+                            return (
+                              <li
+                                key={cs.id}
+                                className={`session-row ${isCsActive ? 'active' : ''}`}
+                                onClick={() => onSelectCliSession?.(ws.projectPath, cs.id)}
+                              >
+                                <span className={`session-dot session-status-${dotStatus}`} aria-label={cs.status} />
+                                <span className="session-name" title={cs.title}>{cs.title}</span>
+                                <span className={`cli-chip ${runtimeChip}`}>{runtimeChip}</span>
+                                <div className="session-menu" onClick={e => e.stopPropagation()}>
+                                  <button
+                                    type="button"
+                                    className="icon-btn"
+                                    title="Delete CLI session"
+                                    aria-label={`Delete CLI session ${cs.title}`}
+                                    onClick={() => setConfirmDeleteCliId(cs.id)}
+                                  >
+                                    <Trash2 size={13} aria-hidden="true" />
+                                  </button>
+                                </div>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      )}
+                    </div>
                   )
-                })}
-              </ul>
+                })()}
+              </>
             )}
           </li>
           )
@@ -434,6 +524,21 @@ export default function Sidebar({
             setConfirmRemovePath(null)
           }}
           onCancel={() => setConfirmRemovePath(null)}
+        />
+      )}
+
+      {confirmDeleteCliId && (
+        <ConfirmDialog
+          title="Delete CLI session"
+          message="Are you sure you want to delete this session? The transcript will be removed."
+          confirmLabel="Delete"
+          onConfirm={() => {
+            if (confirmDeleteCliId && onDeleteCliSession) {
+              onDeleteCliSession(confirmDeleteCliId)
+            }
+            setConfirmDeleteCliId(null)
+          }}
+          onCancel={() => setConfirmDeleteCliId(null)}
         />
       )}
     </aside>

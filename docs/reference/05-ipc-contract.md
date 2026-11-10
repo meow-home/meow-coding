@@ -225,7 +225,9 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `CliSessionCreate` | `cli-session:create` | `createCliSession(agentId: string, projectPath: string): CliSessionMeta` |
 | `CliSessionRename` | `cli-session:rename` | `renameCliSession(sessionId: string, title: string)` |
 | `CliSessionDelete` | `cli-session:delete` | `deleteCliSession(sessionId: string)` |
+| `CliSessionsList` | `cli-sessions:list` | `listCliSessions(projectPath?: string): CliSessionMeta[]` |
 | `CliSessionOpenTerminal` | `cli-session:open-terminal` | `openCliSessionTerminal(sessionId: string)` |
+| `CliTranscriptGet` | `cli-transcript:get` | `getCliTranscript(sessionId: string, limit?: number): CliTranscriptItem[]` |
 | `CliTaskSend` | `cli-task:send` | `sendCliTask(sessionId: string, text: string)` |
 | `CliTaskCancel` | `cli-task:cancel` | `cancelCliTask(sessionId: string)` |
 | `CliDelegationCancel` | `cli-delegation:cancel` | `cancelCliDelegation(delegationId: string)` |
