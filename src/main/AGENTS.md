@@ -135,6 +135,7 @@ handlers and the app lifecycle.
   notification is skipped while the window is focused (the renderer shows its own toast).
 - `window-chrome.ts` — `getWindowChromeOptions`: hides the title-bar on Windows/Linux; `applyTitleBarTheme` re-colors the Windows overlay (min/max/close) live when the app theme toggles dark/light. The OS draws those buttons, so `TITLE_BAR_COLORS` is their only color source and must equal the renderer's title bar surface (`.title-bar-right` → `var(--bg-chat)`, the chat surface); `tests/unit/window-chrome.test.ts` parses `styles.css` and fails if the two drift apart.
 - `vault.ts` — encrypted secret store (safeStorage) for provider API keys.
+- `cli-agents/` — CLI agent support (runtimes catalog, binary detection and semver checking, agent and profile stores, vault secrets); see its AGENTS.md.
 - `browser/` — backend contract, per-session router (built-in default), built-in backend (`embedded-browser.ts`) with the Electron host (`electron-tab-host.ts`: page + shield views), Chrome backend (BrowserBridge + Chrome launcher), Electron-free tab/command core (`browser-tab.ts` with the control state, lease, site approval and handoff, `cdp-commands.ts` with the sensitive-field refusal, `site-approval.ts`; `isLoopback` lives in `src/shared/loopback.ts`), the panel/IPC surface in `embedded-browser.ts` (one on-screen tab, freeze generation guard, user tab actions), trusted-extension store, snapshot format and snapshot file output.
 - `external-api/` — loopback API + CLI for delegation from Claude Code; see its AGENTS.md.
 
@@ -156,7 +157,7 @@ handlers and the app lifecycle.
   window-chrome, updater, models-catalog, model-variants, notification-service, file-suggest,
   file-watcher, git-status-service, alert-service, atomic-write, json-store, project-encode, log-manager,
   workspace-store, meow-agent-manager, ipc-contract, terminal-shell, terminal-buffer, terminal-store,
-  terminal-manager, ...
+  terminal-manager, cli-binary-manager, cli-agents-store, ...
 - Integration: `tests/integration/pty-manager.test.ts` (real spawn via ConPTY, uses fixture CLI),
   `tests/integration/terminal-manager.test.ts` (session terminal lifecycle via dedicated PTY),
   `agent-stream-overlap.test.ts`, `browser/bridge-flow.test.ts`.
