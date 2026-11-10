@@ -12,7 +12,7 @@
 
   // Exact path from meow-coding-logo.svg (64 x 64 grid).
   var HEAD =
-    'M8 28 Q8 20 16 20 L19 10.5 Q20 9 21.2 10.5 L27 20 H37 L42.8 10.5 Q44 9 45 10.5 L48 20 Q56 20 56 28 V48 Q56 56 48 56 H16 Q8 56 8 48 Z'
+    'M8 28 Q8 20 13 20 C14.1 15 16.1 11.4 17.9 10.7 C19.7 11.4 21.9 15 24.5 20 H39.5 C42.1 15 44.3 11.4 46.1 10.7 C47.9 11.4 49.9 15 50.5 20 Q56 20 56 28 V48 Q56 56 48 56 H16 Q8 56 8 48 Z'
 
   var BLUE = '#3b8bf5'
   var ORANGE = '#f7941d'
@@ -171,6 +171,10 @@
 
   var TYPE_LINES = ['npm test', 'npm run dev', 'git status', 'ship it']
 
+  // A small tail curling up on the right: its base sits under the body's lower-right corner (one end
+  // attached, hidden), the rest of the curve stays clear of the silhouette and the tip is free.
+  var TAIL = '<path class="mp-tail" d="M76 79 C82 80 89.5 76 90 69 C90.5 62.5 89 59.5 87 61.5" fill="none" stroke-linecap="round"/>'
+
   var uid = 0
 
   function esc(s) {
@@ -210,6 +214,7 @@
       '<rect class="mp-foot mp-foot--l" x="30" y="75" width="13" height="13" rx="6.5"/>' +
       '<rect class="mp-foot mp-foot--r" x="53" y="75" width="13" height="13" rx="6.5"/>' +
       '</g>' +
+      TAIL +
       '<g transform="translate(3.2 4) scale(1.4)">' +
       '<g class="mp__head">' +
       '<path d="' +
@@ -220,10 +225,10 @@
       '<path d="' +
       HEAD +
       '" fill="none" stroke="rgba(255,255,255,.075)" stroke-width="1.1"/>' +
-      '<path class="mp-ear mp-ear--l" d="M18.6 19.7 L19.9 13.3 L22.5 19.7 Z" fill="' +
+      '<path class="mp-ear mp-ear--l" d="M15.9 19.7 L17.7 13.6 L20.1 19.7 Z" fill="' +
       BLUE +
       '" opacity=".3"/>' +
-      '<path class="mp-ear mp-ear--r" d="M45.4 19.7 L44.1 13.3 L41.5 19.7 Z" fill="' +
+      '<path class="mp-ear mp-ear--r" d="M48.1 19.7 L46.3 13.6 L43.9 19.7 Z" fill="' +
       ORANGE +
       '" opacity=".3"/>' +
       (variant === 'c' ? SCREEN : '') +

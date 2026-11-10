@@ -23,9 +23,11 @@ interface Props {
 
 type Mood = 'idle' | 'look' | 'think' | 'type' | 'sleep' | 'happy' | 'error' | 'notify' | 'drag'
 
-// Logo path verbatim (meow-coding-logo.svg, 64-grid), so the mascot never drifts from the icon.
+// The logo path (meow-coding-logo.svg, 64-grid) with the ear tips softened and the ears pulled out
+// toward the sides (5.5 units of margin left on each side, 8 in the icon), so the mascot keeps the
+// icon's silhouette without the razor point at 36px.
 const HEAD =
-  'M8 28 Q8 20 16 20 L19 10.5 Q20 9 21.2 10.5 L27 20 H37 L42.8 10.5 Q44 9 45 10.5 L48 20 Q56 20 56 28 V48 Q56 56 48 56 H16 Q8 56 8 48 Z'
+  'M8 28 Q8 20 13 20 C14.1 15 16.1 11.4 17.9 10.7 C19.7 11.4 21.9 15 24.5 20 H39.5 C42.1 15 44.3 11.4 46.1 10.7 C47.9 11.4 49.9 15 50.5 20 Q56 20 56 28 V48 Q56 56 48 56 H16 Q8 56 8 48 Z'
 const BLUE = '#3b8bf5'
 const ORANGE = '#f7941d'
 
@@ -209,12 +211,18 @@ const MeowPet = memo(function MeowPet({
             <rect className="meow-pet__foot" x="30" y="75" width="13" height="13" rx="6.5" />
             <rect className="meow-pet__foot" x="53" y="75" width="13" height="13" rx="6.5" />
           </g>
+          <path
+            className="meow-pet__tail"
+            d="M76 79 C82 80 89.5 76 90 69 C90.5 62.5 89 59.5 87 61.5"
+            fill="none"
+            strokeLinecap="round"
+          />
           <g transform="translate(3.2 4) scale(1.4)">
             <g className="meow-pet__head">
               <path d={HEAD} fill={`url(#${gid})`} />
               <path d={HEAD} fill="none" stroke="rgba(255,255,255,.11)" strokeWidth="1.1" />
-              <path className="meow-pet__ear" d="M18.6 19.7 L19.9 13.3 L22.5 19.7 Z" fill={BLUE} opacity=".3" />
-              <path className="meow-pet__ear" d="M45.4 19.7 L44.1 13.3 L41.5 19.7 Z" fill={ORANGE} opacity=".3" />
+              <path className="meow-pet__ear" d="M15.9 19.7 L17.7 13.6 L20.1 19.7 Z" fill={BLUE} opacity=".3" />
+              <path className="meow-pet__ear" d="M48.1 19.7 L46.3 13.6 L43.9 19.7 Z" fill={ORANGE} opacity=".3" />
 
               <g className={'meow-pet__face' + (face === 'open' ? ' is-on' : '')} data-face="open">
                 <g className="meow-pet__eye">

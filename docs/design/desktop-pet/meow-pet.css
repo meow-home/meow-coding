@@ -69,8 +69,27 @@
   transform-box: fill-box;
   transform-origin: 50% 82%;
 }
+.mp-tail {
+  fill: none;
+  stroke: var(--mp-tail, var(--mp-ink));
+  stroke-width: 5;
+  transform-box: fill-box;
+  transform-origin: 15% 90%;
+}
+.mp[data-mood='idle'] .mp-tail {
+  animation: mp-tail-sway 4.4s ease-in-out infinite;
+}
+@keyframes mp-tail-sway {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-5deg);
+  }
+}
 .mp-foot {
-  fill: var(--mp-ink);
+  fill: var(--mp-feet, var(--mp-ink));
   transform-box: fill-box;
   transform-origin: 50% 50%;
 }

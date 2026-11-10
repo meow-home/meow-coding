@@ -84,9 +84,12 @@ Lessons learned from the Git viewer screen (don't repeat them):
 - **The title bar paints `var(--bg-chat)`** — `.title-bar`, `.title-bar-right` and the Linux window-control buttons share the chat surface, so the header and the conversation read as one panel. On Windows the OS paints the caption strip ~0.5px narrower than the reserved `11.5rem`, so a transparent bar exposed `body`'s radial gradient as a 1px line beside the min/max/close buttons. Don't reintroduce a transparent title bar, and keep `TITLE_BAR_COLORS` on the same token (`window-chrome.test.ts` parses this rule). `.title-bar-brand` (when expanded) and `.sidebar` draw a `--hairline` right border; when collapsed (`.title-bar-brand.collapsed`), it has `background: var(--bg-chat)` to match the chat pane background and `border-right: none`.
 - **Dropdowns share the `--menu-*` metric tokens** (`--menu-radius`, `--menu-pad`, `--menu-item-h`,
   `--menu-item-pad-x`, `--menu-icon`). New menu surfaces must consume them, not hardcode padding.
-- **Floating menus carry no outline.** They paint `--bg-menu` (a step above `--bg`/`--bg-chat` in
-  BOTH themes) and separate from the page by `--shadow-3` alone; a 1px `--hairline` border reads as a
-  hard outline against the panels. `menu-surface.test.ts` guards the token and the missing border.
+- **Floating menus carry one faint rim, never an outline.** They paint `--bg-menu` (a step above
+  `--bg`/`--bg-chat` in BOTH themes), separate from the page by `--shadow-3`, and draw
+  `border: 1px solid var(--menu-border)` — a token a step *below* `--hairline` (white 6% dark / black 7%
+  light), just enough to separate the menu from the surface behind it. A `--hairline` border read as a
+  hard outline against the panels; dropping the border entirely left the menu edge mushy over the
+  chat. `menu-surface.test.ts` guards the token, the rim and that it stays fainter than `--hairline`.
 - **Chat surfaces share one centered lane** (`--chat-lane-w` = 64rem on `:root`, side inset derived once on `.chat-panel` as
   `--chat-inset`). Transcript, todo card, prompt popup, input card and composer footer sit on that column; the composer and
   todo card keep the inset as padding/margin so their background still reaches the panel edge. The feed also spans the full

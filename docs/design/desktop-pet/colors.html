@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meow pet — colourways</title>
+    <link rel="stylesheet" href="meow-pet.css" />
+    <style>
+      :root {
+        --bg: #0d0f11;
+        --bg-panel: #15181b;
+        --text: #e6e8ea;
+        --text-dim: #9aa0a6;
+        --text-faint: #6d7378;
+        --line: rgba(255, 255, 255, 0.08);
+        /* The two surfaces the mascot actually sits on: the composer card in each theme. */
+        --card-dark: #1f2123;
+        --card-light: #ffffff;
+        --font-ui: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+        --font-mono: 'JetBrainsMonoNerdFontMono', 'JetBrains Mono', ui-monospace, Menlo, Consolas,
+          monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font-ui);
+        font-size: 14px;
+        line-height: 1.55;
+      }
+      .page {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 2.5rem 2rem 4rem;
+      }
+      h1 {
+        font-size: 1.6rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        margin: 0 0 0.3rem;
+      }
+      .sub {
+        color: var(--text-dim);
+        max-width: 84ch;
+        margin: 0 0 1.6rem;
+      }
+      .sub code,
+      .legend code {
+        font-family: var(--font-mono);
+        font-size: 0.86em;
+        color: #f7941d;
+      }
+      .list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.9rem;
+      }
+      .way {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.5rem 1.5rem;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--bg-panel);
+        padding: 0.9rem 1.1rem 1rem;
+      }
+      .way__head {
+        display: flex;
+        align-items: baseline;
+        gap: 0.6rem;
+      }
+      .way__head h2 {
+        font-size: 0.95rem;
+        font-weight: 600;
+        margin: 0;
+      }
+      .tag {
+        font-family: var(--font-mono);
+        font-size: 0.68rem;
+        letter-spacing: 0.03em;
+        color: var(--text-faint);
+      }
+      .pick {
+        font-family: var(--font-mono);
+        font-size: 0.66rem;
+        letter-spacing: 0.04em;
+        color: #0d0f11;
+        background: #7bd88f;
+        border-radius: 999px;
+        padding: 0.1rem 0.5rem;
+      }
+      .readout {
+        margin: 0.35rem 0 0;
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        color: var(--text-faint);
+      }
+      .readout b {
+        color: var(--text-dim);
+        font-weight: 500;
+      }
+      .note {
+        margin: 0.5rem 0 0;
+        font-size: 0.8rem;
+        color: var(--text-dim);
+        max-width: 68ch;
+      }
+
+      /* Static comparison: the same colour on the composer card of each theme. */
+      .static {
+        display: flex;
+        align-items: flex-end;
+        gap: 0.6rem;
+      }
+      .surf {
+        width: 108px;
+        height: 96px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .surf--dark {
+        background: var(--card-dark);
+      }
+      .surf--light {
+        background: var(--card-light);
+        border-color: rgba(0, 0, 0, 0.08);
+      }
+      .surf__label {
+        display: block;
+        text-align: center;
+        font-family: var(--font-mono);
+        font-size: 0.62rem;
+        color: var(--text-faint);
+        margin-top: 0.25rem;
+      }
+      .realsize {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+      .realsize__row {
+        display: flex;
+        gap: 0.35rem;
+      }
+      .realsize__cell {
+        width: 44px;
+        height: 44px;
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+      }
+      .realsize__cell--dark {
+        background: var(--card-dark);
+      }
+      .realsize__cell--light {
+        background: var(--card-light);
+      }
+      .realsize__label {
+        font-family: var(--font-mono);
+        font-size: 0.62rem;
+        color: var(--text-faint);
+        text-align: center;
+      }
+
+      /* Every mood, looping, on the dark card. */
+      .moods {
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        padding-top: 0.75rem;
+        margin-top: 0.25rem;
+        border-top: 1px solid var(--line);
+      }
+      .tile {
+        margin: 0;
+        display: grid;
+        justify-items: center;
+        gap: 0.15rem;
+      }
+      .tile__stage {
+        width: 52px;
+        height: 52px;
+        border-radius: 8px;
+        background: var(--card-dark);
+        display: grid;
+        place-items: center;
+        overflow: visible;
+      }
+      .tile figcaption {
+        font-family: var(--font-mono);
+        font-size: 0.58rem;
+        letter-spacing: 0.02em;
+        color: var(--text-faint);
+      }
+      .legend {
+        margin-top: 1.5rem;
+        font-size: 0.8rem;
+        color: var(--text-faint);
+        border-top: 1px solid var(--line);
+        padding-top: 0.8rem;
+      }
+      .legend code {
+        color: var(--text-dim);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <h1>Meow pet — colourways</h1>
+      <p class="sub">
+        Same shape (variant B) and the same stylesheet the mockup uses, so every mood below is the
+        real animation, not a still. Each card shows the colour on the two surfaces the mascot
+        actually sits on — the composer card in the dark theme (<code>#1f2123</code>) and in the
+        light theme (<code>#ffffff</code>) — at 72px, at the shipped 36px, and then every mood at
+        40px on the dark card.
+      </p>
+      <div class="list" id="list"></div>
+      <p class="legend">
+        A colourway is “safe” when its shell separates from both <code>#1f2123</code> and
+        <code>#ffffff</code> — a mid tone, or a two-tone body whose light and dark halves each do
+        half the work. Eyes and mouth stay the logo's blue / orange wherever they can carry
+        contrast; only the shell, rim, feet and patches move.
+      </p>
+    </div>
+
+    <script>
+      ;(function () {
+        'use strict'
+
+        // The logo's head with the ear tips softened and the ears pulled out toward the sides.
+        var HEAD =
+          'M8 28 Q8 20 13 20 C14.1 15 16.1 11.4 17.9 10.7 C19.7 11.4 21.9 15 24.5 20 H39.5 C42.1 15 44.3 11.4 46.1 10.7 C47.9 11.4 49.9 15 50.5 20 Q56 20 56 28 V48 Q56 56 48 56 H16 Q8 56 8 48 Z'
+
+        // Which face each mood shows; the rest is motion, which lives in meow-pet.css.
+        var FACE_FOR = {
+          idle: 'open',
+          look: 'open',
+          walk: 'open',
+          run: 'open',
+          type: 'open',
+          think: 'open',
+          sleep: 'sleep',
+          happy: 'happy',
+          error: 'error',
+          drag: 'open',
+          notify: 'open'
+        }
+        var MOODS = Object.keys(FACE_FOR)
+
+        var WAYS = [
+          {
+            id: 'graphite',
+            name: 'Graphite',
+            tag: 'neutral · current',
+            shell: ['#3a424c', '#262c34', '#181c21'],
+            rim: 'rgba(255,255,255,.11)',
+            eye: '#3b8bf5',
+            mouth: '#f7941d',
+            note: 'What ships today. Icon-true and quiet on the dark card, but in the light theme it is a black blob on white — the shell has no mid tone to hold an edge.'
+          },
+          {
+            id: 'slate',
+            name: 'Slate',
+            tag: 'neutral · mid tone',
+            pick: 'safest',
+            shell: ['#7c8896', '#5b6570', '#3c444d'],
+            rim: 'rgba(255,255,255,.2)',
+            eye: '#2f7ae5',
+            mouth: '#f7941d',
+            note: 'One mid grey does both jobs: it separates from #1f2123 and from white without leaning on the rim. The safest single colour.'
+          },
+          {
+            id: 'cream',
+            name: 'Cream',
+            tag: 'solid · light',
+            shell: ['#f8efdf', '#ecdec8', '#d8c4a6'],
+            rim: 'rgba(0,0,0,.16)',
+            eye: '#2f7ae5',
+            mouth: '#cf7208',
+            note: 'The mirror of today: pops on the dark card, and on white it lives on its rim and shadow. Charming, but it needs the light-theme rim to survive.'
+          },
+          {
+            id: 'calico',
+            name: 'Calico',
+            tag: 'three-colour',
+            pick: 'pick',
+            shell: ['#f8efdf', '#ecdec8', '#d8c4a6'],
+            rim: 'rgba(0,0,0,.16)',
+            eye: '#2f7ae5',
+            mouth: '#cf7208',
+            tones: ['#ecdec8', '#1b1e23', '#f7941d'],
+            patches:
+              '<path d="M5 21 L18.6 8.6 L25.6 20.4 Q22 26.5 14 27 Q7.5 24 5 21 Z" fill="#1b1e23" opacity=".92"/>' +
+              '<path d="M59 21 L45.4 8.6 L38.4 20.4 Q42 26.5 50 27 Q56.5 24 59 21 Z" fill="#f7941d" opacity=".95"/>',
+            note: 'Cream body, charcoal ear + orange ear. The dark patch gives it an edge on white, the orange one gives it warmth on dark — the only option that is strong on both without a mid tone.'
+          },
+          {
+            id: 'tuxedo',
+            name: 'Tuxedo',
+            tag: 'two-colour',
+            shell: ['#4d5763', '#2f363e', '#1a1e23'],
+            rim: 'rgba(255,255,255,.12)',
+            eye: '#3b8bf5',
+            mouth: '#f7941d',
+            feet: '#f2e8da',
+            tones: ['#2f363e', '#f2e8da'],
+            patches: '<ellipse cx="32" cy="52" rx="14.5" ry="10.5" fill="#f2e8da"/>',
+            note: 'Charcoal head, cream muzzle and cream feet. Reads as a silhouette on white, and the cream half is what pops on dark. Closest to the current icon of the two-tone options.'
+          },
+          {
+            id: 'blue',
+            name: 'Meow blue',
+            tag: 'solid · brand',
+            pick: 'bold',
+            shell: ['#6aa8ff', '#3b8bf5', '#2563c9'],
+            rim: 'rgba(255,255,255,.24)',
+            eye: '#eef5ff',
+            eyeHi: '#9fc4f5',
+            mouth: '#ffb64d',
+            note: 'The accent colour as the body. Unmistakable and it separates from both surfaces; the orange mouth keeps the logo pairing. Loudest of the set.'
+          },
+          {
+            id: 'flat-orange',
+            name: 'Flat orange',
+            tag: 'solid · flat, no gradient',
+            shell: ['#f7941d', '#f7941d', '#f7941d'],
+            rim: 'none',
+            flat: true,
+            eye: '#2a1a08',
+            eyeHi: '#ffe3b8',
+            mouth: '#2a1a08',
+            tones: ['#f7941d'],
+            note: 'The logo cursor orange as one flat fill: no gradient, no rim, no ear tints — just the silhouette and two dark eyes. Reads the same on both surfaces, and it is the only colourway that is literally a logo colour at 100%.'
+          },
+          {
+            id: 'orange',
+            name: 'Prompt orange',
+            tag: 'solid · brand',
+            shell: ['#ffb04a', '#f7941d', '#c96f08'],
+            rim: 'rgba(255,255,255,.24)',
+            eye: '#2a1a08',
+            eyeHi: '#ffd9a8',
+            mouth: '#2a1a08',
+            note: 'The cursor colour as the body, with dark face marks so the eyes still read. High energy; a little loud for a bar that sits under every message.'
+          }
+        ]
+
+        var seq = 0
+
+        function esc(s) {
+          return String(s).replace(/[&<>"]/g, function (ch) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]
+          })
+        }
+
+        function faces(way, current) {
+          var hi = way.eyeHi || '#fff'
+          var eye = way.eye
+          var mouth = way.mouth
+          var open =
+            '<g><ellipse cx="25.5" cy="35.5" rx="4.7" ry="5.3" fill="' +
+            eye +
+            '"/><circle cx="23.7" cy="33.3" r="1.4" fill="' +
+            hi +
+            '" opacity=".82"/></g>' +
+            '<g><ellipse cx="38.5" cy="35.5" rx="4.7" ry="5.3" fill="' +
+            eye +
+            '"/><circle cx="36.7" cy="33.3" r="1.4" fill="' +
+            hi +
+            '" opacity=".82"/></g>' +
+            '<path d="M28.5 45 Q32 48.4 35.5 45" fill="none" stroke="' +
+            mouth +
+            '" stroke-width="3.2" stroke-linecap="round"/>'
+          var happy =
+            '<path d="M20.5 38 Q25.5 31.6 30.5 38" fill="none" stroke="' +
+            eye +
+            '" stroke-width="3.6" stroke-linecap="round"/>' +
+            '<path d="M33.5 38 Q38.5 31.6 43.5 38" fill="none" stroke="' +
+            eye +
+            '" stroke-width="3.6" stroke-linecap="round"/>' +
+            '<path d="M28 44.4 Q32 49.2 36 44.4" fill="none" stroke="' +
+            mouth +
+            '" stroke-width="3.6" stroke-linecap="round"/>'
+          var sleep =
+            '<path d="M21 36.6 Q25.5 40 30 36.6" fill="none" stroke="' +
+            eye +
+            '" stroke-width="3.4" stroke-linecap="round"/>' +
+            '<path d="M34 36.6 Q38.5 40 43 36.6" fill="none" stroke="' +
+            eye +
+            '" stroke-width="3.4" stroke-linecap="round"/>' +
+            '<path d="M29 45.4 H35" fill="none" stroke="' +
+            mouth +
+            '" stroke-width="3" stroke-linecap="round"/>'
+          var error =
+            '<path d="M21.4 32.4 L28.6 39.6 M28.6 32.4 L21.4 39.6" fill="none" stroke="' +
+            eye +
+            '" stroke-width="3.4" stroke-linecap="round"/>' +
+            '<path d="M35.4 32.4 L42.6 39.6 M42.6 32.4 L35.4 39.6" fill="none" stroke="' +
+            eye +
+            '" stroke-width="3.4" stroke-linecap="round"/>' +
+            '<path d="M29 45.4 H35" fill="none" stroke="' +
+            mouth +
+            '" stroke-width="3" stroke-linecap="round"/>'
+          var set = { open: open, happy: happy, sleep: sleep, error: error }
+          var out = ''
+          for (var key in set) {
+            out +=
+              '<g class="mp-face' +
+              (key === current ? ' is-on' : '') +
+              '" data-face="' +
+              key +
+              '">' +
+              set[key] +
+              '</g>'
+          }
+          return out
+        }
+
+        function pet(way, size, mood) {
+          var id = 'w' + ++seq
+          var gid = 'g-' + id
+          var cid = 'c-' + id
+          var stops = way.shell
+            .map(function (c, i) {
+              return '<stop offset="' + [0, 0.55, 1][i] + '" stop-color="' + c + '"/>'
+            })
+            .join('')
+          var feet = way.feet || way.shell[2]
+          return (
+            '<div class="mp" data-variant="b" data-mood="' +
+            mood +
+            '" style="--s:' +
+            size +
+            'px;--mp-feet:' +
+            (way.feet || way.shell[2]) +
+            ';--mp-tail:' +
+            (way.feet || way.shell[2]) +
+            '">' +
+            '<div class="mp__shadow" aria-hidden="true"></div>' +
+            '<div class="mp__body">' +
+            '<svg class="mp__svg" viewBox="0 0 96 96" aria-hidden="true">' +
+            '<defs><linearGradient id="' +
+            gid +
+            '" x1="0" y1="0" x2="0" y2="1">' +
+            stops +
+            '</linearGradient><clipPath id="' +
+            cid +
+            '"><path d="' +
+            HEAD +
+            '"/></clipPath></defs>' +
+            '<g class="mp-feet">' +
+            '<rect class="mp-foot" x="30" y="75" width="13" height="13" rx="6.5" fill="' +
+            feet +
+            '"/>' +
+            '<rect class="mp-foot" x="53" y="75" width="13" height="13" rx="6.5" fill="' +
+            feet +
+            '"/>' +
+            '</g>' +
+            '<path class="mp-tail" d="M76 79 C82 80 89.5 76 90 69 C90.5 62.5 89 59.5 87 61.5" fill="none" stroke-linecap="round"/>' +
+            '<g transform="translate(3.2 4) scale(1.4)">' +
+            '<g class="mp__head">' +
+            '<path d="' +
+            HEAD +
+            '" fill="url(#' +
+            gid +
+            ')"/>' +
+            (way.patches ? '<g clip-path="url(#' + cid + ')">' + way.patches + '</g>' : '') +
+            (way.flat
+              ? ''
+              : '<path d="' + HEAD + '" fill="none" stroke="' + way.rim + '" stroke-width="1.1"/>' +
+                '<path class="mp-ear mp-ear--l" d="M15.9 19.7 L17.7 13.6 L20.1 19.7 Z" fill="#3b8bf5" opacity=".3"/>' +
+                '<path class="mp-ear mp-ear--r" d="M48.1 19.7 L46.3 13.6 L43.9 19.7 Z" fill="#f7941d" opacity=".3"/>') +
+            faces(way, FACE_FOR[mood] || 'open') +
+            '</g></g></svg></div>' +
+            '<div class="mp__fx" aria-hidden="true">' +
+            '<div class="mp__glow"></div>' +
+            '<div class="mp__think"><i></i><i></i><i></i></div>' +
+            '<div class="mp__zzz"><i>z</i><i>z</i><i>z</i></div>' +
+            '<div class="mp__spark"><i></i><i></i><i></i><i></i><i></i></div>' +
+            '</div></div>'
+          )
+        }
+
+        // Relative luminance of a hex colour (sRGB average — enough to compare tones).
+        function lum(hex) {
+          var h = hex.replace('#', '')
+          return Math.round(
+            (parseInt(h.slice(0, 2), 16) + parseInt(h.slice(2, 4), 16) + parseInt(h.slice(4, 6), 16)) / 3
+          )
+        }
+
+        function readout(way) {
+          // A two-tone body is judged by its best tone on each surface, not by its average:
+          // the calico's charcoal patch is what holds the silhouette on white.
+          var tones = (way.tones || [way.shell[1]]).map(lum)
+          var shell = lum(way.shell[1])
+          var dark = Math.max.apply(null, tones.map(function (t) { return Math.abs(t - lum('#1f2123')) }))
+          var light = Math.max.apply(null, tones.map(function (t) { return Math.abs(t - lum('#ffffff')) }))
+          return (
+            '<p class="readout">shell <b>' + shell + '</b> · edge on dark <b>+' + dark +
+            '</b> · edge on white <b>-' + light + '</b>' +
+            (dark < 40 ? ' · <b>sinks on dark</b>' : '') +
+            (light < 40 ? ' · <b>sinks on white</b>' : '') +
+            '</p>'
+          )
+        }
+
+        var list = document.getElementById('list')
+        WAYS.forEach(function (way) {
+          var card = document.createElement('article')
+          card.className = 'way'
+          card.innerHTML =
+            '<div class="way__info">' +
+            '<div class="way__head"><h2>' + esc(way.name) + '</h2><span class="tag">' + esc(way.tag) + '</span>' +
+            (way.pick ? '<span class="pick">' + esc(way.pick) + '</span>' : '') +
+            '</div>' +
+            readout(way) +
+            '<p class="note">' + esc(way.note) + '</p>' +
+            '</div>' +
+            '<div class="static">' +
+            '<div><div class="surf surf--dark">' + pet(way, 72, 'idle') + '</div>' +
+            '<span class="surf__label">dark · #1f2123</span></div>' +
+            '<div><div class="surf surf--light">' + pet(way, 72, 'idle') + '</div>' +
+            '<span class="surf__label">light · #ffffff</span></div>' +
+            '<div class="realsize">' +
+            '<div class="realsize__row">' +
+            '<div class="realsize__cell realsize__cell--dark">' + pet(way, 36, 'idle') + '</div>' +
+            '<div class="realsize__cell realsize__cell--light">' + pet(way, 36, 'idle') + '</div>' +
+            '</div>' +
+            '<span class="realsize__label">36px · ships</span>' +
+            '</div>' +
+            '</div>' +
+            '<div class="moods">' +
+            MOODS.map(function (mood) {
+              return (
+                '<figure class="tile"><div class="tile__stage">' + pet(way, 40, mood) + '</div>' +
+                '<figcaption>' + mood + '</figcaption></figure>'
+              )
+            }).join('') +
+            '</div>'
+          list.appendChild(card)
+        })
+      })()
+    </script>
+  </body>
+</html>

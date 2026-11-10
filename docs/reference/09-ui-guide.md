@@ -378,8 +378,11 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   `--menu-pad` 6px (container padding), `--menu-item-h` 32px, `--menu-item-pad-x` 10px,
   `--menu-icon` 16px. Rows are **contiguous** (`gap: 0`) and each is `min-height: 32px` with
   `padding: 0 10px`. `.menu-sep` is an inset hairline between groups; `.menu-head` is a muted
-  non-interactive context row. A floating menu has **no outline**: it paints `--bg-menu` — a surface
-  that sits above `--bg`/`--bg-chat` in both themes — and relies on `--shadow-3` for separation.
+  non-interactive context row. A floating menu paints `--bg-menu` — a surface that sits above
+  `--bg`/`--bg-chat` in both themes — separates from the page with `--shadow-3`, and draws one faint
+  rim: `border: 1px solid var(--menu-border)`, a token a step *below* `--hairline` (white 6% dark /
+  black 7% light). The rim is there to give the menu edge definition against whatever it floats over,
+  never to read as an outline; `--hairline` was too dark for that job.
 - **Selector triggers** carry one shared caret, `.dropdown-caret` (lucide `ChevronDown`, 14px), which
   rotates 180° while its menu is open. Rotation is driven purely by the trigger's
   `[aria-expanded="true"]`, so any new select trigger gets it by setting that attribute (`Dropdown.tsx`
@@ -432,7 +435,9 @@ its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
   the triggers quiet inside the card (smaller type, no pill background at rest). The footer under the
   card carries project + branch on the left and the context ring + `ModePicker` on the right.
 - **The composer mascot is decoration with a mood, not a control.** `MeowPet.tsx` renders the logo's
-  cat head (same path, same blue/orange) at 36px, perched on the input card's top border 7.5rem in from
+  cat head (the logo path with softened ear tips and the ears pulled out toward the sides, same
+  blue/orange) at 36px, perched on the input
+  card's top border 7.5rem in from
   the right edge (`.meow-pet--edge`: absolute, `bottom: calc(100% - 0.166667rem)`, so the feet land on
   the hairline and the shadow falls on the card). The horizontal inset is load-bearing: the
   queued-messages card sits right above the input card, and its send-now / edit / remove block is

@@ -94,24 +94,29 @@ test('the new session footer picks the project, and only before the chat starts'
           radius: cs.borderTopLeftRadius,
           padding: cs.paddingTop,
           border: cs.borderTopWidth,
+          borderColor: cs.borderTopColor,
           shadow: cs.boxShadow
         }
       })
       const expected = await window.evaluate(() => {
         const probe = document.createElement('div')
         probe.style.background = 'var(--bg-menu)'
+        probe.style.borderTop = '1px solid var(--menu-border)'
         document.body.appendChild(probe)
-        const bg = getComputedStyle(probe).backgroundColor
+        const cs = getComputedStyle(probe)
+        const tokens = { bg: cs.backgroundColor, borderColor: cs.borderTopColor }
         probe.remove()
-        return bg
+        return tokens
       })
       const chatBg = await window.locator('.pane-slot:not([hidden]) .chat-panel').evaluate(el => getComputedStyle(el).backgroundColor)
-      expect(surface.bg).toBe(expected)
+      expect(surface.bg).toBe(expected.bg)
       expect(surface.bg).not.toBe(chatBg)
       expect(surface.radius).not.toBe('0px')
       expect(surface.padding).not.toBe('0px')
-      // No outline: separation comes from the surface step + shadow.
-      expect(surface.border).toBe('0px')
+      // A rim, not an outline: one faint --menu-border hairline on top of the
+      // surface step + shadow. It must stay a hair fainter than --hairline.
+      expect(surface.border).toBe('1px')
+      expect(surface.borderColor).toBe(expected.borderColor)
       expect(surface.shadow).not.toBe('none')
       // Its bottom edge is on top: the composer must not cover the last row.
       const topmostAtBottom = await menu.evaluate(el => {

@@ -29,8 +29,8 @@
   --bg: #1a1a1a;
   --bg-panel: #1a1a1a;
   --bg-raised: #1f2123;
-  /* Floating menu surface. Menus carry no outline (only their shadow), so this token
-     must read as a step above --bg / --bg-chat in both themes. */
+  /* Floating menu surface. Menus sit on their shadow plus the faint --menu-border rim, so
+     this token must read as a step above --bg / --bg-chat in both themes. */
   --bg-menu: #232629;
   --bg-hover: #242627;
   --bg-active: #2c2e2f;
@@ -111,6 +111,9 @@
   --menu-item-h: 2.25rem;
   --menu-item-pad-x: 0.833333rem;
   --menu-icon: 1.333333rem;
+  /* Floating-menu rim: one step *below* --hairline on purpose. A menu keeps a visible
+     edge against the surface behind it without the border reading as a drawn outline. */
+  --menu-border: rgba(255, 255, 255, 0.06);
   --hairline: rgba(255, 255, 255, 0.10);
   /* One step up from --hairline: rules that must read as a deliberate
      edge (the thinking note's gutter rule, count pills, card hovers). */
@@ -141,6 +144,7 @@
   --bg-sidebar: #f8f9fa;
   --menu-hover: rgba(0, 0, 0, 0.045);
   --menu-active: rgba(0, 0, 0, 0.08);
+  --menu-border: rgba(0, 0, 0, 0.07);
   --bg-tab-inactive: #f5f5f5;
   --bg-input: #f8f9fa;
   --bg-input-hover: #f0f0f0;
@@ -1735,7 +1739,8 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .chat-image-remove:hover { color: var(--red); }
 /* Composer mascot — the logo's cat head with two round eyes, 36px, perched on the top border of
    the input card, left of the queue rows' action block. The head path is the logo's own path
-   (64-grid) scaled by the SVG viewBox, so it never drifts from the icon. Moods come from
+   (64-grid) with the ear tips softened and the ears pulled out toward the sides, scaled by the
+   SVG viewBox, so it keeps the icon's silhouette without the razor point at this size. Moods come from
    ChatPanel plus the pet's own clock: idle, look (hover), think (turn running, no token yet),
    type (streaming), sleep (45 s idle), happy (turn done / clicked), notify (prompt, or a turn
    that lands while the window is unfocused), error (failed turn), drag (pointer down).
@@ -1763,6 +1768,17 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .meow-pet__body { position: absolute; inset: 0; transform-origin: 50% 88%; will-change: transform; }
 .meow-pet__svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .meow-pet__head { transform-box: fill-box; transform-origin: 50% 82%; }
+/* The tail curls up on the right: its base is tucked under the body's lower-right corner, so one
+   end reads as attached while the rest of the curve clears the silhouette and the tip is free. */
+.meow-pet__tail {
+  fill: none; stroke: #1b1e23; stroke-width: 5;
+  transform-box: fill-box; transform-origin: 15% 90%;
+}
+.meow-pet[data-mood='idle'] .meow-pet__tail { animation: meow-pet-tail-sway 4.4s ease-in-out infinite; }
+@keyframes meow-pet-tail-sway {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-5deg); }
+}
 .meow-pet__foot { fill: #1b1e23; }
 .meow-pet__face { opacity: 0; transition: opacity 140ms ease; }
 .meow-pet__face.is-on { opacity: 1; }
@@ -1925,7 +1941,8 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   .meow-pet__glow,
   .meow-pet__spark i,
   .meow-pet__think i,
-  .meow-pet__zzz i {
+  .meow-pet__zzz i,
+  .meow-pet__tail {
     animation: none !important;
   }
 }
@@ -1955,7 +1972,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
    Header rows (context / tokens / cost) sit above the composition bar. */
 .context-panel {
   width: 20rem; max-width: calc(100vw - 1rem); padding: 0.666667rem 0.833333rem;
-  background: var(--bg-menu); border: none; border-radius: var(--menu-radius);
+  background: var(--bg-menu); border: 0.083333rem solid var(--menu-border); border-radius: var(--menu-radius);
   box-shadow: var(--shadow-3); font-family: var(--font-ui); font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums;
 }
@@ -3104,7 +3121,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
    trigger's rect. High z-index so it overlays all app chrome. */
 .dropdown-menu {
   z-index: 1000;
-  background: var(--bg-menu); border: none;
+  background: var(--bg-menu); border: 0.083333rem solid var(--menu-border);
   border-radius: var(--menu-radius);
   box-shadow: var(--shadow-3);
   padding: var(--menu-pad); display: flex; flex-direction: column; gap: 0;
@@ -3135,7 +3152,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
    edge of the composer card. */
 .model-menu {
   width: 25rem; max-width: calc(100vw - 1rem); max-height: 28.333333rem;
-  background: var(--bg-menu); border: none;
+  background: var(--bg-menu); border: 0.083333rem solid var(--menu-border);
   border-radius: var(--menu-radius);
   box-shadow: var(--shadow-3);
   padding: var(--menu-pad); display: flex; flex-direction: column; gap: 0;
@@ -3258,7 +3275,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   position: absolute; bottom: calc(100% + 0.333333rem); left: 0; z-index: 40;
   min-width: 26.666667rem; max-width: 40rem; max-height: 23.333333rem; overflow-y: auto;
   background: var(--bg-menu);
-  border: none;
+  border: 0.083333rem solid var(--menu-border);
   border-radius: var(--menu-radius);
   box-shadow: var(--shadow-3);
   padding: var(--menu-pad); display: flex; flex-direction: column; gap: 0;
@@ -3285,7 +3302,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 /* Sidebar menu dropdown */
 .sidebar-menu { position: relative; }
 .sidebar-menu-dropdown {
-  min-width: 14.166667rem; background: var(--bg-menu); border: none;
+  min-width: 14.166667rem; background: var(--bg-menu); border: 0.083333rem solid var(--menu-border);
   border-radius: var(--menu-radius);
   padding: var(--menu-pad); display: flex; flex-direction: column; gap: 0;
   box-shadow: var(--shadow-3);
@@ -3548,7 +3565,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 }
 .right-panel-empty { padding: 1.333333rem; color: var(--text-faint); font-size: var(--fs-base); }
 .right-panel-menu {
-  min-width: 17.5rem; background: var(--bg-menu); border: none;
+  min-width: 17.5rem; background: var(--bg-menu); border: 0.083333rem solid var(--menu-border);
   border-radius: var(--menu-radius); padding: var(--menu-pad); display: flex; flex-direction: column; gap: 0;
   box-shadow: var(--shadow-3);
 }
@@ -3676,7 +3693,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   position: absolute; right: 0; top: calc(100% + 0.333333rem); z-index: 50;
   width: 21.666667rem; max-height: 30rem; overflow: hidden;
   display: flex; flex-direction: column;
-  background: var(--bg-menu); border: none;
+  background: var(--bg-menu); border: 0.083333rem solid var(--menu-border);
   box-shadow: 0 0.666667rem 2rem rgba(0, 0, 0, 0.45);
   border-radius: var(--menu-radius);
   padding: 0;

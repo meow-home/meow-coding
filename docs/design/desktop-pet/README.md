@@ -2,7 +2,9 @@
 
 A mascot derived from `meow-coding-logo.svg`: the same rounded-square cat head with the two ear
 notches, the same blue prompt chevron and orange cursor. Nothing is redrawn by hand — the head path
-is the logo's own path, scaled by the SVG `viewBox`, so the pet cannot drift from the icon.
+is the logo's own path with the ear tips softened and the ears nudged out toward the sides (the razor
+point and the tucked-in ears both disappear at 36px), scaled by the SVG `viewBox`, so the pet cannot
+drift from the icon.
 
 Open `index.html` in a browser (any static server; the page also works from `file://`).
 
