@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CLI Agents — Settings mockup</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div class="ribbon">
+  <b>Mockup</b><span class="sep">/</span>
+  <span>Settings → CLI Agents</span>
+  <span class="sep">·</span>
+  <span>no app code changed</span>
+  <span class="spacer"></span>
+  <span>OpenCode card state</span>
+  <div class="state-switch" id="stateSwitch">
+    <button data-state="installed" class="on">Installed</button>
+    <button data-state="missing">Not installed</button>
+    <button data-state="login">Needs login</button>
+  </div>
+  <a href="session.html">Agent session →</a>
+  <a href="delegation.html">Delegation →</a>
+</div>
+
+<div class="titlebar">
+  <div class="dots"><i></i><i></i><i></i></div>
+  <span class="title">Meow Coding</span>
+  <span class="spacer"></span>
+  <span class="chip">meow-coding</span>
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="proj"><b>meow-coding</b></div>
+    <div class="group">Agents</div>
+    <div class="session on"><span class="dot" style="background:#8f8f8f"></span> Meow <span style="margin-left:auto;color:var(--text-faint)">3</span></div>
+    <div class="session"><span class="dot"></span> Antigravity · Personal <span style="margin-left:auto;color:var(--amber)">1 running</span></div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> OpenCode · Anthropic Work <span style="margin-left:auto;color:var(--text-faint)">1</span></div>
+    <div class="group">Sessions</div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> CLI agents brainstorm</div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> Session Terminals (Phase A1)</div>
+    <div class="session"><span class="dot" style="background:var(--amber)"></span> Billing review <span class="badge" style="margin-left:auto">agy</span></div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> Flaky test triage <span class="badge" style="margin-left:auto">agy</span></div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> Invoice diff review <span class="badge" style="margin-left:auto">oc</span></div>
+    <div class="group">Projects</div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> agents-studio</div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> katalon-mcp</div>
+  </aside>
+
+  <main class="pane">
+    <div class="modal-layer">
+      <div class="settings" role="dialog" aria-label="Settings">
+        <div class="settings-head">
+          <span class="t">Settings</span>
+          <span class="pill">meow-coding</span>
+          <span class="spacer"></span>
+          <button class="icon-btn" title="Close">✕</button>
+        </div>
+        <div class="settings-body">
+          <nav class="settings-nav">
+            <div class="nav-group">Intelligence</div>
+            <button class="nav-item"><span class="ico">◇</span> Sub-agents</button>
+            <button class="nav-item"><span class="ico">▤</span> Providers</button>
+            <button class="nav-item"><span class="ico">⌘</span> MCP</button>
+            <button class="nav-item on"><span class="ico">▣</span> CLI Agents <span class="new">NEW</span></button>
+            <div class="nav-group">Controls &amp; Context</div>
+            <button class="nav-item"><span class="ico">⛨</span> Permissions</button>
+            <button class="nav-item"><span class="ico">❯</span> Commands</button>
+            <button class="nav-item"><span class="ico">≡</span> Context</button>
+            <button class="nav-item"><span class="ico">⇄</span> External delegation</button>
+            <div class="nav-group">Preferences</div>
+            <button class="nav-item"><span class="ico">◐</span> Personalize</button>
+            <div class="nav-group">System</div>
+            <button class="nav-item"><span class="ico">↓</span> Updates</button>
+          </nav>
+
+          <div class="settings-main">
+            <h1>CLI Agents</h1>
+            <p class="lede">
+              External coding CLIs run as their own agents, with their own sessions, tools and permissions. Give an
+              agent any task directly, or let a Meow session delegate to it and report back when the task is done.
+            </p>
+
+            <!-- RUNTIMES -->
+            <section class="section">
+              <div class="section-head"><h2>Runtimes</h2><span class="spacer"></span><span class="pill">2 supported</span></div>
+
+              <div class="runtime-card">
+                <div class="runtime-top">
+                  <div class="logo">agy</div>
+                  <div>
+                    <div class="runtime-name">Antigravity CLI</div>
+                    <div class="runtime-sub">Google · subscription models, Gemini API keys, custom agents</div>
+                  </div>
+                  <span class="spacer"></span>
+                  <span class="pill ok"><span class="dot"></span> Installed · v1.5.4</span>
+                  <div class="toggle on" title="Enable for new sessions"></div>
+                </div>
+                <div class="runtime-meta">
+                  <span>Binary <code>C:\Users\doanp\AppData\Local\agy\bin\agy.exe</code></span>
+                  <span>Agents <b style="color:var(--text)">3</b></span>
+                  <span>Max parallel tasks <b style="color:var(--text)">2</b></span>
+                </div>
+                <div class="runtime-models">
+                  <span class="model-chip">gemini-3.8-flash-high</span>
+                  <span class="model-chip">claude-sonnet-4-6</span>
+                  <span class="model-chip">claude-opus-4-6-thinking</span>
+                  <span class="model-chip">gpt-oss-120b-medium</span>
+                </div>
+                <div class="runtime-actions">
+                  <button class="btn sm">Check for updates</button>
+                  <button class="btn sm ghost">Change path</button>
+                  <button class="btn sm ghost">CLI docs ↗</button>
+                </div>
+              </div>
+
+              <div class="runtime-card" id="ocCard">
+                <div class="runtime-top">
+                  <div class="logo oc">oc</div>
+                  <div>
+                    <div class="runtime-name">OpenCode</div>
+                    <div class="runtime-sub">Provider accounts · Anthropic, OpenAI, Copilot, OpenRouter, custom</div>
+                  </div>
+                  <span class="spacer"></span>
+                  <span class="pill ok" id="ocPill"><span class="dot"></span> Installed · v2.2.7</span>
+                  <div class="toggle on"></div>
+                </div>
+                <div class="runtime-meta" id="ocMeta">
+                  <span>Binary <code>C:\Users\doanp\AppData\Roaming\npm\opencode.cmd</code></span>
+                  <span>Agents <b style="color:var(--text)">2</b></span>
+                  <span>Max parallel tasks <b style="color:var(--text)">3</b></span>
+                </div>
+                <div class="runtime-models" id="ocModels">
+                  <span class="model-chip">anthropic/claude-sonnet-5-5</span>
+                  <span class="model-chip">openai/gpt-5.2-codex</span>
+                  <span class="model-chip">github-copilot/gpt-5.4</span>
+                </div>
+                <div class="runtime-actions" id="ocActions">
+                  <button class="btn sm">Check for updates</button>
+                  <button class="btn sm ghost">Change path</button>
+                  <button class="btn sm ghost">CLI docs ↗</button>
+                </div>
+                <div class="install-box" id="ocInstall" hidden>
+                  <p class="hint" style="margin:0 0 .5rem">
+                    OpenCode is not installed. Meow can run the vendor installer in a terminal, or you can point it
+                    at an existing binary.
+                  </p>
+                  <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+                    <button class="btn primary sm">Install with npm</button>
+                    <button class="btn sm">I already have it — set path</button>
+                    <button class="btn sm ghost">Copy command</button>
+                  </div>
+                  <p class="hint" style="margin:.5rem 0 0">
+                    Requires Node.js. No PowerShell installer is published, so Meow falls back to
+                    <code>npm install -g @opencode/cli</code>.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <!-- AGENTS -->
+            <section class="section">
+              <div class="section-head">
+                <h2>Agents</h2>
+                <span class="spacer"></span>
+                <div class="menu-wrap">
+                  <button class="btn sm primary" data-menu="addAgentMenu">＋ Add agent ▾</button>
+                  <div class="menu" id="addAgentMenu">
+                    <div class="menu-label">Antigravity</div>
+                    <button class="menu-item" data-open="dlg-ant-google">
+                      <span class="g">G</span>
+                      <span>Google sign-in<div class="s">Google AI Pro / Ultra plan</div></span>
+                    </button>
+                    <button class="menu-item" data-open="dlg-ant-key">
+                      <span class="g">K</span>
+                      <span>Gemini API key<div class="s">Separate quota · runs in parallel</div></span>
+                    </button>
+                    <div class="menu-sep"></div>
+                    <div class="menu-label">OpenCode</div>
+                    <button class="menu-item" data-open="dlg-oc-login">
+                      <span class="g">A</span>
+                      <span>Anthropic<div class="s">Claude subscription or API key</div></span>
+                    </button>
+                    <button class="menu-item" data-open="dlg-oc-login">
+                      <span class="g">O</span>
+                      <span>OpenAI<div class="s">ChatGPT / Codex sign-in</div></span>
+                    </button>
+                    <button class="menu-item" data-open="dlg-oc-login">
+                      <span class="g">C</span>
+                      <span>GitHub Copilot<div class="s">Device code</div></span>
+                    </button>
+                    <button class="menu-item" data-open="dlg-oc-login">
+                      <span class="g">G</span>
+                      <span>Google / OpenRouter / custom<div class="s">API key or compatible endpoint</div></span>
+                    </button>
+                    <div class="menu-sep"></div>
+                    <button class="menu-item" data-open="dlg-ant-snapshot">
+                      <span class="g">⚠</span>
+                      <span>Save current Antigravity sign-in<div class="s">Experimental · machine-wide switch</div></span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="notice">
+                <span class="glyph">i</span>
+                <div>
+                  <b>Antigravity keeps one Google sign-in per machine.</b> Agents with a saved sign-in can be
+                  activated, but only one Google account is active at a time; starting a task on another Antigravity
+                  Google agent pauses and queues the rest.
+                  <a href="#" onclick="return false">How switching works</a>
+                </div>
+              </div>
+
+              <div class="agent-group">Antigravity</div>
+              <div class="account-list">
+                <div class="account">
+                  <div class="avatar">P</div>
+                  <div class="who">
+                    <div class="name">Antigravity · Personal <span class="badge on">Active</span> <span class="badge">Default</span></div>
+                    <div class="sub">doanp@gmail.com · Google AI Pro · claude-sonnet-4-6 · edits: workspace · 2 sessions</div>
+                  </div>
+                  <span class="spacer"></span>
+                  <div class="actions">
+                    <span class="pill ok">Ready</span>
+                    <button class="btn sm">New session</button>
+                    <button class="icon-btn" title="More">⋯</button>
+                  </div>
+                </div>
+                <div class="account">
+                  <div class="avatar">W</div>
+                  <div class="who">
+                    <div class="name">Antigravity · Work <span class="badge">Saved sign-in</span></div>
+                    <div class="sub">doanp@company.com · Google AI Ultra · gpt-oss-120b-medium · edits: workspace · 1 session</div>
+                  </div>
+                  <span class="spacer"></span>
+                  <div class="actions">
+                    <button class="btn sm" data-open="dlg-switch">Activate &amp; open</button>
+                    <button class="icon-btn" title="More">⋯</button>
+                  </div>
+                </div>
+                <div class="account">
+                  <div class="avatar" style="background:#3a332a;color:#f0d3a8">K</div>
+                  <div class="who">
+                    <div class="name">Antigravity · AI Studio <span class="badge">API key</span> <span class="badge on">Parallel</span></div>
+                    <div class="sub">Gemini API · ••••••••7f2c · gemini-3.8-flash-high · edits: workspace · 0 sessions</div>
+                  </div>
+                  <span class="spacer"></span>
+                  <div class="actions">
+                    <span class="pill ok">Ready</span>
+                    <button class="btn sm">New session</button>
+                    <button class="icon-btn" title="More">⋯</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="agent-group" style="margin-top:.9rem">OpenCode</div>
+              <div class="account-list">
+                <div class="account">
+                  <div class="avatar oc">A</div>
+                  <div class="who">
+                    <div class="name">OpenCode · Anthropic Work <span class="badge on">Default</span></div>
+                    <div class="sub">claude-sonnet-5-5 · OAuth · profile <code>oc_work</code> · edits: workspace · 1 session</div>
+                  </div>
+                  <span class="spacer"></span>
+                  <div class="actions">
+                    <span class="pill ok">Ready</span>
+                    <button class="btn sm">New session</button>
+                    <button class="icon-btn" title="More">⋯</button>
+                  </div>
+                </div>
+                <div class="account">
+                  <div class="avatar oc">C</div>
+                  <div class="who">
+                    <div class="name">OpenCode · Copilot personal <span class="badge">Profile</span></div>
+                    <div class="sub">github-copilot/gpt-5.4 · device flow · profile <code>oc_copilot</code> · edits: workspace</div>
+                  </div>
+                  <span class="spacer"></span>
+                  <div class="actions">
+                    <span class="pill warn">Quota low</span>
+                    <button class="btn sm">New session</button>
+                    <button class="icon-btn" title="More">⋯</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- DELEGATION -->
+            <section class="section">
+              <div class="section-head"><h2>Delegation from Meow</h2></div>
+              <div class="setting-row">
+                <div class="label"><b>Let Meow sessions delegate to CLI agents</b><span>Exposes <code>delegate_cli</code>; the task lands in a CLI session and the result wakes the Meow session.</span></div>
+                <div class="toggle on"></div>
+              </div>
+              <div class="setting-row">
+                <div class="label"><b>Session reuse</b><span>One CLI session per plan or project; feedback continues the same conversation.</span></div>
+                <span class="select-like">Reuse per plan <span class="chev">▾</span></span>
+              </div>
+              <div class="setting-row">
+                <div class="label"><b>Feedback rounds</b><span>Meow may send corrections to the same CLI conversation before asking you.</span></div>
+                <span class="select-like">3 rounds <span class="chev">▾</span></span>
+              </div>
+              <div class="setting-row">
+                <div class="label"><b>Queued tasks per agent</b><span>FIFO beyond this; the source session sees “queued”.</span></div>
+                <span class="select-like">5 <span class="chev">▾</span></span>
+              </div>
+              <div class="setting-row">
+                <div class="label"><b>When a delegated task finishes</b><span>Appends the result and wakes the Meow session automatically.</span></div>
+                <span class="select-like">Notify &amp; wake <span class="chev">▾</span></span>
+              </div>
+            </section>
+
+            <!-- POLICY -->
+            <section class="section">
+              <div class="section-head"><h2>Defaults for new agents</h2></div>
+              <div class="setting-row">
+                <div class="label"><b>Mode</b><span>Maps to <code>--mode accept-edits</code> / <code>--mode plan</code> / <code>--auto</code>.</span></div>
+                <span class="select-like">Edit inside workspace <span class="chev">▾</span></span>
+              </div>
+              <div class="setting-row">
+                <div class="label"><b>Shell commands</b><span>Headless CLIs cannot ask Meow for permission; blocked commands surface as “needs attention”.</span></div>
+                <span class="select-like">Project allowlist <span class="chev">▾</span></span>
+              </div>
+              <div class="setting-row">
+                <div class="label"><b>Full access</b><span>Adds <code>--dangerously-skip-permissions</code> / <code>--auto</code>. Per agent, never global.</span></div>
+                <span class="select-like">Off <span class="chev">▾</span></span>
+              </div>
+              <div class="setting-row">
+                <div class="label"><b>Task timeout</b><span>Killed with the whole process tree.</span></div>
+                <span class="select-like">30 minutes <span class="chev">▾</span></span>
+              </div>
+              <div class="setting-row">
+                <div class="label"><b>Keep session transcripts</b><span>Full log on disk; Meow only receives a capped result.</span></div>
+                <span class="select-like">30 days <span class="chev">▾</span></span>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ══ dialogs ══════════════════════════════════════════════════ -->
+
+<div class="dialog-layer" id="dlg-ant-google">
+  <div class="dialog" role="dialog" aria-label="Add Antigravity agent">
+    <div class="dialog-head">
+      <span class="logo" style="width:1.5rem;height:1.5rem;font-size:.6rem">agy</span>
+      <span class="t">Add Antigravity agent — Google sign-in</span>
+      <span class="spacer"></span>
+      <button class="icon-btn" data-close>✕</button>
+    </div>
+    <div class="dialog-body">
+      <div class="notice warn">
+        <span class="glyph">!</span>
+        <div>
+          Signing in here signs <b>this machine</b> into the chosen Google account. It replaces the current Antigravity
+          CLI sign-in. Meow saves the previous one first so you can switch back.
+        </div>
+      </div>
+      <div class="steps">
+        <div class="step on"><span class="n">1</span><div class="s"><b>Close other Antigravity sessions</b><span>2 other <code>agy</code> processes are running. Meow queues its own tasks, but other terminals must be closed before switching.</span></div></div>
+        <div class="step"><span class="n">2</span><div class="s"><b>Sign in with Google</b><span>A browser window opens; finish the flow, then return here.</span></div></div>
+        <div class="step"><span class="n">3</span><div class="s"><b>Label the agent</b><span>Meow verifies the sign-in with a one-line test run.</span></div></div>
+      </div>
+      <div class="terminal">$ agy
+<span class="dim">Antigravity CLI 1.5.4</span>
+<span class="dim">Opening browser for sign-in…</span>
+<span class="accent">https://accounts.google.com/o/oauth2/v2/auth?client_id=…</span>
+<span class="dim">Waiting for the authorization code…</span>
+<span class="ok">✓ Signed in as doanp@company.com</span>
+<span class="dim">Plan: Google AI Ultra · project: default</span>
+<span class="cursor"></span></div>
+      <div class="field" style="margin-top:.9rem">
+        <label>Agent label</label>
+        <input class="input" value="Antigravity · Work" />
+      </div>
+      <label style="display:flex;align-items:center;gap:.5rem;font-size:.83rem;color:var(--text-dim)">
+        <span class="toggle on"></span> Save this sign-in for later switching (experimental)
+      </label>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn">Open browser sign-in</button>
+      <button class="btn primary" data-close>Create agent</button>
+    </div>
+  </div>
+</div>
+
+<div class="dialog-layer" id="dlg-ant-key">
+  <div class="dialog" role="dialog" aria-label="Add Gemini API key agent">
+    <div class="dialog-head">
+      <span class="logo" style="width:1.5rem;height:1.5rem;font-size:.6rem">agy</span>
+      <span class="t">Add Antigravity agent — Gemini API key</span>
+      <span class="spacer"></span>
+      <button class="icon-btn" data-close>✕</button>
+    </div>
+    <div class="dialog-body">
+      <p class="hint">
+        API-key agents are fully isolated: each task gets <code>modelProvider: "gemini"</code> and its own
+        <code>GEMINI_API_KEY</code>. They run in parallel with a signed-in Google agent, but use Google AI Studio
+        quota instead of your subscription.
+      </p>
+      <div class="field">
+        <label>Gemini API key</label>
+        <input class="input" type="password" value="AIzaSy••••••••••••••••••••7f2c" />
+      </div>
+      <div class="field">
+        <label>Agent label</label>
+        <input class="input" value="Antigravity · AI Studio" />
+      </div>
+      <div class="field">
+        <label>Default model</label>
+        <span class="select-like">gemini-3.8-flash-high <span class="chev">▾</span></span>
+      </div>
+      <p class="hint" style="margin:0">The key is stored in the vault; it never reaches the renderer after saving.</p>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn primary" data-close>Create agent</button>
+    </div>
+  </div>
+</div>
+
+<div class="dialog-layer" id="dlg-ant-snapshot">
+  <div class="dialog" role="dialog" aria-label="Save sign-in snapshot">
+    <div class="dialog-head">
+      <span class="t">Save current sign-in for switching</span>
+      <span class="spacer"></span>
+      <button class="icon-btn" data-close>✕</button>
+    </div>
+    <div class="dialog-body">
+      <div class="notice warn">
+        <span class="glyph">!</span>
+        <div>
+          <b>Experimental.</b> Antigravity CLI has no profile flag, so Meow reads the OS keyring entry
+          (<code>gemini</code> / <code>antigravity</code>) and restores it when an agent is activated. The swap is
+          machine-wide, needs every <code>agy</code> process closed, and may break when Google changes the CLI.
+        </div>
+      </div>
+      <ul style="margin:.2rem 0 .9rem;padding-left:1.2rem;color:var(--text-dim);font-size:.85rem">
+        <li>The credential is encrypted with the OS keystore before it is written to disk.</li>
+        <li>Meow verifies each restore with a tiny test run; a failure marks the agent “needs login”.</li>
+        <li>Only agents you explicitly save are copied. Removing the agent wipes the copy.</li>
+      </ul>
+      <label style="display:flex;align-items:center;gap:.5rem;font-size:.85rem">
+        <span class="toggle"></span> I understand activating an agent replaces this machine's Antigravity sign-in
+      </label>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn primary" data-close>Save current sign-in</button>
+    </div>
+  </div>
+</div>
+
+<div class="dialog-layer" id="dlg-switch">
+  <div class="dialog" role="dialog" aria-label="Switch agent">
+    <div class="dialog-head">
+      <span class="t">Activate “Antigravity · Work”?</span>
+      <span class="spacer"></span>
+      <button class="icon-btn" data-close>✕</button>
+    </div>
+    <div class="dialog-body">
+      <p class="hint" style="color:var(--text)">
+        Meow will finish or pause its Antigravity tasks, restore the saved sign-in for
+        <b>doanp@company.com</b>, then verify it. Switching takes about a second; other terminal sessions using
+        <code>agy</code> must be closed first.
+      </p>
+      <div class="account" style="border:1px solid var(--hairline);border-radius:.5rem">
+        <div class="avatar">P</div>
+        <div class="who">
+          <div class="name">Personal <span class="badge on">Active</span></div>
+          <div class="sub">doanp@gmail.com · will be saved before switching</div>
+        </div>
+        <span class="spacer"></span>
+        <span style="color:var(--text-faint)">→</span>
+        <div class="avatar">W</div>
+        <div class="who">
+          <div class="name">Work <span class="badge">Saved</span></div>
+          <div class="sub">doanp@company.com · Google AI Ultra</div>
+        </div>
+      </div>
+      <div class="notice warn" style="margin-top:.8rem">
+        <span class="glyph">!</span>
+        <div>1 running Antigravity task will be paused and requeued. New Antigravity Google tasks wait until the swap finishes.</div>
+      </div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn primary" data-close id="confirmSwitch">Activate agent</button>
+    </div>
+  </div>
+</div>
+
+<div class="dialog-layer" id="dlg-oc-login">
+  <div class="dialog" role="dialog" aria-label="Add OpenCode agent">
+    <div class="dialog-head">
+      <span class="logo oc" style="width:1.5rem;height:1.5rem;font-size:.6rem">oc</span>
+      <span class="t">Add OpenCode agent</span>
+      <span class="spacer"></span>
+      <button class="icon-btn" data-close>✕</button>
+    </div>
+    <div class="dialog-body">
+      <p class="hint">Pick the provider. OpenCode runs the sign-in itself; Meow only supplies an isolated profile directory.</p>
+      <div class="provider-grid">
+        <button class="provider"><span class="glyph">A</span><span><b>Anthropic</b><span>Claude subscription or API key</span></span></button>
+        <button class="provider"><span class="glyph">O</span><span><b>OpenAI</b><span>ChatGPT / Codex sign-in</span></span></button>
+        <button class="provider"><span class="glyph">C</span><span><b>GitHub Copilot</b><span>Device code</span></span></button>
+        <button class="provider"><span class="glyph">G</span><span><b>Google</b><span>Gemini API key or OAuth</span></span></button>
+      </div>
+      <div class="terminal" style="margin-top:.9rem">$ OPENCODE_DB=…\oc_new\opencode.db opencode auth login anthropic
+<span class="dim">? Select auth method</span>  <span class="accent">Claude Pro/Max (OAuth)</span>
+<span class="dim">Open this URL in your browser:</span>
+<span class="accent">https://claude.ai/oauth/authorize?code=true&amp;client_id=…</span>
+<span class="dim">Paste the authorization code:</span> <span class="cursor"></span></div>
+      <div class="field" style="margin-top:.9rem">
+        <label>Agent label</label>
+        <input class="input" value="OpenCode · Anthropic Work" />
+      </div>
+      <p class="hint" style="margin:0">Profile: <code>cli-profiles/opencode/oc_new</code> · tokens stay in that profile's database.</p>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn">Open browser</button>
+      <button class="btn primary" data-close>Finish sign-in</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const stateSwitch = document.getElementById('stateSwitch')
+  const ocPill = document.getElementById('ocPill')
+  const ocMeta = document.getElementById('ocMeta')
+  const ocModels = document.getElementById('ocModels')
+  const ocActions = document.getElementById('ocActions')
+  const ocInstall = document.getElementById('ocInstall')
+
+  const OC_STATES = {
+    installed: { pill: '<span class="dot"></span> Installed · v2.2.7', pillClass: 'pill ok' },
+    missing: { pill: 'Not installed', pillClass: 'pill warn' },
+    login: { pill: '<span class="dot"></span> Needs login', pillClass: 'pill err' }
+  }
+
+  function applyState(name) {
+    const s = OC_STATES[name]
+    ocPill.className = s.pillClass
+    ocPill.innerHTML = s.pill
+    ocInstall.hidden = name !== 'missing'
+    ocModels.style.display = name === 'missing' ? 'none' : ''
+    ocMeta.innerHTML = name === 'missing'
+      ? '<span>Binary <code>not found</code></span><span>Agents <b style="color:var(--text)">0</b></span><span>Max parallel tasks <b style="color:var(--text)">3</b></span>'
+      : name === 'login'
+        ? '<span>Binary <code>C:\\Users\\doanp\\AppData\\Roaming\\npm\\opencode.cmd</code></span><span>Agents <b style="color:var(--text)">2</b></span><span>2 of 2 agents need sign-in</span>'
+        : '<span>Binary <code>C:\\Users\\doanp\\AppData\\Roaming\\npm\\opencode.cmd</code></span><span>Agents <b style="color:var(--text)">2</b></span><span>Max parallel tasks <b style="color:var(--text)">3</b></span>'
+    ocActions.querySelectorAll('button')[0].textContent = name === 'missing' ? 'Install' : 'Check for updates'
+  }
+
+  stateSwitch.addEventListener('click', e => {
+    const btn = e.target.closest('button')
+    if (!btn) return
+    stateSwitch.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn))
+    applyState(btn.dataset.state)
+  })
+
+  // dropdown menus
+  document.addEventListener('click', e => {
+    const trigger = e.target.closest('[data-menu]')
+    if (trigger) {
+      const menu = document.getElementById(trigger.dataset.menu)
+      const open = menu.classList.contains('open')
+      document.querySelectorAll('.menu.open').forEach(m => m.classList.remove('open'))
+      if (!open) menu.classList.add('open')
+      e.stopPropagation()
+      return
+    }
+    if (!e.target.closest('.menu')) document.querySelectorAll('.menu.open').forEach(m => m.classList.remove('open'))
+  })
+
+  // dialogs
+  document.addEventListener('click', e => {
+    const opener = e.target.closest('[data-open]')
+    if (opener) {
+      document.querySelectorAll('.menu.open').forEach(m => m.classList.remove('open'))
+      document.getElementById(opener.dataset.open).classList.add('open')
+      return
+    }
+    const closer = e.target.closest('[data-close]')
+    if (closer) {
+      closer.closest('.dialog-layer').classList.remove('open')
+      return
+    }
+    if (e.target.classList.contains('dialog-layer')) e.target.classList.remove('open')
+  })
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') document.querySelectorAll('.dialog-layer.open').forEach(d => d.classList.remove('open'))
+  })
+
+  // toggles
+  document.addEventListener('click', e => {
+    const t = e.target.closest('.toggle')
+    if (t) t.classList.toggle('on')
+  })
+
+  // activating the saved agent moves the Active badge after confirmation
+  document.getElementById('confirmSwitch')?.addEventListener('click', () => {
+    const rows = document.querySelectorAll('.account-list .account')
+    rows.forEach(r => {
+      const b = r.querySelector('.badge')
+      if (b && b.textContent === 'Active') { b.classList.remove('on'); b.textContent = 'Saved sign-in' }
+    })
+    const work = rows[1]?.querySelector('.badge')
+    if (work) { work.classList.add('on'); work.textContent = 'Active' }
+    const workBtn = rows[1]?.querySelector('.actions .btn')
+    if (workBtn) {
+      workBtn.removeAttribute('data-open')
+      workBtn.textContent = 'New session'
+    }
+  })
+</script>
+</body>
+</html>

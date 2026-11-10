@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CLI agent session — mockup</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div class="ribbon">
+  <b>Mockup</b><span class="sep">/</span>
+  <span>CLI agent session</span>
+  <span class="sep">·</span>
+  <span>no app code changed</span>
+  <span class="spacer"></span>
+  <a href="settings.html">← Settings</a>
+  <a href="delegation.html">Delegation from Meow →</a>
+</div>
+
+<div class="titlebar">
+  <div class="dots"><i></i><i></i><i></i></div>
+  <span class="title">Meow Coding</span>
+  <span class="spacer"></span>
+  <span class="chip">meow-coding</span>
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="proj"><b>meow-coding</b></div>
+    <div class="group">Agents</div>
+    <div class="session"><span class="dot" style="background:#8f8f8f"></span> Meow <span style="margin-left:auto;color:var(--text-faint)">3</span></div>
+    <div class="session"><span class="dot"></span> Antigravity · Personal <span style="margin-left:auto;color:var(--amber)">1 running</span></div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> OpenCode · Anthropic Work <span style="margin-left:auto;color:var(--text-faint)">1</span></div>
+    <div class="group">Sessions</div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> CLI agents brainstorm <span class="badge" style="margin-left:auto">meow</span></div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> Session Terminals <span class="badge" style="margin-left:auto">meow</span></div>
+    <div class="session on"><span class="dot" style="background:var(--amber)"></span> Billing review <span class="badge" style="margin-left:auto">agy</span></div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> Flaky test triage <span class="badge" style="margin-left:auto">agy</span></div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> Invoice diff review <span class="badge" style="margin-left:auto">oc</span></div>
+    <div class="group">Projects</div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> agents-studio</div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> katalon-mcp</div>
+  </aside>
+
+  <main class="pane">
+    <div class="chat">
+      <div class="chat-head">
+        <span class="agent-chip">agy</span>
+        <span class="title">Billing review</span>
+        <span class="pill accent">Antigravity · Personal</span>
+        <span class="spacer"></span>
+        <span class="select-like">claude-sonnet-4-6 <span class="chev">▾</span></span>
+        <span class="select-like">edits: workspace <span class="chev">▾</span></span>
+        <button class="btn sm" id="stopBtn">Stop</button>
+        <button class="btn sm ghost">Open terminal</button>
+        <button class="icon-btn" title="Session menu">⋯</button>
+      </div>
+
+      <div class="chat-feed">
+        <div class="lane">
+          <div class="cli-meta-strip">
+            <span>project <code>meow-coding</code></span>
+            <span>cwd <code>C:\…\meow-coding</code></span>
+            <span>account <code>doanp@gmail.com</code></span>
+            <span>conversation <code>8f3c1a…</code></span>
+            <span class="spacer"></span>
+            <span id="sessionState">Running · 2m 41s</span>
+          </div>
+
+          <div class="cli-banner">
+            <span class="glyph">⇢</span>
+            <span>Started by Meow session <b>CLI agents brainstorm</b> · delegation <code>dl_7f2c</code></span>
+            <span class="spacer"></span>
+            <button class="btn sm ghost">Open source session ↗</button>
+          </div>
+
+          <div class="msg">
+            <div class="who">You · 14:02</div>
+            <div class="bubble-user">
+              Review module billing và sửa test bị fail. Chạy <code>npm test -- billing</code> trước khi báo xong.
+            </div>
+          </div>
+
+          <div class="msg">
+            <div class="who">Antigravity · Personal</div>
+            <div class="cli-text"><p>I'll start by reading the billing module and its tests.</p></div>
+
+            <div class="cli-tool">
+              <div class="cli-tool-head"><span class="g">✓</span><span class="t">read_file</span><code>src/billing/invoice.ts</code><span class="spacer"></span><span class="meta">214 lines · 0.2s</span></div>
+            </div>
+            <div class="cli-tool">
+              <div class="cli-tool-head"><span class="g">✓</span><span class="t">search</span><code>calculateTotal</code><span class="spacer"></span><span class="meta">12 matches · 5 files</span></div>
+            </div>
+
+            <div class="cli-text">
+              <p>
+                The proration path uses the invoice date instead of the plan's billing anchor, so mid-cycle upgrades
+                are charged twice. The rounding also happens before tax is applied.
+              </p>
+            </div>
+
+            <div class="cli-tool">
+              <div class="cli-tool-head"><span class="g">✓</span><span class="t">write_to_file</span><code>src/billing/invoice.ts</code><span class="spacer"></span><span class="meta"><span class="add">+18</span> <span class="del">−4</span></span></div>
+              <div class="cli-tool-body">@@ -118,7 +118,9 @@ export function prorate(plan, invoice) {
+<span class="del">-  const anchor = invoice.issuedAt</span>
+<span class="add">+  const anchor = plan.billingAnchor ?? invoice.issuedAt</span>
+   const days = daysBetween(anchor, invoice.periodEnd)
+<span class="del">-  return round(amount * days / periodDays)</span>
+<span class="add">+  return round(amount * days / periodDays, 4)</span></div>
+            </div>
+
+            <div class="cli-tool">
+              <div class="cli-tool-head"><span class="g">✓</span><span class="t">run_command</span><code>npm test -- billing</code><span class="spacer"></span><span class="meta">1.8s · exit 1</span></div>
+              <div class="cli-tool-body"><span class="fail">✕</span> prorates an upgrade mid-cycle (expected 12.5, received 25)
+<span class="fail">✕</span> rounds tax after proration (expected 3.06, received 3.05)
+<span class="pass">✓</span> 3 passing</div>
+            </div>
+
+            <div class="cli-text"><p>Both failures share the same anchor bug. I fixed the anchor and the rounding order, then reran the file.</p></div>
+
+            <div class="cli-tool">
+              <div class="cli-tool-head"><span class="g">✓</span><span class="t">run_command</span><code>npm test -- billing</code><span class="spacer"></span><span class="meta">1.6s · exit 0</span></div>
+              <div class="cli-tool-body"><span class="pass">✓</span> 5 passing</div>
+            </div>
+
+            <div class="blocked">
+              <div class="t">⚠ Needs permission: <code>command(git push)</code></div>
+              <div class="d">
+                This task is edit-only. The agent tried to push the branch; headless mode cannot ask, so the action
+                was soft-denied and the agent continued.
+              </div>
+              <div class="a">
+                <button class="btn sm primary" id="allowOnce">Allow once &amp; retry</button>
+                <button class="btn sm">Always allow git push for this agent</button>
+                <button class="btn sm ghost">Dismiss</button>
+              </div>
+            </div>
+
+            <div class="cli-result">
+              <div class="t">✓ Task completed · 3m 12s</div>
+              <p>
+                Fixed the proration anchor and the rounding order in <code>invoice.ts</code>; all 5 billing tests pass.
+                The push was not performed.
+              </p>
+              <div class="stats">
+                <span>2 files changed</span>
+                <span class="diffstat"><span class="add">+24</span><span class="del">−6</span></span>
+                <span>31.2k tokens</span>
+                <span>1 blocked action</span>
+              </div>
+              <div class="actions">
+                <button class="btn sm">Copy result</button>
+                <button class="btn sm">Continue</button>
+                <button class="btn sm ghost">Open terminal</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="msg">
+            <div class="who">You · 14:07</div>
+            <div class="bubble-user">Tốt. Thêm test cho trường hợp upgrade giữa kỳ, rồi chạy lại cả suite.</div>
+          </div>
+
+          <div class="msg" id="followUp">
+            <div class="who">Antigravity · Personal</div>
+            <div class="cli-text"><p>Adding a regression test for a mid-cycle upgrade and running the full suite.</p></div>
+            <div class="cli-tool">
+              <div class="cli-tool-head"><span class="g">✓</span><span class="t">write_to_file</span><code>test/billing.test.ts</code><span class="spacer"></span><span class="meta"><span class="add">+31</span></span></div>
+            </div>
+            <div class="cli-tool">
+              <div class="cli-tool-head"><span class="g"><span class="spinner"></span></span><span class="t">run_command</span><code>npm test</code><span class="spacer"></span><span class="meta">running 00:22</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="composer">
+        <div class="composer-inner">
+          <textarea rows="2" placeholder="Give Antigravity a task…"></textarea>
+          <div class="composer-foot">
+            <span class="pill">edits: workspace</span>
+            <span class="pill">asks → block &amp; report</span>
+            <span class="select-like" style="font-size:.78rem">claude-sonnet-4-6 <span class="chev">▾</span></span>
+            <span class="spacer"></span>
+            <span style="color:var(--text-faint);font-size:.76rem">This agent runs its own tools and context.</span>
+            <button class="send" id="sendBtn" title="Send">↑</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  const stopBtn = document.getElementById('stopBtn')
+  stopBtn?.addEventListener('click', () => {
+    stopBtn.disabled = true
+    stopBtn.textContent = 'Stopped'
+    document.getElementById('sessionState').textContent = 'Stopped by user'
+    document.querySelectorAll('#followUp .spinner').forEach(s => {
+      const g = s.closest('.g')
+      g.className = 'g'
+      g.textContent = '✕'
+    })
+    document.querySelector('#followUp .cli-tool-head .meta').textContent = 'cancelled'
+  })
+
+  document.getElementById('allowOnce')?.addEventListener('click', e => {
+    const box = e.target.closest('.blocked')
+    box.style.borderColor = 'rgba(74,222,159,.35)'
+    box.style.background = 'var(--green-dim)'
+    box.innerHTML = '<div class="t" style="color:var(--green)">✓ Allowed once — the agent resumed</div><div class="d">The rule applies to this task only; it is not saved.</div>'
+  })
+
+  document.getElementById('sendBtn')?.addEventListener('click', () => {
+    const ta = document.querySelector('.composer textarea')
+    const text = ta.value.trim() || 'Summarize what changed and what is left.'
+    const lane = document.querySelector('.lane')
+    const msg = document.createElement('div')
+    msg.className = 'msg'
+    msg.innerHTML = '<div class="who">You · now</div><div class="bubble-user"></div>'
+    msg.querySelector('.bubble-user').textContent = text
+    lane.appendChild(msg)
+    const reply = document.createElement('div')
+    reply.className = 'msg'
+    reply.innerHTML = '<div class="who">Antigravity · Personal</div><div class="cli-text"><p>Working on it…</p></div><div class="cli-tool"><div class="cli-tool-head"><span class="g"><span class="spinner"></span></span><span class="t">run_command</span><code>npm test</code><span class="spacer"></span><span class="meta">running</span></div></div>'
+    lane.appendChild(reply)
+    ta.value = ''
+    reply.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  })
+</script>
+</body>
+</html>

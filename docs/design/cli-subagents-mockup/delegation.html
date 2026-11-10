@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Meow → CLI delegation — mockup</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div class="ribbon">
+  <b>Mockup</b><span class="sep">/</span>
+  <span>Meow delegates to a CLI agent</span>
+  <span class="sep">·</span>
+  <span>no app code changed</span>
+  <span class="spacer"></span>
+  <a href="settings.html">← Settings</a>
+  <a href="session.html">Agent session →</a>
+</div>
+
+<div class="titlebar">
+  <div class="dots"><i></i><i></i><i></i></div>
+  <span class="title">Meow Coding</span>
+  <span class="spacer"></span>
+  <span class="chip">meow-coding</span>
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="proj"><b>meow-coding</b></div>
+    <div class="group">Agents</div>
+    <div class="session"><span class="dot" style="background:#8f8f8f"></span> Meow <span style="margin-left:auto;color:var(--text-faint)">3</span></div>
+    <div class="session"><span class="dot"></span> Antigravity · Personal <span style="margin-left:auto;color:var(--amber)">1 running</span></div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> OpenCode · Anthropic Work <span style="margin-left:auto;color:var(--text-faint)">1</span></div>
+    <div class="group">Sessions</div>
+    <div class="session on"><span class="dot" style="background:#3a3d3f"></span> CLI agents brainstorm <span class="badge" style="margin-left:auto">meow</span></div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> Session Terminals <span class="badge" style="margin-left:auto">meow</span></div>
+    <div class="session"><span class="dot" style="background:var(--amber)"></span> Billing review <span class="badge" style="margin-left:auto">agy</span></div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> Flaky test triage <span class="badge" style="margin-left:auto">agy</span></div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> Invoice diff review <span class="badge" style="margin-left:auto">oc</span></div>
+    <div class="group">Projects</div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> agents-studio</div>
+    <div class="session"><span class="dot" style="background:#3a3d3f"></span> katalon-mcp</div>
+  </aside>
+
+  <main class="pane">
+    <div class="chat">
+      <div class="chat-head">
+        <span class="title">CLI agents brainstorm</span>
+        <span class="pill accent">delegating to Antigravity · Personal</span>
+        <span class="spacer"></span>
+        <div class="tabs">
+          <button class="on">Chat</button>
+          <button>Terminal</button>
+          <button>Files</button>
+          <button>Browser</button>
+        </div>
+        <button class="icon-btn" title="Settings">⚙</button>
+      </div>
+
+      <div class="chat-feed">
+        <div class="lane">
+          <div class="msg">
+            <div class="who">You</div>
+            <div class="bubble-user">
+              Review module billing, sửa test bị fail, verify bằng <code>npm test</code>. Nếu ổn thì commit.
+            </div>
+          </div>
+
+          <div class="msg">
+            <div class="who">Meow</div>
+            <div class="assistant">
+              <p>
+                Mình sẽ giao phần implement cho <b>Antigravity · Personal</b>. Nó chạy trong session riêng với tool
+                và context riêng; khi có kết quả mình sẽ tự kiểm tra diff, chạy lại test rồi mới commit.
+              </p>
+            </div>
+
+            <!-- DELEGATION RUNNING -->
+            <div class="delegation-card" id="dlgRunning">
+              <div class="d-head">
+                <span class="arrow">⇢</span>
+                <b>Delegated to Antigravity · Personal</b>
+                <span class="pill warn" id="runPill"><span class="spinner"></span> Running</span>
+                <span class="spacer"></span>
+                <span class="meta">2m 14s</span>
+              </div>
+              <div class="d-body">
+                <div class="d-task">
+                  <span class="lbl">Task</span>
+                  Review module billing, fix the failing tests, run <code>npm test -- billing</code>, and report the
+                  files you changed. Do not commit.
+                </div>
+                <div class="d-live">
+                  <div class="d-step"><span class="spinner"></span> Last step: <code>run_command npm test -- billing</code></div>
+                  <div class="d-step"><span style="color:var(--green)">✓</span> 2 files changed so far</div>
+                </div>
+              </div>
+              <div class="d-foot">
+                <a class="btn sm" href="session.html">Open CLI session ↗</a>
+                <button class="btn sm ghost" id="cancelDelegation">Cancel delegation</button>
+                <span class="spacer"></span>
+                <span>Works in its own session · you can watch or take over there.</span>
+              </div>
+            </div>
+
+            <div class="assistant">
+              <p>Trong lúc chờ, mình kiểm tra lỗi hiện tại để đối chiếu kết quả.</p>
+            </div>
+
+            <!-- Meow's own work while waiting -->
+            <div class="tool-card collapsed">
+              <div class="tool-head" data-collapse="meowBash">
+                <span class="glyph" style="background:#2a2a2a;color:#ccc">❯</span>
+                <span class="name">bash</span>
+                <span class="meta">npm test -- billing</span>
+                <span class="spacer"></span>
+                <span class="pill err" style="font-size:.72rem">exit 1</span>
+                <span class="chev">▾</span>
+              </div>
+              <div class="tool-body" id="meowBash">
+                <div class="terminal" style="max-height:8rem"><span class="dim">$ npm test -- billing</span>
+<span class="fail">✕</span> prorates an upgrade mid-cycle
+<span class="fail">✕</span> rounds tax after proration
+<span class="pass">✓</span> 3 passing</div>
+              </div>
+            </div>
+
+            <div class="assistant">
+              <p>Hai lỗi khớp với những gì Antigravity đang sửa: anchor proration và thứ tự làm tròn thuế.</p>
+            </div>
+
+            <!-- DELEGATION COMPLETED -->
+            <div class="delegation-card done" id="dlgDone">
+              <div class="d-head">
+                <span class="arrow" style="color:var(--green)">✓</span>
+                <b>Antigravity · Personal finished</b>
+                <span class="pill ok"><span class="dot"></span> Completed</span>
+                <span class="spacer"></span>
+                <span class="meta">3m 12s · conversation 8f3c…</span>
+              </div>
+              <div class="d-body">
+                <div class="d-result">
+                  Fixed the proration anchor and the rounding order in <code>invoice.ts</code>; all 5 billing tests
+                  pass. No commit was made. One push attempt was blocked by policy.
+                  <div class="stats">
+                    <span>2 files changed</span>
+                    <span class="diffstat"><span class="add">+24</span><span class="del">−6</span></span>
+                    <span>31.2k tokens</span>
+                    <span>1 blocked action</span>
+                  </div>
+                </div>
+                <div class="d-verify">
+                  <b>Meow verified</b> · <code>git diff --stat</code> (2 files) · <code>npm test -- billing</code>
+                  → 5 passed · diff matches the task, no unrelated edits.
+                </div>
+                <div class="d-reply">
+                  <input class="input" id="feedbackInput" value="Rounding vẫn áp trước thuế ở nhánh annual plan — sửa luôn và thêm test." />
+                  <button class="btn primary" id="sendFeedback">Send feedback</button>
+                </div>
+                <div class="d-rounds">Round 1 of 3 · 2 feedback rounds left</div>
+              </div>
+              <div class="d-foot">
+                <a class="btn sm" href="session.html">Open CLI session ↗</a>
+                <button class="btn sm ghost">Review diff</button>
+                <span class="spacer"></span>
+                <span>Result also appended to the CLI session transcript.</span>
+              </div>
+            </div>
+
+            <div class="assistant" id="meowNote">
+              <p>Mình đã kiểm tra diff và test. Gửi thêm một vòng feedback trước khi commit.</p>
+            </div>
+
+            <!-- FEEDBACK ROUND RUNNING -->
+            <div class="delegation-card" id="dlgRound2" hidden>
+              <div class="d-head">
+                <span class="arrow">⇢</span>
+                <b>Feedback sent to Antigravity · Personal</b>
+                <span class="pill warn"><span class="spinner"></span> Running</span>
+                <span class="spacer"></span>
+                <span class="meta">round 2 · 0m 12s</span>
+              </div>
+              <div class="d-body">
+                <div class="d-task">
+                  <span class="lbl">Feedback</span>
+                  Rounding vẫn áp trước thuế ở nhánh annual plan — sửa luôn và thêm test.
+                </div>
+                <div class="d-live">
+                  <div class="d-step"><span class="spinner"></span> Resuming conversation <code>8f3c…</code></div>
+                </div>
+              </div>
+              <div class="d-foot">
+                <a class="btn sm" href="session.html">Open CLI session ↗</a>
+                <span class="spacer"></span>
+                <span>Continues the same conversation — no context is lost.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="composer">
+        <div class="composer-inner">
+          <textarea rows="2" placeholder="Ask Meow, or delegate this prompt to a CLI agent…"></textarea>
+          <div class="composer-foot">
+            <div class="menu-wrap">
+              <button class="delegate-chip" data-menu="sendMenu">
+                <span class="glyph">M</span> Send to Meow <span style="color:var(--text-faint)">▾</span>
+              </button>
+              <div class="menu" id="sendMenu">
+                <div class="menu-label">Send this prompt to</div>
+                <button class="menu-item">
+                  <span class="g">M</span>
+                  <span>Meow agent<div class="s">this session</div></span>
+                  <span class="spacer"></span><span style="color:var(--green)">✓</span>
+                </button>
+                <div class="menu-sep"></div>
+                <button class="menu-item">
+                  <span class="g">agy</span>
+                  <span>Antigravity · Personal<div class="s">delegates as a new CLI task</div></span>
+                </button>
+                <button class="menu-item">
+                  <span class="g">agy</span>
+                  <span>Antigravity · Work<div class="s">activates this machine's saved sign-in</div></span>
+                </button>
+                <button class="menu-item">
+                  <span class="g">oc</span>
+                  <span>OpenCode · Anthropic Work<div class="s">parallel-safe profile</div></span>
+                </button>
+                <div class="menu-sep"></div>
+                <button class="menu-item"><span class="g">⚙</span><span>Manage CLI agents…</span></button>
+              </div>
+            </div>
+            <span class="pill">verify before commit</span>
+            <span class="spacer"></span>
+            <button class="btn sm ghost">⌘K</button>
+            <button class="send" title="Send">↑</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  // collapse tool cards
+  document.querySelectorAll('[data-collapse]').forEach(head => {
+    head.addEventListener('click', () => document.getElementById(head.dataset.collapse).closest('.tool-card').classList.toggle('collapsed'))
+  })
+
+  // menus
+  document.addEventListener('click', e => {
+    const trigger = e.target.closest('[data-menu]')
+    if (trigger) {
+      const menu = document.getElementById(trigger.dataset.menu)
+      const open = menu.classList.contains('open')
+      document.querySelectorAll('.menu.open').forEach(m => m.classList.remove('open'))
+      if (!open) menu.classList.add('open')
+      e.stopPropagation()
+      return
+    }
+    if (!e.target.closest('.menu')) document.querySelectorAll('.menu.open').forEach(m => m.classList.remove('open'))
+  })
+
+  // cancel the running delegation
+  document.getElementById('cancelDelegation')?.addEventListener('click', e => {
+    const pill = document.getElementById('runPill')
+    pill.className = 'pill err'
+    pill.textContent = 'Cancelled'
+    const card = document.getElementById('dlgRunning')
+    card.style.borderLeftColor = 'var(--red)'
+    e.target.disabled = true
+    e.target.textContent = 'Cancelled'
+  })
+
+  // send feedback → starts round 2
+  document.getElementById('sendFeedback')?.addEventListener('click', e => {
+    const text = document.getElementById('feedbackInput').value
+    const card = document.getElementById('dlgDone')
+    const reply = card.querySelector('.d-reply')
+    const rounds = card.querySelector('.d-rounds')
+    reply.hidden = true
+    rounds.textContent = 'Feedback sent · round 2 running'
+    e.target.disabled = true
+    const r2 = document.getElementById('dlgRound2')
+    r2.hidden = false
+    r2.querySelector('.d-task').innerHTML = '<span class="lbl">Feedback</span>' + text
+    r2.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  })
+</script>
+</body>
+</html>

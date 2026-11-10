@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CLI Agents — mockup gallery</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="gallery">
+  <h1>CLI Agents — mockup</h1>
+  <p class="sub">
+    Antigravity CLI and OpenCode as their own agents: install, sign in, keep accounts, give them tasks directly, and
+    let a Meow session delegate to them the way Claude delegates to Meow. Companion to
+    <a href="../../superpowers/specs/2026-11-10-cli-agents-design.md">the design spec</a>.
+  </p>
+
+  <div class="cards">
+    <a class="card" href="settings.html">
+      <div class="thumb">Settings → CLI Agents</div>
+      <b>1 · Settings, agents &amp; accounts</b>
+      <span>
+        Runtime cards (installed / missing / needs login), agent list per runtime, add-account flows for Google
+        sign-in, Gemini API keys and OpenCode providers, delegation settings, defaults and concurrency.
+      </span>
+    </a>
+    <a class="card" href="session.html">
+      <div class="thumb">CLI agent session</div>
+      <b>2 · Agent session (direct tasks)</b>
+      <span>
+        A first-class session in the sidebar: give the agent any task, watch its own tool steps and streamed text,
+        handle a blocked permission, continue the conversation, stop the run.
+      </span>
+    </a>
+    <a class="card" href="delegation.html">
+      <div class="thumb">Meow → CLI delegation</div>
+      <b>3 · Delegation from Meow</b>
+      <span>
+        A Meow session delegates a task into a CLI session, keeps working while it runs, verifies the result, then
+        sends feedback into the same CLI conversation.
+      </span>
+    </a>
+  </div>
+
+  <h2 style="font-size:1rem;color:var(--text-strong);margin:2.5rem 0 .6rem">What the mockup assumes</h2>
+  <ul>
+    <li>CLI agents are <b>peer workers with their own sessions</b>, not restricted Meow sub-agents. They keep their
+      own loop, tools, permission engine, context and conversation history.</li>
+    <li>A CLI session lives in the sidebar, grouped by agent, next to Meow sessions.</li>
+    <li>Meow delegates with <code>delegate_cli</code>: queue → run → result wakes the Meow session → verify →
+      feedback in the same CLI conversation (max 3 rounds).</li>
+    <li>Antigravity keeps <b>one Google account active per machine</b>; saved sign-ins are opt-in experimental.
+      Gemini API key agents and OpenCode profiles run in parallel.</li>
+    <li>Headless CLIs cannot ask Meow for permission, so “ask” becomes <b>block, report, and offer allow &amp; retry</b>.</li>
+  </ul>
+
+  <h2 style="font-size:1rem;color:var(--text-strong);margin:2rem 0 .6rem">Decisions locked</h2>
+  <ul>
+    <li>Direction approved: CLI agents are worker sessions, and Meow delegates with <code>delegate_cli</code>
+      (queue → result wake → verify → feedback).</li>
+    <li>Antigravity accounts: <b>A + C supported</b> (Google re-login + Gemini API key agents); <b>B keyring
+      snapshots experimental and off by default</b>.</li>
+    <li>Delegation reuses one CLI session per plan/project; feedback continues the same conversation (3 rounds).</li>
+    <li>Default agent mode is <code>edit</code> inside the workspace; <code>full</code> is per agent and explicit.</li>
+  </ul>
+
+  <p class="foot">
+    Static mockup · tokens mirror <code>src/renderer/src/styles.css</code> ·
+    <code>docs/design/cli-subagents-mockup/</code>
+  </p>
+</div>
+</body>
+</html>
