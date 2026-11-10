@@ -8,11 +8,13 @@ import {
   Sliders,
   Palette,
   DownloadCloud,
-  Share2
+  Share2,
+  SquareTerminal
 } from 'lucide-react'
 import type { CatalogProviderSummary, McpServerStatus, MeowSettings } from '@shared/types'
 import BaseModal from '../common/BaseModal'
 import AgentsTab from './AgentsTab'
+import CliAgentsTab from './CliAgentsTab'
 import PermissionsTab from './PermissionsTab'
 import McpTab from './McpTab'
 import ContextTab from './ContextTab'
@@ -24,6 +26,7 @@ import PersonalizeTab from './PersonalizeTab'
 
 export type TabId =
   | 'agents'
+  | 'cli-agents'
   | 'permissions'
   | 'mcp'
   | 'context'
@@ -50,6 +53,7 @@ const TAB_GROUPS: TabGroup[] = [
     title: 'Intelligence',
     items: [
       { id: 'agents', label: 'Sub-agents', icon: Bot },
+      { id: 'cli-agents', label: 'CLI Agents', icon: SquareTerminal },
       { id: 'providers', label: 'Providers', icon: Cpu },
       { id: 'mcp', label: 'MCP', icon: Plug }
     ]
@@ -258,6 +262,7 @@ export default function SettingsDialog({ onClose, projectPath, initialTab = 'age
                 onChangeSubagentModels={subagentModels => patch({ subagentModels })}
               />
             )}
+            {tab === 'cli-agents' && <CliAgentsTab projectPath={projectPath} />}
             {draft && tab === 'permissions' && (
               <PermissionsTab permission={draft.permission} onChange={permission => patch({ permission })} />
             )}
