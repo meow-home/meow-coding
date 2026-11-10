@@ -242,14 +242,26 @@ Otherwise it installs/imports the `TrustedSigning` PowerShell module (pinned `0.
 - Background updates: `autoDownload = true` (the download starts as soon as a newer version is found)
   and `autoInstallOnAppQuit = true` (the installer runs silently when the app quits — no setup UI).
   `install()` calls `quitAndInstall(true, true)`, so a manual restart is also a silent install that
-  relaunches the app.
+  relaunches the app. `disableWebInstaller = true` (this project only publishes full NSIS installers).
+- **Deferred install**: clicking "Update & Restart" while the background download is still running does
+  not re-trigger `downloadUpdate()` (which returns the in-flight promise and would silently do nothing).
+  `install()` records `restartWhenReady`, reports it on the `download-progress` event, and calls
+  `quitAndInstall(true, true)` as soon as `update-downloaded` arrives. `cancelInstall()` (the dialog's
+  "Keep working", `updater:cancel-install`) drops it, so the installer waits for the next quit.
+  A failed download or a check that finds nothing also clears it.
 - **Unsupported** (reported as `not-supported`, only surfaced on a manual check) when the app is not
   packaged, is a Windows **portable** build (`PORTABLE_EXECUTABLE_FILE`), or is a Linux **AppImage**
   (`APPIMAGE`).
 - Status is pushed as `UpdaterStatusEvent`: `checking`, `update-available`, `up-to-date`,
-  `download-progress`, `downloaded`, `error`, `not-supported`.
-- The startup check runs 1.5s after ready and only for packaged builds. When a download completes,
-  main shows a native notification: the update installs on quit, and clicking the notification
+  `download-progress` (`percent`, `version`, `restartWhenReady`), `downloaded`, `error`,
+  `not-supported`. The last one is kept in main and replayed by `getUpdaterStatus`
+  (`updater:get-status`) so a renderer that mounts or reloads after the check ran does not lose it.
+- A manual check on a version that is already downloaded re-reports `downloaded` instead of returning
+  silently (a silent return left the UI on "Checking…").
+- Checks: 1.5s after ready, then every 4 hours, and 5s after a `powerMonitor` resume — packaged builds
+  only. A failed background check retries once after 5 minutes, at most twice per session.
+- When a download completes, main shows a native notification **unless the window is focused** (the
+  renderer shows its own toast in that case): the update installs on quit, and clicking either one
   restarts immediately to apply it.
 
 ## 10.9 Release checklist

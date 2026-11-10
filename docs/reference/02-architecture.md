@@ -113,7 +113,7 @@ and the tsconfigs.
 | File | Role |
 |---|---|
 | `window-chrome.ts` | `getWindowChromeOptions(platform)` (frameless/hidden title bar on Windows & Linux) and `applyTitleBarTheme` to recolor the Windows overlay live. |
-| `updater.ts` | electron-updater wrapper emitting `UpdaterStatusEvent`; background download + silent install on quit; refuses to run for portable/AppImage/unpackaged builds. |
+| `updater.ts` | electron-updater wrapper emitting `UpdaterStatusEvent`; background download + silent install on quit; a deferred install (`install()` while downloading restarts the moment the download finishes, `cancelInstall()` drops it); keeps the last status for `getUpdaterStatus`; refuses to run for portable/AppImage/unpackaged builds. |
 
 ## 2.4 The native agent package (`src/main/agent`)
 
@@ -239,7 +239,9 @@ the modal from closing.
    `maxSteps: 100` / `subagentMaxSteps: 30` in `meow.json` (the old defaults, written on every settings
    save) become `0`, then `userData/.max-steps-unlimited` is written. Same flag-after-success `try/catch`.
 7. `registerIpcHandlers()`, `createWindow()`, `TrayManager.create()`.
-8. After 1.5s, an automatic update check (packaged builds only).
+8. `startUpdatePolling()`: an automatic update check 1.5s after launch, then every 4 hours and 5s after a
+   `powerMonitor` resume (packaged builds only). A failed background check retries once after 5 minutes
+   (capped at 2 per session) instead of waiting for the next poll.
 
 ## 2.10 Shutdown sequence (`before-quit`)
 

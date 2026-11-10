@@ -200,7 +200,8 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | Key | Channel | Method |
 |---|---|---|
 | `AppQuit` / `AppVersion` | `app:quit` / `app:version` | `quit()` / `getAppVersion()` |
-| `UpdaterCheck` / `UpdaterInstall` | `updater:check` / `updater:install` | `checkForUpdates()` / `installUpdate()` |
+| `UpdaterCheck` / `UpdaterInstall` / `UpdaterCancelInstall` | `updater:check` / `updater:install` / `updater:cancel-install` | `checkForUpdates()` / `installUpdate()` / `cancelUpdateInstall()` |
+| `UpdaterGetStatus` | `updater:get-status` | `getUpdaterStatus(): Promise<UpdaterStatusEvent \| null>` — replays the last status so a renderer that mounts or reloads after the check ran still shows it |
 | `WindowMinimize` / `WindowToggleMaximize` / `WindowClose` / `WindowIsMaximized` | `window:*` | `minimizeWindow` / `toggleMaximizeWindow` / `closeWindow` / `isWindowMaximized` |
 | `WindowSetTheme` | `window:set-theme` | `setTitleBarTheme('dark' \| 'light')` |
 

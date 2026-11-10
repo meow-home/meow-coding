@@ -35,7 +35,7 @@ main window's theme (see [9.6](#96-theming)).
 ```
 
 Overlays: `SettingsDialog` (centered modal size xl tabbed),
-`BrowserDialog`, `InstallGuideDialog`, `UpdateDialog`, `BackgroundPanel`, `FileContextMenu`.
+`BrowserDialog`, `InstallGuideDialog`, `UpdateDialog`, `UpdateToast`, `BackgroundPanel`, `FileContextMenu`.
 
 ### Files overlay
 
@@ -152,12 +152,19 @@ expanded one is a direct child of `.main` so its absolute insets resolve against
 covers the chat pane. Nesting the expanded panel inside the grid container would confine it to the
 docked column (the container is `position: relative` for its resizer).
 
-Update-dialog policy: `update-available` and `downloaded` open the dialog **only for a manual check**
-(`manualCheckRef`); `error` and `not-supported` close it; `up-to-date` only opens a dialog when the
-check was manual, so the automatic startup check never pops anything. The download itself is
-automatic (no click needed) and the install is silent on quit — the dialog's "Update & Restart" /
-"Restart now" only brings that moment forward, and while a background download is running the dialog
-is dismissible (no install button, "Later" only).
+Update-dialog policy: `update-available`, `downloaded` and `download-progress` open the dialog **only
+for a manual check** (`manualCheckRef`); `error` and `not-supported` close it; `up-to-date` only opens
+a dialog when the check was manual, so the automatic startup check never pops anything. The download
+itself is automatic (no click needed) and the install is silent on quit — the dialog's
+"Update & Restart" / "Restart now" only brings that moment forward. Clicking it while the download is
+still running schedules the restart for the moment the download finishes ("Restarting when ready…"),
+and "Keep working" cancels that (`cancelInstall`).
+
+A background download that finishes announces itself without stealing focus: the status bar version
+slot becomes an "Updating 42%" / "Restart to update" pill (`StatusBar` `update`/`onUpdateClick`, the
+way back into the dialog), and the renderer raises an `UpdateToast` in the bottom-right corner (body
+opens the dialog, "Restart now" installs, "Later" dismisses it for that version). The status is
+replayed on mount through `getUpdaterStatus`, so a window that loads after the check still shows it.
 
 ## 9.4 Component inventory
 
@@ -168,12 +175,13 @@ is dismissible (no install button, "Later" only).
 | `TitleBar.tsx` | Custom window chrome for frameless platforms, painted with the chat surface (`--bg-chat`) so the header and the conversation read as one panel; when collapsed, hovering the title bar brand region reveals a floating full sidebar popover dropdown menu. Between the brand and the panel tools it seats the active session's title (`SessionTitle`); with the sidebar collapsed the brand strip shrinks to the logo + toggle so the title moves left, next to the expand button. |
 | `PopupTitleBar.tsx` | Same for the FileViewer/GitViewer popups (drag region + Linux min/max/close) |
 | `Sidebar.tsx` | Project list; header action bar features a vertical menu with a single "New session" (`Plus` icon) full-width menu item without border radius or bottom border (adding a folder as a project moved to the new session's footer picker). Each project row is a lightweight group header — the project name (bright on the current project, dim otherwise) followed by a **trailing** expand/collapse chevron, with the `+` (new session) and `...` (project menu) icons revealed on hover / while the project is current. The project path lives on the row's `title`: there is no path line and no session count. An expanded project lists its **sessions**, indented: a status dot (green = running, yellow = waiting on input, none when idle; it hangs in the row indent, so names stay aligned), the name, and a trailing `...` menu that appears on hover / when active. The active session is a full-width rounded pill. The per-row `...` menu holds Rename (via inline input), Stop (when running) and Delete. The project `...` menu holds Open, Open in VS Code, Git, Open Folder, Open Terminal (a real OS terminal window via `openSystemTerminal`) and Remove. The `+` button activates a draft session; deleting a project's last session transitions the workspace to a draft session pane — creating a backend session is deferred until the user sends their first message. Expanded state persists in `localStorage` (`meow.sidebar.expanded`). Also: Providers entry and theme toggle in the footer menu. Projects with sessions waiting on a permission/question prompt show a red count badge (and a dot on the collapsed-rail avatar) |
-| `StatusBar.tsx` | Workspace name, git branch, running count, app version |
+| `StatusBar.tsx` | Workspace name, git branch, running count, app version — the version slot turns into an "Update available" / "Updating 42%" / "Restart to update" pill while an update is downloading or downloaded, and clicking it opens the update dialog |
 | `SessionPanes.tsx` | Session layout of one project: **every session stays mounted** (inactive ones carry the `hidden` attribute, hidden by CSS and never unmounted) so a session that is not showing keeps streaming/answering. The active session is **controlled** by `App` (`activeId` + `onActiveChange`, remembered per project path so switching workspaces restores the session that was showing); it reports the first session when the stored id no longer exists |
 | `Pane.tsx` | One session: `ChatPanel` only — there is no header row, the session identity lives in the title bar; background badge mode |
 | `SessionTitle.tsx` | The active session's identity in the title bar, between the brand and `PanelToolbar`: the status dot (which carries the status as its accessible name — `role="img"` + the status label, with any exit code folded in), the name (ellipsized with the full name on `title`, so a long name never pushes the tools), and the `...` menu (Open Folder / Open in VS Code / Delete session, with a confirm dialog). The `...` button is the shared `.icon-btn`. No status word (the dot already shows it) and no git readout (the status bar owns branch + dirty count) |
 | `EmptyState.tsx` | No-pane hint (differs for "no workspace" vs "workspace open") |
 | `BackgroundPanel.tsx` | Background agents; open/stop |
+| `UpdateToast.tsx` | Bottom-right notice for an update that finished downloading in the background (body opens the update dialog, "Restart now" installs, "Later" dismisses it for that version); paired with the OS notification, which main only sends when the window is not focused |
 | `RightPanel.tsx` | Resizable panel with a fixed header; **both tabs stay mounted** for instant switching (**parked** — nothing renders it since the Files panel took its slot) |
 | `RightPanelTree.tsx` | Lazy directory tree; auto-expands the project root; background refresh (**parked**) |
 | `RightPanelArtifacts.tsx` | `.md` files agents created/edited (**parked**) |
@@ -209,7 +217,7 @@ is dismissible (no install button, "Later" only).
 
 ### Dialogs
 
-`AddProjectDialog`, `UpdateDialog`, `BrowserDialog` (bridge status + extension approval),
+`AddProjectDialog`, `UpdateDialog` (update status, progress, restart), `BrowserDialog` (bridge status + extension approval),
 `InstallGuideDialog` (extension install steps).
 
 ### Chat (`components/chat/`)

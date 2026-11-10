@@ -558,7 +558,11 @@ export type UpdaterStatusEvent =
   | { type: 'checking' }
   | { type: 'update-available'; version: string; releaseNotes?: string; releaseDate?: string; currentVersion: string }
   | { type: 'up-to-date'; currentVersion: string }
-  | { type: 'download-progress'; percent: number }
+  /**
+   * `restartWhenReady` is set once the user asked to restart: the installer runs
+   * as soon as the background download finishes, so the UI must not keep asking.
+   */
+  | { type: 'download-progress'; percent: number; version?: string; restartWhenReady: boolean }
   | { type: 'downloaded'; version: string }
   | { type: 'error'; message: string }
   | { type: 'not-supported'; message: string }
