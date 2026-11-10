@@ -828,19 +828,12 @@ function isExternalUrl(url: string): boolean {
 export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.WorkspaceList, () => mainApp.workspaces.list())
 
+  // Adding a project never creates a session: the UI opens it as a draft session
+  // and the backend session is materialized by AgentAdd on the first prompt.
   ipcMain.handle(Channels.WorkspaceAdd, (_e, projectPath: string, name: string) => {
     const ws = mainApp.workspaces.add(projectPath, name)
-    if (ws.agents.length === 0) {
-      mainApp.workspaces.addAgent(projectPath, {
-        name: 'meow',
-        templateId: 'meow',
-        cwd: projectPath,
-        kind: 'native'
-      })
-    }
-    const fresh = mainApp.workspaces.get(projectPath)!
-    void mainApp.meowAgent.init(fresh.agents)
-    return mainApp.runtimeFor(fresh)
+    void mainApp.meowAgent.init(ws.agents)
+    return mainApp.runtimeFor(ws)
   })
 
   ipcMain.handle(Channels.WorkspaceRemove, async (_e, projectPath: string) => {

@@ -37,7 +37,7 @@ straight to the code.
 
 | Capability | Behavior | Implementation |
 |---|---|---|
-| Add workspace | Pick a folder; persisted in `userData/workspaces.json`; a native `meow` agent is auto-created if the workspace has none | `src/main/workspace-store.ts`, `Channels.WorkspaceAdd` |
+| Add workspace | Pick a folder; persisted in `userData/workspaces.json`; no session is created — the project opens on a draft session and its `meow` agent is materialized on the first prompt | `src/main/workspace-store.ts`, `Channels.WorkspaceAdd` |
 | Open workspace | Registers native agents synchronously (so chat mounts instantly), then loads tools/MCP off the critical path | `MainApp.openWorkspace` / `prepareWorkspace` |
 | Session panes | Every session of the active project has a pane and stays mounted; the selected one is shown (inactive ones are hidden, never unmounted) | `SessionPanes.tsx` |
 | Session title | Status dot (spawning/running/idle/exited/stopped/error) and name in the window title bar, with the session's `⋮` menu; branch + dirty count live in the status bar | `SessionTitle.tsx`, `git-status-service.ts` |
