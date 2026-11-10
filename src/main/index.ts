@@ -819,7 +819,7 @@ function createWindow(): void {
     width,
     height,
     title: 'Meow Coding',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#1e2227',
     ...getWindowChromeOptions(process.platform),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
@@ -859,7 +859,7 @@ function createWindow(): void {
   win.on('maximize', () => win?.webContents.send(Channels.EventWindowMaximizedChange, { maximized: true }))
   win.on('unmaximize', () => win?.webContents.send(Channels.EventWindowMaximizedChange, { maximized: false }))
   // Crash/hang observability: a dead renderer paints the window background
-  // (#1a1a1a — near black) and freezes all interaction, which looks exactly
+  // (#1e2227 — near black) and freezes all interaction, which looks exactly
   // like a "black screen, must restart the app" fault. Log the renderer's
   // death reason/exit code and unresponsiveness so those episodes are
   // actionable instead of invisible. A dead renderer cannot log for itself,

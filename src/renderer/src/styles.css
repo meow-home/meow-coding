@@ -25,36 +25,38 @@
   --fw-semibold: 600;
   --fw-bold: 700;
 
-  /* surfaces — neutral charcoal shell (#1a1a1a) around a darker work area (#111315) */
-  --bg: #1a1a1a;
-  --bg-panel: #1a1a1a;
-  --bg-raised: #1f2123;
+  /* surfaces — Atom One Dark, matching VS Code's "One Dark Pro Darker":
+     #1e2227 chrome (title bar, sidebar, status bar) around a #23272e work area
+     (the editor surface), with cards, menus and controls a step above it. */
+  --bg: #1e2227;
+  --bg-panel: #1e2227;
+  --bg-raised: #2c313a;
   /* Floating menu surface. Menus sit on their shadow plus the faint --menu-border rim, so
      this token must read as a step above --bg / --bg-chat in both themes. */
-  --bg-menu: #232629;
-  --bg-hover: #242627;
-  --bg-active: #2c2e2f;
+  --bg-menu: #2c313a;
+  --bg-hover: #323842;
+  --bg-active: #3a4150;
   /* Surface floating above the feed (jump-to-end button). Brighter than --bg-raised in BOTH themes,
      which --bg-active cannot do: it means "selected", so it darkens in the light theme. */
-  --bg-elevated: #3a3d3f;
-  --bg-elevated-hover: #4a4d50;
+  --bg-elevated: #3a4150;
+  --bg-elevated-hover: #464e5e;
   /* Sidebar surface — its own token so it can differ from panels (near-white in light). */
-  --bg-sidebar: #1a1a1a;
+  --bg-sidebar: #1e2227;
   /* Paler hover/active for dropdown & select menu items (subtle overlay over the menu bg). */
-  --menu-hover: rgba(255, 255, 255, 0.05);
-  --menu-active: rgba(255, 255, 255, 0.09);
-  --bg-tab-inactive: #1f2123;
-  --bg-input: #1f2123;
-  --bg-input-hover: #27292b;
-  --bg-code: #111315;
-  --code-text: #ffb454;
-  --bg-chat: #111315;
+  --menu-hover: rgba(255, 255, 255, 0.06);
+  --menu-active: rgba(255, 255, 255, 0.10);
+  --bg-tab-inactive: #1e2227;
+  --bg-input: #2c313a;
+  --bg-input-hover: #323842;
+  --bg-code: #1d1f23;
+  --code-text: #e5c07b;
+  --bg-chat: #23272e;
   /* Session terminals stay dark in every theme; the light block does not override these. */
-  --terminal-bg: #111315;
-  --terminal-fg: #cccccc;
-  --bg-bubble: #1f2123;
-  --bg-bubble-user: #21475a;
-  --chat-text: #cccccc;
+  --terminal-bg: #23272e;
+  --terminal-fg: #abb2bf;
+  --bg-bubble: #2c313a;
+  --bg-bubble-user: #2f4a6b;
+  --chat-text: #abb2bf;
   /* Chat lane — transcript, composer and todo list are centered at this width,
      ChatGPT/Claude style. The scrolling element (.chat-feed) stays full width so
      the scrollbar sits on the panel edge instead of being pulled inside the lane. */
@@ -64,40 +66,41 @@
   --scrollbar-w: 0.666667rem;
 
   /* text — soft greys, white is reserved for emphasis */
-  --text: #c2c2c2;
-  --text-strong: #ededed;
-  --text-dim: #8f8f8f;
-  --text-faint: #7a7c7d;
+  --text: #abb2bf;
+  --text-strong: #d7dae0;
+  --text-dim: #9da5b4;
+  --text-faint: #7f848e;
 
-  /* accent — muted teal blue, the single dominant hue. --accent is darker than --accent-strong
-     because white text sits on it (user bubble, primary button) and needs 4.5:1. */
-  --accent: #297aa3;
-  --accent-strong: #3995bc;
-  --accent-dim: rgba(57, 149, 188, 0.18);
-  --accent-dim-hover: rgba(57, 149, 188, 0.26);
-  --accent-border: rgba(57, 149, 188, 0.45);
-  --focus-ring: rgba(57, 149, 188, 0.45);
-  --status-bg: #297aa3;
+  /* accent — One Dark blue: #4d78cc is the theme's badge/fill blue (white text on it
+     reads ~4.4:1), #61afef its link/edge blue. --accent-hover is the hover/pressed fill. */
+  --accent: #4d78cc;
+  --accent-hover: #3f66b0;
+  --accent-strong: #61afef;
+  --accent-dim: rgba(97, 175, 239, 0.15);
+  --accent-dim-hover: rgba(97, 175, 239, 0.24);
+  --accent-border: rgba(97, 175, 239, 0.45);
+  --focus-ring: rgba(97, 175, 239, 0.40);
+  --status-bg: #4d78cc;
 
-  /* semantic — yellow/orange kept from VSCode; rest tuned for contrast on the dark surfaces */
-  --blue: #4fc3ff;
-  --green: #4ade9f;
-  --green-deep: #34d6a4;
-  --yellow: #ffb454;
-  --orange: #ffb454;
-  --red: #ff5f56;
+  /* semantic — One Dark syntax hues (blue/green/yellow/orange/red) */
+  --blue: #61afef;
+  --green: #98c379;
+  --green-deep: #98c379;
+  --yellow: #e5c07b;
+  --orange: #d19a66;
+  --red: #e06c75;
 
   /* context breakdown — one hue per bucket in the context panel's bar */
-  --ctx-system: #3995bc;
-  --ctx-tools: #4ade9f;
-  --ctx-mcp: #ffb454;
-  --ctx-messages: #a78bfa;
+  --ctx-system: #61afef;
+  --ctx-tools: #98c379;
+  --ctx-mcp: #d19a66;
+  --ctx-messages: #c678dd;
   --ctx-free: rgba(255, 255, 255, 0.10);
 
   /* markdown — theme-aware tokens for content that renders over bg-bubble */
-  --md-mention: #ffd700;
-  --md-blockquote-border: rgba(255, 180, 84, 0.5);
-  --md-table-border: rgba(214, 240, 220, 0.14);
+  --md-mention: #e5c07b;
+  --md-blockquote-border: rgba(229, 192, 123, 0.5);
+  --md-table-border: rgba(171, 178, 191, 0.14);
 
   /* misc */
   --radius-xs: 0.25rem;
@@ -125,8 +128,8 @@
      shadow is tuned to die out inside that clearance (blur / 2 + the downward
      offset = 0.25rem + 0.083333rem) instead of spilling onto the title/status bars. */
   --shadow-panel: 0 0.083333rem 0.5rem rgba(0, 0, 0, 0.5);
-  --git-diff-add: rgba(74, 222, 159, 0.12);
-  --git-diff-del: rgba(255, 95, 86, 0.12);
+  --git-diff-add: rgba(152, 195, 121, 0.12);
+  --git-diff-del: rgba(224, 108, 117, 0.12);
   --git-diff-meta: rgba(255, 255, 255, 0.03);
 }
 
@@ -161,6 +164,7 @@
   --text-faint: #a0a0a0;
 
   --accent: #0066b8;
+  --accent-hover: #005a9e;
   --accent-strong: #007acc;
   --accent-dim: rgba(0, 102, 184, 0.12);
   --accent-dim-hover: rgba(0, 102, 184, 0.20);
@@ -192,8 +196,8 @@
   --shadow-2: 0 0.333333rem 1.333333rem rgba(0, 0, 0, 0.12);
   --shadow-3: 0 1rem 3.333333rem rgba(0, 0, 0, 0.15);
   --shadow-panel: 0 0.083333rem 0.5rem rgba(0, 0, 0, 0.14);
-  --git-diff-add: rgba(74, 222, 159, 0.15);
-  --git-diff-del: rgba(255, 95, 86, 0.15);
+  --git-diff-add: rgba(152, 195, 121, 0.15);
+  --git-diff-del: rgba(224, 108, 117, 0.15);
   --git-diff-meta: rgba(0, 0, 0, 0.05);
 }
 
@@ -234,7 +238,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   border: 0.083333rem solid transparent; background-clip: padding-box;
   min-height: 2.666667rem; min-width: 2.666667rem;
 }
-*::-webkit-scrollbar-thumb:hover { background: var(--accent-strong); border: 0.083333rem solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: var(--accent-hover); border: 0.083333rem solid transparent; background-clip: padding-box; }
 *::-webkit-scrollbar-corner { background: transparent; }
 
 .app { height: 100%; display: flex; flex-direction: column; }
@@ -570,12 +574,12 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .btn:active { transform: translateY(0.083333rem); }
 .btn.small { padding: 0.333333rem 0.833333rem; font-size: var(--fs-base); }
 .btn.primary { background: var(--accent); color: #ffffff; border-color: transparent; font-weight: var(--fw-semibold); }
-.btn.primary:hover { background: var(--accent-strong); border-color: transparent; }
+.btn.primary:hover { background: var(--accent-hover); border-color: transparent; }
 .btn:disabled { opacity: 0.45; cursor: default; transform: none; }
 .btn.ghost { background: transparent; }
 .btn.ghost:hover { background: var(--bg-hover); }
-.btn.danger { border-color: rgba(255, 95, 86, 0.4); color: var(--red); }
-.btn.danger:hover { background: rgba(255, 95, 86, 0.12); }
+.btn.danger { border-color: rgba(224, 108, 117, 0.4); color: var(--red); }
+.btn.danger:hover { background: rgba(224, 108, 117, 0.12); }
 /* Icon-only button (sidebar project +/…, session-row …, session title …). A standalone
    class, NOT `.btn small` + a container padding override: `.btn.small` and
    `.project-actions .btn` are both (0,2,0), so source order decided and the
@@ -668,10 +672,10 @@ select.input { width: 100%; }
 .background-actions { display: inline-flex; gap: 0.333333rem; margin-left: 0.333333rem; }
 .status-dot { width: 0.666667rem; height: 0.666667rem; border-radius: 50%; background: var(--text-faint); flex: 0 0 auto; }
 .status-dot.status-spawning { background: var(--accent); box-shadow: 0 0 0.666667rem var(--accent-dim); }
-.status-dot.status-running { background: var(--green); box-shadow: 0 0 0.666667rem rgba(74, 222, 159, 0.4); }
-.status-dot.status-idle { background: var(--yellow); box-shadow: 0 0 0.666667rem rgba(255, 180, 84, 0.35); }
+.status-dot.status-running { background: var(--green); box-shadow: 0 0 0.666667rem rgba(152, 195, 121, 0.4); }
+.status-dot.status-idle { background: var(--yellow); box-shadow: 0 0 0.666667rem rgba(229, 192, 123, 0.35); }
 .status-dot.status-exited, .status-dot.status-stopped { background: var(--text-faint); }
-.status-dot.status-error { background: var(--red); box-shadow: 0 0 0.666667rem rgba(255, 95, 86, 0.4); }
+.status-dot.status-error { background: var(--red); box-shadow: 0 0 0.666667rem rgba(224, 108, 117, 0.4); }
 
 /* Dialogs */
 .dialog-backdrop {
@@ -1011,8 +1015,8 @@ select.input { width: 100%; }
   border-radius: 83.25rem; border: 0.083333rem solid var(--hairline); color: var(--text-dim);
 }
 .browser-pill-off { color: var(--accent); border-color: var(--accent-dim); }
-.browser-pill-waiting { color: var(--red); border-color: rgba(255, 95, 86, 0.4); }
-.browser-pill-on { color: var(--green); border-color: rgba(74, 222, 159, 0.35); }
+.browser-pill-waiting { color: var(--red); border-color: rgba(224, 108, 117, 0.4); }
+.browser-pill-on { color: var(--green); border-color: rgba(152, 195, 121, 0.35); }
 .browser-section { padding-top: 1rem; border-top: 0.083333rem solid var(--hairline); border-radius: 0; }
 .browser-hd + .browser-section,
 h3 + .browser-section { padding-top: 0; border-top: none; }
@@ -1152,7 +1156,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   content: ""; flex: 1; height: 0.083333rem; background: var(--hairline);
 }
 .chat-compacted.failed { color: var(--red); }
-.chat-compacted.failed::before, .chat-compacted.failed::after { background: rgba(255, 95, 86, 0.35); }
+.chat-compacted.failed::before, .chat-compacted.failed::after { background: rgba(224, 108, 117, 0.35); }
 .chat-compacted.running { color: var(--accent); }
 .chat-compacted.running::before, .chat-compacted.running::after { background: var(--accent-border); }
 .chat-retry {
@@ -1556,9 +1560,9 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   flex: 0 0 auto;
 }
 .chat-prompt-badge.permission {
-  background: rgba(255, 180, 84, 0.15);
+  background: rgba(229, 192, 123, 0.15);
   color: var(--yellow);
-  border: 0.083333rem solid rgba(255, 180, 84, 0.3);
+  border: 0.083333rem solid rgba(229, 192, 123, 0.3);
 }
 .chat-prompt-badge.question {
   background: var(--accent-dim);
@@ -1698,7 +1702,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   color: #fff; cursor: pointer; transition: background 120ms ease, color 120ms ease;
 }
 .chat-input-send { background: var(--bg-active); color: var(--text-faint); }
-.chat-input-send:hover:not(:disabled) { background: var(--accent-strong); }
+.chat-input-send:hover:not(:disabled) { background: var(--accent-hover); }
 .chat-input-send:disabled { background: var(--bg-active); color: var(--text-faint); cursor: default; }
 .chat-input-stop { background: var(--red); }
 .chat-input-stop:hover { background: #ff7479; }
@@ -1749,7 +1753,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .meow-pet {
   --s: 36px;
   /* Calico — the shipped colourway. Cream body, charcoal patch over the left ear, orange over the
-     right. It is the only two-tone option that separates from BOTH the dark card (#1f2123) and the
+     right. It is the only two-tone option that separates from BOTH the dark card (#252526) and the
      light one (#ffffff): the charcoal patch holds the silhouette on white, the orange one keeps it
      warm on dark, and the cream base carries the blue eyes. */
   --meow-shell-1: #f8efdf;
@@ -2082,8 +2086,8 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   box-shadow: var(--shadow-2);
   font-size: var(--fs-sm); color: var(--text-dim);
 }
-.settings-save-pill.saved { color: var(--green); border-color: rgba(74, 222, 159, 0.35); }
-.settings-save-pill.error { color: var(--red); border-color: rgba(255, 95, 86, 0.35); }
+.settings-save-pill.saved { color: var(--green); border-color: rgba(152, 195, 121, 0.35); }
+.settings-save-pill.error { color: var(--red); border-color: rgba(224, 108, 117, 0.35); }
 
 .settings-tab { display: flex; flex-direction: column; gap: 0.833333rem; }
 .settings-row { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.833333rem 1rem; background: var(--bg-chat); border: 0.083333rem solid var(--hairline); border-radius: var(--radius); }
@@ -3055,8 +3059,8 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .tool-call-diff { color: var(--text); }
 .diff-view { font-family: var(--font-mono); font-size: var(--fs-sm); user-select: text; max-height: 21.666667rem; overflow-y: auto; }
 .diff-line { display: flex; gap: 0.5rem; padding: 0 0.833333rem; white-space: pre-wrap; word-break: break-word; border-radius: 0; }
-.diff-line.del { background: rgba(255, 95, 86, 0.1); color: var(--red); }
-.diff-line.add { background: rgba(74, 222, 159, 0.1); color: var(--green); }
+.diff-line.del { background: rgba(224, 108, 117, 0.1); color: var(--red); }
+.diff-line.add { background: rgba(152, 195, 121, 0.1); color: var(--green); }
 .diff-sign { flex: 0 0 auto; }
 
 /* Composer footer: the quiet line under the card. Workspace + branch on the
@@ -3238,11 +3242,11 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .mcp-status { border-top: 0.083333rem solid var(--hairline); padding-top: 0.666667rem; display: flex; flex-direction: column; gap: 0.333333rem; }
 .mcp-status h4 { margin: 0 0 0.333333rem; font-size: var(--fs-md); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); font-family: var(--font-display); }
 .mcp-dot { width: 0.666667rem; height: 0.666667rem; border-radius: 50%; flex: 0 0 auto; }
-.mcp-dot.connected { background: var(--green); box-shadow: 0 0 0.666667rem rgba(74, 222, 159, 0.4); }
+.mcp-dot.connected { background: var(--green); box-shadow: 0 0 0.666667rem rgba(152, 195, 121, 0.4); }
 .mcp-dot.error { background: var(--red); }
 .mcp-name { font-weight: var(--fw-semibold); }
 .mcp-tools { color: var(--text-dim); }
-.mcp-error { color: var(--red); font-size: var(--fs-base); padding: 0.5rem 0.666667rem; background: rgba(255, 95, 86, 0.08); border: 0.083333rem solid rgba(255, 95, 86, 0.2); border-radius: var(--radius-sm); word-break: break-word; }
+.mcp-error { color: var(--red); font-size: var(--fs-base); padding: 0.5rem 0.666667rem; background: rgba(224, 108, 117, 0.08); border: 0.083333rem solid rgba(224, 108, 117, 0.2); border-radius: var(--radius-sm); word-break: break-word; }
 
 /* Reasoning (thinking) — a marginal note, not a card.
    A loose thought renders with the same chrome as a tool-cluster header (label +
@@ -3363,7 +3367,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .menu-item .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.menu-item.danger:hover { background: rgba(255, 95, 86, 0.12); color: var(--red); }
+.menu-item.danger:hover { background: rgba(224, 108, 117, 0.12); color: var(--red); }
 
 /* Sidebar session rows (one row per session of a project) — indented so the
    ring sits under the project name */
@@ -3786,7 +3790,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 /* --- Error Banner --- */
 .git-error-banner {
   display: flex; align-items: flex-start; gap: 0.666667rem; margin: 0.666667rem 1rem;
-  padding: 0.666667rem 0.833333rem; border: 0.083333rem solid var(--red); background: rgba(255, 95, 86, 0.08); color: var(--red);
+  padding: 0.666667rem 0.833333rem; border: 0.083333rem solid var(--red); background: rgba(224, 108, 117, 0.08); color: var(--red);
   font-size: var(--fs-sm); border-radius: var(--radius-sm);
 }
 .git-error-banner svg { flex: 0 0 auto; margin-top: 0.166667rem; }
@@ -4091,8 +4095,8 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 /* --- Switch Dialog --- */
 .git-switch-dialog { max-width: 35rem; }
 .git-switch-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
-.git-switch-actions .btn.danger { border-color: rgba(255, 95, 86, 0.4); color: var(--red); }
-.git-switch-actions .btn.danger:hover { background: rgba(255, 95, 86, 0.12); }
+.git-switch-actions .btn.danger { border-color: rgba(224, 108, 117, 0.4); color: var(--red); }
+.git-switch-actions .btn.danger:hover { background: rgba(224, 108, 117, 0.12); }
 
 /* Every right-side panel (Files, Processes, Terminal, Browser, Sub-agents) is a
    square, flush surface: no border, no radius, no shadow. The grid draws a single

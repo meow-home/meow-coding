@@ -511,16 +511,21 @@ string edits fail. Edit them with a script (e.g. python) if the edit tool cannot
 
 ## 9.6 Theming
 
-- Dark is the default: a neutral charcoal shell (`--bg`, `--bg-panel`, `--bg-sidebar`: `#1a1a1a`)
-  around a darker work area (`--bg-chat`, `--terminal-bg`: `#111315`), soft grey text and a muted teal
-  accent. `--accent` (`#297aa3`) is the fill under white text, `--accent-strong` (`#3995bc`) the
-  brighter hover/edge shade. Light mode is a full token override under `[data-theme="light"]` on `<html>` using the
+- Dark is the default and mirrors VS Code's **One Dark Pro Darker** (Atom One Dark): `#1e2227`
+  chrome (`--bg`, `--bg-panel`, `--bg-sidebar`, `--bg-tab-inactive`) around a `#23272e` work area
+  (`--bg-chat` — the chat, the panes and the title bar, plus `--terminal-bg`), with cards and floating
+  menus a step above it (`--bg-raised`, `--bg-menu`: `#2c313a`), `--bg-hover` `#323842`, `--bg-active`
+  `#3a4150`, `--bg-code` `#1d1f23`, `#abb2bf` text. The accent is One Dark's blue: `--accent`
+  (`#4d78cc`) is the fill under white text (user bubble, primary button), `--accent-hover`
+  (`#3f66b0`) its hover/pressed fill and `--accent-strong` (`#61afef`) the link/edge blue. Semantic
+  hues follow One Dark's syntax palette (green `#98c379`, yellow `#e5c07b`, orange `#d19a66`, red
+  `#e06c75`). Light mode is a full token override under `[data-theme="light"]` on `<html>` using the
   VSCode Light+ palette.
 - The choice persists in `localStorage` under `meow.theme`; the toggle lives in the Sidebar footer
   menu (Sun/Moon).
 - `applyTheme(theme?)` sets `data-theme` **and** calls `window.api.setTitleBarTheme(resolved)` so the
   Windows `titleBarOverlay` min/max/close buttons follow the app theme (without this they stay dark
-  in light mode). The bar itself paints `var(--bg)` — the same surface as that overlay strip (see [11.5](11-conventions-and-pitfalls.md) for the subpixel seam behind this).
+  in light mode). The bar itself paints `var(--bg-chat)` — the same surface as that overlay strip (see [11.5](11-conventions-and-pitfalls.md) for the subpixel seam behind this).
 - `watchTheme()` listens for `storage` events, which fire across same-origin windows — this is how
   the Git viewer and File viewer popups re-theme when the main window toggles.
 - App-wide font size persists in `localStorage` under `meow.fontSize` (default 13, range 8–40px,

@@ -25,7 +25,7 @@ React renderer (no direct Node/Electron access).
   `line-send-gutter`),
   `processes/` (the Processes overlay: `ProcessesOverlay`),
   `file-content/FileContentView`, `chat/`, `settings/`.
-- `src/styles.css` — neutral charcoal dark palette (default; shell `#1a1a1a`, work area `#111315`, accent `#297aa3`/`#3995bc`) with a Light+ variant activated via
+- `src/styles.css` — One Dark Pro Darker palette (default; chrome `#1e2227`, work area `#23272e`, raised cards/menus `#2c313a`, accent `#4d78cc`/`#61afef`) with a Light+ variant activated via
   `[data-theme="light"]` on `<html>`. All colors use CSS variables so theme switching is a single
   attribute flip. Spacing on a 4px scale, controls use Tailwind default sizes. Font: UI sans (Segoe UI
   Variable/system-ui) for all text, mono (JetBrains Mono) for terminal/data/code labels. Mono sharing a

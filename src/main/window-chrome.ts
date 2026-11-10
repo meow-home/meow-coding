@@ -11,7 +11,7 @@ const TITLE_BAR_HEIGHT = 32
 export type TitleBarTheme = 'dark' | 'light'
 const TITLE_BAR_COLORS: Record<TitleBarTheme, { color: string; symbolColor: string }> = {
   // Must equal `--bg-chat`: the bar paints the chat surface.
-  dark: { color: '#111315', symbolColor: '#c2c2c2' },
+  dark: { color: '#23272e', symbolColor: '#abb2bf' },
   light: { color: '#ffffff', symbolColor: '#1e1e1e' }
 }
 
