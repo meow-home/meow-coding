@@ -692,6 +692,7 @@ describe('CliAgentsManager', () => {
     pty.emitData('Authenticating with Google...\r\n✓ Signed in as meow-coder@google.com\r\n')
 
     expect(manager.agentStore.getAgent(agent.id)?.status).toBe('ready')
+    expect(manager.agentStore.getAgent(agent.id)?.active).toBe(true)
     expect(pty.killCount).toBe(1)
     expect(fakeKillTree).toHaveBeenCalledTimes(1)
     expect(agentsChangedCalls).toBe(1)
@@ -814,5 +815,96 @@ describe('CliAgentsManager', () => {
         url: 'https://accounts.google.com/o/oauth2/v2/auth?client_id=xyz'
       }
     ])
+  })
+
+  it('activateAgent on an inactive Google agent returns loginId, spawns agy, and does not flip active until login succeeds', () => {
+    const manager = createManager()
+    const { agent: agent1 } = manager.addAgent({
+      runtime: 'antigravity',
+      kind: 'google',
+      label: 'Agent 1'
+    })
+    const pty1 = fakeLoginPtyList[0]
+    pty1.emitData('✓ Signed in as first@google.com\r\n')
+    expect(manager.agentStore.getAgent(agent1.id)?.active).toBe(true)
+    expect(manager.agentStore.getAgent(agent1.id)?.status).toBe('ready')
+
+    const { agent: agent2 } = manager.addAgent({
+      runtime: 'antigravity',
+      kind: 'google',
+      label: 'Agent 2'
+    })
+    expect(manager.agentStore.getAgent(agent2.id)?.active).toBe(false)
+    expect(manager.agentStore.getAgent(agent2.id)?.status).toBe('needs-login')
+
+    const pty2 = fakeLoginPtyList[1]
+    pty2.emitExit(1)
+    expect(manager.agentStore.getAgent(agent2.id)?.active).toBe(false)
+    expect(manager.agentStore.getAgent(agent1.id)?.active).toBe(true)
+
+    fakeSpawnPty.mockClear()
+    agentsChangedCalls = 0
+    const res = manager.activateAgent(agent2.id)
+
+    expect(res.loginId).toBeDefined()
+    expect(res.loginId!.startsWith('clil_')).toBe(true)
+    expect(fakeSpawnPty).toHaveBeenCalledTimes(1)
+    expect(fakeSpawnPty.mock.calls[0][0]).toMatch(/agy(\.exe)?$/i)
+    expect(fakeSpawnPty.mock.calls[0][1]).toEqual([])
+    expect(manager.agentStore.getAgent(agent2.id)?.active).toBe(false)
+    expect(manager.agentStore.getAgent(agent1.id)?.active).toBe(true)
+
+    const pty3 = fakeLoginPtyList[2]
+    pty3.emitData('Authenticating with Google...\r\nSigned in as second@google.com\r\n')
+
+    expect(manager.agentStore.getAgent(agent2.id)?.status).toBe('ready')
+    expect(manager.agentStore.getAgent(agent2.id)?.active).toBe(true)
+    expect(manager.agentStore.getAgent(agent1.id)?.active).toBe(false)
+    expect(agentsChangedCalls).toBeGreaterThan(0)
+  })
+
+  it('activateAgent on an already-active agent returns {} and spawns nothing', () => {
+    const manager = createManager()
+    const { agent } = manager.addAgent({
+      runtime: 'antigravity',
+      kind: 'google',
+      label: 'Active Agent'
+    })
+    const pty = fakeLoginPtyList[0]
+    pty.emitData('✓ Signed in as user@google.com\r\n')
+    expect(manager.agentStore.getAgent(agent.id)?.active).toBe(true)
+
+    fakeSpawnPty.mockClear()
+    const res = manager.activateAgent(agent.id)
+    expect(res).toEqual({})
+    expect(fakeSpawnPty).not.toHaveBeenCalled()
+  })
+
+  it('activateAgent on a Gemini-key or OpenCode agent returns {}', () => {
+    const manager = createManager()
+    const { agent: geminiAgent } = manager.addAgent({
+      runtime: 'antigravity',
+      kind: 'gemini-key',
+      secret: 'secret-key-123'
+    })
+    const { agent: ocAgent } = manager.addAgent({
+      runtime: 'opencode',
+      kind: 'profile',
+      provider: 'anthropic'
+    })
+
+    fakeSpawnPty.mockClear()
+    const geminiRes = manager.activateAgent(geminiAgent.id)
+    expect(geminiRes).toEqual({})
+    expect(fakeSpawnPty).not.toHaveBeenCalled()
+
+    const ocRes = manager.activateAgent(ocAgent.id)
+    expect(ocRes).toEqual({})
+    expect(fakeSpawnPty).not.toHaveBeenCalled()
+  })
+
+  it('activateAgent throws if agent is missing', () => {
+    const manager = createManager()
+    expect(() => manager.activateAgent('missing_agent')).toThrow('[meow] Agent not found: missing_agent')
   })
 })

@@ -150,7 +150,7 @@ describe('CliAgentsTab rendering', () => {
       addCliAgent: async () => ({ loginId: 'log_1' }),
       renameCliAgent: async () => {},
       removeCliAgent: async () => {},
-      activateCliAgent: async () => {},
+      activateCliAgent: async () => ({}),
       setDefaultCliAgent: async () => {},
       createCliSession: async () => ({
         id: 'cs_1',

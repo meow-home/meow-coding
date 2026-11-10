@@ -444,7 +444,7 @@ export class CliAgentsManager {
         /signed in as/i.test(login.buffer) ||
         /✓ signed in/i.test(login.buffer)
       ) {
-        this.agentStore.updateAgent(agent.id, { status: 'ready' })
+        this.agentStore.updateAgent(agent.id, { status: 'ready', active: true })
         this.loginManager.cancel(loginId)
         this.opts.onAgentsChanged?.()
       }
@@ -497,9 +497,19 @@ export class CliAgentsManager {
     this.opts.onAgentsChanged?.()
   }
 
-  activateAgent(id: string): void {
-    this.agentStore.activateAgent(id)
-    this.opts.onAgentsChanged?.()
+  activateAgent(id: string): { loginId?: string } {
+    const agent = this.agentStore.getAgent(id)
+    if (!agent) {
+      throw new Error(`[meow] Agent not found: ${id}`)
+    }
+    if (agent.runtime !== 'antigravity' || agent.kind !== 'google') {
+      return {}
+    }
+    if (agent.active) {
+      return {}
+    }
+    const { loginId } = this.startLogin(id)
+    return { loginId }
   }
 
   setDefaultAgent(id: string): void {

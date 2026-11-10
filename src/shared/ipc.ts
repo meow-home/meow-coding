@@ -465,7 +465,7 @@ export interface AgentApi {
   addCliAgent(runtime: CliRuntimeId, kind: CliAgentKind, provider?: string, secret?: string): Promise<{ loginId?: string; agent?: CliAgent }>
   renameCliAgent(agentId: string, label: string): Promise<void>
   removeCliAgent(agentId: string): Promise<void>
-  activateCliAgent(agentId: string): Promise<void>
+  activateCliAgent(agentId: string): Promise<{ loginId?: string }>
   setDefaultCliAgent(agentId: string): Promise<void>
   cliLoginInput(loginId: string, data: string): Promise<void>
   cancelCliLogin(loginId: string): Promise<void>

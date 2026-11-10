@@ -15,7 +15,7 @@ CLI agent subsystem: manages external coding CLIs (Antigravity `agy`, OpenCode `
 - `parsers/antigravity.ts` — `createAntigravityParser`, `parseAntigravityLine`: stateful parser for Antigravity stream-json NDJSON (`init`, `step_update`, `result`), deduplicates tool steps, parses usage, extracts denied actions.
 - `parsers/opencode.ts` — `createOpenCodeParser`, `parseOpenCodeLine`: tolerant NDJSON parser for OpenCode events (text/delta, tool use/result, usage, errors, terminal results).
 - `session-store.ts` — `CliSessionStore`: stores session metadata in `userData/cli-sessions.json` and transcripts in `userData/cli-sessions/<id>.jsonl` with atomic writes, session id validation (`/^[a-z0-9_-]+$/i`), 5 MiB transcript cap rotation with 4 MiB truncation and notice insertion, and retention pruning.
-- `index.ts` — `CliAgentsManager`: facade wiring agent store, profile manager, binary detection, install descriptors, session persistence, policy derivation, run execution, login sessions (start/input/cancel/success detection), and models listing. Electron-free.
+- `index.ts` — `CliAgentsManager`: facade wiring agent store, profile manager, binary detection, install descriptors, session persistence, policy derivation, run execution, login sessions (start/input/cancel/success detection), account activation via interactive sign-in, and models listing. Electron-free.
 - `ipc.ts` — `registerCliAgentsIpc`: registers IPC channel handlers for CLI status, runtime detection/installation/paths, model listing, agent CRUD, login input/cancel, event broadcasts (`cli-login:event`), session management (CRUD, session list, and transcript retrieval), and task execution/cancellation.
 
 ## Conventions

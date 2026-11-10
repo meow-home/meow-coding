@@ -291,9 +291,17 @@ export default function CliAgentsTab({ projectPath }: CliAgentsTabProps) {
 
   const handleActivate = async (agent: CliAgent) => {
     try {
-      await window.api.activateCliAgent(agent.id)
-      await refreshStatus()
-      setNotice(`Activated agent "${agent.label}".`)
+      const res = await window.api.activateCliAgent(agent.id)
+      if (res?.loginId) {
+        setActiveLogin({
+          loginId: res.loginId,
+          runtime: 'antigravity',
+          agentId: agent.id,
+          label: agent.label
+        })
+      } else {
+        await refreshStatus()
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -685,7 +693,7 @@ export default function CliAgentsTab({ projectPath }: CliAgentsTabProps) {
 
         {/* Antigravity group */}
         <div style={{ marginTop: '0.5rem' }}>
-          <div className="cli-notice warn" style={{ marginBottom: '0.666667rem' }}>
+          <div className="cli-notice warn" style={{ marginBottom: '0.5rem' }}>
             <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '0.125rem' }} />
             <div>
               <strong>Antigravity keeps one Google sign-in per machine.</strong> Agents with a saved sign-in can be
@@ -693,6 +701,9 @@ export default function CliAgentsTab({ projectPath }: CliAgentsTabProps) {
               Google agent pauses and queues the rest.
             </div>
           </div>
+          <p className="settings-hint" style={{ marginBottom: '0.666667rem' }}>
+            Activating a saved Google account starts a sign-in and replaces this machine&apos;s current Antigravity sign-in.
+          </p>
 
           <div className="cli-group-label">Antigravity</div>
           {antigravityAgents.length === 0 ? (

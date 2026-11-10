@@ -53,7 +53,7 @@ export function registerCliAgentsIpc(opts: RegisterCliAgentsIpcOptions): void {
   })
 
   ipcMain.handle(Channels.CliAgentActivate, (_e, id: string) => {
-    manager.activateAgent(id)
+    return manager.activateAgent(id)
   })
 
   ipcMain.handle(Channels.CliAgentSetDefault, (_e, id: string) => {
