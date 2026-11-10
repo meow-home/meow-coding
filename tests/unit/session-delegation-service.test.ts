@@ -593,7 +593,9 @@ describe('SessionDelegationService', () => {
           targetName: 'Antigravity · Personal',
           status: 'completed',
           result: 'cli-done-refactor code',
-          touchedFiles: []
+          touchedFiles: [],
+          targetKind: 'cli',
+          cliSessionId: 's1'
         })
 
         // Wakes the source session

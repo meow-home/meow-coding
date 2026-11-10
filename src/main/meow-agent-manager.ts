@@ -370,6 +370,7 @@ export class MeowAgentManager {
     const text = `${header}\n\n${body ?? ''}`
     const source = this.agents.get(input.sourceAgentId)
     this.deps.store.ensure(input.sourceSessionId, input.sourceAgentId, source?.cwd ?? this.deps.projectPath ?? '')
+    const isCli = input.targetKind === 'cli'
     await this.deps.store.appendMessageIfMissing(input.sourceSessionId, {
       id: `delegation-result:${input.delegationId}`,
       role: 'user',
@@ -378,7 +379,8 @@ export class MeowAgentManager {
         id: input.delegationId,
         direction: 'result',
         peerAgentId: input.targetAgentId,
-        peerName: input.targetName
+        peerName: input.targetName,
+        ...(isCli ? { peerKind: input.targetKind, cliSessionId: input.cliSessionId } : {})
       },
       createdAt: Date.now()
     })
@@ -387,6 +389,7 @@ export class MeowAgentManager {
   async wakeDelegationSource(input: DelegationResultInput): Promise<void> {
     const source = this.agents.get(input.sourceAgentId)
     if (!source) return
+    const isCli = input.targetKind === 'cli'
     if (this.running.has(input.sourceAgentId)) {
       // Source is busy: park the wake as a deferred internal entry so it is
       // never steered into the active turn, and never dropped by the user cap.
@@ -399,7 +402,8 @@ export class MeowAgentManager {
           id: input.delegationId,
           direction: 'result',
           peerAgentId: input.targetAgentId,
-          peerName: input.targetName
+          peerName: input.targetName,
+          ...(isCli ? { peerKind: input.targetKind, cliSessionId: input.cliSessionId } : {})
         },
         true,
         input.delegationId
@@ -412,7 +416,8 @@ export class MeowAgentManager {
         id: input.delegationId,
         direction: 'result',
         peerAgentId: input.targetAgentId,
-        peerName: input.targetName
+        peerName: input.targetName,
+        ...(isCli ? { peerKind: input.targetKind, cliSessionId: input.cliSessionId } : {})
       }
     })
   }

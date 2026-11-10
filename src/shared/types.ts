@@ -178,6 +178,8 @@ export interface ChatDelegationMeta {
   direction: 'incoming' | 'result'
   peerAgentId: string
   peerName: string
+  peerKind?: 'session' | 'cli'
+  cliSessionId?: string
 }
 
 export interface SessionDelegation {

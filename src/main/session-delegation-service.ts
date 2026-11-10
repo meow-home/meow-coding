@@ -428,7 +428,11 @@ export class SessionDelegationService {
       status: statusToReason(record.status),
       ...(record.result !== undefined ? { result: record.result } : {}),
       ...(record.error !== undefined ? { error: record.error } : {}),
-      touchedFiles: record.touchedFiles ?? []
+      touchedFiles: record.touchedFiles ?? [],
+      ...(isCli ? {
+        targetKind: record.targetKind ?? 'session',
+        cliSessionId: record.targetCliSessionId
+      } : {})
     }
     // Terminal already persisted before this call. Append the idempotent
     // result message, then mark delivered, then wake the source.

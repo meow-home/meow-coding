@@ -181,6 +181,34 @@ describe('MeowAgentManager delegation runtime', () => {
     const match = messages.find(m => m.id === 'delegation-result:d3')
     expect(match).toBeDefined()
     expect(match!.delegation?.direction).toBe('result')
+    expect(match!.delegation?.peerKind).toBeUndefined()
+  })
+
+  it('appends a CLI result message with peerKind and cliSessionId', async () => {
+    const { manager, store } = await makeManager()
+    const input: DelegationResultInput = {
+      delegationId: 'd-cli',
+      sourceAgentId: 'a1',
+      sourceSessionId: 'src-session-cli',
+      targetAgentId: 'agy_personal',
+      targetName: 'Antigravity · Personal',
+      targetKind: 'cli',
+      cliSessionId: 's-cli-1',
+      status: 'completed',
+      result: 'cli output',
+      touchedFiles: []
+    }
+    await manager.appendDelegationResult(input)
+    const src = store.get('src-session-cli')
+    expect(src).toBeDefined()
+    const messages = src!.items
+      .filter((i): i is { kind: 'message'; message: { id: string; delegation?: { direction: string; peerKind?: string; cliSessionId?: string } } } => i.kind === 'message')
+      .map(i => i.message)
+    const match = messages.find(m => m.id === 'delegation-result:d-cli')
+    expect(match).toBeDefined()
+    expect(match!.delegation?.direction).toBe('result')
+    expect(match!.delegation?.peerKind).toBe('cli')
+    expect(match!.delegation?.cliSessionId).toBe('s-cli-1')
   })
 
   it('wakeDelegationSource drains the source while idle, and defers when busy', async () => {

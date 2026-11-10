@@ -15,7 +15,7 @@ function categorize(tool: string): Category {
     case 'glob': case 'grep': case 'lsp': case 'ls': case 'dir': return 'search'
     case 'websearch': return 'websearch'
     case 'webfetch': return 'fetch'
-    case 'task': case 'delegate_session': return 'subagent'
+    case 'task': case 'delegate_session': case 'delegate_cli': return 'subagent'
     case 'todowrite': return 'todo'
     case 'git': return 'git'
     default: return 'other'

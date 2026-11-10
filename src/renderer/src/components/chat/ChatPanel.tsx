@@ -193,7 +193,13 @@ const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, c
           {delegation?.direction === 'incoming' && (
             <div className="chat-delegation-label">
               <span className="chat-delegation-badge">delegation</span>
-              <span>{isExternalPeer(delegation.peerAgentId) ? 'From' : 'From session'}: {delegation.peerName}</span>
+              <span>{delegation.peerKind === 'cli' ? 'CLI agent' : (isExternalPeer(delegation.peerAgentId) ? 'From' : 'From session')}: {delegation.peerName}</span>
+            </div>
+          )}
+          {delegation?.direction === 'result' && delegation.peerKind === 'cli' && (
+            <div className="chat-delegation-label">
+              <span className="chat-delegation-badge">CLI result</span>
+              <span>{delegation.peerName}</span>
             </div>
           )}
           {images && images.length > 0 && (
