@@ -318,7 +318,11 @@ Chat conventions:
   Assistant text with actual content (or images) breaks the run and stays its own bubble. A
   reasoning-only assistant message (thinking between tool calls, no text) does **not** break it: it
   joins the cluster as a `thought` step (dim `thought` badge, italic first-line preview, full text on
-  open), so a think → tool → think loop reads as one line instead of alternating rows. Thoughts that
+  open), so a think → tool → think loop reads as one line instead of alternating rows. Every row of
+  the opened list shares one optical type size — mono text (badge, command, `+N −M`, `10/11`) at
+  `--fs-mono-scale`, UI text (the thought preview, `running…`, `· N failed`) at `--fs-md` — and one
+  fixed line box (`line-height` in `rem`, not a ratio of the row font), so a thought row is exactly as
+  tall as a tool row and the list never alternates between a small and a large line. Thoughts that
   never meet a tool stay ordinary bubbles. While the cluster is the newest row of a running turn and
   no tool is pending, its line reads `Thinking…` with the spinner. A step's deltas are pinned to the bubble that step opened
   (`stepBubbleIdRef`), and a `tool-start` flushes the pending rAF buffer before appending its row —

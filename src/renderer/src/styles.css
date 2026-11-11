@@ -1616,11 +1616,12 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .tool-cluster-spinner { flex-shrink: 0; width: 1rem; height: 1rem; color: var(--yellow); animation: spin 1s linear infinite; }
 .tool-cluster-progress, .tool-cluster-added, .tool-cluster-removed, .tool-cluster-failed,
 .tool-call-added, .tool-call-removed {
-  flex-shrink: 0; font-family: var(--font-mono); font-size: var(--fs-sm); font-variant-numeric: tabular-nums;
+  flex-shrink: 0; font-family: var(--font-mono);
+  font-size: calc(var(--fs-md) * var(--fs-mono-scale)); font-variant-numeric: tabular-nums;
 }
 .tool-cluster-added, .tool-call-added { color: var(--green); }
 .tool-cluster-removed, .tool-call-removed { color: var(--red); }
-.tool-cluster-failed { color: var(--red); font-family: var(--font-ui); }
+.tool-cluster-failed { color: var(--red); font-family: var(--font-ui); font-size: var(--fs-md); }
 .tool-cluster-body {
   display: flex; flex-direction: column;
   margin-top: 0.333333rem;
@@ -1640,16 +1641,27 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 /* Inside a cluster a step is a plain list row (the mockup): the ✓/✗ already
    carries status, so no coloured left rule, no caret, no shouting badge. */
 .tool-cluster-body > .tool-call { border-left: 0; background: transparent; }
-.tool-cluster-body .tool-call-header { background: transparent; padding: 0.333333rem 0.833333rem; }
+/* One type size for the whole list: the row's mono text (badge, command,
+   counts) sits at the mono scale and the row's UI text (thought preview,
+   "running…") at --fs-md — the two land on the same x-height, so rows no
+   longer alternate between a small and a large size. The line box is a fixed
+   length, not a ratio of the row font, so a thought row is exactly as tall as
+   a tool row. */
+.tool-cluster-body .tool-call-header {
+  background: transparent; padding: 0.333333rem 0.833333rem;
+  font-size: calc(var(--fs-md) * var(--fs-mono-scale)); line-height: 1.35rem;
+}
 .tool-cluster-body .tool-call-header:hover { background: var(--bg-hover); }
 .tool-cluster-body .tool-call-chevron { display: none; }
 .tool-cluster-body .tool-call-badge {
   text-transform: none; letter-spacing: 0; font-weight: var(--fw-medium);
+  font-size: calc(var(--fs-md) * var(--fs-mono-scale));
   padding: 0.083333rem 0.333333rem;
 }
+.tool-cluster-body .tool-call-running { font-size: var(--fs-md); }
 /* A thought step reads quieter than a tool step: dim badge, prose preview. */
 .tool-cluster-body .tool-call-badge-thought { color: var(--text-dim); }
-.tool-thought-preview { font-family: var(--font-ui); font-style: italic; }
+.tool-thought-preview { font-family: var(--font-ui); font-size: var(--fs-md); font-style: italic; }
 .tool-thought-text {
   padding: 0.666667rem 0.833333rem;
   white-space: pre-wrap; word-break: break-word; user-select: text;
