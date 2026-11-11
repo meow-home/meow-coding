@@ -148,6 +148,7 @@ Each e2e test launches the real app with `_electron.launch({ args: ['.'] })` and
 | `chat-scrollbar.spec.ts` | Scrollbar reflects the full transcript (no content-visibility collapse) |
 | `sidebar-sessions.spec.ts` | Sidebar session rows: create via the project row `+`, switching does not stop a running session (one pane visible), status dot idle/running/waiting, delete |
 | `terminal.spec.ts` | Session terminal panel: toggle via keyboard shortcut (`Ctrl+\`` / `Cmd+\``), wait for initial tab and xterm screen, type `echo E2E_TERM`, assert row output, switch sessions and back to verify scrollback re-attach, close terminal tab |
+| `chat-command-box.spec.ts` | A shell fence in a seeded assistant message becomes a command box; Copy reaches the clipboard and Run opens the session terminal with the command's output |
 
 `MEOW_E2E_MOCK_CONNECTIONS=1` swaps the connections backend for `E2EConnectionFixtures` so OAuth is
 never exercised in tests.

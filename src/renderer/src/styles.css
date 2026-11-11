@@ -3328,6 +3328,33 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   font-size: 0.88em; line-height: 1.4;
 }
 .chat-md pre code { background: transparent; border: none; padding: 0; }
+/* Command box: a shell fence the user can run in the session terminal or copy.
+   The code scrolls on its own so the actions never slide out of view. */
+.chat-md .chat-cmd {
+  display: flex; align-items: stretch; margin: 0.5rem 0;
+  background: var(--bg-code); border: 0.083333rem solid var(--hairline);
+  border-radius: var(--radius); overflow: hidden;
+}
+.chat-md .chat-cmd pre.chat-cmd-text {
+  flex: 1 1 auto; min-width: 0; margin: 0; padding: 0.5rem 0.833333rem;
+  border: none; border-radius: 0; background: transparent;
+}
+.chat-cmd-actions {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 0.083333rem;
+  padding: 0 0.333333rem; border-left: 0.083333rem solid var(--hairline);
+}
+.chat-cmd-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.666667rem; height: 1.666667rem; padding: 0;
+  background: transparent; border: none; border-radius: var(--radius-sm);
+  color: var(--text-dim); opacity: 0.7; cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, opacity 120ms ease;
+}
+.chat-cmd:hover .chat-cmd-btn { opacity: 1; }
+.chat-cmd-btn:hover, .chat-cmd-btn:focus-visible {
+  background: var(--bg-hover); color: var(--text-strong); opacity: 1;
+}
+.chat-cmd-btn.copied { color: var(--green); opacity: 1; }
 .chat-md a { color: var(--accent); }
 .chat-md blockquote {
   margin: 0.5rem 0; padding-left: 0.833333rem;

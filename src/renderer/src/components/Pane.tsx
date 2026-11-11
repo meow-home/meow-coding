@@ -14,6 +14,7 @@ interface Props {
   onSendDraftMessage?: (textAndImages: { text: string; images?: ImageAttachment[] }) => void
   onToggleTerminal?: () => void
   onToggleBrowser?: () => void
+  onRunCommand?: (command: string) => void
   onOpenSubagent?: (item: SubagentOverlayItem) => void
   onOpenTasks?: (monitorId?: string) => void
   onOpenGit?: (path: string) => void
@@ -22,7 +23,7 @@ interface Props {
   onChooseFolder: () => void
 }
 
-export default function Pane({ pane, background, active, gitBranch, onFocus, onSendDraftMessage, onToggleTerminal, onToggleBrowser, onOpenSubagent, onOpenTasks, onOpenGit, projects, onSelectProject, onChooseFolder }: Props) {
+export default function Pane({ pane, background, active, gitBranch, onFocus, onSendDraftMessage, onToggleTerminal, onToggleBrowser, onRunCommand, onOpenSubagent, onOpenTasks, onOpenGit, projects, onSelectProject, onChooseFolder }: Props) {
   const id = pane.agent.id
   const isDraft = id === DRAFT_SESSION_ID
 
@@ -39,6 +40,9 @@ export default function Pane({ pane, background, active, gitBranch, onFocus, onS
   const handleOpenTasks = useCallback((monitorId?: string) => {
     if (!isDraft) onOpenTasks?.(monitorId)
   }, [isDraft, onOpenTasks])
+  const handleRunCommand = useCallback((command: string) => {
+    if (!isDraft) onRunCommand?.(command)
+  }, [isDraft, onRunCommand])
 
   useEffect(() => {
     if (!active || isDraft || !onToggleTerminal) return
@@ -101,6 +105,7 @@ export default function Pane({ pane, background, active, gitBranch, onFocus, onS
             onSendDraftMessage={onSendDraftMessage}
             onOpenSubagent={onOpenSubagent}
             onOpenTasks={onOpenTasks ? handleOpenTasks : undefined}
+            onRunCommand={onRunCommand && !isDraft ? handleRunCommand : undefined}
             onOpenGit={onOpenGit}
             projects={projects}
             onSelectProject={onSelectProject}

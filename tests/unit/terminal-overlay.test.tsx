@@ -455,4 +455,93 @@ describe('TerminalOverlay & TerminalView', () => {
       window.removeEventListener('meow:composer-insert', onInsert)
     }
   })
+  it('runs a command from the chat in a new terminal when the session has none', async () => {
+    const onCommandConsumed = vi.fn()
+    await act(async () => {
+      root?.render(
+        createElement(TerminalOverlay, {
+          agentId: 'agent-1',
+          full: false,
+          onToggleFull: vi.fn(),
+          onClose: vi.fn(),
+          pendingCommand: { command: 'git status', seq: 1 },
+          onCommandConsumed
+        })
+      )
+    })
+
+    expect(window.api.terminalCreate).toHaveBeenCalledTimes(1)
+    expect(window.api.terminalCreate).toHaveBeenCalledWith('agent-1', { command: 'git status\r' })
+    expect(onCommandConsumed).toHaveBeenCalledWith(1)
+  })
+
+  it('types a chat command into the selected running terminal', async () => {
+    ;(window.api.terminalList as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 'term-1', agentId: 'agent-1', title: 'Terminal 1', status: 'running', createdAt: 1 },
+      { id: 'term-2', agentId: 'agent-1', title: 'Terminal 2', status: 'running', createdAt: 2 }
+    ])
+
+    await act(async () => {
+      root?.render(
+        createElement(TerminalOverlay, {
+          agentId: 'agent-1',
+          full: false,
+          onToggleFull: vi.fn(),
+          onClose: vi.fn(),
+          pendingCommand: { command: 'npm test\n', seq: 2 },
+          onCommandConsumed: vi.fn()
+        })
+      )
+    })
+
+    expect(window.api.terminalCreate).not.toHaveBeenCalled()
+    expect(window.api.terminalWrite).toHaveBeenCalledWith('term-1', 'npm test\r')
+  })
+
+  it('restarts an exited terminal before running a chat command', async () => {
+    ;(window.api.terminalList as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 'term-exited', agentId: 'agent-1', title: 'Terminal 1', status: 'exited', exitCode: 1, createdAt: 1 }
+    ])
+
+    await act(async () => {
+      root?.render(
+        createElement(TerminalOverlay, {
+          agentId: 'agent-1',
+          full: false,
+          onToggleFull: vi.fn(),
+          onClose: vi.fn(),
+          pendingCommand: { command: 'npm test', seq: 3 },
+          onCommandConsumed: vi.fn()
+        })
+      )
+    })
+
+    expect(window.api.terminalRestart).toHaveBeenCalledWith('term-exited')
+    expect(window.api.terminalWrite).toHaveBeenCalledWith('term-exited', 'npm test\r')
+  })
+
+  it('runs the same command twice when it arrives with a new seq', async () => {
+    ;(window.api.terminalList as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 'term-1', agentId: 'agent-1', title: 'Terminal 1', status: 'running', createdAt: 1 }
+    ])
+    const props = {
+      agentId: 'agent-1',
+      full: false,
+      onToggleFull: vi.fn(),
+      onClose: vi.fn(),
+      onCommandConsumed: vi.fn()
+    }
+
+    await act(async () => {
+      root?.render(createElement(TerminalOverlay, { ...props, pendingCommand: { command: 'npm test', seq: 4 } }))
+    })
+    await act(async () => {
+      root?.render(createElement(TerminalOverlay, { ...props, pendingCommand: null }))
+    })
+    await act(async () => {
+      root?.render(createElement(TerminalOverlay, { ...props, pendingCommand: { command: 'npm test', seq: 5 } }))
+    })
+
+    expect(window.api.terminalWrite).toHaveBeenCalledTimes(2)
+  })
 })

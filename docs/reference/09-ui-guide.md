@@ -126,6 +126,7 @@ The session terminal is a right-hand panel (`TerminalOverlay`) hosting interacti
 - **Toggle & shortcut**: Toggled via `Ctrl+\`` (`Cmd+\`` on macOS) in the active pane or the Terminal button in the title bar (`PanelToolbar`). `App` owns `terminalOpenFor` (the session the panel shows, or `null`) and `terminalFull`; toggling from another session switches the panel to that session. It is not persisted.
 - **Layout**: Uses the shared panel chrome — `.files-overlay` surface and `common/PanelHeader`: tabs in the header with no title (status dot, exit code, double-click rename, close), `+` new terminal, Restart when the selected tab exited, expand/restore, close. Docked, it joins the shared `.right-panels-grid` next to the Files and Subagent panels (auto rows/columns, shared resizer); expanded (`full`), it overlays the whole pane area like Files. The chat keeps its full height.
 - **Mount gating**: Only one terminal panel exists and its xterm is created only for the selected tab, so hidden sessions never allocate xterm instances. Removing the session closes the panel.
+- **Run from chat**: A shell fence in an assistant message renders as a command box (`Run in terminal` / `Copy command`; see the chat conventions). Run raises `terminalRunRequest` in `App` (`{ agentId, command, seq }`), opens this session's panel and hands the request to `TerminalOverlay`, which consumes it once: the selected tab when it is running, else the first running tab, else the selected/first tab after a restart, else a new tab created with the command. The command reaches the PTY through `toTerminalInput` (CRLF → LF, one trailing `\r`), so a multi-line block goes in as a single paste. A request that is still pending at mount suppresses the panel's own auto-create, so a chat command never opens a second empty tab.
 - **Context menu & clipboard**: Right-clicking the terminal view opens a context menu with Copy, Paste, Clear Buffer, and "Send Selection to Chat". "Send Selection to Chat" dispatches a `meow:composer-insert` custom window event containing the formatted selection (```text ... ```), which `ChatInput.tsx` listens for and appends to the composer.
 - **Always dark**: The terminal ignores the app theme. Its colors come from `--terminal-bg` / `--terminal-fg` (defined once on `:root`, never overridden by `[data-theme="light"]`) plus `--font-mono`, read once when the xterm is created. `styles.css` paints `.terminal-overlay-body`, `.xterm` and `.xterm-viewport` with `--terminal-bg`, because `xterm.css` paints the viewport `#000` and it shows below the last row.
 
@@ -148,8 +149,10 @@ The built-in browser is a right-hand panel (`BrowserOverlay`) showing one sessio
 Owns: workspaces, the mounted `WorkspaceRuntime`s (one per kept-alive project),
 background flags, browser status, update status, sidebar collapsed state (`sidebarCollapsed`), parked
 right-panel state, artifacts, the Files panel state (`filesOpenFor` — closed by default, closed on project
-switch; `filesFull` — docked by default; `filesWidth` — docked width, persisted in `localStorage`), and the active
-session per project (`activeSessionByPath`).
+switch; `filesFull` — docked by default; `filesWidth` — docked width, persisted in `localStorage`), the
+terminal panel state (`terminalOpenFor`, `terminalFull`, and `terminalRunRequest` — the command a chat
+command box asked to run, cleared by the panel once consumed), and the active session per project
+(`activeSessionByPath`).
 
 ```ts
 export interface PaneModel { agent: AgentConfig; state: AgentState; git: GitStatus | null }
@@ -254,9 +257,10 @@ replayed on mount through `getUpdaterStatus`, so a window that loads after the c
 | `ToolCluster.tsx` | **Every** tool call renders inside a cluster, even lone ones. Takes `steps` (`ClusterStep`: a tool call or a `thought` — reasoning-only messages between the calls render as quiet `thought` rows in the list) and `live` (newest row of a running turn: with no step pending the line reads `Thinking…`). A run of consecutive tool calls folds into one Claude-style line, **collapsed by default** and without card chrome: a summary of what the run did built by `toolSummary.ts` (`summarizeCalls`, e.g. `Read 2 files, edited a.ts, ran a command`), the run's `+N −M` line counts (`diffStats`), a red `· N failed` when a step was denied or errored, and a trailing caret. While a step is `pending` the line instead names that step with a spinner and progress (`Running npm test… 2/3`, via `describeRunning`). Opening it shows the inner `.tool-call` cards in one framed list, stacked with a 1px hairline between them. Always passes `collapseWhileRunning` to every inner `ToolCallCard` so clustered steps stay collapsed even while running (the cluster header already shows progress). Inner rows keep their own expand toggle, so the user can still drill into one tool by clicking it. Clustering happens at render time inside `ChatPanel.tsx`. |
 | `toolSummary.ts` | Pure helpers for the cluster line: `summarizeCalls` (groups calls by kind in first-seen order, names a single file by basename), `describeRunning` (present-progressive label for the active step), `stripCdPrefix`, `diffStats` (lines added/removed by edit/write/apply-patch; an edit's shared leading/trailing lines are context, denied/failed calls count nothing). |
 | `DiffView.tsx` | Inline diff for edit-style tool calls |
-| `MarkdownText.tsx` | `marked` + `DOMPurify.sanitize` |
+| `MarkdownText.tsx` | `marked` + `DOMPurify.sanitize`; with `onRunCommand` (assistant feed only) a shell fence becomes a `.chat-cmd` box with Run in terminal / Copy command |
 | `markdownTable.ts` | `normalizeMarkdownTables` — repairs table pipes before rendering |
 | `markdownPaths.ts` | Turns file paths in markdown into clickable `openFile` links |
+| `commandBlocks.ts` | `shellLanguage` (which fence languages get a command box; `console`/`terminal` excluded) and `toTerminalInput` (a fenced block → one PTY write) |
 | `highlight.ts` | Shiki syntax highlighting |
 | `ContextFooter.tsx` | Context readout — a 24 × 24 icon-button ring; hovering shows a popover with session tokens in/out + cost. Hover-only, not clickable |
 | `BaseModal.tsx` | Base modal overlay portaled to `document.body` with backdrop click, Escape key, and size modifiers |
@@ -280,6 +284,15 @@ Chat conventions:
   `[meow] Model kept repeating itself — waiting for your answer` next to the question popup
   (Continue / Stop / custom text). Choosing Stop, or dismissing the prompt, ends the turn with a
   `Stopped: …` error (stream or tool wording depending on `stuckCategory`).
+- **Command boxes.** A fenced block in an assistant message whose language is a shell (`bash`, `sh`,
+  `shell`, `zsh`, `fish`, `ksh`, `dash`, `powershell`, `pwsh`, `ps1`, `cmd`, `bat`, `batch`) renders as a
+  command box instead of a bare `pre`: the command on the left, `Run in terminal` and `Copy command` on
+  the right (`.chat-cmd`, always visible but dimmed until hover/focus). Run opens this session's
+  terminal panel and types the whole block there (`App` → `terminalRunRequest` →
+  `TerminalOverlay`); Copy writes the command to the clipboard and flashes a check for 1.5 s.
+  `console`/`terminal` fences stay plain code — they mix a prompt with its output, so replaying them
+  would run the wrong thing. Question prompts, sub-agent output, the file viewer and the update dialog
+  render `MarkdownText` without `onRunCommand`, so they keep plain code blocks.
 - **Prompt placement.** The permission/question prompt is the **last row of the feed**
   (`.chat-prompt` inside `.chat-feed-content`, before the `chat-latest-boundary` anchor) — the
   meow-chatui `PromptCard` placement — so it scrolls with the transcript it interrupts instead of

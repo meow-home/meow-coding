@@ -4,6 +4,7 @@ import type { TerminalInfo } from '@shared/types'
 import BaseDropdown from '../common/BaseDropdown'
 import PanelHeader from '../common/PanelHeader'
 import TerminalView from './TerminalView'
+import { toTerminalInput } from '../chat/commandBlocks'
 
 interface Props {
   agentId: string
@@ -11,9 +12,12 @@ interface Props {
   onToggleFull: () => void
   onClose: () => void
   onOpenBrowser: (agentId: string) => void
+  /** Command a chat command box asked to run; `seq` allows the same command twice. */
+  pendingCommand?: { command: string; seq: number } | null
+  onCommandConsumed?: (seq: number) => void
 }
 
-export default function TerminalOverlay({ agentId, full, onToggleFull, onClose, onOpenBrowser }: Props) {
+export default function TerminalOverlay({ agentId, full, onToggleFull, onClose, onOpenBrowser, pendingCommand, onCommandConsumed }: Props) {
   const [terminals, setTerminals] = useState<TerminalInfo[]>([])
   const [selectedTerminalId, setSelectedTerminalId] = useState<string | null>(null)
   const [inlineError, setInlineError] = useState<string | null>(null)
@@ -21,22 +25,31 @@ export default function TerminalOverlay({ agentId, full, onToggleFull, onClose, 
   const [renameValue, setRenameValue] = useState('')
   const [tabMenu, setTabMenu] = useState<{ terminalId: string; x: number; y: number } | null>(null)
   const autoCreatedRef = useRef(false)
+  // The initial list must land before a pending command runs: until then we do
+  // not know whether this session already has a terminal to type into, and a
+  // second auto-create would open a duplicate tab.
+  const [ready, setReady] = useState(false)
+  const pendingCommandRef = useRef(pendingCommand)
+  pendingCommandRef.current = pendingCommand
 
   useEffect(() => {
     let active = true
     autoCreatedRef.current = false
+    setReady(false)
 
     window.api
       .terminalList(agentId)
       .then((list) => {
         if (!active) return
         setTerminals(list)
+        setReady(true)
         if (list.length > 0) {
           setSelectedTerminalId((prev) => (prev && list.some((t) => t.id === prev) ? prev : list[0].id))
           return
         }
         setSelectedTerminalId(null)
-        if (autoCreatedRef.current) return
+        // A command from the chat creates the tab itself (with the command).
+        if (autoCreatedRef.current || pendingCommandRef.current) return
         autoCreatedRef.current = true
         window.api
           .terminalCreate(agentId)
@@ -48,7 +61,10 @@ export default function TerminalOverlay({ agentId, full, onToggleFull, onClose, 
           })
       })
       .catch((err) => {
-        if (active) console.error('[meow] Failed to list terminals:', err)
+        if (active) {
+          console.error('[meow] Failed to list terminals:', err)
+          setReady(true)
+        }
       })
 
     const unlisten = window.api.onTerminalsChanged((data) => {
@@ -63,6 +79,42 @@ export default function TerminalOverlay({ agentId, full, onToggleFull, onClose, 
       unlisten()
     }
   }, [agentId])
+
+  // Runs a command handed over from the chat: into the selected terminal when it
+  // is alive, else the first running one, else a restarted tab, else a new tab.
+  const consumedSeqRef = useRef(0)
+  useEffect(() => {
+    if (!pendingCommand || !ready) return
+    const { command, seq } = pendingCommand
+    if (consumedSeqRef.current >= seq) return
+    consumedSeqRef.current = seq
+    onCommandConsumed?.(seq)
+
+    const run = async () => {
+      try {
+        const list = await window.api.terminalList(agentId)
+        const running = list.filter((t) => t.status === 'running')
+        const live = running.find((t) => t.id === selectedTerminalId) ?? running[0]
+        if (live) {
+          setSelectedTerminalId(live.id)
+          await window.api.terminalWrite(live.id, toTerminalInput(command))
+          return
+        }
+        const exited = list.find((t) => t.id === selectedTerminalId) ?? list[0]
+        if (exited) {
+          setSelectedTerminalId(exited.id)
+          await window.api.terminalRestart(exited.id)
+          await window.api.terminalWrite(exited.id, toTerminalInput(command))
+          return
+        }
+        const created = await window.api.terminalCreate(agentId, { command: toTerminalInput(command) })
+        setSelectedTerminalId(created.id)
+      } catch (err) {
+        setInlineError(err instanceof Error ? err.message : String(err))
+      }
+    }
+    void run()
+  }, [pendingCommand, ready, agentId, selectedTerminalId, onCommandConsumed])
 
   const handleCreate = useCallback(async () => {
     setInlineError(null)

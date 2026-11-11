@@ -68,7 +68,7 @@ function chatMinWidthPx(): number {
 // `.workspace-hidden`; the app toggles which one is visible by swapping the
 // `workspace-active` wrapper, so hidden ChatPanels keep streaming events.
 function WorkspaceView({
-  runtime, backgrounds, activeSessionByPath, onActiveChange, onSendDraftMessage, onToggleTerminal, onToggleBrowser, onOpenSubagent,
+  runtime, backgrounds, activeSessionByPath, onActiveChange, onSendDraftMessage, onToggleTerminal, onToggleBrowser, onRunCommand, onOpenSubagent,
   onOpenTasks, onOpenGit, projects, onSelectProject, onChooseFolder
 }: {
   runtime: WorkspaceRuntime
@@ -78,6 +78,7 @@ function WorkspaceView({
   onSendDraftMessage: (path: string, text: string, images?: ImageAttachment[]) => void
   onToggleTerminal: (id: string) => void
   onToggleBrowser: (id: string) => void
+  onRunCommand: (id: string, command: string) => void
   onOpenSubagent: (item: SubagentOverlayItem) => void
   onOpenTasks: (id: string, monitorId?: string) => void
   onOpenGit: (path: string) => void
@@ -121,6 +122,7 @@ function WorkspaceView({
         onSendDraftMessage={textAndImages => onSendDraftMessage(runtime.workspace.projectPath, textAndImages.text, textAndImages.images)}
         onToggleTerminal={onToggleTerminal}
         onToggleBrowser={onToggleBrowser}
+        onRunCommand={onRunCommand}
         onOpenSubagent={onOpenSubagent}
         onOpenTasks={onOpenTasks}
         onOpenGit={onOpenGit}
@@ -270,6 +272,20 @@ export default function App() {
     setTerminalFull(false)
     setTerminalOpenFor(cur => (cur === agentId ? null : agentId))
   }, [])
+  // A command a chat command box asked the session terminal to run. `seq` makes
+  // the same command runnable twice; TerminalOverlay consumes the request (and
+  // clears it) once it has a terminal to type into.
+  const terminalRunSeq = useRef(0)
+  const [terminalRunRequest, setTerminalRunRequest] = useState<{ agentId: string; command: string; seq: number } | null>(null)
+  const handleRunCommand = useCallback((agentId: string, command: string) => {
+    terminalRunSeq.current += 1
+    setTerminalFull(false)
+    setTerminalOpenFor(agentId)
+    setTerminalRunRequest({ agentId, command, seq: terminalRunSeq.current })
+  }, [])
+  const handleRunCommandConsumed = useCallback((seq: number) => {
+    setTerminalRunRequest(cur => (cur && cur.seq === seq ? null : cur))
+  }, [])
   const [browserOpenFor, setBrowserOpenFor] = useState<string | null>(null)
   const [browserFull, setBrowserFull] = useState(false)
   const [browserAgentActiveIds, setBrowserAgentActiveIds] = useState<Set<string>>(new Set())
@@ -329,6 +345,8 @@ export default function App() {
       onToggleFull={() => setTerminalFull(v => !v)}
       onClose={() => setTerminalOpenFor(null)}
       onOpenBrowser={(agentId) => { setBrowserFull(false); setBrowserOpenFor(agentId) }}
+      pendingCommand={terminalRunRequest && terminalRunRequest.agentId === terminalOpenFor ? terminalRunRequest : null}
+      onCommandConsumed={handleRunCommandConsumed}
     />
   ) : null
   const browserPanel = browserOpenFor ? (
@@ -1112,6 +1130,7 @@ export default function App() {
                   onSendDraftMessage={onSendDraftMessage}
                   onToggleTerminal={handleToggleTerminal}
                   onToggleBrowser={handleToggleBrowser}
+                  onRunCommand={handleRunCommand}
                   onOpenSubagent={handleOpenSubagent}
                   onOpenTasks={handleOpenTasks}
                   onOpenGit={handleOpenGit}
@@ -1136,6 +1155,7 @@ export default function App() {
                     onSendDraftMessage={onSendDraftMessage}
                     onToggleTerminal={handleToggleTerminal}
                     onToggleBrowser={handleToggleBrowser}
+                    onRunCommand={handleRunCommand}
                     onOpenSubagent={handleOpenSubagent}
                     onOpenTasks={handleOpenTasks}
                     onOpenGit={handleOpenGit}

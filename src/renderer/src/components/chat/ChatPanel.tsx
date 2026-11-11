@@ -141,7 +141,7 @@ function MentionText({ text, commands }: { text: string; commands: Command[] }) 
 // Owns the per-message subtree so streamed deltas only re-render the message
 // that changed, not the whole feed. Props are primitives or stable state
 // references (commands), so React.memo works.
-const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, commands, messageId, delegation, onOpenImage, onOpenFile }: {
+const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, commands, messageId, delegation, onOpenImage, onOpenFile, onRunCommand }: {
   role: ChatMessage['role']
   text: string
   reasoning?: string
@@ -151,6 +151,7 @@ const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, c
   delegation?: ChatDelegationMeta
   onOpenImage?: (dataUrl: string) => void
   onOpenFile?: (path: string) => void
+  onRunCommand?: (command: string) => void
 }) {
   const [copied, setCopied] = useState(false)
 
@@ -175,7 +176,7 @@ const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, c
               <div className="chat-reasoning-text">{reasoning}</div>
             </details>
           ) : null}
-          {text.trim() !== '' && <MarkdownText text={text} onOpenFile={onOpenFile} />}
+          {text.trim() !== '' && <MarkdownText text={text} onOpenFile={onOpenFile} onRunCommand={onRunCommand} />}
           {text.trim() !== '' && (
             <div className="chat-msg-actions">
               <button
@@ -238,6 +239,8 @@ interface Props {
   onOpenSubagent?: (item: SubagentOverlayItem) => void
   /** Opens the Monitors pane (optionally focused on one watch) from the background tasks card. */
   onOpenTasks?: (monitorId?: string) => void
+  /** Runs a command from a chat command box in this session's terminal panel. */
+  onRunCommand?: (command: string) => void
   onOpenGit?: (path: string) => void
   /** Known project folders — the footer picker's options while this session is new. */
   projects?: { path: string; name: string }[]
@@ -259,7 +262,7 @@ function RetryCountdown({ id, attempt, maxAttempts, delayMs, unbounded }: { id: 
   )
 }
 
-function ChatPanel({ agentId, cwd, gitBranch, mode = 'build', variant, onModeChange, onVariantChange, onSendDraftMessage, onOpenSubagent, onOpenTasks, onOpenGit, projects, onSelectProject, onChooseFolder }: Props) {
+function ChatPanel({ agentId, cwd, gitBranch, mode = 'build', variant, onModeChange, onVariantChange, onSendDraftMessage, onOpenSubagent, onOpenTasks, onRunCommand, onOpenGit, projects, onSelectProject, onChooseFolder }: Props) {
   const [items, setItems] = useState<FeedItem[]>([])
   const [running, setRunning] = useState(false)
   // One-shot reaction for the composer mascot: a finished turn bounces, a failed one shakes.
@@ -1236,6 +1239,7 @@ if (e.type === 'usage') {
                 commands={commands}
                 onOpenImage={setLightboxUrl}
                 onOpenFile={openFile}
+                onRunCommand={onRunCommand}
               />
             )
           }
