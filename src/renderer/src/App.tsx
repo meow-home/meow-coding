@@ -18,6 +18,7 @@ import TasksPanel, { type TasksPanelSession } from './components/processes/Tasks
 import SubagentOverlay, { type SubagentOverlayItem } from './components/chat/SubagentOverlay'
 import TerminalOverlay from './components/terminal/TerminalOverlay'
 import BrowserOverlay from './components/browser/BrowserOverlay'
+import GitPanel from './components/git/GitPanel'
 import SettingsDialog, { type TabId } from './components/settings/SettingsDialog'
 import BrowserDialog from './components/BrowserDialog'
 import ConfirmDialog from './components/ConfirmDialog'
@@ -68,7 +69,7 @@ function chatMinWidthPx(): number {
 // `workspace-active` wrapper, so hidden ChatPanels keep streaming events.
 function WorkspaceView({
   runtime, backgrounds, activeSessionByPath, onActiveChange, onSendDraftMessage, onToggleTerminal, onToggleBrowser, onOpenSubagent,
-  onOpenTasks, projects, onSelectProject, onChooseFolder
+  onOpenTasks, onOpenGit, projects, onSelectProject, onChooseFolder
 }: {
   runtime: WorkspaceRuntime
   backgrounds: Record<string, boolean>
@@ -79,6 +80,7 @@ function WorkspaceView({
   onToggleBrowser: (id: string) => void
   onOpenSubagent: (item: SubagentOverlayItem) => void
   onOpenTasks: (id: string, monitorId?: string) => void
+  onOpenGit: (path: string) => void
   projects: { path: string; name: string }[]
   onSelectProject: (path: string) => void
   onChooseFolder: () => void
@@ -121,6 +123,7 @@ function WorkspaceView({
         onToggleBrowser={onToggleBrowser}
         onOpenSubagent={onOpenSubagent}
         onOpenTasks={onOpenTasks}
+        onOpenGit={onOpenGit}
         projects={projects}
         onSelectProject={onSelectProject}
         onChooseFolder={onChooseFolder}
@@ -233,6 +236,26 @@ export default function App() {
     if (filesDirty) setConfirmCloseFiles(true)
     else setFilesOpenFor(null)
   }, [filesDirty])
+  const [gitOpenFor, setGitOpenFor] = useState<string | null>(null)
+  const [gitFull, setGitFull] = useState(false)
+  const handleToggleGit = useCallback(() => {
+    if (!activePath) return
+    setGitFull(false)
+    setGitOpenFor(cur => (cur === activePath ? null : activePath))
+  }, [activePath])
+  const handleOpenGit = useCallback((path: string) => {
+    setGitFull(false)
+    setGitOpenFor(path)
+  }, [])
+  const gitPanel = gitOpenFor ? (
+    <GitPanel
+      key={gitOpenFor}
+      projectPath={gitOpenFor}
+      full={gitFull}
+      onToggleFull={() => setGitFull(f => !f)}
+      onClose={() => setGitOpenFor(null)}
+    />
+  ) : null
   // The Tasks panel: a right-hand column panel (docked or maximized), keyed by the
   // session whose list it shows. `tasksOpenFor` is null when the panel is closed.
   const [tasksOpenFor, setTasksOpenFor] = useState<string | null>(null)
@@ -991,6 +1014,7 @@ export default function App() {
             browserOpen={!!activeSessionId && browserOpenFor === activeSessionId}
             browserAgentActive={!!activeSessionId && browserAgentActiveIds.has(activeSessionId)}
             filesOpen={!!activePath && filesOpenFor === activePath}
+            gitOpen={!!activePath && gitOpenFor === activePath}
             onToggleSubagents={() => setSubagentsHidden(v => !v)}
             onToggleTerminal={() => { if (activeSessionId) handleToggleTerminal(activeSessionId) }}
             onToggleTasks={() => {
@@ -1009,6 +1033,7 @@ export default function App() {
               setFilesFull(false)
               setFilesOpenFor(activePath)
             }}
+            onToggleGit={handleToggleGit}
           />
         )}
       />
@@ -1039,7 +1064,7 @@ export default function App() {
             onStopSession={onStopSession}
             onOpenSettings={() => { setSettingsTab('agents'); setShowSettings(true); setSidebarHovered(false) }}
             onOpenProviders={() => { setSettingsTab('providers'); setShowSettings(true); setSidebarHovered(false) }}
-            onOpenGit={path => { void window.api.gitOpenViewer(path); setSidebarHovered(false) }}
+            onOpenGit={path => { setGitFull(false); setGitOpenFor(path); setSidebarHovered(false) }}
             onCheckUpdate={handleCheckUpdate}
             updateChecking={updateChecking}
             onReorder={handleReorderWorkspaces}
@@ -1065,13 +1090,13 @@ export default function App() {
             onStopSession={onStopSession}
             onOpenSettings={() => { setSettingsTab('agents'); setShowSettings(true) }}
             onOpenProviders={() => { setSettingsTab('providers'); setShowSettings(true) }}
-            onOpenGit={path => void window.api.gitOpenViewer(path)}
+            onOpenGit={path => { setGitFull(false); setGitOpenFor(path) }}
             onCheckUpdate={handleCheckUpdate}
             updateChecking={updateChecking}
             onReorder={handleReorderWorkspaces}
           />
         )}
-        <main className={((filesOpenFor ? 1 : 0) + (tasksOpenFor ? 1 : 0) + (terminalOpenFor ? 1 : 0) + (browserOpenFor ? 1 : 0) + (subagentsShown ? 1 : 0)) > 0 ? 'main files-open' : 'main'}>
+        <main className={((filesOpenFor ? 1 : 0) + (tasksOpenFor ? 1 : 0) + (terminalOpenFor ? 1 : 0) + (browserOpenFor ? 1 : 0) + (subagentsShown ? 1 : 0) + (gitOpenFor ? 1 : 0)) > 0 ? 'main files-open' : 'main'}>
           {/* Each panel renders in one of two places: expanded (`full`) panels are
               direct children of `.main` so they overlay the whole pane area, the
               docked ones share the right-hand grid below. Defined once here and
@@ -1089,6 +1114,7 @@ export default function App() {
                   onToggleBrowser={handleToggleBrowser}
                   onOpenSubagent={handleOpenSubagent}
                   onOpenTasks={handleOpenTasks}
+                  onOpenGit={handleOpenGit}
                   projects={projectOptions}
                   onSelectProject={onNewSession}
                   onChooseFolder={handleChooseFolder}
@@ -1112,6 +1138,7 @@ export default function App() {
                     onToggleBrowser={handleToggleBrowser}
                     onOpenSubagent={handleOpenSubagent}
                     onOpenTasks={handleOpenTasks}
+                    onOpenGit={handleOpenGit}
                     projects={projectOptions}
                     onSelectProject={onNewSession}
                     onChooseFolder={handleChooseFolder}
@@ -1124,13 +1151,15 @@ export default function App() {
           {terminalPanel && terminalFull && terminalPanel}
           {browserPanel && browserFull && browserPanel}
           {subagentPanel && subagentsFull && subagentPanel}
+          {gitPanel && gitFull && gitPanel}
           {(() => {
             const dockedCount =
               (filesOpenFor && !filesFull ? 1 : 0) +
               (tasksOpenFor && !tasksFull ? 1 : 0) +
               (terminalOpenFor && !terminalFull ? 1 : 0) +
               (browserOpenFor && !browserFull ? 1 : 0) +
-              (subagentsShown && !subagentsFull ? 1 : 0)
+              (subagentsShown && !subagentsFull ? 1 : 0) +
+              (gitOpenFor && !gitFull ? 1 : 0)
             if (dockedCount === 0) return null
             const rows = Math.ceil(Math.sqrt(dockedCount))
             const cols = Math.ceil(dockedCount / (rows || 1))
@@ -1155,6 +1184,7 @@ export default function App() {
                   {browserPanel && !browserFull && browserPanel}
                   {terminalPanel && !terminalFull && terminalPanel}
                   {subagentPanel && !subagentsFull && subagentPanel}
+                  {gitPanel && !gitFull && gitPanel}
                 </div>
               </div>
             )
@@ -1171,7 +1201,7 @@ export default function App() {
         update={updateStatus}
         onUpdateClick={() => setUpdateDialogOpen(true)}
         onBrowserClick={() => setBrowserDialogOpen(true)}
-        onGitClick={activeRuntime ? () => void window.api.gitOpenViewer(activeRuntime.workspace.projectPath) : undefined}
+        onGitClick={activeRuntime ? () => { setGitFull(false); setGitOpenFor(cur => (cur === activeRuntime.workspace.projectPath ? null : activeRuntime.workspace.projectPath)) } : undefined}
       />
       {filesPanel && createPortal(filesPanel, filesHost)}
       {confirmCloseFiles && (

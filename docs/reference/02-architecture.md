@@ -24,7 +24,7 @@ Meow Coding is three Electron processes plus two optional companions that connec
 │         │                                            │  ├ ConnectionsMgr │ │
 │         │                                            └───────────────────┘ │
 └─────────┼──────────────────────────────────────────────────┬───────┬───────┘
-          │ (separate BrowserWindows: GitViewer, FileViewer)  │       │
+          │ (separate BrowserWindow: FileViewer)              │       │
                                                     ws://127.0.0.1
                                                              │
                                           ┌──────────────────▼──┐
@@ -104,7 +104,6 @@ and the tsconfigs.
 |---|---|
 | `git-status-service.ts` | `git status --porcelain=v2 -b` with a 5s timeout → `{ branch, dirtyCount }`. Polled every 5s for the active project. |
 | `git-service.ts` | The richer git surface: branches, create/checkout, stash/pop, discard, status detail, diff, commits, commit diff, compare, blame, file history. |
-| `git-viewer.ts` | Opens the Git viewer in its own `BrowserWindow`. |
 | `file-viewer.ts` | Text/binary detection, content read, open in a viewer window or hand off to the system app. |
 | `dir-lister.ts` | `listDir`, `shouldIgnore`, `isPathInside` (path-escape guard used by the `dir:list` handler). |
 | `file-suggest.ts` | `@`-mention completion: deep basename search, or path drill-down when the prefix contains `/`. Max 20 results. |

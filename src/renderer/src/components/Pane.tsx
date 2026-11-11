@@ -16,12 +16,13 @@ interface Props {
   onToggleBrowser?: () => void
   onOpenSubagent?: (item: SubagentOverlayItem) => void
   onOpenTasks?: (monitorId?: string) => void
+  onOpenGit?: (path: string) => void
   projects: { path: string; name: string }[]
   onSelectProject: (path: string) => void
   onChooseFolder: () => void
 }
 
-export default function Pane({ pane, background, active, gitBranch, onFocus, onSendDraftMessage, onToggleTerminal, onToggleBrowser, onOpenSubagent, onOpenTasks, projects, onSelectProject, onChooseFolder }: Props) {
+export default function Pane({ pane, background, active, gitBranch, onFocus, onSendDraftMessage, onToggleTerminal, onToggleBrowser, onOpenSubagent, onOpenTasks, onOpenGit, projects, onSelectProject, onChooseFolder }: Props) {
   const id = pane.agent.id
   const isDraft = id === DRAFT_SESSION_ID
 
@@ -100,6 +101,7 @@ export default function Pane({ pane, background, active, gitBranch, onFocus, onS
             onSendDraftMessage={onSendDraftMessage}
             onOpenSubagent={onOpenSubagent}
             onOpenTasks={onOpenTasks ? handleOpenTasks : undefined}
+            onOpenGit={onOpenGit}
             projects={projects}
             onSelectProject={onSelectProject}
             onChooseFolder={onChooseFolder}

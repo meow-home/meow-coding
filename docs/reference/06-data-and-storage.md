@@ -426,8 +426,8 @@ Everything else: $ARGUMENTS
 | `meow.activeSessionByPath` | JSON map of project path → active session id |
 
 `src/renderer/src/theme.ts` exposes `applyTheme()` and `watchTheme()`; `main.tsx` calls both for
-*every* renderer entry point — including the Git viewer and File viewer popup windows — so popups
-inherit the main window's theme automatically.
+*every* renderer entry point — including the File viewer popup window — so popups inherit the main
+window's theme automatically.
 
 ## 6.7 Environment variables
 

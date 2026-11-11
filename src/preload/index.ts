@@ -40,8 +40,6 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.FileViewerOpenInEditor, path),
   showFileInFolder: (path: string) =>
     ipcRenderer.invoke(Channels.FileViewerShowInFolder, path),
-  gitOpenViewer: (projectPath: string) =>
-    ipcRenderer.invoke(Channels.GitOpenViewer, projectPath),
   gitGetBranches: (projectPath: string) =>
     ipcRenderer.invoke(Channels.GitGetBranches, projectPath),
   gitCreateBranch: (projectPath: string, name: string, base: string) =>

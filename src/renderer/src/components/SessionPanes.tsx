@@ -15,6 +15,7 @@ interface Props {
   onToggleBrowser?: (id: string) => void
   onOpenSubagent?: (item: SubagentOverlayItem) => void
   onOpenTasks?: (id: string, monitorId?: string) => void
+  onOpenGit?: (path: string) => void
   projects: { path: string; name: string }[]
   onSelectProject: (path: string) => void
   onChooseFolder: () => void
@@ -23,7 +24,7 @@ interface Props {
 // All sessions stay mounted (hidden when inactive) so a hidden session keeps
 // streaming/running — switching never stops another. The hiding is CSS only
 // (the `hidden` attribute on the slot), never an unmount or a key change.
-export default function SessionPanes({ panes, activeId, onActiveChange, backgrounds, gitBranch, onSendDraftMessage, onToggleTerminal, onToggleBrowser, onOpenSubagent, onOpenTasks, projects, onSelectProject, onChooseFolder }: Props) {
+export default function SessionPanes({ panes, activeId, onActiveChange, backgrounds, gitBranch, onSendDraftMessage, onToggleTerminal, onToggleBrowser, onOpenSubagent, onOpenTasks, onOpenGit, projects, onSelectProject, onChooseFolder }: Props) {
   useEffect(() => {
     if (panes.length === 0) return
     if (activeId && panes.some(p => p.agent.id === activeId)) return
@@ -47,6 +48,7 @@ export default function SessionPanes({ panes, activeId, onActiveChange, backgrou
             onToggleBrowser={onToggleBrowser ? () => onToggleBrowser(pane.agent.id) : undefined}
             onOpenSubagent={onOpenSubagent}
             onOpenTasks={onOpenTasks ? (monitorId?: string) => onOpenTasks(pane.agent.id, monitorId) : undefined}
+            onOpenGit={onOpenGit}
             projects={projects}
             onSelectProject={onSelectProject}
             onChooseFolder={onChooseFolder}

@@ -137,8 +137,11 @@ export class GitService {
       const unstaged = xy[1] !== ' '
       let path = line.slice(3)
       let status: GitFileChange['status'] = 'modified'
-      if (xy[0] === 'A') status = 'added'
-      else if (xy[0] === 'D') status = 'deleted'
+      // Either column carries the kind: " D" is a working-tree deletion, "D " a
+      // staged one, and both must read as deleted (the old X-only check showed
+      // them as modified).
+      if (xy[0] === 'A' || xy[1] === 'A') status = 'added'
+      else if (xy[0] === 'D' || xy[1] === 'D') status = 'deleted'
       else if (xy[0] === 'R' || xy[1] === 'R') {
         status = 'renamed'
         path = path.includes(' -> ') ? path.split(' -> ')[1] : path

@@ -9,7 +9,7 @@ describe('IPC contract', () => {
     const required: (keyof AgentApi)[] = [
       'listWorkspaces', 'addWorkspace', 'removeWorkspace', 'reorderWorkspaces', 'openWorkspace', 'activateWorkspace', 'openInEditor',
       'openFolder', 'openSystemTerminal',
-      'gitOpenViewer', 'gitGetBranches', 'gitCreateBranch', 'gitCheckout', 'gitStash', 'gitStashPop',
+      'gitGetBranches', 'gitCreateBranch', 'gitCheckout', 'gitStash', 'gitStashPop',
       'gitGetStatusDetail', 'gitGetDiff', 'gitGetCommits', 'gitGetCommitDiff', 'gitCompareCommits', 'gitGetBlame', 'gitGetFileHistory', 'gitDiscard',
       'addAgent', 'removeAgent', 'renameAgent', 'setAgentMode', 'setAgentVariant', 'getAgentVariants', 'setAgentModel', 'getAgentModel', 'getContextInfo', 'getProviderModels', 'fetchProviderModels',
       'listProviderCatalog', 'connectProvider', 'disconnectProvider',
@@ -52,7 +52,6 @@ describe('IPC contract', () => {
       activateWorkspace: async () => ({ workspace: { projectPath: '', name: '', agents: [] }, agents: [], git: null }),
       openInEditor: async () => {},
       openFolder: async () => {},
-      gitOpenViewer: async () => {},
       gitGetBranches: async () => [],
       gitCreateBranch: async () => ({ ok: true }),
       gitCheckout: async () => ({ ok: true }),
@@ -295,7 +294,6 @@ describe('IPC contract', () => {
     expect(Channels.EventBrowserOpenInstallGuide).toBe('browser:install-guide')
     expect(Channels.ProjectOpenFolder).toBe('project:open-folder')
     expect(Channels.SystemTerminalOpen).toBe('system-terminal:open')
-    expect(Channels.GitOpenViewer).toBe('git:open-viewer')
     expect(Channels.GitGetBranches).toBe('git:get-branches')
     expect(Channels.GitCreateBranch).toBe('git:create-branch')
     expect(Channels.GitCheckout).toBe('git:checkout')

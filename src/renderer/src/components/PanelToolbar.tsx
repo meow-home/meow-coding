@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Activity, Code, Folder, FolderSymlink, Globe, ListTree, MoreHorizontal, SquareTerminal } from 'lucide-react'
+import { Activity, Code, Folder, FolderSymlink, Globe, GitBranch, ListTree, MoreHorizontal, SquareTerminal } from 'lucide-react'
 import BaseDropdown from './common/BaseDropdown'
 
 interface Props {
@@ -14,17 +14,19 @@ interface Props {
   browserOpen: boolean
   browserAgentActive: boolean
   filesOpen: boolean
+  gitOpen: boolean
   onToggleSubagents: () => void
   onToggleTerminal: () => void
   onToggleTasks: () => void
   onToggleBrowser: () => void
   onToggleFiles: () => void
+  onToggleGit: () => void
 }
 
 /** Opens and closes the right-side panels from the title bar. */
 export default function PanelToolbar({
   projectPath, sessionReady, subagentsAvailable, subagentsOpen, terminalOpen, tasksOpen, browserOpen,
-  browserAgentActive, filesOpen, onToggleSubagents, onToggleTerminal, onToggleTasks, onToggleBrowser, onToggleFiles
+  browserAgentActive, filesOpen, gitOpen, onToggleSubagents, onToggleTerminal, onToggleTasks, onToggleBrowser, onToggleFiles, onToggleGit
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const isMac = window.api.platform === 'darwin'
@@ -79,6 +81,15 @@ export default function PanelToolbar({
         onClick={onToggleFiles}
       >
         <Folder size={15} aria-hidden="true" />
+      </button>
+      <button
+        className={`icon-btn ${gitOpen ? 'active' : ''}`}
+        title="Toggle Git panel"
+        aria-label="Toggle Git panel"
+        disabled={!projectPath}
+        onClick={onToggleGit}
+      >
+        <GitBranch size={15} aria-hidden="true" />
       </button>
       <BaseDropdown
         open={menuOpen}

@@ -2,7 +2,6 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import FileViewer from './components/FileViewer'
-import GitViewer from './components/git/GitViewer'
 import '@fontsource-variable/instrument-sans'
 import '@fontsource-variable/bricolage-grotesque'
 import './styles.css'
@@ -11,14 +10,14 @@ import { applyFontSize, watchFontSize } from './font'
 import type { LogLevel } from '@shared/types'
 import { formatConsoleArgs } from '@shared/log-helpers'
 
-// Every renderer (main window, Git viewer, FileViewer popup) applies the
-// persisted theme before first paint, and re-applies it when the user toggles
-// the theme in the main window (localStorage syncs across same-origin windows).
+// Every renderer (main window, FileViewer popup) applies the persisted theme
+// before first paint, and re-applies it when the user toggles the theme in the
+// main window (localStorage syncs across same-origin windows).
 applyTheme()
 watchTheme()
 
-// Applied before first paint so popups (Git viewer / FileViewer) inherit the
-// persisted font size, and re-applied when the main window changes it.
+// Applied before first paint so the FileViewer popup inherits the persisted
+// font size, and re-applied when the main window changes it.
 applyFontSize()
 watchFontSize()
 
@@ -75,7 +74,6 @@ const rootEl = document.getElementById('root')!
 const params = new URLSearchParams(window.location.search)
 const fileParam = params.get('file')
 const rootParam = params.get('root') ?? ''
-const gitParam = params.get('git')
 
 if (!window.api) {
   createRoot(rootEl).render(
@@ -91,13 +89,6 @@ if (!window.api) {
   createRoot(rootEl).render(
     <React.StrictMode>
       <FileViewer path={fileParam} root={rootParam} />
-    </React.StrictMode>
-  )
-} else if (gitParam) {
-  // Git viewer popup window (opened by main via ?git=<projectPath>).
-  createRoot(rootEl).render(
-    <React.StrictMode>
-      <GitViewer projectPath={gitParam} />
     </React.StrictMode>
   )
 } else {

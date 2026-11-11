@@ -222,10 +222,15 @@ describe('GitService on a real repo', () => {
 
   it('getStatusDetail reports staged, unstaged and untracked files', async () => {
     commitFile('a.txt', 'one', 'first')
+    // A working-tree deletion (" D") and a staged one ("D ") both read as deleted.
+    commitFile('gone.txt', 'x', 'second')
+    commitFile('staged-gone.txt', 'y', 'third')
     writeFileSync(path.join(dir, 'a.txt'), 'two')
     writeFileSync(path.join(dir, 'b.txt'), 'new')
     git(['add', 'b.txt'])
     writeFileSync(path.join(dir, 'untracked.txt'), 'u')
+    rmSync(path.join(dir, 'gone.txt'))
+    git(['rm', '-q', 'staged-gone.txt'])
 
     const st = await svc.getStatusDetail(dir)
     expect(st).not.toBeNull()
@@ -233,6 +238,8 @@ describe('GitService on a real repo', () => {
     expect(st!.files).toContainEqual(expect.objectContaining({ path: 'a.txt', staged: false, unstaged: true }))
     expect(st!.files).toContainEqual(expect.objectContaining({ path: 'b.txt', staged: true, unstaged: false }))
     expect(st!.files).toContainEqual(expect.objectContaining({ path: 'untracked.txt', status: 'untracked' }))
+    expect(st!.files).toContainEqual(expect.objectContaining({ path: 'gone.txt', status: 'deleted', staged: false }))
+    expect(st!.files).toContainEqual(expect.objectContaining({ path: 'staged-gone.txt', status: 'deleted', staged: true }))
   })
 
   it('getDiff returns working tree diff and cached diff separately', async () => {

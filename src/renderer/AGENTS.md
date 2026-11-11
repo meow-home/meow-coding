@@ -34,12 +34,12 @@ React renderer (no direct Node/Electron access).
   persisted in `localStorage` (`meow.theme`), default is `dark`.
 - `src/theme.ts` — shared theme helpers: `applyTheme` (set `data-theme` on `<html>` from
   localStorage) and `watchTheme` (re-apply on `storage` events). `main.tsx` calls both for EVERY
-  renderer — including the Git viewer and FileViewer popup windows (separate BrowserWindows) — so
-  they inherit the theme from the main window automatically.
+  renderer — including the FileViewer popup window (a separate BrowserWindow) — so it inherits the
+  theme from the main window automatically.
 - `src/font.ts` — shared font-size helpers: `applyFontSize` (set `font-size` on `<html>`/`<body>`,
   default 13, range 8-40px) and `watchFontSize` (re-apply
-  on `storage` events). `main.tsx` calls both for EVERY renderer (main window + Git viewer +
-  FileViewer popups) so they inherit the persisted font size.
+  on `storage` events). `main.tsx` calls both for EVERY renderer (main window + FileViewer popup)
+  so they inherit the persisted font size.
 - `src/session-guard.ts` — pure `isLastSession(projectPath, sessionId, runtimes, workspaces)`: whether
   removing a session would leave its project with none (the mounted runtime is the truth for an open
   project, the sidebar summary for a project that was never opened). `App.tsx`'s `removeSessionGuarded`
@@ -61,7 +61,7 @@ React renderer (no direct Node/Electron access).
 
 ## CSS — border-radius & style scope
 
-Lessons learned from the Git viewer screen (don't repeat them):
+Lessons learned from the Git panel screen (don't repeat them):
 
 - **`src/styles.css` has a global rule `* { border-radius: var(--radius) }`** — it rounds EVERY element
   unless explicitly overridden. When you want a "square" area (no rounded corners), don't just set
@@ -69,9 +69,9 @@ Lessons learned from the Git viewer screen (don't repeat them):
 - **Standard pattern for a screen/popup that wants square corners:**
   ```css
   /* Top of section: */
-  .git-viewer * { border-radius: 0; }          /* square everything */
-  .git-viewer .btn,
-  .git-viewer .git-header-btn { border-radius: var(--radius-sm); }  /* only keep for buttons */
+  .git-panel * { border-radius: 0; }          /* square everything */
+  .git-panel .btn,
+  .git-panel .icon-btn { border-radius: var(--radius-sm); }  /* only keep for buttons */
   ```
   Only list the elements that ACTUALLY need rounded corners (buttons, inputs, dropdown content, options...).
 - Before editing: check whether the element is being rounded by the `*` rule (`grep "border-radius"` +

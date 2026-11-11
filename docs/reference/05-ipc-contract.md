@@ -70,7 +70,6 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 
 | Key | Channel | Method |
 |---|---|---|
-| `GitOpenViewer` | `git:open-viewer` | `gitOpenViewer(projectPath)` |
 | `GitGetBranches` | `git:get-branches` | `gitGetBranches(projectPath): GitBranch[]` |
 | `GitCreateBranch` | `git:create-branch` | `gitCreateBranch(projectPath, name, base): GitActionResult` |
 | `GitCheckout` | `git:checkout` | `gitCheckout(projectPath, branch): GitActionResult` |
@@ -214,7 +213,7 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `CliTest` | `cli:test` | `testCli(): CliTestResult` — runs one short read-only prompt end to end |
 
 Window handlers resolve their target via `BrowserWindow.fromWebContents(e.sender)`, so the same
-calls work from the Git viewer and File viewer popup windows.
+calls work from the File viewer popup window.
 
 `AgentApi` also carries one non-function property: **`platform: string`** (`process.platform`,
 captured in preload).

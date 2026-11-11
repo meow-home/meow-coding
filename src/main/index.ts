@@ -17,7 +17,6 @@ import { LogManager } from './log-manager'
 import { SystemLogger } from './system-logger'
 import { GitStatusService } from './git-status-service'
 import { GitService } from './git-service'
-import { openGitViewer } from './git-viewer'
 import { AlertService } from './alert-service'
 import { NotificationService } from './notification-service'
 import { Updater } from './updater'
@@ -1038,7 +1037,6 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.FileViewerShowInFolder, (_e, absPath: string) => {
     shell.showItemInFolder(absPath)
   })
-  ipcMain.handle(Channels.GitOpenViewer, (_e, projectPath: string) => openGitViewer(projectPath, () => win))
   ipcMain.handle(Channels.GitGetBranches, (_e, projectPath: string) => mainApp.gitSvc.getBranches(projectPath))
   ipcMain.handle(Channels.GitCreateBranch, (_e, projectPath: string, name: string, base: string) =>
     mainApp.gitSvc.createBranch(projectPath, name, base))

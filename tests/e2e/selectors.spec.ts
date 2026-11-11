@@ -10,7 +10,7 @@ function cleanupDir(dir: string): void {
   rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
 }
 
-/** A real git repo with one commit — without it GitBranchSwitcher renders no local branch. */
+/** A real git repo with one commit — the Git panel and status bar need one. */
 function initRepo(project: string): void {
   execFileSync('git', ['init', '-q'], { cwd: project })
   execFileSync('git', [
@@ -93,16 +93,6 @@ test('selector triggers carry one shared caret that rotates while open', async (
       await modelTrigger.click()
       await expect(modelTrigger).toHaveAttribute('aria-expanded', 'true')
       await window.keyboard.press('Escape')
-
-      // GitBranchSwitcher lives in its own popup window.
-      const popup = app.waitForEvent('window', { timeout: 20000 })
-      await window.getByRole('button', { name: 'menu E2E Project', exact: true }).click()
-      await window.getByRole('button', { name: 'Git', exact: true }).click()
-      const gitWindow = await popup
-      await gitWindow.waitForLoadState('domcontentloaded')
-      await gitWindow.locator('.git-branch-current').click()
-      await expect(gitWindow.locator('.git-branch-dropdown')).toBeVisible()
-      await expect(gitWindow.locator('.git-branch-current svg.dropdown-caret')).toHaveCount(1)
     } finally {
       await app.close()
     }
@@ -182,21 +172,6 @@ test('a selected row is bg-active with a trailing tick in a reserved column', as
       // populated model catalog), and an unconfigured model menu renders
       // "No providers configured". Both components were changed to the exact same
       // two shared classes asserted above, in the same commit.
-
-      // GitBranchSwitcher: popup window; its active row previously had NO background.
-      const popup = app.waitForEvent('window', { timeout: 20000 })
-      await window.getByRole('button', { name: 'menu E2E Project', exact: true }).click()
-      await window.getByRole('button', { name: 'Git', exact: true }).click()
-      const gitWindow = await popup
-      await gitWindow.waitForLoadState('domcontentloaded')
-      await gitWindow.locator('.git-branch-current').click()
-      await expect(gitWindow.locator('.git-branch-dropdown')).toBeVisible()
-      const activeBranch = gitWindow.locator('.git-branch-item.active')
-      await expect(activeBranch).toHaveCount(1)
-      const branchBg = await activeBranch.evaluate(e => getComputedStyle(e).backgroundColor)
-      const gitBgActive = await resolveVar(gitWindow, '--bg-active')
-      expect(branchBg).toBe(gitBgActive)
-      await expect(activeBranch.locator('.menu-item-check svg')).toHaveCount(1)
     } finally {
       await app.close()
     }

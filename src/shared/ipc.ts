@@ -24,7 +24,6 @@ export const Channels = {
   FileSaveContent: 'file:save-content',
   FileViewerOpenInEditor: 'file-viewer:open-in-editor',
   FileViewerShowInFolder: 'file-viewer:show-in-folder',
-  GitOpenViewer: 'git:open-viewer',
   GitGetBranches: 'git:get-branches',
   GitCreateBranch: 'git:create-branch',
   GitCheckout: 'git:checkout',
@@ -264,7 +263,6 @@ export interface AgentApi {
   saveFileContent(path: string, content: string): Promise<{ ok: boolean; error?: string }>
   openFileInEditor(path: string): Promise<void>
   showFileInFolder(path: string): Promise<void>
-  gitOpenViewer(projectPath: string): Promise<void>
   gitGetBranches(projectPath: string): Promise<GitBranch[]>
   gitCreateBranch(projectPath: string, name: string, base: string): Promise<GitActionResult>
   gitCheckout(projectPath: string, branch: string): Promise<GitActionResult>

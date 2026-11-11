@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-// Every floating menu (dropdowns, pickers, context popover, command palette, branch
-// switcher) shares ONE rim: `--menu-border`, a step fainter than `--hairline`. The menu
+// Every floating menu (dropdowns, pickers, context popover, command palette)
+// shares ONE rim: `--menu-border`, a step fainter than `--hairline`. The menu
 // keeps an edge against the surface behind it without the border reading as a drawn
 // outline; the surface itself still sits above the app's surfaces in BOTH themes, which
 // is what `--bg-menu` is for.
@@ -14,8 +14,7 @@ const MENU_SURFACES = [
   '.model-menu',
   '.command-menu',
   '.sidebar-menu-dropdown',
-  '.right-panel-menu',
-  '.git-branch-dropdown'
+  '.right-panel-menu'
 ]
 
 function rules(): { selectors: string[]; body: string }[] {

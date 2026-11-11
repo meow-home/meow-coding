@@ -11,7 +11,6 @@ React 19 + TypeScript, no UI framework, no CSS-in-JS. All data flows through `wi
 |---|---|
 | `window.api` missing | A fallback telling the user preload did not load |
 | `?file=<path>&root=<dir>` | `<FileViewer>` in a popup `BrowserWindow` |
-| `?git=<projectPath>` | `<GitViewer>` in a popup `BrowserWindow` |
 | otherwise | `<App>` — the main window |
 
 Every renderer calls `applyTheme()` and `watchTheme()` before first paint, so popups inherit the
@@ -171,7 +170,7 @@ that must be called in the effect cleanup. (The Tasks panel subscribes to
 The Tasks panel is keyed by **agent id** (the title bar's Tasks button), not project path: `tasksOpenFor`
 (the session whose list is shown, `null` when closed) and `tasksFull` (maximized). Like the Files panel it
 renders in one of two places, chosen by `full`: docked, it is a child of the right-panels grid next to
-Files/Terminal/Browser/Sub-agents; expanded, it is a direct child of `.main` so its absolute insets cover
+Files/Terminal/Browser/Sub-agents/Git; expanded, it is a direct child of `.main` so its absolute insets cover
 the pane area. The background sessions in its rows come from the panel's project runtime
 (`workspace.agents` + the `agents` state + `backgrounds`); opening a row clears that session's background
 flag, switches to it and closes the panel, and deleting it goes through the same pane-removal guard.
@@ -197,7 +196,7 @@ replayed on mount through `getUpdaterStatus`, so a window that loads after the c
 | Component | Responsibility |
 |---|---|
 | `TitleBar.tsx` | Custom window chrome for frameless platforms, painted with the chat surface (`--bg-chat`) so the header and the conversation read as one panel; when collapsed, hovering the title bar brand region reveals a floating full sidebar popover dropdown menu. Between the brand and the panel tools it seats the active session's title (`SessionTitle`); with the sidebar collapsed the brand strip shrinks to the logo + toggle so the title moves left, next to the expand button. |
-| `PopupTitleBar.tsx` | Same for the FileViewer/GitViewer popups (drag region + Linux min/max/close) |
+| `PopupTitleBar.tsx` | Same for the FileViewer popup (drag region + Linux min/max/close) |
 | `Sidebar.tsx` | Project list; header action bar features a vertical menu with a single "New session" (`Plus` icon) full-width menu item without border radius or bottom border (adding a folder as a project moved to the new session's footer picker). Each project row is a lightweight group header — the project name (bright on the current project, dim otherwise) followed by a **trailing** expand/collapse chevron, with the `+` (new session) and `...` (project menu) icons revealed on hover / while the project is current. The project path lives on the row's `title`: there is no path line and no session count. An expanded project lists its **sessions**, indented: a status dot (green = running, yellow = waiting on input, none when idle; it hangs in the row indent, so names stay aligned), the name, and a trailing `...` menu that appears on hover / when active. A session created by `delegate_session` is a **sub-session**: it sits directly under the session that spawned it, one indent deeper, with a small branch glyph before the name and a `Sub-session of <parent>` tooltip; its row keeps its own status dot and menu. Deleting a session also deletes its sub-sessions. The active session is a full-width rounded pill. The per-row `...` menu holds Rename (via inline input), Stop (when running) and Delete. The project `...` menu holds Open, Open in VS Code, Git, Open Folder, Open Terminal (a real OS terminal window via `openSystemTerminal`) and Remove. The `+` button activates a draft session; deleting a project's last session transitions the workspace to a draft session pane, and adding a folder as a project (`Choose folder…` in the draft footer) registers the project only — no default `meow` session is created. Creating a backend session is deferred until the user sends their first message. Expanded state persists in `localStorage` (`meow.sidebar.expanded`). Also: Providers entry and theme toggle in the footer menu. Projects with sessions waiting on a permission/question prompt show a red count badge (and a dot on the collapsed-rail avatar). |
 | `StatusBar.tsx` | Workspace name, git branch, running count, app version — the version slot turns into an "Update available" / "Updating 42%" / "Restart to update" pill while an update is downloading or downloaded, and clicking it opens the update dialog |
 | `SessionPanes.tsx` | Session layout of one project: **every session stays mounted** (inactive ones carry the `hidden` attribute, hidden by CSS and never unmounted) so a session that is not showing keeps streaming/answering. The active session is **controlled** by `App` (`activeId` + `onActiveChange`, remembered per project path so switching workspaces restores the session that was showing); it reports the first session when the stored id no longer exists |
@@ -376,11 +375,23 @@ normalized settings).
 Adding a setting touches three places: `MeowSettings` in `src/shared/types.ts`, the normalize path in
 `src/main/agent/config.ts`, and the tab here.
 
-### Git viewer (`components/git/`)
+### Git panel (`components/git/`)
 
-`GitViewer.tsx` hosts tabs: `GitChangesTab`, `GitDiffView`, `GitHistoryTab`, `GitBlameTab`, plus
-`GitFileTree` and `GitBranchSwitcher`. `parseDiff.ts` parses unified diffs for rendering. It runs in
-its own `BrowserWindow` opened by `Channels.GitOpenViewer`.
+`GitPanel.tsx` is a docked right-hand panel (it joins the same grid as Files, Tasks, Terminal,
+Browser and Sub-agents; expanding covers the pane area). It is **read-only**: no staging, commit,
+branch switching, compare or blame. The header is the shared `PanelHeader` with two tabs plus a
+read-only branch chip and Refresh.
+
+- `GitChangesView.tsx` — two flat groups (`Staged`, `Changes`) of `status letter + name + dimmed
+  directory` rows. A click fetches `gitGetDiff(projectPath, path, staged)` and expands the diff under
+  the row; only one row is open. A file with staged and unstaged edits appears in both groups and
+  each row shows its own side.
+- `GitHistoryView.tsx` — a filter field and a flat commit list (subject, short sha, author, relative
+  time, `Load more` in pages of 50). A click fetches `gitGetCommitDiff` and expands the commit's
+  message and changed files (`+/−` counts); clicking a file swaps that list for the file's diff
+  with a back row.
+- `GitDiffView.tsx` + `parseDiff.ts` — unified-diff parser and the compact hunk renderer (add/del
+  tints come from `--git-diff-add` / `--git-diff-del`).
 
 ## 9.5 Styling
 
@@ -520,9 +531,9 @@ element unless explicitly overridden. To make a screen square-cornered, do **not
 `border-radius: 0` rule by rule — you will miss some (tab, panel, cell). Use this pattern:
 
 ```css
-.git-viewer * { border-radius: 0; }                              /* square everything */
-.git-viewer .btn,
-.git-viewer .git-header-btn { border-radius: var(--radius-sm); } /* re-round only what needs it */
+.git-panel * { border-radius: 0; }                           /* square everything */
+.git-panel .btn,
+.git-panel .icon-btn { border-radius: var(--radius-sm); }  /* re-round only what needs it */
 ```
 
 Before editing, check whether the element is being rounded by the `*` rule
@@ -557,7 +568,7 @@ string edits fail. Edit them with a script (e.g. python) if the edit tool cannot
   Windows `titleBarOverlay` min/max/close buttons follow the app theme (without this they stay dark
   in light mode). The bar itself paints `var(--bg-chat)` — the same surface as that overlay strip (see [11.5](11-conventions-and-pitfalls.md) for the subpixel seam behind this).
 - `watchTheme()` listens for `storage` events, which fire across same-origin windows — this is how
-  the Git viewer and File viewer popups re-theme when the main window toggles.
+  the File viewer popup re-themes when the main window toggles.
 - App-wide font size persists in `localStorage` under `meow.fontSize` (default 13, range 8–40px,
   integer). `applyFontSize()` in `font.ts` sets `font-size` on `<html>`/`<body>`; `watchFontSize()`
   re-applies on `storage` events across same-origin popups. The control lives in the

@@ -17,7 +17,7 @@ windows, six sets of logs, and no shared view of what changed.
    its transcript, tool calls, permissions, cost, context usage and file edits are all visible and
    controllable inside the UI.
 3. **Project-centric ergonomics.** Workspaces map to git project folders. Git status, a file tree,
-   a git viewer, and an "artifacts" list of files the agents touched are always one click away.
+   a Git panel, and an "artifacts" list of files the agents touched are always one click away.
 
 ## 1.2 Primary users
 
@@ -82,7 +82,7 @@ straight to the code.
 |---|---|---|
 | Directory tree | Lazy-loaded on expand, ignores `node_modules`/`.git`/`out`/`dist`/…, expansion state survives tab switches | `RightPanelTree.tsx`, `dir-lister.ts` |
 | Artifacts | Lists `.md` files agents created/edited; the file watcher filters spurious events by comparing `(mtime, size)` | `artifact-store.ts`, `file-watcher.ts` |
-| Git viewer | Separate window: changes, diff, history, blame, branch switcher, stash/discard | `git-viewer.ts`, `components/git/` |
+| Git panel | Docked right-hand panel (read-only): working tree with inline diffs, commit log with inline commit detail and file diffs | `components/git/` |
 | File viewer | Separate window with syntax highlighting and image preview (png, jpg, gif, webp, bmp, ico, avif); non-previewable binaries open with the system app | `file-viewer.ts`, `FileViewer.tsx` |
 | Session terminals | Right-hand terminal panel per session (Files-style chrome, joins the right-panels grid) hosting interactive shells via xterm.js and dedicated node-pty instances; survives session switching | `terminal-manager.ts`, `components/terminal/TerminalOverlay.tsx` |
 
