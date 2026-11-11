@@ -5,7 +5,7 @@
 agent ships with a chat UI, tool registry, sessions, permissions, skills, and a set of right-hand
 panels (Files, Git, Tasks, Terminal, Browser, Sub-agents) that sit beside the chat.
 
-**Latest release: v0.54.2** — see [`docs/changelogs`](docs/changelogs) for what changed.
+**Latest release: v0.54.3** — see [`docs/changelogs`](docs/changelogs) for what changed.
 
 <p align="center">
   <img src="media/meow-app-screen-light-mode.png" alt="Meow Coding — multiple coding sessions in parallel panes (light mode)" width="720">
