@@ -246,6 +246,7 @@
   .sec-head .idx { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); }
   .sec-head .hint { margin-left: auto; font-size: 12px; color: var(--text-faint); }
   .sec-note { margin: 14px 0 0; color: var(--text-dim); font-size: 13.5px; max-width: 70ch; }
+  .sec-note a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 
   /* ============ screenshots ============ */
   .shots { margin-top: 18px; display: grid; gap: 14px; }
@@ -385,8 +386,8 @@
         <a class="row is-active" href="#top" data-nav><span class="dot run"></span><span class="name">Overview</span></a>
         <a class="row" href="#shots" data-nav><span class="dot idle"></span><span class="name">The app</span></a>
         <a class="row" href="#session" data-nav><span class="dot idle"></span><span class="name">Inside a session</span></a>
-        <a class="row" href="#tools" data-nav><span class="dot run"></span><span class="name">22 tools</span><span class="meta" aria-hidden="true">22</span></a>
-        <a class="row" href="#skills" data-nav><span class="dot idle"></span><span class="name">Skills &amp; commands</span><span class="meta" aria-hidden="true">21</span></a>
+        <a class="row" href="#tools" data-nav><span class="dot run"></span><span class="name">38 tools</span><span class="meta" aria-hidden="true">38</span></a>
+        <a class="row" href="#skills" data-nav><span class="dot idle"></span><span class="name">Skills &amp; commands</span><span class="meta" aria-hidden="true">11</span></a>
         <a class="row" href="#settings" data-nav><span class="dot idle"></span><span class="name">Settings</span></a>
       </div>
 
@@ -397,10 +398,10 @@
       </div>
 
       <div class="side-sep"></div>
-      <div class="side-stat"><span>Tools</span><b>22</b></div>
-      <div class="side-stat"><span>Skills</span><b>21</b></div>
-      <div class="side-stat"><span>Commands</span><b>20</b></div>
-      <div class="side-stat"><span>Version</span><b>0.50.5</b></div>
+      <div class="side-stat"><span>Tools</span><b>38</b></div>
+      <div class="side-stat"><span>Skills</span><b>6</b></div>
+      <div class="side-stat"><span>Commands</span><b>5</b></div>
+      <div class="side-stat"><span>Version</span><b>0.54.2</b></div>
     </nav>
 
     <!-- ================= pane ================= -->
@@ -428,10 +429,10 @@
               tool calls, permissions, cost and file edits are all in the app — nothing is a black box.
             </p>
             <div class="cta-row">
-              <a class="btn primary" href="https://github.com/stardust-bytes/meow-coding/releases">
-                Download the release <span class="k">v0.50.5</span>
+              <a class="btn primary" href="https://github.com/meow-home/meow-coding/releases">
+                Download the release <span class="k">v0.54.2</span>
               </a>
-              <a class="btn" href="https://github.com/stardust-bytes/meow-coding">Browse the source</a>
+              <a class="btn" href="https://github.com/meow-home/meow-coding">Browse the source</a>
             </div>
 
             <div class="composer">
@@ -489,7 +490,7 @@
               <div class="cell">
                 <span class="kicker">Parallel</span>
                 <h3>Sessions that keep running</h3>
-                <p>Create, rename, stop or delete a session from its sidebar row. Move one to the background and it keeps going while you work elsewhere.</p>
+                <p>Create, rename, stop or delete a session from its sidebar row. Move one to the background and it keeps going while you work elsewhere; a delegated sub-session nests under the session that started it.</p>
               </div>
               <div class="cell">
                 <span class="kicker">Agent</span>
@@ -519,12 +520,12 @@
               <div class="cell">
                 <span class="kicker">Steering</span>
                 <h3>Talk to it mid-turn</h3>
-                <p>Messages sent while a turn is running are queued and injected at the next step, so you can redirect without stopping the work.</p>
+                <p>Messages sent while a turn is running are queued in their own card — send now, edit or remove them — so you can redirect without stopping the work.</p>
               </div>
               <div class="cell">
-                <span class="kicker">Overlays</span>
-                <h3>Files and processes</h3>
-                <p>An in-app explorer with a lazy directory tree, name filter and content search, plus a per-session view of background shells and monitors with live streamed output.</p>
+                <span class="kicker">Panels</span>
+                <h3>Six panels, one grid</h3>
+                <p>Files, Git, Tasks, Terminal, Browser and Sub-agents dock beside the chat. They fill a shared grid, resize together, and one expands over the whole pane when you need it.</p>
               </div>
               <div class="cell">
                 <span class="kicker">Policy</span>
@@ -538,21 +539,24 @@
           <section class="sec" id="tools">
             <div class="sec-head">
               <span class="idx">03</span>
-              <h2>22 tools</h2>
+              <h2>38 tools</h2>
               <span class="hint">every call is visible in the transcript</span>
             </div>
             <div class="tools">
-              <div class="tool"><span class="tname">bash</span><span class="tdesc">Run a command; long jobs can go to the background</span><span class="tkind">shell</span></div>
+              <div class="tool"><span class="tname">bash · bash_output · kill_shell</span><span class="tdesc">Run a command, follow a background job, stop it</span><span class="tkind">shell</span></div>
+              <div class="tool"><span class="tname">monitor</span><span class="tdesc">Wait on a background shell or a delegation without polling</span><span class="tkind">shell</span></div>
               <div class="tool"><span class="tname">read · write · edit</span><span class="tdesc">Read files, create them, or apply a targeted edit</span><span class="tkind">files</span></div>
               <div class="tool"><span class="tname">apply-patch</span><span class="tdesc">Apply a unified diff across several files at once</span><span class="tkind">files</span></div>
               <div class="tool"><span class="tname">glob · grep</span><span class="tdesc">Find files by pattern, search their contents</span><span class="tkind">search</span></div>
               <div class="tool"><span class="tname">git</span><span class="tdesc">Status, diff, log, commit — without leaving the chat</span><span class="tkind">vcs</span></div>
               <div class="tool"><span class="tname">todowrite</span><span class="tdesc">Keep a visible task list for the current session</span><span class="tkind">plan</span></div>
               <div class="tool"><span class="tname">question</span><span class="tdesc">Ask you to choose before it commits to a direction</span><span class="tkind">plan</span></div>
-              <div class="tool"><span class="tname">task · delegate_session</span><span class="tdesc">Spawn an isolated subagent, or hand work to another session</span><span class="tkind">agents</span></div>
+              <div class="tool"><span class="tname">task</span><span class="tdesc">Spawn an isolated subagent for a focused job</span><span class="tkind">agents</span></div>
+              <div class="tool"><span class="tname">delegate_session · delegate_result</span><span class="tdesc">Create a persistent sub-session (on any model) and read its result</span><span class="tkind">agents</span></div>
+              <div class="tool"><span class="tname">delegate_cli</span><span class="tdesc">Hand a focused task to the Antigravity CLI</span><span class="tkind">agents</span></div>
               <div class="tool"><span class="tname">skill</span><span class="tdesc">Load a bundled or custom skill into the turn</span><span class="tkind">agents</span></div>
               <div class="tool"><span class="tname">webfetch · websearch</span><span class="tdesc">Read a page, or search for one</span><span class="tkind">web</span></div>
-              <div class="tool"><span class="tname">browser</span><span class="tdesc">Drive a real Chrome profile: navigate, click, type, read</span><span class="tkind">web</span></div>
+              <div class="tool"><span class="tname">browser_*</span><span class="tdesc">Fifteen tools over the built-in browser or a real Chrome profile: navigate, click, type, read, hand off</span><span class="tkind">web</span></div>
               <div class="tool"><span class="tname">lsp</span><span class="tdesc">Ask a language server for definitions, references, symbols</span><span class="tkind">code</span></div>
               <div class="tool"><span class="tname">office</span><span class="tdesc">Create and edit .docx, .xlsx and .pptx files</span><span class="tkind">docs</span></div>
               <div class="tool"><span class="tname">revert</span><span class="tdesc">Undo the files this session changed</span><span class="tkind">safety</span></div>
@@ -568,12 +572,12 @@
             <div class="sec-head">
               <span class="idx">04</span>
               <h2>Skills &amp; commands</h2>
-              <span class="hint">21 skills · 20 commands</span>
+              <span class="hint">6 skills · 5 commands</span>
             </div>
             <p class="sec-note">
-              Type <span class="mono">/</span> to run a command. Built-ins cover the everyday moves;
-              fifteen Superpowers workflows cover the long ones — brainstorming, writing a plan,
-              executing it, reviewing the result.
+              Type <span class="mono">/</span> to run a command. Five built-ins cover the everyday
+              moves, and six skills — five of them Anthropic's front-end and design skills — load into
+              the turn when the work calls for them.
             </p>
             <div class="chips">
               <span class="chip accent"><b>/init</b></span>
@@ -581,15 +585,12 @@
               <span class="chip accent"><b>/new</b></span>
               <span class="chip accent"><b>/compact</b></span>
               <span class="chip accent"><b>/frontend-design</b></span>
-              <span class="chip">/brainstorming</span>
-              <span class="chip">/writing-plans</span>
-              <span class="chip">/executing-plans</span>
-              <span class="chip">/test-driven-development</span>
-              <span class="chip">/systematic-debugging</span>
-              <span class="chip">/requesting-code-review</span>
-              <span class="chip">/verification-before-completion</span>
-              <span class="chip">/using-git-worktrees</span>
-              <span class="chip">+ 7 more</span>
+              <span class="chip">frontend-design</span>
+              <span class="chip">canvas-design</span>
+              <span class="chip">theme-factory</span>
+              <span class="chip">brand-guidelines</span>
+              <span class="chip">web-artifacts-builder</span>
+              <span class="chip">katalon-studio</span>
             </div>
             <p class="sec-note">
               Write your own in Markdown: <span class="mono">$1..$N</span> arguments,
@@ -604,10 +605,11 @@
             <div class="sec-head">
               <span class="idx">05</span>
               <h2>Settings</h2>
-              <span class="hint">nine tabs, no config files required</span>
+              <span class="hint">ten tabs, no config files required</span>
             </div>
             <div class="tabs">
               <div class="tab"><div class="t">Sub-agents</div><div class="d">Roles, models, tools</div></div>
+              <div class="tab"><div class="t">Antigravity CLI</div><div class="d">Headless delegation worker</div></div>
               <div class="tab"><div class="t">Providers</div><div class="d">Keys, models, connections</div></div>
               <div class="tab"><div class="t">MCP</div><div class="d">stdio and HTTP servers</div></div>
               <div class="tab"><div class="t">Permissions</div><div class="d">Allow, ask, deny</div></div>
@@ -618,9 +620,10 @@
               <div class="tab"><div class="t">Updates</div><div class="d">Background updates</div></div>
             </div>
             <p class="sec-note">
-              Providers cover Anthropic, OpenAI, Google and any OpenAI-compatible endpoint, plus a
-              Codex account connection and a local gateway. The app updates itself in the background
-              and tells you when a new version is ready.
+              Providers cover Anthropic, OpenAI, Google and any OpenAI-compatible endpoint, plus
+              several Codex accounts you can switch between — each routed through its own scoped local
+              proxy. API keys and OAuth tokens live in the OS keychain, and the app updates itself in
+              the background, announcing a new version with a toast and a status-bar pill.
             </p>
           </section>
 
@@ -632,15 +635,15 @@
               <span class="hint">with their licenses</span>
             </div>
             <div class="src">
-              <a class="src-row" href="https://github.com/obra/superpowers">
-                <span class="what">Superpowers workflow skills</span>
-                <span class="lic">MIT</span>
-                <span class="repo">obra/superpowers</span>
-              </a>
               <a class="src-row" href="https://github.com/anthropics/skills">
-                <span class="what">Design and document skills</span>
+                <span class="what">Front-end and design skills</span>
                 <span class="lic">Apache-2.0</span>
                 <span class="repo">anthropics/skills</span>
+              </a>
+              <a class="src-row" href="https://github.com/sst/opencode">
+                <span class="what">Agent feature design</span>
+                <span class="lic">MIT</span>
+                <span class="repo">sst/opencode</span>
               </a>
               <a class="src-row" href="https://github.com/iOfficeAI/OfficeCLI">
                 <span class="what">Office document tool</span>
@@ -658,6 +661,12 @@
                 <span class="repo">Electron · React · TypeScript</span>
               </a>
             </div>
+            <p class="sec-note">
+              The spec → plan → execute workflow comes from
+              <a href="https://github.com/obra/superpowers">obra/superpowers</a> as a design influence;
+              its skills and slash commands are no longer bundled, so project and user skills fill that
+              role.
+            </p>
           </section>
 
           <!-- ---------- install ---------- -->
@@ -673,16 +682,16 @@
               background and tells you when a new version is ready.
             </p>
             <div class="cta-row">
-              <a class="btn primary" href="https://github.com/stardust-bytes/meow-coding/releases">Get v0.50.5</a>
-              <a class="btn" href="https://github.com/stardust-bytes/meow-coding#readme">Read the README</a>
+              <a class="btn primary" href="https://github.com/meow-home/meow-coding/releases">Get v0.54.2</a>
+              <a class="btn" href="https://github.com/meow-home/meow-coding#readme">Read the README</a>
             </div>
           </section>
 
           <footer class="foot">
             <span>Meow Coding · open source · <span id="year"></span></span>
             <span class="sp"></span>
-            <a href="https://github.com/stardust-bytes/meow-coding">GitHub</a>
-            <a href="https://github.com/stardust-bytes/meow-coding/releases">Releases</a>
+            <a href="https://github.com/meow-home/meow-coding">GitHub</a>
+            <a href="https://github.com/meow-home/meow-coding/releases">Releases</a>
           </footer>
 
         </div>
@@ -697,8 +706,8 @@
     <span class="s mono">kimi-k3</span>
     <span class="s mono">master</span>
     <span class="sp"></span>
-    <span class="s">browser: paired</span>
-    <span class="s mono">v0.50.5</span>
+    <span class="s">browser: built-in</span>
+    <span class="s mono">v0.54.2</span>
   </div>
 </div>
 
