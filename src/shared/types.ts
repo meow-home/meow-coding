@@ -646,6 +646,8 @@ export interface MonitorInfo {
   /** Human label of the watched thing: shell command, polled command, sub-session title. */
   label: string
   targetId: string
+  /** Set when the watched delegation runs a CLI agent (Antigravity). */
+  cliAgentId?: string
   until: string
   status: MonitorStatus
   /** Why a resolved monitor stopped watching. */

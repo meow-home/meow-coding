@@ -11,6 +11,8 @@ export interface MonitorResolveInfo {
   targetId: string
   reason: MonitorReason
   detail: string
+  /** CLI agent that ran a watched delegation, when it was one. */
+  cliAgentId?: string
   // 'shell' = watching a background shell (targetId is a shell id);
   // 'poll'  = polling a command (targetId is the command string);
   // 'delegation' = watching a sub-session delegation (targetId is the delegation
@@ -41,6 +43,7 @@ interface Entry {
   targetId: string
   label: string
   kind: 'shell' | 'delegation'
+  cliAgentId?: string
   startedAt: number
   untilRegex?: RegExp
   untilExit?: boolean | number
@@ -95,6 +98,7 @@ export class MonitorStore {
       if (e.agentId !== agentId || e.status !== 'watching') continue
       watching.push({
         id: e.id, kind: e.kind, label: e.label, targetId: e.targetId, until: e.until,
+        ...(e.cliAgentId !== undefined ? { cliAgentId: e.cliAgentId } : {}),
         status: 'watching', startedAt: e.startedAt, sessionId: e.sessionId
       })
     }
@@ -239,7 +243,7 @@ export class MonitorStore {
    * sub-session can be watched with the same `monitor.wait` / list surface as a
    * background shell instead of waking the source with a chat message.
    */
-  registerExternal(input: { agentId: string; targetId: string; until: string; id?: string; sessionId?: string; label?: string }): { id: string; reused: boolean } | { error: string } {
+  registerExternal(input: { agentId: string; targetId: string; until: string; id?: string; sessionId?: string; label?: string; cliAgentId?: string }): { id: string; reused: boolean } | { error: string } {
     const key = this.externalKey(input.agentId, input.targetId)
     for (const existing of this.entries.values()) {
       if (existing.status === 'watching' && existing.key === key) return { id: existing.id, reused: true }
@@ -259,6 +263,7 @@ export class MonitorStore {
       until: input.until,
       status: 'watching',
       kind: 'delegation',
+      ...(input.cliAgentId !== undefined ? { cliAgentId: input.cliAgentId } : {}),
       startedAt: Date.now(),
       onData: () => {},
       onExit: () => {},
@@ -291,7 +296,8 @@ export class MonitorStore {
     const info: MonitorResolveInfo = {
       id: entry.id, agentId: entry.agentId, sessionId: entry.sessionId,
       targetId: entry.targetId, reason, detail,
-      kind: entry.kind === 'delegation' ? 'delegation' : 'shell'
+      kind: entry.kind === 'delegation' ? 'delegation' : 'shell',
+      ...(entry.cliAgentId !== undefined ? { cliAgentId: entry.cliAgentId } : {})
     }
     this.publish(info, entry.label, entry.until, entry.startedAt)
   }
@@ -299,6 +305,7 @@ export class MonitorStore {
   private publish(info: MonitorResolveInfo, label = info.targetId, until = '', startedAt = Date.now()): void {
     this.remember(info.agentId, {
       id: info.id, kind: info.kind, label, targetId: info.targetId, until,
+      ...(info.cliAgentId !== undefined ? { cliAgentId: info.cliAgentId } : {}),
       status: 'resolved', reason: info.reason, detail: info.detail,
       startedAt, resolvedAt: Date.now(), sessionId: info.sessionId
     })

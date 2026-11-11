@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Activity, ArrowRight, ChevronDown, Maximize2, MessageSquare, Minimize2, RefreshCw, Square, Terminal, Trash2, Users, X
+  Activity, ArrowRight, ChevronDown, Maximize2, Minimize2, RefreshCw, Square, Terminal, Trash2, Users, X
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import type { AgentStatus, AlertLevel, BackgroundProcInfo, ChatMessage, MonitorInfo } from '@shared/types'
 import ConfirmDialog from '../ConfirmDialog'
+import antigravityLogo from '../../assets/antigravity-logo.svg'
+import logoMark from '../../assets/logo-mark.png'
 
 /** One session of the panel's project. Only `background` ones become rows: the
  *  session the user is looking at is already on screen behind the panel. */
@@ -69,13 +72,25 @@ function rowLabel(row: TaskRow): string {
 function rowSub(row: TaskRow): string {
   if (row.kind === 'session') return row.session.parentAgentId ? 'sub-session' : 'session'
   if (row.kind === 'shell') return `shell · ${row.shell.id}`
-  return `${row.monitor.kind} · ${row.monitor.targetId}`
+  return `${row.monitor.cliAgentId ?? row.monitor.kind} · ${row.monitor.targetId}`
 }
 
-function rowIcon(row: TaskRow) {
-  if (row.kind === 'session') return MessageSquare
-  if (row.kind === 'shell') return Terminal
-  return row.monitor.kind === 'poll' ? RefreshCw : row.monitor.kind === 'delegation' ? Users : Terminal
+/** The card's identity badge: what is running, not its state (the chip says that). */
+type RowAvatar =
+  | { cls: string; image: string; label: string }
+  | { cls: string; icon: LucideIcon; label: string }
+
+function rowAvatar(row: TaskRow): RowAvatar {
+  if (row.kind === 'session') {
+    return row.session.parentAgentId
+      ? { cls: 'sub', icon: Users, label: 'Sub-session' }
+      : { cls: 'agent', image: logoMark, label: 'Meow session' }
+  }
+  if (row.kind === 'shell') return { cls: 'shell', icon: Terminal, label: 'Background shell' }
+  const m = row.monitor
+  if (m.cliAgentId) return { cls: 'cli', image: antigravityLogo, label: 'Antigravity CLI' }
+  if (m.kind === 'poll') return { cls: 'poll', icon: RefreshCw, label: 'Polled command' }
+  return { cls: 'sub', icon: Users, label: 'Delegation' }
 }
 
 /** State chip: the text is the state itself, the class only colours it. */
@@ -97,18 +112,6 @@ function rowState(row: TaskRow): { text: string; cls: string } {
   const m = row.monitor
   if (m.status === 'watching') return { text: 'waiting', cls: 'wait' }
   return { text: m.reason ?? 'done', cls: m.reason === 'timeout' ? 'timeout' : 'done' }
-}
-
-function rowDot(row: TaskRow): string {
-  if (row.kind === 'session') {
-    const s = row.session.status
-    if (s === 'running' || s === 'spawning') return 'run'
-    if (s === 'idle') return 'attention'
-    if (s === 'error') return 'error'
-    return 'stopped'
-  }
-  if (row.kind === 'shell') return row.shell.status === 'running' ? 'run' : 'stopped'
-  return row.monitor.status === 'watching' ? 'wait' : 'stopped'
 }
 
 function rowMeta(row: TaskRow, now: number): string {
@@ -193,10 +196,12 @@ function ShellOutput({ id }: { id: string }) {
 
 /**
  * The session's Tasks panel (right-hand column): background sessions, background
- * shells, polled commands and delegations in one list. A row is a one-line
- * summary; clicking it expands the row in place to its facts, content (messages /
- * live output / result) and actions. There are no tabs: the list itself is the
- * navigation.
+ * shells, polled commands and delegations, one card each. A card opens with an
+ * identity badge (native session, sub-session, shell, poll, Antigravity CLI),
+ * then a title line (wraps), its kind · id line, a state chip and age, plus a
+ * stop icon while it runs; clicking it expands the card in place to its facts,
+ * content (messages / live output / result) and actions. There are no tabs: the
+ * list itself is the navigation.
  */
 export default function TasksPanel({
   agentId, sessions, full, onToggleFull, onClose,
@@ -262,22 +267,6 @@ export default function TasksPanel({
     return out
   }, [sessions, shells, monitors])
 
-  const { running, waiting, finished } = useMemo(() => {
-    let running = 0
-    let waiting = 0
-    for (const row of rows) {
-      if (row.kind === 'session') {
-        if (row.session.status === 'running' || row.session.status === 'spawning') running++
-        else if (row.session.status === 'idle') waiting++
-      } else if (row.kind === 'shell') {
-        if (row.shell.status === 'running') running++
-      } else if (row.monitor.status === 'watching') {
-        waiting++
-      }
-    }
-    return { running, waiting, finished: rows.length - running - waiting }
-  }, [rows])
-
   const activeRows = rows.filter(r => r.live)
   const finishedRows = rows.filter(r => !r.live)
   const openable = useMemo(() => new Set(sessions.map(s => s.id)), [sessions])
@@ -302,35 +291,60 @@ export default function TasksPanel({
     return () => document.removeEventListener('keydown', onKey)
   }, [expanded, onClose])
 
-  const summary = [
-    running > 0 ? `${running} running` : null,
-    waiting > 0 ? `${waiting} waiting` : null,
-    finished > 0 ? `${finished} finished` : null
-  ].filter(Boolean).join(' · ')
-
   const target = pendingRemove ? sessions.find(s => s.id === pendingRemove) ?? null : null
+
+  /** One stop action per row kind: the card's icon button and the body's red action. */
+  const stopRow = (row: TaskRow) => {
+    if (row.kind === 'session') onStopSession(row.session.id)
+    else if (row.kind === 'shell') void window.api.backgroundProcKill(row.shell.id)
+    else void window.api.monitorsCancel(row.monitor.id)
+  }
+
+  const stopTitle = (row: TaskRow): string =>
+    row.kind === 'session' ? 'Stop session' : row.kind === 'shell' ? 'Kill process' : 'Stop watching'
 
   const renderRow = (row: TaskRow) => {
     const isOpen = expanded.has(row.key)
-    const Icon = rowIcon(row)
+    const avatar = rowAvatar(row)
     const state = rowState(row)
     const bodyId = `tasks-body-${row.key.replace(':', '-')}`
     return (
       <div className={`tasks-row${isOpen ? ' open' : ''}${row.kind === 'session' && row.session.alert !== 'normal' ? ' attention' : ''}`} key={row.key}>
-        <button
-          className="tasks-row-head"
-          aria-expanded={isOpen}
-          aria-controls={bodyId}
-          onClick={() => toggle(row.key)}
-        >
-          <span className={`tasks-dot ${rowDot(row)}`} aria-hidden="true" />
-          <span className="tasks-kind" aria-hidden="true"><Icon size={11} /></span>
-          <span className={`tasks-label${row.kind === 'session' ? '' : ' mono'}`}>{rowLabel(row)}</span>
-          <span className="tasks-sub">{rowSub(row)}</span>
-          <span className={`tasks-state${state.cls ? ` ${state.cls}` : ''}`}>{state.text}</span>
-          <span className="tasks-meta">{rowMeta(row, now)}</span>
-          <span className="tasks-caret" aria-hidden="true"><ChevronDown size={11} /></span>
-        </button>
+        <div className="tasks-row-top">
+          <button
+            className="tasks-row-head"
+            aria-expanded={isOpen}
+            aria-controls={bodyId}
+            onClick={() => toggle(row.key)}
+          >
+            <span className="tasks-row-main">
+              <span className={`tasks-avatar ${avatar.cls}`} title={avatar.label} aria-hidden="true">
+                {'image' in avatar
+                  ? <img src={avatar.image} alt="" />
+                  : <avatar.icon size={14} aria-hidden="true" />}
+              </span>
+              <span className="tasks-row-text">
+                <span className={`tasks-label${row.kind === 'session' ? '' : ' mono'}`}>{rowLabel(row)}</span>
+                <span className="tasks-sub">{rowSub(row)}</span>
+              </span>
+            </span>
+            <span className="tasks-row-aside">
+              <span className={`tasks-state${state.cls ? ` ${state.cls}` : ''}`}>{state.text}</span>
+              <span className="tasks-meta">{rowMeta(row, now)}</span>
+            </span>
+            <span className="tasks-caret" aria-hidden="true"><ChevronDown size={12} /></span>
+          </button>
+          {row.live && (
+            <button
+              className="tasks-card-stop"
+              title={stopTitle(row)}
+              aria-label={stopTitle(row)}
+              onClick={() => stopRow(row)}
+            >
+              <Square size={11} fill="currentColor" aria-hidden="true" />
+            </button>
+          )}
+        </div>
 
         {isOpen && (
           <div className="tasks-row-body" id={bodyId}>
@@ -353,7 +367,7 @@ export default function TasksPanel({
                     {row.live ? 'Open session' : 'Open transcript'}
                   </button>
                   {row.live && (
-                    <button className="tasks-act" onClick={() => onStopSession(row.session.id)}>
+                    <button className="tasks-act stop" onClick={() => onStopSession(row.session.id)}>
                       <Square size={10} aria-hidden="true" />
                       Stop
                     </button>
@@ -385,7 +399,7 @@ export default function TasksPanel({
                 <ShellOutput id={row.shell.id} />
                 <div className="tasks-actions">
                   {row.live && (
-                    <button className="tasks-act" onClick={() => void window.api.backgroundProcKill(row.shell.id)}>
+                    <button className="tasks-act stop" onClick={() => void window.api.backgroundProcKill(row.shell.id)}>
                       <Square size={10} aria-hidden="true" />
                       Kill process
                     </button>
@@ -397,7 +411,7 @@ export default function TasksPanel({
             {row.kind === 'monitor' && (
               <>
                 <dl className="tasks-kv">
-                  <dt>Kind</dt><dd>{row.monitor.kind === 'poll' ? 'polled command' : row.monitor.kind === 'delegation' ? 'delegation' : 'background shell'}</dd>
+                  <dt>Kind</dt><dd>{row.monitor.cliAgentId ? 'antigravity delegation' : row.monitor.kind === 'poll' ? 'polled command' : row.monitor.kind === 'delegation' ? 'delegation' : 'background shell'}</dd>
                   <dt>Until</dt><dd>{row.monitor.until || '—'}</dd>
                   <dt>Started</dt><dd>{clock(row.monitor.startedAt)} · {ago(row.monitor.startedAt, now)}</dd>
                   <dt>Session</dt><dd>{row.monitor.sessionId.slice(0, 8)}</dd>
@@ -417,7 +431,10 @@ export default function TasksPanel({
                   </>
                 )}
                 <div className="tasks-actions">
-                  <button className="tasks-act" onClick={() => void window.api.monitorsCancel(row.monitor.id)}>
+                  <button
+                    className={`tasks-act${row.live ? ' stop' : ''}`}
+                    onClick={() => void window.api.monitorsCancel(row.monitor.id)}
+                  >
                     {row.live ? 'Stop watching' : 'Dismiss'}
                   </button>
                   {row.monitor.kind === 'delegation' && openable.has(row.monitor.targetId) && (
@@ -440,10 +457,6 @@ export default function TasksPanel({
         <span className="tasks-head-icon" aria-hidden="true"><Activity size={13} /></span>
         <span className="tasks-title">Tasks</span>
         <span className="tasks-count">{rows.length}</span>
-        <span className="tasks-summary">{summary}</span>
-        <span className="tasks-dots" aria-hidden="true">
-          {activeRows.slice(0, 6).map(r => <span key={r.key} className={`tasks-dot ${rowDot(r)}`} />)}
-        </span>
         <span className="tasks-head-spacer" />
         <button
           className="tasks-icon-btn"
@@ -469,7 +482,6 @@ export default function TasksPanel({
             <div className="tasks-group">
               <span className="tasks-group-label">Active</span>
               <span className="tasks-group-count">{activeRows.length}</span>
-              <span className="tasks-group-line" />
             </div>
             {activeRows.map(renderRow)}
           </>
@@ -479,7 +491,6 @@ export default function TasksPanel({
             <div className="tasks-group">
               <span className="tasks-group-label">Finished</span>
               <span className="tasks-group-count">{finishedRows.length}</span>
-              <span className="tasks-group-line" />
             </div>
             {finishedRows.map(renderRow)}
           </>

@@ -72,7 +72,8 @@ only writer of `SessionDelegationStore` records.
 - **Tool** — `MeowAgentManager.register` constructs the `delegate_session` / `delegate_result` tools
   bound to a narrow `deps.delegation` adapter (composed in `index.ts`) and tracks a fixed
   `AgentRunContext` per in-flight turn. `watchDelegation` registers the delegation monitor under the
-  delegation id, pinned to the source session. `MeowAgentManager.resolveDelegationModel` supplies the sub-session's model: the source's model
+  delegation id, pinned to the source session; a `delegate_cli` run also stamps the monitor with
+  `cliAgentId` (`antigravity`), so the UI can tell a CLI delegation from a sub-session one. `MeowAgentManager.resolveDelegationModel` supplies the sub-session's model: the source's model
   by default, or a user-requested one resolved through `model-select.ts` against the configured
   providers/accounts (ambiguity is an error listing the candidates).
 

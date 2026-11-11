@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Check, Copy, ExternalLink, Play, RefreshCw } from 'lucide-react'
 import type { CliCheckResult, CliTestResult } from '@shared/types'
+import antigravityLogo from '../../assets/antigravity-logo.svg'
 
 type RowState = 'ok' | 'err' | 'pending'
 
@@ -65,7 +66,9 @@ export function CliStatusCard({
   return (
     <div className="cli-runtime-card">
       <div className="cli-runtime-top">
-        <div className="cli-runtime-logo">agy</div>
+        <div className="cli-runtime-logo">
+          <img src={antigravityLogo} alt="Antigravity" />
+        </div>
         <div className="cli-runtime-info">
           <div className="cli-runtime-name">Antigravity CLI</div>
           <div className="cli-runtime-sub">Uses the agy install and sign-in already on this machine</div>

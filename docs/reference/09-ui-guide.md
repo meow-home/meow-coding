@@ -94,18 +94,27 @@ Open files are tabs in the panel header and stay mounted while hidden, so switch
 The title bar's **Toggle tasks** button opens the session's **Tasks** panel in the right-hand column —
 the same docked slot as Files, Terminal and Sub-agents. It replaces the old Processes overlay (one tab per
 shell plus a `Monitors` tab) and the background-session strip with **one list**: background sessions,
-background shells, polled commands and delegations. Each row is a one-line summary — state dot, kind icon,
-label, `kind · id`, state chip, elapsed/age — grouped `Active` / `Finished`. There are no tabs: the list
-itself is the navigation, so eight shells no longer mean eight tabs.
+background shells, polled commands and delegations. Every task is a **card**, grouped `Active` /
+`Finished` under a plain caption (label + count, no rule under it): an **identity badge** that says what
+is running, a title line that wraps, a secondary `kind · id` line, and on the right the state chip above
+the elapsed/age. The badge is the Meow mark for a native session, `Users` for a sub-session or a
+sub-session delegation, `Terminal` for a background shell, `RefreshCw` for a polled command and the
+Antigravity logo for a CLI delegation (the watch's `cliAgentId`, shown as `antigravity · <id>`). It
+carries **identity, not state** — there is no state dot on the card; the chip is the state. A live card
+also carries a **stop icon button** that runs the same action as its open card's stop action, so a task
+can be stopped without expanding it. The panel header is minimal — `Tasks`, the total count,
+maximize and close; the cards carry the state. There are no tabs: the list itself is the navigation, so
+eight shells no longer mean eight tabs.
 
-Clicking a row expands it in place (multi-open) to its facts — mode/model/cwd/session id for a session,
+Clicking a card expands it in place (multi-open) to its facts — mode/model/cwd/session id for a session,
 command/cwd/started/exit for a shell, kind/until/started/session/finished for a watch — then its content:
 the last two messages (`listChatMessages`) for a session, the live output box for a shell
 (`backgroundProcSubscribe` on expand, `backgroundProcUnsubscribe` on collapse — never consuming the
-agent's `bash_output` read offset), or the result line for a resolved watch. The action row follows the
-kind: Open session / Stop / Delete (behind a confirm), Kill process (a labelled button, never a tab ×),
+agent's `bash_output` read offset), or the tinted result box for a resolved watch. The action row follows
+the kind: Open session / Stop / Delete (behind a confirm), Kill process (a labelled button, never a tab ×),
 Stop watching / Dismiss (`monitorsCancel`), and Open session for a delegation watch whose sub-session is
-in the project.
+in the project. Stop/kill actions are red (`.tasks-act.stop`). Cards never use a left accent rule: state
+is the dot, the chip and the surface tint.
 
 Docked it is a cell of the shared `.right-panels-grid` (the column splitter sets the width), `⤢` expands it
 over the whole pane area like Files, `Esc` closes the open rows first and then the panel, and the lists
@@ -221,7 +230,7 @@ replayed on mount through `getUpdaterStatus`, so a window that loads after the c
 | `file-content/FileContentView.tsx` | Toolbar (Raw/Highlighted toggle, Open in VS Code, Copy) + body of a file (CodeMirror editor, rendered markdown, or an image), shared by the popup window and the Files overlay tab. With `hideFileActions` the toolbar is the panel's per-file bar: project-relative path, one Fold all / Unfold all toggle (state kept per open file) and the host's `toolbarActions`; `toolbarHost` portals it into the panel's full-width bar, and an inactive tab renders no toolbar. `extraExtensions` carries the Files panel's send-line gutter; the popup passes none |
 | `files/FilesOverlay.tsx` | The Files panel: the shared panel header with the open-file tabs and maximize/restore/close, a per-file bar (`.files-bar`) spanning the full panel width between the header and `.files-body` — rendered into a host element by the active tab's `FileContentView`, with the project-relative path and the file actions plus Toggle file tree / the `⋮` Files menu (the empty state renders its own bar into the same host, so it does not jump when the first file opens) — the active tab's `FileContentView` on the left and the tree side on the right (drag the `.files-side-resizer` splitter on its left edge — dragging left widens it — ≥ `FILES_SIDE_MIN_WIDTH` 160px while leaving the editor ≥ `FILES_MAIN_MIN_WIDTH` 160px; the width persists in `localStorage` `meow.files.sideWidth` and applies to both modes, double-click resets to the CSS default of 42% docked / 20rem expanded; hiding it persists in `meow.files.treeHidden` and only sets `hidden`, so expanded folders survive); docked on the right with a drag-to-resize left edge, or expanded over the pane area (same mounted instance, so tabs/tree survive the toggle). Both modes are elevated by `--shadow-panel`, whose blur is tuned to fade out inside the panel's 0.333333rem offset from `.main` (expanded mode layers it on top of the `--bg-chat` backdrop ring that hides the pane chrome) |
 | `files/FilesTree.tsx` | Lazily loaded tree of the overlay; lists dotfiles and `node_modules`; `?`-prefixed filter searches file contents and lists `path:line` hits; refreshes on context changes. A directory row is its chevron plus the name (no folder icon) and a file row puts the typed `file-icon` in the same slot; rows are tall rounded pills (`--menu-hover`/`--menu-active`, `--radius`, 1rem indent per level); in a git repository a changed file tints its name and shows its status letter at the row's right edge, a changed directory shows a dot, and the status comes from `git-decorations` (one `gitGetStatusDetail` call per debounce, on mount, on `reloadToken` and on context changes). A row click opens a preview; a file row double click opens permanent |
-| `processes/TasksPanel.tsx` | The Tasks panel (`TasksPanel` default export): a right-hand column panel with **one expandable list** instead of tabs — background sessions, background shells, polled commands and delegations, grouped `Active` / `Finished`. A row is a state dot + kind icon + label + `kind · id` + state chip + elapsed/age; clicking it expands the row in place (multi-open) to facts (mono kv), content (last two messages via `listChatMessages`, the live output box via `backgroundProcSubscribe`/`backgroundProcUnsubscribe`, or the resolved watch's result) and the kind's actions (`Open session`/`Stop`/`Delete` with a confirm, `Kill process`, `Stop watching`/`Dismiss` via `monitorsCancel`, `Open session` for a delegation watch). Its header is a title with count, `x running · y waiting · z finished`, state dots, maximize and close; docked it is a cell of `.right-panels-grid`, maximized (`.full`) it covers the pane area like Files. Polls `backgroundProcsList`/`monitorsList` every ~1.5s; its optional `focus` prop (`{ monitorId?, seq }`, applied once then dropped through `onFocusApplied`) lets the chat's background tasks card expand one watch |
+| `processes/TasksPanel.tsx` | The Tasks panel (`TasksPanel` default export): a right-hand column panel with **one expandable list of cards** instead of tabs — background sessions, background shells, polled commands and delegations, grouped `Active` / `Finished` under a rule-less caption. A card is a wrapping title line (state dot + kind icon + label), a `kind · id` line, the state chip above the elapsed/age on the right, and — while live — a stop icon button that runs the card's stop action without expanding it; clicking the card expands it in place (multi-open) to facts (mono kv), content (last two messages via `listChatMessages`, the live output box via `backgroundProcSubscribe`/`backgroundProcUnsubscribe`, or the resolved watch's result) and the kind's actions (`Open session`/`Stop`/`Delete` with a confirm, `Kill process`, `Stop watching`/`Dismiss` via `monitorsCancel`, `Open session` for a delegation watch; stop/kill are red). Its header is minimal: title, total count, maximize and close. Docked it is a cell of `.right-panels-grid`, maximized (`.full`) it covers the pane area like Files. Polls `backgroundProcsList`/`monitorsList` every ~1.5s; its optional `focus` prop (`{ monitorId?, seq }`, applied once then dropped through `onFocusApplied`) lets the chat's background tasks card expand one watch |
 | `files/line-send-gutter.ts` | `buildSendText` / `languageLabel` / `lineSendGutter`: a gutter before the line numbers with a `+` on the hovered line; sends the line or the selected lines to the composer via `meow:composer-insert`, fenced with a run longer than any backticks in the code |
 | `files/open-tabs.ts` | Pure tab rules over `{ tabs, activeTab }`: `openTab` (single click = preview, double click = permanent, an open file only activates, a preview is replaced in place), `promoteTab`, `togglePinned` (permanent, sorts first), `closeTabs`, `closeAllTabs` (keeps pinned), `activateTab` |
 | `files/file-icon.tsx` | `fileIconKind` / `fileIconFor` / `FileIcon`: a file name → lucide icon + colour class (code, JSON, Markdown, image, styles, config, `.gitignore`, generic); colours are theme tokens in `styles.css` |
@@ -429,6 +438,12 @@ no upstream, with the full sentence (upstream name, counts, or "not published") 
   it — e.g. `.tool-call-summary` (the tool-call args line) is
   `calc(var(--fs-md) * var(--fs-mono-scale))` so it sits optically level with the thought/prose text
   around it. Pure code surfaces (outputs, diffs, logs) keep their own `--fs-*` size.
+- **No left accent bars on cards.** Status never rides on a coloured `border-left` or an inset left
+  `box-shadow`: a card's edge stays the same `--hairline` in every state and the state reads from the
+  dot, the chip, the icon or a surface tint (the Tasks panel cards are the reference). Do not reintroduce
+  the pattern when building or restyling a card list; the older surfaces that still carry one
+  (`.tool-call.status-*`, `.subagent`, `.chat-error-card`, `.command-item.selected`) are grandfathered,
+  not a template.
 - Two hairline weights: `--hairline` (the default 1px edge — card borders, separators) and
   `--hairline-strong` (one step up, for rules that must read as a *deliberate* edge:
   `.theme-card-btn:hover`). A border drawn with an
@@ -582,7 +597,7 @@ string edits fail. Edit them with a script (e.g. python) if the edit tool cannot
   chrome (`--bg`, `--bg-panel`, `--bg-sidebar`, `--bg-tab-inactive`) around a `#23272e` work area
   (`--bg-chat` — the chat, the panes and the title bar, plus `--terminal-bg`), with cards and floating
   menus a step above it (`--bg-raised`, `--bg-menu`: `#2c313a`), `--bg-hover` `#323842`, `--bg-active`
-  `#3a4150`, `--bg-code` `#1d1f23`, `#abb2bf` text. The accent is One Dark's blue: `--accent`
+  `#3a4150`, `--bg-code` `#1d1f23`, `#bec5d2` text (`--text`/`--chat-text`; `--text-strong` `#e6e9ef`, `--text-dim` `#b0b8c6`, `--text-faint` `#9198a3` — one step lighter than Atom One Dark so body text does not read as dim). The accent is One Dark's blue: `--accent`
   (`#4d78cc`) is the fill under white text (user bubble, primary button), `--accent-hover`
   (`#3f66b0`) its hover/pressed fill and `--accent-strong` (`#61afef`) the link/edge blue. Semantic
   hues follow One Dark's syntax palette (green `#98c379`, yellow `#e5c07b`, orange `#d19a66`, red

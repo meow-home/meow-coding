@@ -428,13 +428,14 @@ export class MeowAgentManager {
   /** Registers a monitor for a fresh delegation so the source can watch the
    *  sub-session with `monitor.wait` like a background shell. Best-effort: the
    *  per-agent monitor cap must not fail the delegation itself. */
-  watchDelegation(input: { agentId: string; delegationId: string; sessionId: string; label?: string }): void {
+  watchDelegation(input: { agentId: string; delegationId: string; sessionId: string; label?: string; cliAgentId?: string }): void {
     this.monitors.registerExternal({
       agentId: input.agentId,
       targetId: input.delegationId,
       until: 'delegation finishes',
       id: input.delegationId,
       ...(input.label !== undefined ? { label: input.label } : {}),
+      ...(input.cliAgentId !== undefined ? { cliAgentId: input.cliAgentId } : {}),
       // Pinned so the wake runs on the delegating session even after a UI switch.
       sessionId: input.sessionId
     })
@@ -1883,7 +1884,8 @@ ${content}` : content
           }
           const record = this.deps.delegation.createCli(input)
           this.watchDelegation({
-            agentId: record.sourceAgentId, delegationId: record.id, sessionId: record.sourceSessionId, label: record.targetName
+            agentId: record.sourceAgentId, delegationId: record.id, sessionId: record.sourceSessionId, label: record.targetName,
+            cliAgentId: record.targetAgentId
           })
           return Promise.resolve(record)
         },
