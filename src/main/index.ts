@@ -35,8 +35,6 @@ import { isTextPath, openFileViewer, openWithSystemApp, readFileContent, readIma
 import { MeowAgentManager } from './meow-agent-manager'
 import { SessionDelegationService } from './session-delegation-service'
 import { SessionDelegationStore, normalizeProjectPath } from './session-delegation-store'
-import { computePeerTargets } from './peer-roster'
-import type { SessionPeer } from './agent/env'
 import { CommandStore } from './agent/commands'
 import { FileWatcher } from './file-watcher'
 import { ArtifactStore } from './artifact-store'
@@ -261,8 +259,7 @@ export class MainApp {
         if (!this.delegationService) throw new Error('session delegation is not enabled.')
         return this.delegationService.createCli(options)
       },
-      checkCli: () => this.antigravity.check(),
-      peers: (agentId) => this.delegatePeers(agentId)
+      checkCli: () => this.antigravity.check()
     },
     // Notification click: focus the window and tell the renderer to switch to
     // the workspace + tab of the agent that needs input.
@@ -336,6 +333,39 @@ export class MainApp {
     store: this.delegations,
     runtime: {
       resolveAgent: (agentId) => this.meowAgent.resolveDelegationAgent(agentId),
+      createSubSession: async (input) => {
+        const sourceWs = this.findWorkspaceByAgent(input.sourceAgentId)
+        if (!sourceWs) throw new Error('[meow] The delegating session no longer exists.')
+        const model = await this.meowAgent.resolveDelegationModel(input.sourceAgentId, input.model)
+        const source = sourceWs.agents.find(a => a.id === input.sourceAgentId)
+        const sameModel = source?.model === `${model.provider}/${model.model}`
+        const updated = this.workspaces.addAgent(sourceWs.projectPath, {
+          name: input.title?.trim() || titleFrom(input.task),
+          templateId: 'meow',
+          cwd: sourceWs.projectPath,
+          kind: 'native',
+          model: `${model.provider}/${model.model}`,
+          ...(model.accountId ? { accountId: model.accountId } : {}),
+          ...(sameModel && source?.variant ? { variant: source.variant } : {}),
+          parentAgentId: input.sourceAgentId
+        })
+        const agent = updated.agents[updated.agents.length - 1]
+        try {
+          // ensureAgent (not addAgent) so a draft session's model choice is not
+          // cleared as a side effect of delegating.
+          await this.meowAgent.ensureAgent(agent)
+        } catch (err) {
+          // Never leave a sidebar row for a session the runtime refused.
+          this.workspaces.removeAgent(sourceWs.projectPath, agent.id)
+          throw err
+        }
+        // The sidebar must show the new sub-session immediately; the renderer
+        // refreshes its workspace list from this event.
+        win?.webContents.send(Channels.EventWorkspaceChanged, { runtime: this.runtimeFor(updated) })
+        const sessionId = this.meowAgent.resolveDelegationAgent(agent.id)?.sessionId
+        if (!sessionId) throw new Error('[meow] Failed to register the new sub-session.')
+        return { agentId: agent.id, name: agent.name, projectPath: updated.projectPath, sessionId }
+      },
       isBusy: (agentId) => this.meowAgent.isBusy(agentId),
       runDelegatedTurn: async (input) => (await this.meowAgent.runDelegatedTurn(input)) ?? {
         runId: '',
@@ -567,25 +597,6 @@ export class MainApp {
       .find(w => w && w.agents.some(a => a.id === agentId))
   }
 
-  /** Same-project delegatable peers for the delegate_session turn reminder. */
-  private delegatePeers(agentId: string): SessionPeer[] {
-    const requesting = this.findWorkspaceByAgent(agentId)
-    const workspaces: Workspace[] = this.workspaces.list()
-      .map(s => this.workspaces.get(s.projectPath))
-      .filter((w): w is Workspace => Boolean(w))
-    return computePeerTargets(workspaces, {
-      requestingAgentId: agentId,
-      requestingProjectPath: requesting?.projectPath,
-      modeOf: (id) => this.meowAgent.getMode(id),
-      stateOf: (id) => {
-        if (this.meowAgent.isBusy(id)) {
-          return this.meowAgent.getPendingPrompt(id) ? 'waiting_for_input' : 'running'
-        }
-        return 'idle'
-      }
-    })
-  }
-
   runtimeFor(workspace: Workspace): WorkspaceRuntime {
     return {
       workspace,
@@ -797,6 +808,26 @@ export class MainApp {
     if (!trimmed) return
     const updated = this.workspaces.updateAgent(projectPath, agentId, { name: trimmed })
     this.pushAgentConfig(updated, agentId)
+  }
+
+  /**
+   * Removes a session and every sub-session delegated from it, cleaning up the
+   * agent runtime, terminals, browser tabs, delegation records and state.
+   */
+  async removeAgent(projectPath: string, agentId: string): Promise<void> {
+    const descendants = this.workspaces.descendantIds(projectPath, agentId)
+    for (const id of [agentId, ...descendants]) {
+      this.meowAgent.removeAgent(id)
+      await this.delegationService.handleAgentRemoved(id)
+      await this.terminals.removeSession(id)
+      this.embeddedBrowser.removeSession(id)
+      this.browserRouter.forget(id)
+      await this.pty.stop(id)
+      this.workspaces.removeAgent(projectPath, id)
+      this.clearState(id)
+      this.alerts.clear(id)
+      this.logs.remove(id)
+    }
   }
 
   // Keep the renderer's AgentConfig (mode/variant/model) fresh after a change
@@ -1055,16 +1086,7 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle(Channels.AgentRemove, async (_e, projectPath: string, agentId: string) => {
-    mainApp.meowAgent.removeAgent(agentId)
-    await mainApp.delegationService.handleAgentRemoved(agentId)
-    await mainApp.terminals.removeSession(agentId)
-    mainApp.embeddedBrowser.removeSession(agentId)
-    mainApp.browserRouter.forget(agentId)
-    await mainApp.pty.stop(agentId)
-    mainApp.workspaces.removeAgent(projectPath, agentId)
-    mainApp.clearState(agentId)
-    mainApp.alerts.clear(agentId)
-    mainApp.logs.remove(agentId)
+    await mainApp.removeAgent(projectPath, agentId)
   })
 
   ipcMain.handle(Channels.AgentRename, (_e, projectPath: string, agentId: string, name: string) =>

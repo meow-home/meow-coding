@@ -61,7 +61,7 @@ in Settings → Permissions.
 | `grep` | allow | Regex search file contents |
 | `todowrite` | allow | Maintain the session todo list |
 | `task` | allow | Dispatch a subagent |
-| `delegate_session` | allow | Route a focused task to another persistent session in the same project (plan: ask) |
+| `delegate_session` | allow | Spawn a persistent sub-session in the same project for a focused task (plan: ask) |
 | `delegate_cli` | allow | Delegate a focused task to the Antigravity CLI (plan: ask) |
 | `revert` | allow | Restore all files changed this session |
 | `skill` | allow | Load a skill into context |
@@ -248,13 +248,18 @@ message run in parallel (they are auto-approved, and the loop runs auto-approved
 
 ### `delegate_session`
 
-`{ target_session_id: string, task: string }` — routes a focused task to another existing persistent
-session in the same project (the **ephemeral** `task` subagent is the isolated alternative). The target
-keeps its own model, mode, permission rules, hooks, MCP servers, tools, and memory; it runs independently
-and returns its result durably to the source. Only a user-origin run may delegate (a delegated run can
-never call `delegate_session`, keeping delegation one level deep). Returns
-`Delegation <id> queued for session <target>`, with the id also carried in `metadata.delegationId` so the
-renderer never parses prose.
+`{ task: string, title?: string, model?: string }` — creates a **new persistent sub-session** in the same
+project for a focused task (the **ephemeral** `task` subagent is the isolated alternative). No target
+session is named: the sub-session is created on demand, listed in the sidebar under the calling session
+(`parentAgentId`), keeps its own transcript, mode, permission rules, hooks, MCP servers, tools, and
+memory, and returns its result durably to the source. Its title defaults to the task's first line.
+It runs on the calling session's model unless `model` is passed: the runtime resolves an exact
+`provider/model` or a name like `opus` against the configured providers and connected accounts, and an
+ambiguous/unknown value fails with the available model refs so the agent can retry precisely. Only a
+user-origin run may delegate (a delegated run can never call `delegate_session`, keeping delegation one
+level deep), and a source may have at most five nonterminal delegations. Returns
+`Delegation <id> queued in new sub-session "<title>" (<agentId>)`, with the id also carried in
+`metadata.delegationId` so the renderer never parses prose.
 
 ### `delegate_cli`
 

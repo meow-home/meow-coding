@@ -49,6 +49,7 @@ import { LspManager } from './agent/lsp/manager'
 import { createLspTool } from './agent/tools/lsp'
 import { SavedPermissions } from './agent/saved-permissions'
 import { ModelsCatalog } from './models-catalog'
+import { formatModelCandidates, modelLabel, resolveModelQuery } from './model-select'
 import type { VariantBody, VariantDescriptor } from './model-variants'
 import { revertTool } from './agent/tools/revert'
 import { createTaskTool } from './agent/tools/task'
@@ -56,7 +57,6 @@ import { createDelegateSessionTool } from './agent/tools/delegate-session'
 import { createDelegateCliTool } from './agent/tools/delegate-cli'
 import type { ResolvedSubagentModel } from './agent/tools/task'
 import type { AgentRunContext } from './agent/run-context'
-import type { SessionPeer } from './agent/env'
 import type { SessionDelegation, TurnEndReason } from '../shared/types'
 import type { DelegationAgent } from './session-delegation-service'
 import type { DelegatedTurnInput, DelegationResultInput, AgentTurnResult } from './agent/run-context'
@@ -132,11 +132,17 @@ export interface MeowAgentManagerDeps {
   notifications?: NotificationsSettings
   /** Runtime adapter for durable session-to-session delegation (composed in main). */
   delegation?: {
-    create(options: { sourceRun: AgentRunContext; targetAgentId: string; task: string }): SessionDelegation
+    /** Queues `task` on a freshly created sub-session of the source session. */
+    create(options: {
+      sourceRun: AgentRunContext
+      task: string
+      /** Optional sidebar title for the sub-session (derived from the task when absent). */
+      title?: string
+      /** Optional model request; the manager resolves it before the session exists. */
+      model?: string
+    }): Promise<SessionDelegation>
     createCli?(options: { sourceRun: AgentRunContext; task: string }): SessionDelegation
     checkCli?(): Promise<{ ready: boolean; error?: string }>
-    /** Same-project delegatable peers for the turn reminder. */
-    peers(agentId: string): SessionPeer[]
   }
 }
 
@@ -1217,6 +1223,56 @@ ${content}` : content
     return refs
   }
 
+  /** Every model the user can actually run right now: configured providers plus connected accounts. */
+  async availableModels(): Promise<ModelRef[]> {
+    const refs = this.getProviderModels()
+    const codex = await this.deps.connections?.getActiveCodexModels?.() ?? []
+    const seen = new Set(refs.map(modelLabel))
+    for (const ref of codex) {
+      const label = modelLabel(ref)
+      if (seen.has(label)) continue
+      seen.add(label)
+      refs.push({
+        provider: ref.provider,
+        model: ref.model,
+        ...(ref.accountId ? { accountId: ref.accountId } : {}),
+        ...(ref.accountLabel ? { accountLabel: ref.accountLabel } : {})
+      })
+    }
+    return refs
+  }
+
+  /**
+   * Model for a session created by `delegate_session`: the source session's
+   * model by default, or the user-requested one resolved against the models
+   * that are actually configured (a fuzzy name is accepted; ambiguity is an
+   * error listing the alternatives so the model can retry precisely).
+   */
+  async resolveDelegationModel(sourceAgentId: string, query?: string): Promise<ModelRef> {
+    const requested = query?.trim()
+    if (!requested) {
+      const own = this.getAgentModel(sourceAgentId) ?? this.defaultSessionModel()
+      if (!own) {
+        throw new Error('[meow] No model is configured. Add a provider in Settings before delegating.')
+      }
+      return own
+    }
+    const candidates = await this.availableModels()
+    if (candidates.length === 0) {
+      throw new Error('[meow] No models are configured. Add a provider in Settings before delegating.')
+    }
+    const resolved = resolveModelQuery(requested, candidates)
+    if (resolved.match) return resolved.match
+    if (resolved.candidates.length > 0) {
+      throw new Error(
+        `[meow] Model "${requested}" is ambiguous. Pass one of: ${formatModelCandidates(resolved.candidates)}.`
+      )
+    }
+    throw new Error(
+      `[meow] Model "${requested}" is not configured. Available: ${formatModelCandidates(candidates)}.`
+    )
+  }
+
   async getAvailableVariants(agentId: string): Promise<string[]> {
     const agent = this.agents.get(agentId)
     if (!agent) return []
@@ -1756,7 +1812,7 @@ ${content}` : content
         if (!this.deps.delegation) {
           throw new Error('delegate_session: session delegation is not enabled.')
         }
-        return Promise.resolve(this.deps.delegation.create(input))
+        return this.deps.delegation.create(input)
       },
       runContext: () => this.activeRunCtx(agent.id)
     })
@@ -1822,8 +1878,6 @@ ${content}` : content
             ? loadMemoryIndex(agent.cwd)
             : Promise.resolve({ path: memoryDir(agent.cwd), lines: [] as string[], truncated: false })
         ])
-        const peers = this.deps.delegation?.peers(agent.id)
-        if (peers && peers.length > 0) env.peers = peers
         return buildTurnReminder(env, memory)
       },
       runContext: () => this.activeRunCtx(agent.id),

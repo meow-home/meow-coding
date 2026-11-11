@@ -18,8 +18,23 @@ export interface DelegationAgent {
   sessionId: string
 }
 
+export interface CreateSubSessionInput {
+  sourceAgentId: string
+  sourceSessionId: string
+  task: string
+  /** Optional sidebar title; the runtime derives one from the task when absent. */
+  title?: string
+  /** Free-form model request from the user; absent means "same as the source session". */
+  model?: string
+}
+
 export interface DelegationRuntime {
   resolveAgent(agentId: string): DelegationAgent | undefined
+  /**
+   * Creates a brand-new session in the source's project (a sub-session of the
+   * source) and registers it, returning its identity for the delegation.
+   */
+  createSubSession(input: CreateSubSessionInput): Promise<DelegationAgent>
   isBusy(agentId: string): boolean
   runDelegatedTurn(input: DelegatedTurnInput): Promise<AgentTurnResult>
   appendResult(input: DelegationResultInput): Promise<void>
@@ -32,8 +47,11 @@ export interface DelegationRuntime {
 
 export interface CreateDelegationInput {
   sourceRun: AgentRunContext
-  targetAgentId: string
   task: string
+  /** Optional sidebar title for the new sub-session. */
+  title?: string
+  /** Optional model request for the new sub-session (resolved by the runtime). */
+  model?: string
 }
 
 export interface CreateCliDelegationInput {
@@ -152,28 +170,35 @@ export class SessionDelegationService {
     return this.store
   }
 
-  create(input: CreateDelegationInput): SessionDelegation {
+  async create(input: CreateDelegationInput): Promise<SessionDelegation> {
     const { sourceRun } = input
     if (sourceRun.origin !== 'user') {
       throw new Error('[meow] Only a user-origin run may delegate.')
     }
     const source = this.runtime.resolveAgent(sourceRun.agentId)
     if (!source) throw new Error(`[meow] Source session does not exist: ${sourceRun.agentId}`)
-    const target = this.runtime.resolveAgent(input.targetAgentId)
-    if (!target) throw new Error(`[meow] Delegation target session does not exist: ${input.targetAgentId}`)
-    if (target.agentId === sourceRun.agentId) throw new Error('[meow] A session cannot delegate to itself.')
-    if (source.projectPath !== target.projectPath) {
-      throw new Error('[meow] Delegation is only allowed between sessions in the same project.')
-    }
-    const task = this.validateTask(input.task, target.agentId)
+    const task = validateTaskText(input.task)
+    this.assertSourceCapacity(sourceRun.agentId)
+
+    // The sub-session is created before the record so the delegation always has
+    // a live target; a runtime failure here surfaces as a tool error with
+    // nothing queued.
+    const target = await this.runtime.createSubSession({
+      sourceAgentId: sourceRun.agentId,
+      sourceSessionId: sourceRun.sessionId,
+      task,
+      ...(input.title !== undefined ? { title: input.title } : {}),
+      ...(input.model !== undefined ? { model: input.model } : {})
+    })
 
     const record = this.store.create({
       id: this.id(),
-      projectPath: target.projectPath,
+      projectPath: source.projectPath,
       sourceAgentId: sourceRun.agentId,
       sourceSessionId: sourceRun.sessionId,
       targetAgentId: target.agentId,
       targetSessionId: target.sessionId,
+      targetName: target.name,
       targetBusyAtCreation: this.runtime.isBusy(target.agentId),
       task
     })
@@ -216,6 +241,15 @@ export class SessionDelegationService {
       throw new Error(`[meow] Too many queued delegations for this session (max ${MAX_NONTERMINAL_PER_TARGET}).`)
     }
     return task
+  }
+
+  /** Cap the sub-sessions one source may have in flight (each has its own target). */
+  private assertSourceCapacity(sourceAgentId: string): void {
+    const active = this.store.list({ sourceAgentId })
+      .filter(d => d.status === 'queued' || d.status === 'running' || d.status === 'waiting_for_input')
+    if (active.length >= MAX_NONTERMINAL_PER_TARGET) {
+      throw new Error(`[meow] Too many queued delegations for this session (max ${MAX_NONTERMINAL_PER_TARGET}).`)
+    }
   }
 
   createExternal(input: CreateExternalDelegationInput): SessionDelegation {
@@ -386,7 +420,7 @@ export class SessionDelegationService {
     const isCli = record.targetKind === 'cli'
     const targetName = isCli
       ? ANTIGRAVITY_AGENT_NAME
-      : this.runtime.resolveAgent(record.targetAgentId)?.name ?? record.targetAgentId
+      : record.targetName ?? this.runtime.resolveAgent(record.targetAgentId)?.name ?? record.targetAgentId
 
     const input: DelegationResultInput = {
       delegationId: record.id,

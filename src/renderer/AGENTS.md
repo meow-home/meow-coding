@@ -18,7 +18,7 @@ React renderer (no direct Node/Electron access).
   workspace and activating the waiting agent's session.
 - `src/components/` — `Sidebar` (project list; expand a project to see its session rows with a
   status dot and a per-row rename/stop/delete menu, plus a `+` that creates and activates a
-  session), `SessionPanes`, `Pane`, `SessionTitle`, `EmptyState`,
+  session; a delegated sub-session is indented under its parent with a branch glyph), `SessionPanes`, `Pane`, `SessionTitle`, `EmptyState`,
   `StatusBar`, `TitleBar`, `BackgroundPanel`, `UpdateDialog`, `UpdateToast`,
   `BrowserDialog`, `InstallGuideDialog`, `browser/` (the built-in browser panel: `BrowserOverlay`, `BrowserToolbar`, `BrowserControlBanner`, `BrowserViewport`, `normalizeUrlInput`), `files/` (the Files panel:
   `FilesOverlay`, `FilesTree`, `file-path`, `tree-filter`, `file-icon`, `git-decorations`, `open-tabs`,

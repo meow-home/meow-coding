@@ -3561,6 +3561,11 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 .session-row:hover { background: var(--menu-hover); color: var(--text); }
 .session-row.active { background: var(--menu-active); color: var(--text); }
 .session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); }
+/* Delegated sub-session: indented under its parent, with a branch glyph that
+   stays visible whether or not the status dot is showing. */
+.session-row.sub-session { padding-left: 2.5rem; }
+.session-sub-icon { flex: 0 0 auto; margin-left: -0.333333rem; color: var(--text-dim); opacity: 0.7; }
+.session-row.sub-session:hover .session-sub-icon, .session-row.sub-session.active .session-sub-icon { color: var(--text); opacity: 1; }
 
 /* Status glyph: running/waiting = solid fill; idle = removed. The negative margins hang the dot
    in the row's indent, level with the project name's edge, so names stay aligned either way. */

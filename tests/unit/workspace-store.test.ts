@@ -73,6 +73,46 @@ describe('WorkspaceStore', () => {
     expect(store.get('/proj/a')?.agents[0].mode).toBe('plan')
   })
 
+  it('nests delegated sub-sessions directly under their parent', () => {
+    store.add('/proj/a', 'Project A')
+    const first = store.addAgent('/proj/a', { name: 'Session 1', templateId: 'meow', cwd: '/proj/a', kind: 'native' })
+    const parentId = first.agents[0].id
+    store.addAgent('/proj/a', {
+      name: 'Child 1', templateId: 'meow', cwd: '/proj/a', kind: 'native', parentAgentId: parentId
+    })
+    store.addAgent('/proj/a', { name: 'Session 2', templateId: 'meow', cwd: '/proj/a', kind: 'native' })
+    const sessions = store.list()[0].sessions
+    expect(sessions.map(s => s.name)).toEqual(['Session 2', 'Session 1', 'Child 1'])
+    expect(sessions[2].parentAgentId).toBe(parentId)
+    expect(sessions[0].parentAgentId).toBeUndefined()
+  })
+
+  it('shows an orphaned sub-session as a root row', () => {
+    store.add('/proj/a', 'Project A')
+    store.addAgent('/proj/a', {
+      name: 'Orphan', templateId: 'meow', cwd: '/proj/a', kind: 'native', parentAgentId: 'gone'
+    })
+    const sessions = store.list()[0].sessions
+    expect(sessions).toHaveLength(1)
+    expect(sessions[0].parentAgentId).toBeUndefined()
+  })
+
+  it('lists descendants of a session recursively', () => {
+    store.add('/proj/a', 'Project A')
+    const ws = store.addAgent('/proj/a', { name: 'Root', templateId: 'meow', cwd: '/proj/a', kind: 'native' })
+    const rootId = ws.agents[0].id
+    const childWs = store.addAgent('/proj/a', {
+      name: 'Child', templateId: 'meow', cwd: '/proj/a', kind: 'native', parentAgentId: rootId
+    })
+    const childId = childWs.agents[1].id
+    store.addAgent('/proj/a', {
+      name: 'Grandchild', templateId: 'meow', cwd: '/proj/a', kind: 'native', parentAgentId: childId
+    })
+    expect(store.descendantIds('/proj/a', rootId)).toHaveLength(2)
+    expect(store.descendantIds('/proj/a', childId)).toHaveLength(1)
+    expect(store.descendantIds('/proj/a', 'missing')).toEqual([])
+  })
+
   it('reorders workspaces by path order', () => {
     store.add('/proj/a', 'Project A')
     store.add('/proj/b', 'Project B')

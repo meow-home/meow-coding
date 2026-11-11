@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  ChevronDown, ChevronRight, Code, FolderOpen, FolderSymlink, GitBranch, Moon, MoreVertical,
-  PanelLeft, Pencil, Plus, RefreshCw, Server, Settings, Square, Sun, Terminal, Trash2, X
+  ChevronDown, ChevronRight, Code, CornerDownRight, FolderOpen, FolderSymlink, GitBranch, Moon,
+  MoreVertical, PanelLeft, Pencil, Plus, RefreshCw, Server, Settings, Square, Sun, Terminal, Trash2, X
 } from 'lucide-react'
 import BaseDropdown from './common/BaseDropdown'
 import ConfirmDialog from './ConfirmDialog'
@@ -349,13 +349,20 @@ export default function Sidebar({
                   const status = sessionStatus(ws.projectPath, s.id)
                   const running = isSessionRunning(ws.projectPath, s.id)
                   const activeSession = activeSessionByPath[ws.projectPath] === s.id && ws.projectPath === activePath
+                  const parent = s.parentAgentId
+                    ? ws.sessions.find(p => p.id === s.parentAgentId)
+                    : undefined
                   return (
                     <li
                       key={s.id}
-                      className={`session-row ${activeSession ? 'active' : ''}`}
+                      className={`session-row ${activeSession ? 'active' : ''}${s.parentAgentId ? ' sub-session' : ''}`}
+                      title={parent ? `Sub-session of ${parent.name}` : undefined}
                       onClick={() => onSelectSession(ws.projectPath, s.id)}
                     >
                       <span className={`session-dot session-status-${status}`} aria-label={status} />
+                      {s.parentAgentId && (
+                        <CornerDownRight className="session-sub-icon" size={12} aria-hidden="true" />
+                      )}
                       <span className="session-name">{s.name}</span>
                       <SessionRowMenu
                         running={running}

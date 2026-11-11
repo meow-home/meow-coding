@@ -22,6 +22,7 @@ export interface CreateDelegationRecord {
   sourceSessionId: string
   targetAgentId: string
   targetSessionId: string
+  targetName?: string
   targetBusyAtCreation: boolean
   task: string
   sourceKind?: 'session' | 'external'
@@ -112,6 +113,7 @@ export class SessionDelegationStore {
       sourceSessionId: input.sourceSessionId,
       targetAgentId: input.targetAgentId,
       targetSessionId: input.targetSessionId,
+      ...(input.targetName !== undefined ? { targetName: input.targetName } : {}),
       task: input.task,
       status: 'queued',
       revision: 1,

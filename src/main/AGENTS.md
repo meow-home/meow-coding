@@ -8,11 +8,17 @@ handlers and the app lifecycle.
 - `index.ts` — `MainApp` coordinates everything: setState, forwards `agent:state`/`git:status` events
   to the renderer; `registerIpcHandlers`; window lifecycle; `before-quit` → `terminals.flush()`,
   `Promise.allSettled([terminals.stopAll(), pty.stopAll(), antigravity.cancelAll()])`.
+  `MainApp.removeAgent(projectPath, agentId)` deletes a session together with every delegated
+  sub-session (`workspace-store.descendantIds`), cleaning the agent runtime, terminals, browser tabs,
+  delegation records and state for each.
   Composes `TerminalManager` (`userData/terminals`, dedicated `PtyManager`, `resolveTerminalShell` via `meow.json`)
   and exposes session terminal IPC channels; cleans up terminals on `agent:remove` before workspace removal.
   Composes `AntigravityCli` (`cli-agents/`): readiness check/test IPC via `registerCliAgentsIpc`, runs delegated CLI tasks for the delegation runtime (`runCliTask`/`stopCliTask`), and terminates active runs on quit.
   Composes the delegation runtime: owns the `SessionDelegationStore` (`userData/delegations.json`) +
-  `SessionDelegationService`, passes the narrow `delegation` adapter (create/peers) into `MeowAgentManager`,
+  `SessionDelegationService`, implements `runtime.createSubSession` (resolves the model through
+  `meowAgent.resolveDelegationModel`, writes the `parentAgentId`-tagged agent, registers it with
+  `ensureAgent`, and pushes `workspace:changed` so the sidebar lists it at once), passes the narrow
+  `delegation` adapter (create/createCli/checkCli) into `MeowAgentManager`,
   starts the service on ready, suspends+flushes on quit, drives `notifyAgentAvailable` on each turn
   done/error and on the manager's `onAgentAvailable` (idle `/compact` end), and handles agent/project removal.
   The main window logs `render-process-gone` (reason/exitCode), `unresponsive` and `responsive` to the
@@ -66,10 +72,12 @@ handlers and the app lifecycle.
   event (only when the store actually wrote it, so recovery cannot duplicate the bubble); `onUserMessage`
   is not called, so delegation does not drive the sidebar auto-name hook (the store's first-message
   session-title derivation still applies)),
-  and feeds same-project `SessionPeer`s into the turn reminder. Exposes `getMode(agentId)` so the main
-  process can resolve live peer modes for the reminder / peer roster.
+  and resolves the sub-session's model for `delegate_session` (`resolveDelegationModel(sourceAgentId,
+  query?)`: the source's model by default, else a user-requested model matched against the configured
+  providers/accounts; an ambiguous/unknown value errors with the candidates).
   `ensureAgent(agent)` awaits registration of a native session (used by external delegation for
-  projects that were never opened).
+  projects that were never opened, and by `delegate_session` to register a sub-session without touching
+  the draft-session model preference).
 - `pty-manager.ts` — node-pty wrapper, emits `data`/`exit` events. `buildSpawnCommand` wraps non-`.exe`
   commands through `cmd.exe` on Windows (ConPTY cannot spawn `.cmd` shims directly). `startTerminal` spawns
   session terminals directly without shim wrapping; `writeRaw` sends raw terminal input without
@@ -78,14 +86,17 @@ handlers and the app lifecycle.
 - `terminal-buffer.ts` — `ScrollbackBuffer`: in-memory scrollback buffer with byte cap and UTF-16 surrogate safety; `OutputBatcher`: coalesces terminal output chunks within a time window or flushes synchronously on size threshold.
 - `terminal-store.ts` — `TerminalStore`: persists session terminal metadata (`userData/terminals/<agentId>/index.json`) and scrollback logs (`<termId>.log`) via `writeFileAtomic`, prunes stale log files on save, and tolerates missing or corrupt index files.
 - `terminal-manager.ts` — `TerminalManager`: orchestrates session terminal lifecycles (`create`, `list`, `attach`, `detach`, `write`, `resize`, `rename`, `restart`, `kill`, `removeSession`, `flush`, `stopAll`) with max 8 terminals per session cap, dedicated `PtyManager` instance, scrollback buffering (512 KiB cap), output batching (16ms / 64 KiB), periodic running-session persistence (30s), and generational tracking to guard against late exit events.
-- `workspace-store.ts` — CRUD on `JsonStore<T>` (`userData/workspaces.json`); `list()` returns session summaries newest-first.
+- `workspace-store.ts` — CRUD on `JsonStore<T>` (`userData/workspaces.json`); `list()` returns session summaries newest-first, with each delegated sub-session (`AgentConfig.parentAgentId`) placed directly under its parent (`SessionMeta.parentAgentId` marks the nesting; an orphaned child is listed as a root). `descendantIds(projectPath, agentId)` feeds the cascade delete in `MainApp.removeAgent`.
 - `session-delegation-store.ts` — durable `SessionDelegation[]` store for session-to-session delegation
   (`userData/delegations.json`): revision-checked/idempotent transitions, post-terminal `deliveredAt`/`wakeAt`
   metadata, `recoverInterrupted()` for restart recovery, and `purgeTerminalBefore()` retention. Project paths
   are normalized (Windows lower-cased + forward slashes). See `docs/reference/06-data-and-storage.md#64b`.
 - `session-delegation-service.ts` — `SessionDelegationService`: orchestrates delegation lifecycle by
-  pumping a per-target scheduler (`start`/`notifyAgentAvailable`/`flush`/`suspend`). Validates creation
-  (user-origin run, distinct same-project target, ≤32 KiB task, ≤5 nonterminal per target), runs queued
+  pumping a per-target scheduler (`start`/`notifyAgentAvailable`/`flush`/`suspend`). `create({ sourceRun,
+  task, title?, model? })` is async: it validates (user-origin run, ≤32 KiB task, ≤5 nonterminal per
+  source), asks `runtime.createSubSession` for a **new** session in the source's project (so no target id
+  is ever passed) and queues the task on it, storing `targetName` for result labels. `createCli` is
+  unchanged. It runs queued
   FIFO via a `DelegationRuntime`, persists terminal results, marks `deliveredAt`/`wakeAt`, truncates
   UTF-8 results to 64 KiB, stores the turn's `endReason` (`max-steps`/`stuck`/`length`/`refusal`, from
   `AgentTurnResult.endReason`, which the manager captures from the run's `done` event; a cut turn with no assistant text is still
@@ -96,9 +107,6 @@ handlers and the app lifecycle.
   `sourceKind: 'external'` records: no source checks, no result append/wake, only `markDelivered`) and `cancel(id)`
   (queued → cancelled; running → `runtime.stopRun` or `runtime.stopCliTask`, then waits up to 5 s for the terminal status
   and returns the latest record). `validateTaskText` (trim, non-empty, ≤ 32 KiB) is exported for the external facade.
-- `peer-roster.ts` — `computePeerTargets(workspaces, lookup)` computes delegatable same-project peer
-  `SessionPeer`s (excluding the requester) with live mode/run-state supplied by the caller. Used for the
-  per-turn `delegate_session` reminder and the delegate tool's target discovery.
 - `session-file-store.ts` (in `agent/`) — per-session JSONL storage; `MainApp.sessionFiles` is the shared instance, and the app-ready chain calls its `migrateLegacy()` after the v0.37 reset.
 - `fresh-start.ts` — one-time **destructive** v0.37 model switch: `resetToSingleSession` replaces every
   project's agents with a single fresh native session and deletes `userData/sessions.json`. Runs once,
@@ -125,6 +133,7 @@ handlers and the app lifecycle.
   the renderer Files overlay (`files:search`); `dir-lister.ts` additionally exposes `listProjectDir` for the
   overlay's non-ignoring, project-scoped tree.
 - `file-viewer.ts` — file viewer content reading (`readFileContent`, `isTextPath`, `looksLikeBinaryContent`, `MAX_VIEWER_BYTES`), image content reading (`readImageDataUrl`, `isImagePath`, `MAX_IMAGE_BYTES`), and opening files with system app (`openWithSystemApp`).
+- `model-select.ts` — `resolveModelQuery(query, refs)` matches a free-form model request (exact `provider/model`, exact model id, or words like "claude sonnet") against the configured models and returns a unique match or the tied candidates; `formatModelCandidates` renders them for tool errors. Used by `MeowAgentManager.resolveDelegationModel`.
 - `models-catalog.ts` / `model-variants.ts` — model provider catalog + variants (reasoning, pricing); `fetchLiveModelsInfo` syncs any OpenAI-compatible `/models` endpoint (used when connecting a provider or clicking "Sync models"). `meow-agent-manager.connectProvider` accepts a hand-typed `models[]` (the way to add an arbitrary OpenAI-compatible baseUrl + key), falling back to live `/models` → catalog → stored list.
 - `updater.ts` — electron-updater wrapper, emits `UpdaterStatusEvent`. Background updates:
   `autoDownload` + `autoInstallOnAppQuit` are on, and `install()` uses `quitAndInstall(true, true)`

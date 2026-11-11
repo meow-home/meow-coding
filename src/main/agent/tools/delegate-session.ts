@@ -2,44 +2,51 @@ import { z } from 'zod'
 import type { ToolContext, ToolDefinition, ToolRunResult } from './types'
 import type { SessionDelegation } from '../../../shared/types'
 import type { AgentRunContext } from '../run-context'
-import type { SessionDelegationService } from '../../session-delegation-service'
 
 export interface DelegateSessionToolDeps {
   createDelegation(options: {
     sourceRun: AgentRunContext
-    targetAgentId: string
     task: string
+    title?: string
+    model?: string
   }): Promise<SessionDelegation>
   runContext?: () => AgentRunContext | undefined
 }
 
 /**
- * Routes a focused task to an existing persistent session (as opposed to the
- * isolated ephemeral `task` subagent). The target session keeps its own model,
- * mode, permission rules, hooks, MCP servers, and tools, and its result is
- * returned to the source durably.
+ * Spawns a dedicated sub-session for a focused task (as opposed to the
+ * ephemeral `task` subagent, which has no transcript of its own). The new
+ * session is listed in the sidebar under this one, runs independently, and its
+ * result is returned here durably.
  */
 export function createDelegateSessionTool(opts: DelegateSessionToolDeps): ToolDefinition {
   return {
     name: 'delegate_session',
     description:
-      'Route a focused task to another existing persistent session in the same project, in ' +
-      'contrast to the isolated ephemeral `task` worker. The target session runs with its own ' +
-      'model, mode, permission rules, hooks, MCP servers, tools, and memory. It executes ' +
-      'independently and returns its result to this session durably. Delegations are queued and ' +
-      'run one at a time per target session; you can continue working here while it runs. Do NOT ' +
-      'edit the scope you delegate before the result returns.',
+      'Create a new persistent sub-session in this project for a focused task, in contrast to the ' +
+      'isolated ephemeral `task` worker. The sub-session is shown in the sidebar under this session, ' +
+      'keeps its own transcript, model, mode, permission rules, hooks, MCP servers and tools, and ' +
+      'returns its result here durably. It runs on this session\'s model unless you pass `model` ' +
+      '(the user asked for a different one); the runtime resolves a model id or a name like "opus" ' +
+      'and, when the value is ambiguous or unknown, the error lists the available models so you can ' +
+      'retry with one of them. Do NOT edit the scope you delegate before the result returns.',
     schema: z.object({
-      target_session_id: z.string()
-        .describe('The agent/session id of the target persistent session in this project'),
       task: z.string()
-        .describe('The concrete task for the target session to execute independently')
+        .describe('The concrete, self-contained task for the new sub-session to execute independently'),
+      title: z.string().optional()
+        .describe('Short sidebar title for the sub-session; derived from the task when omitted'),
+      model: z.string().optional()
+        .describe(
+          'Model for the sub-session (e.g. "anthropic/claude-sonnet-4-5" or "opus"). Omit to use ' +
+          'this session\'s model. On an ambiguous or unknown value the error lists the available models.'
+        )
     }).strict(),
     async run(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolRunResult> {
-      const { target_session_id: targetAgentId, task } = input as {
-        target_session_id: string
-        task: string
-      }
+      const {
+        task,
+        title,
+        model
+      } = input as { task: string; title?: string; model?: string }
       const runContext = opts.runContext?.()
       if (!runContext) {
         return { error: 'delegate_session: no run context is available for this invocation.' }
@@ -51,14 +58,16 @@ export function createDelegateSessionTool(opts: DelegateSessionToolDeps): ToolDe
       try {
         record = await opts.createDelegation({
           sourceRun: runContext,
-          targetAgentId,
-          task
+          task,
+          ...(title?.trim() ? { title: title.trim() } : {}),
+          ...(model?.trim() ? { model: model.trim() } : {})
         })
       } catch (err) {
         return { error: `delegate_session: ${err instanceof Error ? err.message : String(err)}` }
       }
+      const target = record.targetName ? `"${record.targetName}" (${record.targetAgentId})` : record.targetAgentId
       const result: ToolRunResult = {
-        output: `Delegation ${record.id} queued for session ${record.targetAgentId}.`,
+        output: `Delegation ${record.id} queued in new sub-session ${target}.`,
         metadata: { delegationId: record.id }
       }
       return result

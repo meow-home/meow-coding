@@ -24,7 +24,7 @@ in `src/main/index.ts`).
 |---|---|---|---|
 | `meow.json` | `agent/config.ts` `writeMeowConfig` | object | The whole agent configuration; see [6.3](#63-meowjson-reference) |
 | `delegations.json` | `session-delegation-store.ts` | `SessionDelegation[]` | Durable record of session-to-session delegation runs; see [6.4](#64-session-format) below |
-| `workspaces.json` | `workspace-store.ts` | `Workspace[]` | Project path, name, agents (id, name, templateId, cwd, kind, mode, variant, model, accountId, background) |
+| `workspaces.json` | `workspace-store.ts` | `Workspace[]` | Project path, name, agents (id, name, templateId, cwd, kind, mode, variant, model, accountId, background, parentAgentId for delegated sub-sessions) |
 | `projects/<encoded>/<sessionId>.jsonl` | `agent/session-file-store.ts` | JSONL records | **Current session storage** — one append-only file per session, one JSON object per line. See [6.4](#64-session-format) |
 | `sessions-index.json` | `agent/session-file-store.ts` | `SessionIndexEntry[]` | Lightweight session summaries (id, agentId, projectPath, title, messageCount, timestamps, usage) so listing does not parse every transcript. Debounced; rebuilt by scanning `projects/` when missing or corrupt (parked as `.corrupt`). See [6.4](#64-session-format) |
 | `sessions.json.migrated-bak` | `agent/session-migrate.ts` | `StoredSession[]` | The legacy single-file store, kept as a backup after the one-time migration. Never deleted |
@@ -288,6 +288,7 @@ interface SessionDelegation {
   sourceSessionId: string
   targetAgentId: string
   targetSessionId: string
+  targetName?: string       // target display name at creation (survives its removal)
   task: string
   status: 'queued' | 'running' | 'waiting_for_input'
         | 'completed' | 'failed' | 'cancelled' | 'interrupted'
@@ -310,6 +311,11 @@ interface SessionDelegation {
 }
 ```
 
+- `delegate_session` records target a **sub-session created for the run**: `targetAgentId` /
+  `targetSessionId` / `targetName` point at a session spawned in the source's project, whose
+  `AgentConfig.parentAgentId` is the source agent (the sidebar nests it under that row). The source may
+  have at most five nonterminal records; the target itself is never reused, so parallel delegations run
+  independently.
 - `sourceKind: 'external'` records come from the [external delegation](08-integrations.md#86-external-delegation-claude-code--meow)
   API: `sourceAgentId`/`sourceSessionId` are the sentinel `external:claude`, there is no source session
   to append results to or wake, and `planKey` is how the facade finds the session to reuse for a given

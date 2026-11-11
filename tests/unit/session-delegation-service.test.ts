@@ -6,6 +6,7 @@ import { createJsonStore } from '../../src/main/json-store'
 import { SessionDelegationStore } from '../../src/main/session-delegation-store'
 import { SessionDelegationService } from '../../src/main/session-delegation-service'
 import type {
+  CreateSubSessionInput,
   DelegationAgent,
   DelegationRuntime,
   CreateDelegationInput,
@@ -20,6 +21,11 @@ const run = (over: Partial<AgentRunContext> = {}): AgentRunContext => ({
 class FakeRuntime implements DelegationRuntime {
   agents = new Map<string, DelegationAgent>()
   busy = new Set<string>()
+  /** Created sub-sessions, in creation order. */
+  subSessions: CreateSubSessionInput[] = []
+  /** When true, every freshly created sub-session starts busy (so work queues). */
+  busyNewTargets = false
+  private nextSub = 0
   turns: DelegatedTurnInput[] = []
   results: DelegationResultInput[] = []
   wakes: DelegationResultInput[] = []
@@ -65,6 +71,15 @@ class FakeRuntime implements DelegationRuntime {
     const entry = { release, promise }
     this.gates.set(id, entry)
     return entry
+  }
+  async createSubSession(input: CreateSubSessionInput): Promise<DelegationAgent> {
+    this.subSessions.push(input)
+    this.nextSub += 1
+    const agentId = `sub-${this.nextSub}`
+    const projectPath = this.agents.get(input.sourceAgentId)?.projectPath ?? '/p'
+    this.add(agentId, projectPath, input.title ?? `Sub ${this.nextSub}`)
+    if (this.busyNewTargets) this.busy.add(agentId)
+    return this.agents.get(agentId)!
   }
   resolveAgent(agentId: string): DelegationAgent | undefined { return this.agents.get(agentId) }
   isBusy(agentId: string): boolean { return this.busy.has(agentId) }
@@ -123,7 +138,6 @@ function setup(overrides: { source?: string; target?: string; projectPath?: stri
 
 const input = (over: Partial<CreateDelegationInput> = {}): CreateDelegationInput => ({
   sourceRun: run(),
-  targetAgentId: 'beta',
   task: 'do the thing',
   ...over
 })
@@ -156,63 +170,81 @@ describe('SessionDelegationService', () => {
   describe('validation', () => {
     it('rejects a non-user-origin run', async () => {
       await env.service.start()
-      expect(() => env.service.create(input({ sourceRun: run({ origin: 'delegation' }) }))).toThrow(/user/i)
+      await expect(env.service.create(input({ sourceRun: run({ origin: 'delegation' }) }))).rejects.toThrow(/user/i)
     })
-    it('rejects self-delegation', async () => {
+    it('rejects a missing source session', async () => {
       await env.service.start()
-      expect(() => env.service.create(input({ targetAgentId: 'alpha' }))).toThrow(/self/i)
-    })
-    it('rejects a missing target', async () => {
-      await env.service.start()
-      expect(() => env.service.create(input({ targetAgentId: 'nobody' }))).toThrow(/target/i)
-    })
-    it('rejects cross-project delegation', async () => {
-      await env.service.start()
-      env.runtime.add('other', '/q')
-      expect(() => env.service.create(input({ targetAgentId: 'other' }))).toThrow(/project/i)
+      await expect(env.service.create(input({ sourceRun: run({ agentId: 'nobody' }) })))
+        .rejects.toThrow(/source session does not exist/i)
     })
     it('rejects blank task and >32 KiB task', async () => {
       await env.service.start()
-      expect(() => env.service.create(input({ task: '   ' }))).toThrow(/empty/i)
-      expect(() => env.service.create(input({ task: 'x'.repeat(32 * 1024 + 1) }))).toThrow(/KiB/i)
+      await expect(env.service.create(input({ task: '   ' }))).rejects.toThrow(/empty/i)
+      await expect(env.service.create(input({ task: 'x'.repeat(32 * 1024 + 1) }))).rejects.toThrow(/KiB/i)
+      expect(env.runtime.subSessions).toHaveLength(0)
+    })
+  })
+
+  describe('sub-session creation', () => {
+    it('creates a sub-session in the source project and targets it', async () => {
+      await env.service.start()
+      const rec = await env.service.create(input({ title: 'Widget work', model: 'opus' }))
+      expect(env.runtime.subSessions).toEqual([{
+        sourceAgentId: 'alpha',
+        sourceSessionId: 'alpha-s',
+        task: 'do the thing',
+        title: 'Widget work',
+        model: 'opus'
+      }])
+      expect(rec.targetAgentId).toBe('sub-1')
+      expect(rec.targetSessionId).toBe('sub-1-s')
+      expect(rec.targetName).toBe('Widget work')
+      expect(rec.projectPath).toBe('/p')
+      expect(rec.status).toBe('queued')
     })
   })
 
   describe('limits', () => {
-    it('caps nonterminal delegations per target at five', async () => {
+    it('caps nonterminal delegations per source at five', async () => {
       await env.service.start()
-      env.runtime.busy.add('beta')
-      for (let i = 0; i < 5; i++) env.service.create(input({ task: `t${i}` }))
-      expect(() => env.service.create(input({ task: 'overflow' }))).toThrow(/5/)
+      env.runtime.busyNewTargets = true
+      for (let i = 0; i < 5; i++) await env.service.create(input({ task: `t${i}` }))
+      await expect(env.service.create(input({ task: 'overflow' }))).rejects.toThrow(/5/)
+      expect(env.runtime.subSessions).toHaveLength(5)
     })
   })
 
   describe('scheduling', () => {
-    it('runs immediately when the target is idle', async () => {
+    it('runs immediately when the new sub-session is idle', async () => {
       await env.service.start()
-      env.service.create(input())
+      await env.service.create(input())
       await env.service.flush()
       expect(env.runtime.turns.map(t => t.task)).toEqual(['do the thing'])
       expect(env.service.getStatus(env.runtime.turns[0].delegationId)?.status).toBe('completed')
       expect(env.runtime.results).toHaveLength(1)
     })
 
-    it('runs multiple queued delegations FIFO in creation order', async () => {
+    it('gives every delegation its own sub-session so they run independently', async () => {
       await env.service.start()
-      // Deterministic FIFO: seed two queued records (via a busy target to get
-      // them queued) but create them in-order, then drain.
-      env.runtime.busy.add('beta')
-      const a = env.service.create(input({ task: 'a' }))
-      const b = env.service.create(input({ task: 'b' }))
-      expect(env.service.getStatus(a.id)?.status).toBe('queued')
-      expect(env.service.getStatus(b.id)?.status).toBe('queued')
+      const a = await env.service.create(input({ task: 'a' }))
+      const b = await env.service.create(input({ task: 'b' }))
+      await env.service.flush()
+      expect(a.targetAgentId).not.toBe(b.targetAgentId)
+      expect(env.runtime.turns.map(t => t.task).sort()).toEqual(['a', 'b'])
+      expect(env.service.getStatus(a.id)?.status).toBe('completed')
+      expect(env.service.getStatus(b.id)?.status).toBe('completed')
+    })
+
+    it('keeps a delegation queued while its own sub-session is busy', async () => {
+      await env.service.start()
+      env.runtime.busyNewTargets = true
+      const d = await env.service.create(input())
+      expect(env.service.getStatus(d.id)?.status).toBe('queued')
       expect(env.runtime.turns).toHaveLength(0)
-      // Drain: notify availability; pump runs a then b, in creation order.
-      env.runtime.busy.delete('beta')
-      env.service.notifyAgentAvailable('beta')
-      await until(() => env.service.getStatus(a.id)?.status === 'completed' && env.service.getStatus(b.id)?.status === 'completed')
-      expect(env.runtime.turns.map(t => t.delegationId)).toEqual([a.id, b.id])
-      expect(env.runtime.turns.map(t => t.task)).toEqual(['a', 'b'])
+      env.runtime.busy.delete(d.targetAgentId)
+      env.service.notifyAgentAvailable(d.targetAgentId)
+      await env.service.flush()
+      expect(env.service.getStatus(d.id)?.status).toBe('completed')
     })
   })
 
@@ -238,7 +270,7 @@ describe('SessionDelegationService', () => {
   describe('delivery', () => {
     it('persists terminal, appends result, marks delivered, then wakes', async () => {
       await env.service.start()
-      const d = env.service.create(input())
+      const d = await env.service.create(input())
       await env.service.flush()
       const rec = env.service.getStatus(d.id)
       expect(rec?.status).toBe('completed')
@@ -301,8 +333,8 @@ describe('SessionDelegationService', () => {
 
     it('cancels queued only', async () => {
       await env.service.start()
-      env.runtime.busy.add('beta')
-      const d = env.service.create(input())
+      env.runtime.busyNewTargets = true
+      const d = await env.service.create(input())
       const cancelled = await env.service.cancelQueued(d.id)
       expect(cancelled.status).toBe('cancelled')
       expect(env.runtime.turns).toHaveLength(0)
@@ -311,19 +343,19 @@ describe('SessionDelegationService', () => {
 
     it('fails queued work when the target agent is removed', async () => {
       await env.service.start()
-      env.runtime.busy.add('beta')
-      const d = env.service.create(input())
-      await env.service.handleAgentRemoved('beta')
+      env.runtime.busyNewTargets = true
+      const d = await env.service.create(input())
+      await env.service.handleAgentRemoved(d.targetAgentId)
       expect(env.service.getStatus(d.id)?.status).toBe('failed')
     })
 
     it('suspends shutdown without scheduling further', async () => {
       await env.service.start()
-      env.runtime.busy.add('beta')
-      const d = env.service.create(input())
+      env.runtime.busyNewTargets = true
+      const d = await env.service.create(input())
       env.service.suspend()
-      env.runtime.busy.delete('beta')
-      env.service.notifyAgentAvailable('beta')
+      env.runtime.busy.delete(d.targetAgentId)
+      env.service.notifyAgentAvailable(d.targetAgentId)
       await env.service.flush()
       expect(env.runtime.turns).toHaveLength(0)
       expect(env.service.getStatus(d.id)?.status).toBe('queued')
@@ -333,7 +365,7 @@ describe('SessionDelegationService', () => {
   describe('claimSourceWake', () => {
     it('claims a wake once and rejects a second claim', async () => {
       await env.service.start()
-      const d = env.service.create(input())
+      const d = await env.service.create(input())
       await env.service.flush()
       expect(await env.service.claimSourceWake(d.id, 2_000_000)).toBe(true)
       expect(env.service.getStatus(d.id)?.wakeAt).toBe(2_000_000)

@@ -21,6 +21,8 @@ export interface AgentConfig {
   /** OAuth connection account for account-scoped providers (e.g. codex). */
   accountId?: string
   background?: boolean
+  /** Parent session that spawned this one through delegation (a sub-session). */
+  parentAgentId?: string
 }
 
 export interface Workspace {
@@ -32,6 +34,8 @@ export interface Workspace {
 export interface SessionMeta {
   id: string
   name: string
+  /** Set on a delegated sub-session; the sidebar nests it under its parent. */
+  parentAgentId?: string
 }
 
 export interface WorkspaceSummary {
@@ -121,6 +125,7 @@ export interface NewAgentInput {
   mode?: AgentMode
   model?: string
   accountId?: string
+  parentAgentId?: string
 }
 
 export interface MessageTokens {
@@ -188,6 +193,8 @@ export interface SessionDelegation {
   sourceSessionId: string
   targetAgentId: string
   targetSessionId: string
+  /** Display name of the target session at creation time (survives its removal). */
+  targetName?: string
   task: string
   status: DelegationStatus
   revision: number

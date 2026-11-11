@@ -24,9 +24,9 @@ dynamically selected one, so a user switching the UI-selected session mid-run ne
 usage, todo, replacement, or artifact writes. Delegation state itself lives in `SessionDelegationStore`
 see [06 §6.4b](06-data-and-storage.md#64b-session-delegation-delegationsjson).
 The `delegate_session` tool is registered per runner by the manager, guards that only a user-origin run
-may delegate (one level deep), and calls the composed service's `create` validated path. Each turn's
-reminder carries a bounded list of same-project peer `SessionPeer`s (id/name/mode/state) so the model can
-target a live peer and knows to leave the delegated scope untouched until its result returns.
+may delegate (one level deep), and calls the composed service's `create` validated path. `create` first
+spawns a **new sub-session** in the source's project (no target id is passed) and then queues the task on
+it, so every delegation has its own transcript and runs independently.
 
 `SessionRunner` is stateless between turns except for a few per-run counters; it reads and writes
 the session transcript through callbacks (`getItems`, `appendMessage`, `appendTool`,
@@ -39,8 +39,12 @@ delegation by pumping one scheduler loop per target agent through a `DelegationR
 only writer of `SessionDelegationStore` records.
 
 - **Creation** (`create`, `createCli`) is validated up front and persists a durable `queued` record before any
-  scheduling: only a user-origin run may delegate; self-delegation, a missing target, cross-project
-  targets, a blank/`>32 KiB` task, and `>5` nonterminal records for the same target are all rejected.
+  scheduling: only a user-origin run may delegate; a missing source session, a blank/`>32 KiB` task, and
+  `>5` nonterminal records for the same source are all rejected. `create` then asks the runtime's
+  `createSubSession` for a brand-new session in the source's project (same model as the source unless the
+  tool's `model` query resolves to another configured model, normal build mode, with `parentAgentId` set
+  for the sidebar) and targets that session; the runtime also pushes
+  `workspace:changed` so the renderer lists it immediately.
   `createCli` delegates to the Antigravity CLI (`targetKind: 'cli'`, fixed target id `antigravity`), which runs the task in the source session's project folder.
 - **Scheduling** — `start()`/`notifyAgentAvailable(agentId)` kick a target loop that selects queued
   work FIFO by `createdAt`. A busy target (per the runtime) parks the loop on a waiter that
@@ -56,10 +60,11 @@ only writer of `SessionDelegationStore` records.
 - **Recovery** — `start()` interrupts in-flight `running`/`waiting_for_input` records (delivering the
   interruption once, never rerunning the target task), redelivers terminal results missing
   `deliveredAt`, repumps queued records, and runs retention cleanup.
-- **Tool + peers** — `MeowAgentManager.register` constructs the `delegate_session` tool bound to a
-  narrow `deps.delegation` adapter (composed in `index.ts`), tracks a fixed `AgentRunContext` per
-  in-flight turn, and supplies same-project `SessionPeer`s to the reminder so the model targets live,
-  same-project sessions only.
+- **Tool** — `MeowAgentManager.register` constructs the `delegate_session` tool bound to a narrow
+  `deps.delegation` adapter (composed in `index.ts`) and tracks a fixed `AgentRunContext` per in-flight
+  turn. `MeowAgentManager.resolveDelegationModel` supplies the sub-session's model: the source's model
+  by default, or a user-requested one resolved through `model-select.ts` against the configured
+  providers/accounts (ambiguity is an error listing the candidates).
 
 ## 3.2 Registration (`MeowAgentManager.register`)
 

@@ -137,6 +137,22 @@ describe('MeowAgentManager delegation runtime', () => {
     expect(manager.listAgents().filter(a => a.id === 'ext-1')).toHaveLength(1)
   })
 
+  it('defaults a delegated sub-session to the source session model', async () => {
+    const { manager } = await makeManager()
+    expect(await manager.resolveDelegationModel('a1')).toEqual({ provider: 'test', model: 'test-model' })
+  })
+
+  it('resolves a requested model by exact id or provider/model', async () => {
+    const { manager } = await makeManager()
+    expect(await manager.resolveDelegationModel('a1', 'test-model')).toEqual({ provider: 'test', model: 'test-model' })
+    expect(await manager.resolveDelegationModel('a1', 'test/test-model')).toEqual({ provider: 'test', model: 'test-model' })
+  })
+
+  it('lists the configured models when a requested model is unknown', async () => {
+    const { manager } = await makeManager()
+    await expect(manager.resolveDelegationModel('a1', 'nope')).rejects.toThrow(/not configured.*test\/test-model/)
+  })
+
   it('runs a delegated turn against the fixed target session and returns a correlated result', async () => {
     const { manager, store } = await makeManager()
     const input: DelegatedTurnInput = {
