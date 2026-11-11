@@ -116,7 +116,7 @@ test('the Tasks panel docks in the right column and maximizes over the pane area
     await openFromToolbar(window, 'tasks')
     await window.locator('.tasks-panel').waitFor()
     // Docked: one cell of the right-hand grid, exactly like the Files panel.
-    await expect(window.locator('.right-panels-grid > .tasks-panel')).toHaveCount(1)
+    await expect(window.locator('.right-panel-cell > .tasks-panel')).toHaveCount(1)
     const main = await rectOf(window, '.main')
     const grid = await rectOf(window, '.right-panels-grid')
     const docked = await rectOf(window, '.tasks-panel')
@@ -132,6 +132,60 @@ test('the Tasks panel docks in the right column and maximizes over the pane area
     const full = await rectOf(window, '.tasks-panel.full')
     expect(full!.x).toBeCloseTo(main!.x, 0)
     expect(full!.w).toBeCloseTo(main!.w, 0)
+  } finally {
+    await app.close()
+    rmSync(userData, { recursive: true, force: true })
+    rmSync(project, { recursive: true, force: true })
+  }
+})
+
+// The grid fills its cells column by column, so a short column's panel stretches over
+// the rows the others left. With three docked panels the third one spans both rows of
+// the right column instead of sitting in the top cell and leaving the cell below it
+// empty (the bug this guards).
+test('three docked panels fill the grid without an empty cell', async () => {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  seedWorkspaces(userData, project)
+  const { app, window } = await launch(userData)
+  try {
+    await window.locator('.title-bar-tools .icon-btn[aria-label="Toggle files"]').click()
+    await window.locator('.files-overlay').waitFor()
+    await openFromToolbar(window, 'tasks')
+    await window.locator('.tasks-panel').waitFor()
+    await window.locator('.title-bar-tools .icon-btn[aria-label="Toggle Git panel"]').click()
+    await window.locator('.git-panel').waitFor()
+
+    await expect(window.locator('.right-panel-cell')).toHaveCount(3)
+    const grid = await rectOf(window, '.right-panels-grid')
+    const files = await rectOf(window, '.files-overlay.docked')
+    const tasks = await rectOf(window, '.tasks-panel')
+    const git = await rectOf(window, '.git-panel.docked')
+    expect(grid && files && tasks && git).toBeTruthy()
+
+    // The two first panels share the left column, one above the other.
+    expect(files!.x).toBeCloseTo(tasks!.x, 0)
+    expect(tasks!.y).toBeGreaterThan(files!.y + files!.h - 2)
+    expect(files!.w).toBeCloseTo(tasks!.w, 0)
+    // The third spans both rows of the right column: no empty cell under it.
+    expect(git!.x).toBeGreaterThan(files!.x + files!.w - 2)
+    expect(git!.h).toBeCloseTo(grid!.h, 0)
+    expect(git!.w).toBeCloseTo(files!.w, 0)
+
+    // Two panels in one column give that column a vertical splitter.
+    const splitter = window.locator('.right-panels-row-resizer')
+    await expect(splitter).toHaveCount(1)
+    const handle = await splitter.boundingBox()
+    expect(handle).toBeTruthy()
+    await window.mouse.move(handle!.x + handle!.width / 2, handle!.y + handle!.height / 2)
+    await window.mouse.down()
+    await window.mouse.move(handle!.x + handle!.width / 2, handle!.y + 120, { steps: 6 })
+    await window.mouse.up()
+    const grown = await rectOf(window, '.files-overlay.docked')
+    expect(grown!.h).toBeGreaterThan(files!.h + 60)
+    // The spanning panel keeps covering the whole column height.
+    const stillFull = await rectOf(window, '.git-panel.docked')
+    expect(stillFull!.h).toBeCloseTo(grid!.h, 0)
   } finally {
     await app.close()
     rmSync(userData, { recursive: true, force: true })

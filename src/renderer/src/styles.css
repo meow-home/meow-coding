@@ -4215,28 +4215,40 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 /* Multi-panel Right Container & Grid Layout */
 .right-panels-container {
   flex: 0 0 auto; position: relative; display: flex; height: 100%; box-sizing: border-box;
+  /* The hairline between two cells; the row splitter's offset is computed from it. */
+  --panels-gap: 0.083333rem;
 }
 .right-panels-resizer {
   position: absolute; left: -0.25rem; top: 0; bottom: 0; width: 0.583333rem;
   cursor: col-resize; z-index: 10;
 }
 .right-panels-resizer:hover { background: var(--accent-dim); }
+/* Splits two panels stacked in the same column; one per column that splits at that
+   row boundary (a spanning panel has no boundary to drag there). */
+.right-panels-row-resizer {
+  position: absolute; z-index: 10; height: 0.583333rem; transform: translateY(-50%);
+  cursor: row-resize;
+}
+.right-panels-row-resizer:hover { background: var(--accent-dim); }
 .right-panels-grid {
   display: grid; width: 100%; height: 100%; box-sizing: border-box;
   /* Flush cells: no padding and no visible gutter. The grid's own surface shows
      through the 1px gaps and the 1px left padding, which reads as a single hairline
      between neighbours and one against the chat. */
-  gap: 0.083333rem; padding: 0 0 0 0.083333rem;
+  gap: var(--panels-gap); padding: 0 0 0 0.083333rem;
   background: var(--hairline);
 }
+/* A cell only places its panel on the grid (it may span rows); the panel itself
+   stays the flush surface. */
+.right-panel-cell { display: flex; min-width: 0; min-height: 0; overflow: hidden; }
 /* The Files panel's host moves between slots: neither box takes part in layout. */
 .files-panel-slot, .files-panel-host { display: contents; }
-.right-panels-grid > .files-panel-slot > .files-panel-host > .files-overlay.docked,
-.right-panels-grid > .processes-overlay.docked,
-.right-panels-grid > .terminal-overlay.docked,
-.right-panels-grid > .browser-overlay.docked,
-.right-panels-grid > .subagent-overlay.docked,
-.right-panels-grid > .git-panel.docked {
+.right-panel-cell .files-overlay.docked,
+.right-panel-cell > .processes-overlay.docked,
+.right-panel-cell > .terminal-overlay.docked,
+.right-panel-cell > .browser-overlay.docked,
+.right-panel-cell > .subagent-overlay.docked,
+.right-panel-cell > .git-panel.docked {
   width: 100% !important; height: 100% !important; min-width: 0; min-height: 0; margin: 0 !important;
 }
 
@@ -4559,6 +4571,7 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 }
 .files-side-resizer:hover { background: var(--accent-dim); }
 body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-select: none; }
+body.row-resizing, body.row-resizing * { cursor: row-resize !important; user-select: none; }
 .files-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 /* The per-file bar: the popup's `.viewer-toolbar` on one line under the header,
    spanning the whole panel above both columns. The active file portals it into
@@ -5377,7 +5390,7 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
   position: absolute; z-index: 40;
   top: 0; left: 0; right: 0; bottom: 0;
 }
-.right-panels-grid > .tasks-panel {
+.right-panel-cell > .tasks-panel {
   width: 100% !important; height: 100% !important; min-width: 0; min-height: 0; margin: 0 !important;
 }
 

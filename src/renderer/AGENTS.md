@@ -10,7 +10,7 @@ React renderer (no direct Node/Electron access).
 - `src/App.tsx` — state hub: workspaces, the mounted `WorkspaceRuntime` per kept-alive
   project; defines `PaneModel` (agent + state + git) for each pane; owns the active session per
   project path (`activeSessionByPath`, persisted to localStorage `meow.activeSessionByPath`) so
-  switching workspaces restores the previously active session. It also owns the right-side panels container state (Files, Tasks, Terminal, Browser, and one Sub-agents panel holding a tab per opened sub-agent, each with the `common/PanelHeader` tabs-in-header, toggled from `PanelToolbar` in the title bar), rendering them in a dynamic multi-panel grid layout (prioritizing rows first, then columns). The Files panel holds unsaved edits in React state, so it renders through one portal whose host node moves between the two slots instead of remounting. An **expanded** (`full`) panel is rendered OUTSIDE that container, as a direct child of `.main` (and excluded from the grid's row/column count): `.full` is `position: absolute` and covers the pane area edge to edge, and `.right-panels-container` is `position: relative` (its resizer anchors to it), so nesting an expanded panel in the container confines it to the docked column instead of covering the pane area — `tests/e2e/right-panels-full.spec.ts` guards the containment. On startup, if no workspace path is
+  switching workspaces restores the previously active session. It also owns the right-side panels container state (Files, Tasks, Terminal, Browser, and one Sub-agents panel holding a tab per opened sub-agent, each with the `common/PanelHeader` tabs-in-header, toggled from `PanelToolbar` in the title bar), rendering them in a dynamic multi-panel grid layout (`right-panels-layout.ts`: the cells are filled column by column, each column spreading its panels over the rows, so a short column's panel spans the leftover rows instead of leaving an empty cell — three panels = two stacked on the left, the third spanning the right column; the width splitter resizes every docked panel at once and a row splitter appears wherever a column holds two or more panels). The Files panel holds unsaved edits in React state, so it renders through one portal whose host node moves between the two slots instead of remounting. An **expanded** (`full`) panel is rendered OUTSIDE that container, as a direct child of `.main` (and excluded from the grid's row/column count): `.full` is `position: absolute` and covers the pane area edge to edge, and `.right-panels-container` is `position: relative` (its resizer anchors to it), so nesting an expanded panel in the container confines it to the docked column instead of covering the pane area — `tests/e2e/right-panels-full.spec.ts` guards the containment. On startup, if no workspace path is
   active and workspaces exist, automatically opens the first workspace with a draft session (`DRAFT_SESSION_ID`).
   Also tracks `needsInput`
   (project path → agent ids waiting on a permission/question prompt, for the sidebar
@@ -32,6 +32,11 @@ React renderer (no direct Node/Electron access).
   row with UI text is scaled by `--fs-mono-scale` (it reads larger at equal px).
   Theme toggle lives in the Sidebar footer dropdown menu (Sun/Moon icon). Theme preference is
   persisted in `localStorage` (`meow.theme`), default is `dark`.
+- `src/right-panels-layout.ts` — pure placement math for the docked right-side grid: `rightPanelsLayout(count)`
+  (`cols`/`rows` + one `{ col, row, rowSpan }` per panel, filled column by column so a column's panels spread
+  over every row), `placementStyle`, `rightPanelsRowSplits` (the internal row boundaries that get a splitter,
+  one per column that really splits there) and `evenRowFractions`. Unit-tested in
+  `tests/unit/right-panels-layout.test.ts`; `App` consumes it for the grid template and the row drag.
 - `src/theme.ts` — shared theme helpers: `applyTheme` (set `data-theme` on `<html>` from
   localStorage) and `watchTheme` (re-apply on `storage` events). `main.tsx` calls both for EVERY
   renderer — including the FileViewer popup window (a separate BrowserWindow) — so it inherits the

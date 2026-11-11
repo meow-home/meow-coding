@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { BrowserInstallGuideEvent } from '@shared/ipc'
 import type { BrowserStatusInfo } from '@shared/browser-types'
@@ -27,6 +28,7 @@ import UpdateDialog from './components/UpdateDialog'
 import UpdateToast from './components/UpdateToast'
 import { beginOcclusion, endOcclusion, overlapsBrowserViewport, useBrowserOcclusion } from './components/common/useBrowserOcclusion'
 import BaseModal from './components/common/BaseModal'
+import { evenRowFractions, placementStyle, rightPanelsLayout, rightPanelsRowSplits } from './right-panels-layout'
 import { isLastSession } from './session-guard'
 
 export interface PaneModel {
@@ -1006,6 +1008,63 @@ export default function App() {
   }, [sidebarCollapsed, sidebarHovered])
   useBrowserOcclusion(sidebarCollapsed && sidebarHovered && sidebarPopoverOverlaps, 'overlay')
 
+  // The docked panels in the order they fill the grid: column by column, so the last
+  // column's panels stretch over the rows the others left (three panels = two stacked
+  // on the left, the third spanning the right column — never an empty cell).
+  const dockedPanels: { key: string; node: ReactNode }[] = []
+  if (filesPanel && !filesFull) dockedPanels.push({ key: 'files', node: <div className="files-panel-host" ref={attachFilesHost} /> })
+  if (tasksPanel && !tasksFull) dockedPanels.push({ key: 'tasks', node: tasksPanel })
+  if (browserPanel && !browserFull) dockedPanels.push({ key: 'browser', node: browserPanel })
+  if (terminalPanel && !terminalFull) dockedPanels.push({ key: 'terminal', node: terminalPanel })
+  if (subagentPanel && !subagentsFull) dockedPanels.push({ key: 'subagents', node: subagentPanel })
+  if (gitPanel && !gitFull) dockedPanels.push({ key: 'git', node: gitPanel })
+  const dockedLayout = rightPanelsLayout(dockedPanels.length)
+  const rowSplits = rightPanelsRowSplits(dockedLayout)
+  // Row heights are fractions of the grid's track space: equal until a boundary
+  // between two panels of the same column is dragged.
+  const [rowFractions, setRowFractions] = useState<number[]>(() => evenRowFractions(dockedLayout.rows))
+  useEffect(() => {
+    setRowFractions(prev => (prev.length === dockedLayout.rows ? prev : evenRowFractions(dockedLayout.rows)))
+  }, [dockedLayout.rows])
+  const currentRowFractions = rowFractions.length === dockedLayout.rows ? rowFractions : evenRowFractions(dockedLayout.rows)
+  const rightPanelsGridRef = useRef<HTMLDivElement>(null)
+  const startRightPanelsRowDrag = useCallback((e: React.MouseEvent, boundary: number) => {
+    const grid = rightPanelsGridRef.current
+    if (!grid) return
+    e.preventDefault()
+    beginOcclusion('right-panels-row-resizer', 'overlay')
+    const rows = currentRowFractions.length
+    const gap = parseFloat(getComputedStyle(grid).rowGap) || 0
+    const track = grid.getBoundingClientRect().height - gap * Math.max(0, rows - 1)
+    if (track <= 0) {
+      endOcclusion('right-panels-row-resizer')
+      return
+    }
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 12
+    // A row never shrinks below one panel's chrome (6rem); a short window keeps both
+    // rows visible instead of letting the clamp eat the whole track.
+    const minFraction = Math.min((6 * rem) / track, 0.4)
+    const start = currentRowFractions
+    const startY = e.clientY
+    document.body.classList.add('row-resizing')
+    const onMove = (ev: MouseEvent) => {
+      const raw = (ev.clientY - startY) / track
+      const delta = Math.min(Math.max(raw, minFraction - start[boundary - 1]), start[boundary] - minFraction)
+      const next = [...start]
+      next[boundary - 1] = start[boundary - 1] + delta
+      next[boundary] = start[boundary] - delta
+      setRowFractions(next)
+    }
+    const onUp = () => {
+      document.body.classList.remove('row-resizing')
+      endOcclusion('right-panels-row-resizer')
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [currentRowFractions])
+
   return (
     <div className="app">
       <TitleBar
@@ -1172,40 +1231,48 @@ export default function App() {
           {browserPanel && browserFull && browserPanel}
           {subagentPanel && subagentsFull && subagentPanel}
           {gitPanel && gitFull && gitPanel}
-          {(() => {
-            const dockedCount =
-              (filesOpenFor && !filesFull ? 1 : 0) +
-              (tasksOpenFor && !tasksFull ? 1 : 0) +
-              (terminalOpenFor && !terminalFull ? 1 : 0) +
-              (browserOpenFor && !browserFull ? 1 : 0) +
-              (subagentsShown && !subagentsFull ? 1 : 0) +
-              (gitOpenFor && !gitFull ? 1 : 0)
-            if (dockedCount === 0) return null
-            const rows = Math.ceil(Math.sqrt(dockedCount))
-            const cols = Math.ceil(dockedCount / (rows || 1))
+          {dockedPanels.length > 0 && (() => {
             const MIN_DOCKED_WIDTH = 640
             const containerWidth = Math.max(
               rightPanelsWidth,
-              cols * 360,
+              dockedLayout.cols * 360,
               browserOpenFor && !browserFull ? MIN_DOCKED_WIDTH : 0
             )
+            const gap = 'var(--panels-gap)'
+            const columnWidth = 100 / dockedLayout.cols
             return (
               <div className="right-panels-container" style={{ width: containerWidth }}>
                 <div className="right-panels-resizer" onMouseDown={startRightPanelsDrag} title="Drag to resize panels" />
                 <div
                   className="right-panels-grid"
+                  ref={rightPanelsGridRef}
                   style={{
-                    gridTemplateColumns: `repeat(${cols}, 1fr)`,
-                    gridTemplateRows: `repeat(${rows}, 1fr)`
+                    gridTemplateColumns: `repeat(${dockedLayout.cols}, 1fr)`,
+                    gridTemplateRows: currentRowFractions.map(f => `${f}fr`).join(' ')
                   }}
                 >
-                  {filesPanel && !filesFull && <div className="files-panel-slot" ref={attachFilesHost} />}
-                  {tasksPanel && !tasksFull && tasksPanel}
-                  {browserPanel && !browserFull && browserPanel}
-                  {terminalPanel && !terminalFull && terminalPanel}
-                  {subagentPanel && !subagentsFull && subagentPanel}
-                  {gitPanel && !gitFull && gitPanel}
+                  {dockedPanels.map((panel, i) => (
+                    <div className="right-panel-cell" key={panel.key} style={placementStyle(dockedLayout.placements[i])}>
+                      {panel.node}
+                    </div>
+                  ))}
                 </div>
+                {rowSplits.map(split => {
+                  const before = currentRowFractions.slice(0, split.row).reduce((a, b) => a + b, 0)
+                  return (
+                    <div
+                      key={`${split.col}:${split.row}`}
+                      className="right-panels-row-resizer"
+                      title="Drag to resize panels"
+                      style={{
+                        top: `calc((100% - ${dockedLayout.rows - 1} * ${gap}) * ${before} + ${split.row - 1} * ${gap})`,
+                        left: `calc(${(split.col - 1) * columnWidth}% + ${split.col - 1} * ${gap})`,
+                        width: `calc(${columnWidth}% - ${gap})`
+                      }}
+                      onMouseDown={e => startRightPanelsRowDrag(e, split.row)}
+                    />
+                  )
+                })}
               </div>
             )
           })()}
