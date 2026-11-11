@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, CloudOff, GitBranch, RefreshCw } from 'lucide-react'
 import type { GitStatusDetail } from '@shared/types'
 import PanelHeader from '../common/PanelHeader'
@@ -22,6 +22,18 @@ interface GitError {
 function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? '' : 's'}`
 }
+
+/** Everything a status refresh can change; an unchanged key means nothing to reload. */
+function statusKeyOf(status: GitStatusDetail | null): string {
+  if (!status) return 'none'
+  const files = status.files
+    .map(f => `${f.path}:${f.status}:${f.staged ? 's' : ''}${f.unstaged ? 'w' : ''}`)
+    .join('|')
+  return `${status.branch}|${status.upstream}|${status.ahead}|${status.behind}|${files}`
+}
+
+/** How often the open panel re-reads the repo, so a commit made by the agent lands by itself. */
+const POLL_MS = 2500
 
 /** One sentence for the branch chip's tooltip: pushed, unpushed, behind or unpublished. */
 function syncTitle(status: GitStatusDetail): string {
@@ -48,14 +60,27 @@ export default function GitPanel({ projectPath, full, onToggleFull, onClose }: P
   const [reloadToken, setReloadToken] = useState(0)
 
   const dirtyCount = status?.files.length ?? 0
+  // Last applied signature: a poll that changes nothing must not collapse an open
+  // diff or commit, so state only moves when the repo actually moved.
+  const appliedKey = useRef('')
+
+  const applyStatus = useCallback((next: GitStatusDetail | null) => {
+    const key = statusKeyOf(next)
+    if (key === appliedKey.current) return
+    appliedKey.current = key
+    setStatus(next)
+    setReloadToken(token => token + 1)
+  }, [])
 
   const refresh = useCallback(async () => {
     setBusy(true)
     setGitError(null)
     try {
       const next = await window.api.gitGetStatusDetail(projectPath)
+      appliedKey.current = statusKeyOf(next)
       setStatus(next)
       setLoaded(true)
+      // A manual refresh always reloads the log, even when the key looks unchanged.
       setReloadToken(token => token + 1)
     } catch (err) {
       setGitError({ error: err instanceof Error ? err.message : String(err), command: 'status' })
@@ -66,8 +91,24 @@ export default function GitPanel({ projectPath, full, onToggleFull, onClose }: P
   }, [projectPath])
 
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    let cancelled = false
+    const tick = async () => {
+      try {
+        const next = await window.api.gitGetStatusDetail(projectPath)
+        if (cancelled) return
+        applyStatus(next)
+        setLoaded(true)
+      } catch {
+        // A failed poll keeps the last good state; the Refresh button reports errors.
+      }
+    }
+    void tick()
+    const timer = setInterval(() => void tick(), POLL_MS)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [applyStatus, projectPath])
 
   const tabs = [
     {
@@ -156,7 +197,7 @@ export default function GitPanel({ projectPath, full, onToggleFull, onClose }: P
       ) : tab === 'changes' ? (
         <GitChangesView projectPath={projectPath} status={status} />
       ) : (
-        <GitHistoryView projectPath={projectPath} reloadToken={reloadToken} />
+        <GitHistoryView projectPath={projectPath} reloadToken={reloadToken} upstream={status.upstream} />
       )}
     </div>
   )

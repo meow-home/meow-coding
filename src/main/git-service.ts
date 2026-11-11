@@ -262,7 +262,8 @@ export class GitService {
         subject: subject ?? '',
         // Trailing empty body field yields a dangling \x1f before the record
         // separator; strip it so multi-line messages stay clean.
-        message: body.join('\x1f').replace(/\x1f+$/, '').trim()
+        message: body.join('\x1f').replace(/\x1f+$/, '').trim(),
+        unpushed: false
       })
     }
     return out
@@ -272,7 +273,20 @@ export class GitService {
     const args = ['log', '-n', String(count), COMMIT_FORMAT]
     if (file) args.push('--follow', '--', file)
     const { stdout } = await this.run(projectPath, args)
-    return GitService.parseCommits(stdout)
+    const commits = GitService.parseCommits(stdout)
+    const unpushed = await this.unpushedHashes(projectPath)
+    if (unpushed.size === 0) return commits
+    return commits.map(c => (unpushed.has(c.hash) ? { ...c, unpushed: true } : c))
+  }
+
+  /** Hashes reachable from HEAD but not from the upstream; empty when nothing tracks it. */
+  private async unpushedHashes(projectPath: string): Promise<Set<string>> {
+    try {
+      const { stdout } = await this.run(projectPath, ['rev-list', '@{upstream}..HEAD'])
+      return new Set(stdout.split('\n').filter(Boolean))
+    } catch {
+      return new Set()
+    }
   }
 
   async getFileHistory(projectPath: string, file: string): Promise<GitCommit[]> {

@@ -4065,6 +4065,11 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
   color: var(--text-faint); font-size: var(--fs-xs); white-space: nowrap;
 }
 .git-commit-sha { font-family: var(--font-mono); color: var(--text-dim); }
+/* A commit the upstream does not have yet (the header chip shows the total). */
+.git-commit-unpushed {
+  flex: 0 0 auto; display: inline-flex; margin-top: 0.166667rem;
+  color: var(--yellow);
+}
 .git-dot { color: var(--hairline-strong); }
 .git-commit-when { margin-left: auto; }
 

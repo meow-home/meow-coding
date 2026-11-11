@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, GitCommit as GitCommitIcon, Search } from 'lucide-react'
+import { ArrowUpCircle, ChevronLeft, ChevronRight, GitCommit as GitCommitIcon, Search } from 'lucide-react'
 import type { GitCommit, GitDiffFile, GitDiffResult } from '@shared/types'
 import GitDiffView from './GitDiffView'
 
 interface Props {
   projectPath: string
-  /** Bumped by the panel's refresh button so the log reloads with the status. */
+  /** Bumped when the working tree or the sync state changes, so the log reloads. */
   reloadToken: number
+  /** Tracking branch for the "not pushed" marker's tooltip. */
+  upstream?: string | null
 }
 
 const PAGE = 50
@@ -40,7 +42,7 @@ const STATUS: Record<string, { char: string; cls: string }> = {
  * The History tab: a flat commit log. A commit expands in place to its message and
  * changed files; a file then swaps the list for that file's diff.
  */
-export default function GitHistoryView({ projectPath, reloadToken }: Props) {
+export default function GitHistoryView({ projectPath, reloadToken, upstream }: Props) {
   const [commits, setCommits] = useState<GitCommit[]>([])
   const [count, setCount] = useState(PAGE)
   const [hasMore, setHasMore] = useState(false)
@@ -72,16 +74,6 @@ export default function GitHistoryView({ projectPath, reloadToken }: Props) {
         if (token === listToken.current) setLoading(false)
       })
   }, [projectPath, count, reloadToken])
-
-  // The log moved (refresh) — drop the expanded commit so it cannot show a stale diff.
-  useEffect(() => {
-    detailToken.current++
-    setOpenHash(null)
-    setDetail(null)
-    setOpenFile(null)
-    setDetailError(null)
-    setDetailLoading(false)
-  }, [reloadToken])
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase()
@@ -213,6 +205,16 @@ export default function GitHistoryView({ projectPath, reloadToken }: Props) {
                     <span className="git-commit-when">{relativeTime(commit.date)}</span>
                   </span>
                 </span>
+                {commit.unpushed && (
+                  <span
+                    className="git-commit-unpushed"
+                    role="img"
+                    aria-label={upstream ? `Not pushed to ${upstream}` : 'Not pushed yet'}
+                    title={upstream ? `Not pushed to ${upstream}` : 'Not pushed yet'}
+                  >
+                    <ArrowUpCircle size={14} aria-hidden="true" />
+                  </span>
+                )}
               </button>
               {isOpen && renderDetail(commit)}
             </div>

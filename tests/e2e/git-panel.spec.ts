@@ -126,6 +126,24 @@ test('the Git panel expands a changed file and a commit in place', async () => {
     await expect(panel.locator('.git-back-row')).toContainText('2 files')
     await expect(panel.locator('.git-inline-diff .git-diff-line.add .git-diff-text')).toContainText('one')
     await expect(panel.locator('.git-commit-files')).toHaveCount(0)
+
+    // Only the unpushed commit carries the circled arrow, as the row's trailing element.
+    const unpushedRow = panel.locator('.git-commit-row', { hasText: 'second commit' })
+    await expect(unpushedRow.locator('.git-commit-unpushed svg')).toBeVisible()
+    expect(await unpushedRow.evaluate(el => el.lastElementChild?.classList.contains('git-commit-unpushed'))).toBe(true)
+    await expect(panel.locator('.git-commit-row', { hasText: 'init commit' }).locator('.git-commit-unpushed'))
+      .toHaveCount(0)
+
+    // A commit made outside the UI (the agent's own `git commit`) lands without a manual reload.
+    git(['-c', 'user.email=e2e@test', '-c', 'user.name=e2e', 'commit', '-q', '-am', 'third commit'], project)
+    await expect(panel.locator('.git-commit-row', { hasText: 'third commit' })).toBeVisible({ timeout: 15000 })
+    await expect(panel.locator('.git-commit-row', { hasText: 'third commit' }).locator('.git-commit-unpushed'))
+      .toHaveCount(1)
+
+    // The working tree follows too: a new file appears in Changes on its own.
+    await panel.getByRole('tab', { name: 'Changes' }).click()
+    writeFileSync(path.join(project, 'later.txt'), 'later\n')
+    await expect(panel.locator('.git-file-row', { hasText: 'later.txt' })).toBeVisible({ timeout: 15000 })
   } finally {
     await app.close()
     cleanupDir(userData)

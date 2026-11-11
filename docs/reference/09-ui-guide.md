@@ -380,7 +380,10 @@ Adding a setting touches three places: `MeowSettings` in `src/shared/types.ts`, 
 `GitPanel.tsx` is a docked right-hand panel (it joins the same grid as Files, Tasks, Terminal,
 Browser and Sub-agents; expanding covers the pane area). It is **read-only**: no staging, commit,
 branch switching, compare or blame. The header is the shared `PanelHeader` with two tabs plus a
-read-only branch chip and Refresh. The chip carries the sync state parsed from the status header:
+read-only branch chip and Refresh. The panel polls `gitGetStatusDetail` every 2.5s and reloads the
+log only when the status signature (branch, upstream, ahead/behind, changed files) moves — a commit
+made by the agent or in a terminal appears on its own, and an unchanged poll never collapses an open
+diff or commit. The chip carries the sync state parsed from the status header:
 `↑N` (commits not pushed), `↓N` (commits behind the upstream) and a cloud-off icon when the branch has
 no upstream, with the full sentence (upstream name, counts, or "not published") in its tooltip.
 
@@ -389,9 +392,10 @@ no upstream, with the full sentence (upstream name, counts, or "not published") 
   the row; only one row is open. A file with staged and unstaged edits appears in both groups and
   each row shows its own side.
 - `GitHistoryView.tsx` — a filter field and a flat commit list (subject, short sha, author, relative
-  time, `Load more` in pages of 50). A click fetches `gitGetCommitDiff` and expands the commit's
-  message and changed files (`+/−` counts); clicking a file swaps that list for the file's diff
-  with a back row.
+  time, `Load more` in pages of 50). A commit the upstream does not have ends its row with a yellow
+  circled up-arrow (`getCommits` marks it from `git rev-list @{upstream}..HEAD`). A click fetches
+  `gitGetCommitDiff` and expands the commit's message and changed files (`+/−` counts); clicking a
+  file swaps that list for the file's diff with a back row.
 - `GitDiffView.tsx` + `parseDiff.ts` — unified-diff parser and the compact hunk renderer (add/del
   tints come from `--git-diff-add` / `--git-diff-del`).
 

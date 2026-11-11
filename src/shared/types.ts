@@ -88,6 +88,8 @@ export interface GitCommit {
   date: number
   subject: string
   message: string
+  /** Reachable from HEAD but not from the upstream (false when nothing tracks it). */
+  unpushed: boolean
 }
 
 export interface GitDiffFile {

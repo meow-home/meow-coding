@@ -267,6 +267,13 @@ describe('GitService on a real repo', () => {
       commitFile('a.txt', 'two', 'second')
       const ahead = await svc.getStatusDetail(dir)
       expect(ahead).toMatchObject({ upstream: 'origin/main', ahead: 1, behind: 0 })
+
+      // The log marks exactly the commits the upstream does not have.
+      const log = await svc.getCommits(dir)
+      expect(log.map(c => [c.subject, c.unpushed])).toEqual([
+        ['second', true],
+        ['first', false]
+      ])
     } finally {
       rmSync(remote, { recursive: true, force: true })
     }
