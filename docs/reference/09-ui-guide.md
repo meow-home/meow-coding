@@ -80,7 +80,15 @@ equal when the number of rows changes. `⤢` expands the
 panel over the whole pane area and restore docks it again — the tree, tabs and open files survive both
 directions. Every right-side panel is a **square, flush surface** (no border, radius or shadow): the grid's
 hairline shows through 1px gaps as the only divider between cells, one 1px rule separates the column from the
-chat, and a maximized panel covers the pane area edge to edge. `Esc` and `✕` close it, and switching to another project closes it.
+chat, and a maximized panel covers the pane area edge to edge. `Esc` and `✕` close it, and switching to another project hides it (each folder remembers its own panes).
+
+**Panels are per project folder.** `App` keeps `panelsByPath` (in memory, not persisted): for each
+project, which panes are open — `files` and `git` as booleans, `tasks`/`terminal`/`browser` as the session
+they were opened for, plus `subagentsHidden` for that folder's sub-agent tabs. Only the active project's
+entry renders, so switching sessions in another folder shows *that* folder's panes instead of the previous
+ones, and coming back restores what was open (a remembered session is ignored once it no longer exists).
+The expanded (`full`) flags stay global and reset on a project switch. Nothing is persisted, so a restart
+starts every folder closed and never restores a shell or a browser view.
 
 The previous `RightPanel` (directory tree + artifacts) is parked in the source — its components, CSS, state and
 the artifact store/IPC remain, but nothing renders it.
@@ -139,7 +147,7 @@ resolved watch stays reachable in the Tasks panel until dismissed.
 ### Session terminal panel
 
 The session terminal is a right-hand panel (`TerminalOverlay`) hosting interactive shell tabs powered by xterm.js (`TerminalView`) and dedicated `PtyManager` processes in the main process.
-- **Toggle & shortcut**: Toggled via `Ctrl+\`` (`Cmd+\`` on macOS) in the active pane or the Terminal button in the title bar (`PanelToolbar`). `App` owns `terminalOpenFor` (the session the panel shows, or `null`) and `terminalFull`; toggling from another session switches the panel to that session. It is not persisted.
+- **Toggle & shortcut**: Toggled via `Ctrl+\`` (`Cmd+\`` on macOS) in the active pane or the Terminal button in the title bar (`PanelToolbar`). `App` owns `terminalOpenFor` (the session the panel shows, or `null`) and `terminalFull`; the open session is remembered per project in `panelsByPath` (see the per-project note above), so a project switch shows that folder's terminal again.
 - **Layout**: Uses the shared panel chrome — `.files-overlay` surface and `common/PanelHeader`: tabs in the header with no title (status dot, exit code, double-click rename, close), `+` new terminal, Restart when the selected tab exited, expand/restore, close. Docked, it joins the shared `.right-panels-grid` next to the Files and Subagent panels (auto rows/columns, shared width splitter and per-column row splitters); expanded (`full`), it overlays the whole pane area like Files. The chat keeps its full height.
 - **Mount gating**: Only one terminal panel exists and its xterm is created only for the selected tab, so hidden sessions never allocate xterm instances. Removing the session closes the panel.
 - **Run from chat**: A shell fence in an assistant message renders as a command box (`Run in terminal` / `Copy command`; see the chat conventions). Run raises `terminalRunRequest` in `App` (`{ agentId, command, seq }`), opens this session's panel and hands the request to `TerminalOverlay`, which consumes it once: the selected tab when it is running, else the first running tab, else the selected/first tab after a restart, else a new tab created with the command. The command reaches the PTY through `toTerminalInput` (CRLF → LF, one trailing `\r`), so a multi-line block goes in as a single paste. A request that is still pending at mount suppresses the panel's own auto-create, so a chat command never opens a second empty tab.
@@ -149,7 +157,7 @@ The session terminal is a right-hand panel (`TerminalOverlay`) hosting interacti
 ### Built-in browser panel
 
 The built-in browser is a right-hand panel (`BrowserOverlay`) showing one session's tabs; the page itself is a native `WebContentsView` owned by main, so the panel only supplies the chrome and the bounds.
-- **Toggle & state**: The Globe button in the title bar (`PanelToolbar`) toggles it for the active session; `App` owns `browserOpenFor` (session id or `null`) and `browserFull`. An agent tab request (`onBrowserPanelRequest`) opens it only when that session is the active session of the active project; closing it keeps it closed until the next request. A dot on that button shows while the session has a tab in `agent` or `approval`.
+- **Toggle & state**: The Globe button in the title bar (`PanelToolbar`) toggles it for the active session; `App` owns `browserOpenFor` (session id or `null`, derived from the active project's `panelsByPath` entry) and `browserFull`. An agent tab request (`onBrowserPanelRequest`) opens it only when that session is the active session of the active project; closing it keeps it closed until the next request, and a project switch closes the view by unmounting the panel (main moves the native view off screen). A dot on that button shows while the session has a tab in `agent` or `approval`.
 - **Layout**: Same chrome as the terminal: `.files-overlay` + `common/PanelHeader` (tabs with a globe or agent dot, a `BaseDropdown` context menu with Close, Close others, Reload, then `+`, console toggle, a menu with Open in default browser, expand/restore, close). Below it, back, forward, reload and a centered address field. Docked it joins `.right-panels-grid` before the terminal (two panels fill one column, so the grid stacks them vertically behind a row splitter); expanded it overlays the pane area. The panel, its viewport and their ancestors are square because the native view is a rectangle.
 - **Toolbar**: Back, forward, reload/stop, the address field and "Open in default browser" (`browserOpenExternal`, http(s) only). Back/forward/reload/address are disabled while the agent owns the tab. Bare hosts normalize to `https://`, loopback hosts to `http://` (`normalizeUrlInput`); `file:`/`javascript:`/spaces show an inline error.
 - **Control banner**: `agent` → "Meow is using this tab" + **Take over**; `user` → "You have control..." + **Hand back**, or the handoff reason + **I'm signed in**; `approval` → "Meow is waiting for your approval in chat."; `idle` → none.
@@ -407,7 +415,9 @@ Adding a setting touches three places: `MeowSettings` in `src/shared/types.ts`, 
 ### Git panel (`components/git/`)
 
 `GitPanel.tsx` is a docked right-hand panel (it joins the same grid as Files, Tasks, Terminal,
-Browser and Sub-agents; expanding covers the pane area). It is **read-only**: no staging, commit,
+Browser and Sub-agents; expanding covers the pane area). It opens for the active project and its open
+state is that folder's `panelsByPath.git`, so the sidebar project menu's **Git** item also activates the
+project before showing the panel. It is **read-only**: no staging, commit,
 branch switching, compare or blame. The header is the shared `PanelHeader` with two tabs plus a
 read-only branch chip and Refresh. The panel polls `gitGetStatusDetail` every 2.5s and reloads the
 log only when the status signature (branch, upstream, ahead/behind, changed files) moves — a commit

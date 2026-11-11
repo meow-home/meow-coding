@@ -1254,7 +1254,7 @@ if (e.type === 'usage') {
               <div
                 key={item.taskId}
                 className={`subagent ${item.state === 'running' ? 'running' : ''} ${item.background ? 'background' : ''}`}
-                onClick={() => onOpenSubagent?.(item)}
+                onClick={() => onOpenSubagent?.({ ...item, agentId })}
                 title="Open sub-agent details"
               >
                 <div className="subagent-head">

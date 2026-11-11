@@ -56,6 +56,29 @@ function draftPaneModel(projectPath: string): PaneModel {
 // Upper bound on how many projects stay mounted as keep-alives.
 export const MAX_KEEP_ALIVE = 5
 
+// Which panels a project folder shows. Panels are per project, not global: the
+// session-scoped ones remember the session they were opened for, so switching
+// to another folder shows that folder's panels instead of the previous ones.
+type SessionPanelKey = 'tasks' | 'terminal' | 'browser'
+
+interface ProjectPanels {
+  files: boolean
+  git: boolean
+  tasks: string | null
+  terminal: string | null
+  browser: string | null
+  subagentsHidden: boolean
+}
+
+const CLOSED_PANELS: ProjectPanels = {
+  files: false,
+  git: false,
+  tasks: null,
+  terminal: null,
+  browser: null,
+  subagentsHidden: false
+}
+
 // The chat keeps at least this much room when the right-side column opens or is
 // dragged wider. `--panels-chat-min` owns the value (the container's max-width uses
 // it too), so the drag clamp and the layout can never disagree.
@@ -146,6 +169,20 @@ export default function App() {
   const [activePath, setActivePathState] = useState<string | null>(null)
   // Most recently used at the head; bounds keep-alive memory (LRU eviction).
   const [keepAliveOrder, setKeepAliveOrderState] = useState<string[]>([])
+  // Refs mirror the state so stable mount-once subscriptions and callbacks never
+  // read a stale value (state updates run at commit, refs update synchronously).
+  const runtimesRef = useRef<Record<string, WorkspaceRuntime>>({})
+  const orderRef = useRef<string[]>([])
+  const activePathRef = useRef<string | null>(null)
+  // agentIds with a turn in flight — eviction skips projects owning any of these.
+  const runningAgentsRef = useRef<Set<string>>(new Set())
+  // The project a session belongs to; a session can only open panels of its own project.
+  const projectOfSession = useCallback((agentId: string): string | null => {
+    for (const [path, rt] of Object.entries(runtimesRef.current)) {
+      if (rt.workspace.agents.some(a => a.id === agentId)) return path
+    }
+    return activePathRef.current
+  }, [])
   const [backgrounds, setBackgrounds] = useState<Record<string, boolean>>({})
   const [browser, setBrowser] = useState<BrowserStatusInfo | null>(null)
   const [browserDialogOpen, setBrowserDialogOpen] = useState(false)
@@ -218,13 +255,45 @@ export default function App() {
     return Number.isFinite(w) && w >= 240 && w <= 600 ? w : 280
   })
   const [artifacts, setArtifacts] = useState<Record<string, ArtifactEntry[]>>({})
-  // Files panel: the project it is open for (null = closed), whether it is
-  // expanded over the whole pane area (false = docked on the right) and its
-  // docked width.
-  const [filesOpenFor, setFilesOpenFor] = useState<string | null>(null)
+  // Which panels each project folder shows. Session-scoped panels store the session
+  // id. In memory only: a restart starts every folder closed, so no shell or browser
+  // view is restored on launch.
+  const [panelsByPath, setPanelsByPath] = useState<Record<string, ProjectPanels>>({})
+  const updatePanels = useCallback((path: string | null | undefined, patch: Partial<ProjectPanels>) => {
+    if (!path) return
+    setPanelsByPath(prev => ({ ...prev, [path]: { ...(prev[path] ?? CLOSED_PANELS), ...patch } }))
+  }, [])
+  const setPanelSession = useCallback((path: string | null | undefined, key: SessionPanelKey, agentId: string | null) => {
+    if (!path) return
+    setPanelsByPath(prev => ({ ...prev, [path]: { ...(prev[path] ?? CLOSED_PANELS), [key]: agentId } }))
+  }, [])
+  const togglePanelSession = useCallback((agentId: string, key: SessionPanelKey) => {
+    const path = projectOfSession(agentId)
+    if (!path) return
+    setPanelsByPath(prev => {
+      const panels = prev[path] ?? CLOSED_PANELS
+      return { ...prev, [path]: { ...panels, [key]: panels[key] === agentId ? null : agentId } }
+    })
+  }, [projectOfSession])
+  const activePanels = (activePath ? panelsByPath[activePath] : undefined) ?? CLOSED_PANELS
+  // A remembered session is only honoured while it still exists in that project.
+  const sessionIn = (path: string | null, id: string | null | undefined): string | null =>
+    path && id && runtimes[path]?.workspace.agents.some(a => a.id === id) ? id : null
+
+  // Files panel: whether it is expanded over the whole pane area (false = docked
+  // on the right) and its docked width. Which project it belongs to comes from
+  // that project's panel state.
   const [filesFull, setFilesFull] = useState(false)
   const [filesDirty, setFilesDirty] = useState(false)
   const [confirmCloseFiles, setConfirmCloseFiles] = useState(false)
+  const filesTarget = activePath && activePanels.files ? activePath : null
+  // The Files panel holds unsaved edits in its own React tree, so leaving its
+  // project cannot unmount it: it stays pinned to that project until the discard
+  // prompt is answered.
+  const filesOpenPathRef = useRef<string | null>(null)
+  const pinnedFiles = filesDirty ? filesOpenPathRef.current : null
+  const filesOpenFor = pinnedFiles && pinnedFiles !== filesTarget ? pinnedFiles : filesTarget
+  filesOpenPathRef.current = filesOpenFor
   // The docked and expanded panels live in different parents. The Files panel holds its
   // open tabs and unsaved edits in React state, so a remount would lose them: its React
   // tree stays in one portal, and only this DOM node moves between the two slots.
@@ -236,44 +305,46 @@ export default function App() {
   const attachFilesHost = useCallback((slot: HTMLDivElement | null) => {
     if (slot) slot.appendChild(filesHost)
   }, [filesHost])
+  const closeFilesPanel = useCallback((path?: string | null) => {
+    const target = path ?? filesOpenPathRef.current
+    if (target) updatePanels(target, { files: false })
+    setFilesDirty(false)
+    setFilesFull(false)
+  }, [updatePanels])
   const requestCloseFiles = useCallback(() => {
     if (filesDirty) setConfirmCloseFiles(true)
-    else setFilesOpenFor(null)
-  }, [filesDirty])
-  const [gitOpenFor, setGitOpenFor] = useState<string | null>(null)
+    else closeFilesPanel()
+  }, [filesDirty, closeFilesPanel])
   const [gitFull, setGitFull] = useState(false)
+  const gitOpenFor = activePath && activePanels.git ? activePath : null
   const handleToggleGit = useCallback(() => {
     if (!activePath) return
     setGitFull(false)
-    setGitOpenFor(cur => (cur === activePath ? null : activePath))
-  }, [activePath])
-  const handleOpenGit = useCallback((path: string) => {
-    setGitFull(false)
-    setGitOpenFor(path)
-  }, [])
+    updatePanels(activePath, { git: !activePanels.git })
+  }, [activePath, activePanels.git, updatePanels])
   const gitPanel = gitOpenFor ? (
     <GitPanel
       key={gitOpenFor}
       projectPath={gitOpenFor}
       full={gitFull}
       onToggleFull={() => setGitFull(f => !f)}
-      onClose={() => setGitOpenFor(null)}
+      onClose={() => updatePanels(gitOpenFor, { git: false })}
     />
   ) : null
   // The Tasks panel: a right-hand column panel (docked or maximized), keyed by the
   // session whose list it shows. `tasksOpenFor` is null when the panel is closed.
-  const [tasksOpenFor, setTasksOpenFor] = useState<string | null>(null)
+  const tasksOpenFor = sessionIn(activePath, activePanels.tasks)
   const [tasksFull, setTasksFull] = useState(false)
   // A request from the chat's background tasks card to open the Processes panel on
   // the Monitors tab. `seq` is monotonic so the same monitor id re-focuses.
   const monitorsFocusSeq = useRef(0)
   const [monitorsFocus, setMonitorsFocus] = useState<{ monitorId?: string; seq: number } | null>(null)
-  const [terminalOpenFor, setTerminalOpenFor] = useState<string | null>(null)
+  const terminalOpenFor = sessionIn(activePath, activePanels.terminal)
   const [terminalFull, setTerminalFull] = useState(false)
   const handleToggleTerminal = useCallback((agentId: string) => {
     setTerminalFull(false)
-    setTerminalOpenFor(cur => (cur === agentId ? null : agentId))
-  }, [])
+    togglePanelSession(agentId, 'terminal')
+  }, [togglePanelSession])
   // A command a chat command box asked the session terminal to run. `seq` makes
   // the same command runnable twice; TerminalOverlay consumes the request (and
   // clears it) once it has a terminal to type into.
@@ -282,19 +353,19 @@ export default function App() {
   const handleRunCommand = useCallback((agentId: string, command: string) => {
     terminalRunSeq.current += 1
     setTerminalFull(false)
-    setTerminalOpenFor(agentId)
+    setPanelSession(projectOfSession(agentId), 'terminal', agentId)
     setTerminalRunRequest({ agentId, command, seq: terminalRunSeq.current })
-  }, [])
+  }, [projectOfSession, setPanelSession])
   const handleRunCommandConsumed = useCallback((seq: number) => {
     setTerminalRunRequest(cur => (cur && cur.seq === seq ? null : cur))
   }, [])
-  const [browserOpenFor, setBrowserOpenFor] = useState<string | null>(null)
+  const browserOpenFor = sessionIn(activePath, activePanels.browser)
   const [browserFull, setBrowserFull] = useState(false)
   const [browserAgentActiveIds, setBrowserAgentActiveIds] = useState<Set<string>>(new Set())
   const handleToggleBrowser = useCallback((agentId: string) => {
     setBrowserFull(false)
-    setBrowserOpenFor(cur => (cur === agentId ? null : agentId))
-  }, [])
+    togglePanelSession(agentId, 'browser')
+  }, [togglePanelSession])
   useEffect(() => window.api.onBrowserTabsChanged((event) => {
     setBrowserAgentActiveIds(prev => {
       const next = new Set(prev)
@@ -306,7 +377,6 @@ export default function App() {
 
   const [openSubagents, setOpenSubagents] = useState<SubagentOverlayItem[]>([])
   const [activeSubagentId, setActiveSubagentId] = useState<string | null>(null)
-  const [subagentsHidden, setSubagentsHidden] = useState(false)
   const [subagentsFull, setSubagentsFull] = useState(false)
   const [rightPanelsWidth, setRightPanelsWidth] = useState(() => {
     const w = Number(localStorage.getItem('meow.rightPanels.width'))
@@ -315,18 +385,21 @@ export default function App() {
   useEffect(() => { localStorage.setItem('meow.rightPanels.width', String(rightPanelsWidth)) }, [rightPanelsWidth])
 
   const handleOpenSubagent = useCallback((item: SubagentOverlayItem) => {
+    // The tab belongs to the project whose session spawned the sub-agent.
+    const path = (item.agentId && projectOfSession(item.agentId)) || activePathRef.current
+    const entry = { ...item, projectPath: path ?? undefined }
     setOpenSubagents(prev => {
       const idx = prev.findIndex(i => i.taskId === item.taskId)
       if (idx >= 0) {
         const arr = [...prev]
-        arr[idx] = { ...arr[idx], ...item }
+        arr[idx] = { ...arr[idx], ...entry }
         return arr
       }
-      return [...prev, item]
+      return [...prev, entry]
     })
     setActiveSubagentId(item.taskId)
-    setSubagentsHidden(false)
-  }, [])
+    updatePanels(path, { subagentsHidden: false })
+  }, [projectOfSession, updatePanels])
 
   // Expanded panels are `position: absolute` and sized against `.main`, so they must
   // NOT sit inside `.right-panels-container`: that container is positioned (its resizer
@@ -336,8 +409,8 @@ export default function App() {
     monitorsFocusSeq.current += 1
     setMonitorsFocus({ monitorId, seq: monitorsFocusSeq.current })
     setTasksFull(false)
-    setTasksOpenFor(agentId)
-  }, [])
+    setPanelSession(projectOfSession(agentId), 'tasks', agentId)
+  }, [projectOfSession, setPanelSession])
   const handleMonitorsFocusApplied = useCallback(() => setMonitorsFocus(null), [])
   const terminalPanel = terminalOpenFor ? (
     <TerminalOverlay
@@ -345,8 +418,8 @@ export default function App() {
       agentId={terminalOpenFor}
       full={terminalFull}
       onToggleFull={() => setTerminalFull(v => !v)}
-      onClose={() => setTerminalOpenFor(null)}
-      onOpenBrowser={(agentId) => { setBrowserFull(false); setBrowserOpenFor(agentId) }}
+      onClose={() => setPanelSession(activePathRef.current, 'terminal', null)}
+      onOpenBrowser={(agentId) => { setBrowserFull(false); setPanelSession(projectOfSession(agentId), 'browser', agentId) }}
       pendingCommand={terminalRunRequest && terminalRunRequest.agentId === terminalOpenFor ? terminalRunRequest : null}
       onCommandConsumed={handleRunCommandConsumed}
     />
@@ -359,28 +432,39 @@ export default function App() {
       agentId={browserOpenFor}
       full={browserFull}
       onToggleFull={() => setBrowserFull(v => !v)}
-      onClose={() => setBrowserOpenFor(null)}
+      onClose={() => setPanelSession(activePathRef.current, 'browser', null)}
     />
   ) : null
   const handleCloseSubagent = useCallback((taskId: string) => {
     setOpenSubagents(prev => {
       const next = prev.filter(i => i.taskId !== taskId)
       setActiveSubagentId(cur => (cur === taskId ? (next[next.length - 1]?.taskId ?? null) : cur))
-      if (next.length === 0) setSubagentsFull(false)
+      if (!next.some(i => i.projectPath === activePathRef.current)) setSubagentsFull(false)
       return next
     })
   }, [])
   const handleCloseSubagents = useCallback(() => {
-    setOpenSubagents([])
+    // Only the active project's tabs: the other projects keep theirs for when
+    // the user switches back.
+    const path = activePathRef.current
+    setOpenSubagents(prev => prev.filter(i => i.projectPath !== path))
     setActiveSubagentId(null)
     setSubagentsFull(false)
   }, [])
-  const subagentsShown = openSubagents.length > 0 && !subagentsHidden
+  const projectSubagents = useMemo(
+    () => openSubagents.filter(i => i.projectPath === activePath),
+    [openSubagents, activePath]
+  )
+  const subagentsShown = projectSubagents.length > 0 && !activePanels.subagentsHidden
+  // The selected tab may belong to another project: fall back to this project's last tab.
+  const shownSubagentId = projectSubagents.some(i => i.taskId === activeSubagentId)
+    ? activeSubagentId
+    : projectSubagents[projectSubagents.length - 1]?.taskId ?? null
   const subagentPanel = subagentsShown ? (
     <SubagentOverlay
       key="subagents"
-      items={openSubagents}
-      activeId={activeSubagentId}
+      items={projectSubagents}
+      activeId={shownSubagentId}
       onSelect={setActiveSubagentId}
       onCloseTab={handleCloseSubagent}
       full={subagentsFull}
@@ -433,17 +517,9 @@ export default function App() {
     const active = activePath ? activeSessionByPath[activePath] : null
     if (active && active === agentId) {
       setBrowserFull(false)
-      setBrowserOpenFor(agentId)
+      setPanelSession(activePath, 'browser', agentId)
     }
-  }), [activePath, activeSessionByPath])
-  // Refs mirror the state so stable mount-once subscriptions and callbacks never
-  // read a stale value (state updates run at commit, refs update synchronously).
-  const runtimesRef = useRef<Record<string, WorkspaceRuntime>>({})
-  const orderRef = useRef<string[]>([])
-  const activePathRef = useRef<string | null>(null)
-  // agentIds with a turn in flight — eviction skips projects owning any of these.
-  const runningAgentsRef = useRef<Set<string>>(new Set())
-
+  }), [activePath, activeSessionByPath, setPanelSession])
   const setRuntimes = useCallback((updater: (prev: Record<string, WorkspaceRuntime>) => Record<string, WorkspaceRuntime>) => {
     setRuntimesState(prev => {
       const next = updater(prev)
@@ -543,13 +619,24 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('meow.rightpanel.width', String(rightWidth))
   }, [rightWidth])
+  // A project switch brings that folder's own panels back, so the expanded state
+  // (which belongs to the panel that was showing) is dropped instead of being
+  // carried onto another folder's panel.
+  const prevActivePathRef = useRef<string | null>(null)
   useEffect(() => {
-    // Leaving a project closes its Files panel, unless that would discard unsaved edits.
-    if (filesOpenFor && filesOpenFor !== activePath) {
-      if (filesDirty) setConfirmCloseFiles(true)
-      else setFilesOpenFor(null)
-    }
-  }, [activePath])
+    const prev = prevActivePathRef.current
+    prevActivePathRef.current = activePath
+    if (prev === activePath) return
+    setFilesFull(false)
+    setGitFull(false)
+    setTasksFull(false)
+    setTerminalFull(false)
+    setBrowserFull(false)
+    setSubagentsFull(false)
+    // The Files panel stays pinned to the project it belongs to while its unsaved
+    // edits wait on the discard prompt.
+    if (filesDirty && filesOpenFor && filesOpenFor !== activePath) setConfirmCloseFiles(true)
+  }, [activePath, filesDirty, filesOpenFor])
   useEffect(() => {
     localStorage.setItem('meow.activeSessionByPath', JSON.stringify(activeSessionByPath))
   }, [activeSessionByPath])
@@ -732,6 +819,14 @@ export default function App() {
   const activateRef = useRef(activate)
   activateRef.current = activate
 
+  // Opening Git from a project's sidebar menu shows that project: its panel state
+  // only renders while the project is active.
+  const handleOpenGit = useCallback((path: string) => {
+    setGitFull(false)
+    updatePanels(path, { git: true })
+    if (path !== activePathRef.current) activateRef.current(path)
+  }, [updatePanels])
+
   // Retry eviction the moment a hidden project's turn ends (a running agent
   // previously blocked its eviction).
   useEffect(() => {
@@ -785,6 +880,12 @@ export default function App() {
       delete next[path]
       return next
     })
+    setPanelsByPath(prev => {
+      if (!(path in prev)) return prev
+      const next = { ...prev }
+      delete next[path]
+      return next
+    })
     if (activePathRef.current === path) {
       // Main already reset activeProject (WorkspaceRemove). Repoint at the next
       // most recently used remaining project, or clear.
@@ -796,7 +897,16 @@ export default function App() {
   }, [refreshWorkspaces])
 
   const removeAgent = useCallback(async (path: string, agentId: string) => {
-    setBrowserOpenFor(cur => (cur === agentId ? null : cur))
+    setPanelsByPath(prev => {
+      const panels = prev[path]
+      if (!panels) return prev
+      return { ...prev, [path]: {
+        ...panels,
+        terminal: panels.terminal === agentId ? null : panels.terminal,
+        tasks: panels.tasks === agentId ? null : panels.tasks,
+        browser: panels.browser === agentId ? null : panels.browser
+      } }
+    })
     setBrowserAgentActiveIds(prev => {
       if (!prev.has(agentId)) return prev
       const next = new Set(prev)
@@ -886,8 +996,6 @@ export default function App() {
 
   // Pane header menu and the Tasks panel both funnel through this guard.
   const handleRemovePane = useCallback((path: string, id: string) => {
-    setTerminalOpenFor(cur => (cur === id ? null : cur))
-    setTasksOpenFor(cur => (cur === id ? null : cur))
     setTasksFull(false)
     void removeSessionGuarded(path, id)
   }, [removeSessionGuarded])
@@ -954,10 +1062,10 @@ export default function App() {
     const owner = Object.values(runtimesRef.current).find(rt => rt.workspace.agents.some(a => a.id === id))
     if (owner) onSelectSession(owner.workspace.projectPath, id)
     // Opening a row is "take me there": the sheet folds away so the chat is unobstructed.
-    setTasksOpenFor(null)
+    setPanelSession(owner?.workspace.projectPath ?? activePathRef.current, 'tasks', null)
     setTasksFull(false)
     setMonitorsFocus(null)
-  }, [onSelectSession])
+  }, [onSelectSession, setPanelSession])
   const tasksPanel = tasksOpenFor ? (
     <TasksPanel
       key={`tasks:${tasksOpenFor}`}
@@ -965,7 +1073,7 @@ export default function App() {
       sessions={tasksSessions}
       full={tasksFull}
       onToggleFull={() => setTasksFull(v => !v)}
-      onClose={() => { setTasksOpenFor(null); setTasksFull(false); setMonitorsFocus(null) }}
+      onClose={() => { setPanelSession(activePathRef.current, 'tasks', null); setTasksFull(false); setMonitorsFocus(null) }}
       focus={monitorsFocus}
       onFocusApplied={handleMonitorsFocusApplied}
       onOpenSession={handleOpenTaskSession}
@@ -989,12 +1097,9 @@ export default function App() {
       agentId={activeSessionByPath[filesOpenFor] ?? null}
     />
   ) : null
-  // Occlusion reasons owned by the app shell: another panel expanded over the
-  // browser, or the panel's session no longer in the active project.
+  // Occlusion reasons owned by the app shell: another panel expanded over the browser.
   const otherPanelExpanded = filesFull || tasksFull || terminalFull || (subagentsShown && subagentsFull)
-  const browserPanelOffProject = !!browserOpenFor && !(activePath && (runtimes[activePath]?.agents.some(a => a.agentId === browserOpenFor) ?? false))
   useBrowserOcclusion(otherPanelExpanded, 'cover')
-  useBrowserOcclusion(browserPanelOffProject, 'cover')
   // The hover sidebar popover is not a BaseDropdown; it only matters when it
   // reaches the panel (narrow windows).
   const sidebarPopoverRef = useRef<HTMLDivElement>(null)
@@ -1084,7 +1189,7 @@ export default function App() {
           <PanelToolbar
             projectPath={activePath}
             sessionReady={!!activeSessionId && activeSessionId !== DRAFT_SESSION_ID}
-            subagentsAvailable={openSubagents.length > 0}
+            subagentsAvailable={projectSubagents.length > 0}
             subagentsOpen={subagentsShown}
             terminalOpen={!!activeSessionId && terminalOpenFor === activeSessionId}
             tasksOpen={!!activeSessionId && tasksOpenFor === activeSessionId}
@@ -1092,23 +1197,22 @@ export default function App() {
             browserAgentActive={!!activeSessionId && browserAgentActiveIds.has(activeSessionId)}
             filesOpen={!!activePath && filesOpenFor === activePath}
             gitOpen={!!activePath && gitOpenFor === activePath}
-            onToggleSubagents={() => setSubagentsHidden(v => !v)}
+            onToggleSubagents={() => updatePanels(activePath, { subagentsHidden: !activePanels.subagentsHidden })}
             onToggleTerminal={() => { if (activeSessionId) handleToggleTerminal(activeSessionId) }}
             onToggleTasks={() => {
               if (!activeSessionId) return
               setTasksFull(false)
-              setTasksOpenFor(cur => (cur === activeSessionId ? null : activeSessionId))
+              togglePanelSession(activeSessionId, 'tasks')
             }}
             onToggleBrowser={() => { if (activeSessionId) handleToggleBrowser(activeSessionId) }}
             onToggleFiles={() => {
               if (!activePath) return
-              // A panel still open on another project is waiting on the discard prompt.
               if (filesOpenFor) {
                 requestCloseFiles()
                 return
               }
               setFilesFull(false)
-              setFilesOpenFor(activePath)
+              updatePanels(activePath, { files: true })
             }}
             onToggleGit={handleToggleGit}
           />
@@ -1141,7 +1245,7 @@ export default function App() {
             onStopSession={onStopSession}
             onOpenSettings={() => { setSettingsTab('agents'); setShowSettings(true); setSidebarHovered(false) }}
             onOpenProviders={() => { setSettingsTab('providers'); setShowSettings(true); setSidebarHovered(false) }}
-            onOpenGit={path => { setGitFull(false); setGitOpenFor(path); setSidebarHovered(false) }}
+            onOpenGit={path => { handleOpenGit(path); setSidebarHovered(false) }}
             onCheckUpdate={handleCheckUpdate}
             updateChecking={updateChecking}
             onReorder={handleReorderWorkspaces}
@@ -1167,7 +1271,7 @@ export default function App() {
             onStopSession={onStopSession}
             onOpenSettings={() => { setSettingsTab('agents'); setShowSettings(true) }}
             onOpenProviders={() => { setSettingsTab('providers'); setShowSettings(true) }}
-            onOpenGit={path => { setGitFull(false); setGitOpenFor(path) }}
+            onOpenGit={handleOpenGit}
             onCheckUpdate={handleCheckUpdate}
             updateChecking={updateChecking}
             onReorder={handleReorderWorkspaces}
@@ -1288,7 +1392,7 @@ export default function App() {
         update={updateStatus}
         onUpdateClick={() => setUpdateDialogOpen(true)}
         onBrowserClick={() => setBrowserDialogOpen(true)}
-        onGitClick={activeRuntime ? () => { setGitFull(false); setGitOpenFor(cur => (cur === activeRuntime.workspace.projectPath ? null : activeRuntime.workspace.projectPath)) } : undefined}
+        onGitClick={activeRuntime ? handleToggleGit : undefined}
       />
       {filesPanel && createPortal(filesPanel, filesHost)}
       {confirmCloseFiles && (
@@ -1298,13 +1402,13 @@ export default function App() {
           confirmLabel="Discard"
           onConfirm={() => {
             setConfirmCloseFiles(false)
-            setFilesOpenFor(null)
+            closeFilesPanel()
           }}
           onCancel={() => {
             setConfirmCloseFiles(false)
             // Keeping the edits after a project switch means going back to them.
             if (filesOpenFor && filesOpenFor !== activePath && workspaces.some(w => w.projectPath === filesOpenFor)) {
-              void openWorkspace(filesOpenFor)
+              activateRef.current(filesOpenFor)
             }
           }}
         />

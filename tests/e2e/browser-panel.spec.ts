@@ -296,9 +296,9 @@ test('the panel toggles, drives a tab, switches tabs, reloads and matches the vi
       await window.locator('.browser-url-input').fill(url.replace(/^http:\/\//, ''))
       await window.locator('.browser-url-input').press('Enter')
       await expect(window.locator('.browser-url-input')).toHaveValue(url, { timeout: 10000 })
-      await window.locator('.browser-url-input').fill('file:///C:/secret.txt')
+      await window.locator('.browser-url-input').fill('not a url')
       await window.locator('.browser-url-input').press('Enter')
-      await expect(window.locator('.terminal-error-bar')).toContainText('Enter an http(s) URL')
+      await expect(window.locator('.terminal-error-bar')).toContainText('Enter a valid URL or path')
       // The error row moved the viewport down.
       await expectBounds(app, url, window)
       await window.locator('.terminal-error-bar .icon-btn').click()
@@ -636,12 +636,15 @@ test('occlusion: menus and the resizer hide the native view, and it comes back',
         expect(await window.evaluate(() => (window as unknown as { __freezeCount(): number }).__freezeCount())).toBe(0)
       }
 
-      // Project switch away from the panel's session hides it; coming back shows it.
+      // Panels are per project: switching away closes this folder's panel (the view
+      // goes off screen) and coming back reopens it.
       await window.locator('button[aria-label="menu E2E Two"]').click()
       await window.locator('.project-menu-dropdown').getByText('Open', { exact: true }).click()
-      await expect.poll(visible, { timeout: 15000 }).toBe(false)
+      await expect(window.locator('.browser-overlay')).toHaveCount(0)
+      await expect.poll(async () => (await viewBounds(app, url))?.x, { timeout: 15000 }).toBe(10_000)
       await window.locator('button[aria-label="menu E2E Project"]').click()
       await window.locator('.project-menu-dropdown').getByText('Open', { exact: true }).click()
+      await expect(window.locator('.browser-overlay')).toBeVisible()
       await expect.poll(visible, { timeout: 15000 }).toBe(true)
       await expectBounds(app, url, window)
 

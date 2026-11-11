@@ -8,6 +8,10 @@ import PanelHeader from '../common/PanelHeader'
 
 export interface SubagentOverlayItem {
   taskId: string
+  // The session that spawned the sub-agent; the overlay is per project, so the tab
+  // is filed under that session's project.
+  agentId?: string
+  projectPath?: string
   subagentType?: string
   background?: boolean
   state: 'running' | 'completed' | 'cancelled' | 'error'
