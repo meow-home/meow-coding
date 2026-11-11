@@ -3,6 +3,8 @@ import type { ToolContext, ToolDefinition, ToolRunResult } from './types'
 import type { BrowserCommandResult } from '../../../shared/browser-types'
 import type { BrowserCall, BrowserRouterLike } from '../../browser/browser-backend'
 import { SNAPSHOT_UNTRUSTED_NOTICE } from '../../browser/snapshot-output'
+import { resolveBrowserUrl } from '../../browser/url-utils'
+import { isAllowedNavigation } from '../../browser/navigation-policy'
 
 const NO_CONTEXT = 'browser: no session context'
 
@@ -47,14 +49,15 @@ export function createBrowserTools(router: BrowserRouterLike): ToolDefinition[] 
         'the session has none); Chrome opens a new background tab and never reuses an existing one. ' +
         'Returns a tabId for other browser_* tools.',
       schema: z.object({
-        url: z.string().describe('The http(s) URL to open.')
+        url: z.string().describe('The URL or local file path to open.')
       }),
       async run(input, ctx): Promise<ToolRunResult> {
         const call = callFor(ctx)
         if (!call) return { error: NO_CONTEXT }
         const { url } = input as unknown as { url: string }
-        if (!/^https?:\/\//i.test(url)) return { error: `browser_navigate: invalid url: ${url}` }
-        return fmt(await router.backendFor(call.ownerId).execute('navigate', { url }, call))
+        const resolved = resolveBrowserUrl(url)
+        if (!isAllowedNavigation(resolved, true)) return { error: `browser_navigate: invalid url: ${url}` }
+        return fmt(await router.backendFor(call.ownerId).execute('navigate', { url: resolved }, call))
       }
     },
     {
@@ -63,14 +66,15 @@ export function createBrowserTools(router: BrowserRouterLike): ToolDefinition[] 
         'Open a URL in a new tab of this session\'s browser without switching the visible tab. ' +
         'Returns a tabId for other browser_* tools.',
       schema: z.object({
-        url: z.string().describe('The http(s) URL to open.')
+        url: z.string().describe('The URL or local file path to open.')
       }),
       async run(input, ctx): Promise<ToolRunResult> {
         const call = callFor(ctx)
         if (!call) return { error: NO_CONTEXT }
         const { url } = input as unknown as { url: string }
-        if (!/^https?:\/\//i.test(url)) return { error: `browser_open_tab: invalid url: ${url}` }
-        return fmt(await router.backendFor(call.ownerId).execute('openTab', { url }, call))
+        const resolved = resolveBrowserUrl(url)
+        if (!isAllowedNavigation(resolved, true)) return { error: `browser_open_tab: invalid url: ${url}` }
+        return fmt(await router.backendFor(call.ownerId).execute('openTab', { url: resolved }, call))
       }
     },
     {

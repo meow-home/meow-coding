@@ -7,6 +7,7 @@ import { staleRefError } from './cdp-commands'
 import type { RefLabel, TargetRect } from './cdp-commands'
 import { SiteApprovals } from './site-approval'
 import { isLoopback } from '../../shared/loopback'
+import { isAllowedNavigation } from './navigation-policy'
 
 export interface CdpClient {
   send<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>
@@ -534,7 +535,7 @@ export class BrowserTab {
     switch (name) {
       case 'navigate': {
         const url = String(params.url ?? '')
-        if (!/^https?:\/\//i.test(url)) return { ok: false, error: `invalid url: ${url}` }
+        if (!isAllowedNavigation(url, true)) return { ok: false, error: `invalid url: ${url}` }
         await this.host.loadUrl(url)
         this.crashed = false
         return { ok: true, data: { tabId: this.id, url: this.host.getUrl(), title: this.host.getTitle() } }

@@ -567,7 +567,7 @@ describe('EmbeddedBrowser panel', () => {
   it('guards user navigation and history while the agent works', async () => {
     const { browser, hosts } = await twoTabs()
     const tabId = hosts[0].id
-    await expect(browser.navigateFromUser(tabId, 'file:///C:/secret.txt')).rejects.toThrow('invalid url')
+    await expect(browser.navigateFromUser(tabId, 'ftp://x')).rejects.toThrow('invalid url')
     await expect(browser.navigateFromUser(tabId, 'not a url')).rejects.toThrow('invalid url')
 
     // The agent's lease makes the tab its own.

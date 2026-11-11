@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, RotateCw, Square } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { ArrowLeft, ArrowRight, RotateCw, Square, Loader2 } from 'lucide-react'
 import type { BrowserTabInfo } from '@shared/browser-types'
 import { normalizeUrlInput } from './normalizeUrlInput'
 
@@ -40,14 +40,14 @@ export default function BrowserToolbar({
     setEditing(false)
     if (!normalized) {
       setDraft(url)
-      onError('Enter an http(s) URL.')
+      onError('Enter a valid URL or path.')
       return
     }
     onNavigate(normalized)
   }
 
   return (
-    <div className="browser-toolbar">
+    <div className="browser-toolbar" style={{ position: 'relative' }}>
       <button
         className="icon-btn"
         title="Back"
@@ -75,34 +75,42 @@ export default function BrowserToolbar({
       >
         {tab?.loading ? <Square size={13} aria-hidden="true" /> : <RotateCw size={14} aria-hidden="true" />}
       </button>
-      <input
-        ref={inputRef}
-        className="browser-url-input"
-        type="text"
-        spellCheck={false}
-        aria-label="Address"
-        placeholder="Enter a URL"
-        title="Address"
-        disabled={!tab || locked}
-        value={editing ? draft : url}
-        onFocus={() => {
-          setEditing(true)
-          setDraft(url)
-        }}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') submit()
-          else if (e.key === 'Escape') {
+      <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+        <input
+          ref={inputRef}
+          className="browser-url-input"
+          type="text"
+          spellCheck={false}
+          aria-label="Address"
+          placeholder="Enter a URL or file path"
+          title="Address"
+          disabled={!tab || locked}
+          value={editing ? draft : url}
+          onFocus={() => {
+            setEditing(true)
+            setDraft(url)
+          }}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') submit()
+            else if (e.key === 'Escape') {
+              setEditing(false)
+              setDraft(url)
+              inputRef.current?.blur()
+            }
+          }}
+          onBlur={() => {
             setEditing(false)
             setDraft(url)
-            inputRef.current?.blur()
-          }
-        }}
-        onBlur={() => {
-          setEditing(false)
-          setDraft(url)
-        }}
-      />
+          }}
+        />
+        {tab?.loading && (
+          <span className="browser-input-spinner" title="Loading...">
+            <Loader2 size={13} className="browser-spinner" aria-hidden="true" />
+          </span>
+        )}
+      </div>
+      {tab?.loading && <div className="browser-loading-bar" />}
     </div>
   )
 }

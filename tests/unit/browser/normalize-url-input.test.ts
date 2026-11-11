@@ -21,7 +21,7 @@ describe('normalizeUrlInput', () => {
 
   it('rejects spaces, other schemes and malformed input', () => {
     expect(normalizeUrlInput('two words')).toBeNull()
-    expect(normalizeUrlInput('file:///C:/secret.txt')).toBeNull()
+    expect(normalizeUrlInput('file:///C:/secret.txt')).toBe('file:///C:/secret.txt')
     expect(normalizeUrlInput('javascript:alert(1)')).toBeNull()
     expect(normalizeUrlInput('ftp://example.com')).toBeNull()
     expect(normalizeUrlInput('')).toBeNull()

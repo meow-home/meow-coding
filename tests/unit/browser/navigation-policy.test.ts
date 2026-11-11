@@ -9,12 +9,12 @@ describe('isAllowedNavigation', () => {
       expect(isAllowedNavigation('about:blank', true)).toBe(true)
     })
 
-    it('blocks inline documents, file and custom schemes', () => {
+    it('blocks inline documents and custom schemes, but allows file', () => {
       expect(isAllowedNavigation('about:srcdoc', true)).toBe(false)
       expect(isAllowedNavigation('blob:https://example.com/1234', true)).toBe(false)
       expect(isAllowedNavigation('data:text/html,<p>x</p>', true)).toBe(false)
-      expect(isAllowedNavigation('file:///C:/secret.txt', true)).toBe(false)
-      expect(isAllowedNavigation('FILE:///C:/secret.txt', true)).toBe(false)
+      expect(isAllowedNavigation('file:///C:/secret.txt', true)).toBe(true)
+      expect(isAllowedNavigation('FILE:///C:/secret.txt', true)).toBe(true)
       expect(isAllowedNavigation('javascript:alert(1)', true)).toBe(false)
       expect(isAllowedNavigation('meow://open', true)).toBe(false)
     })

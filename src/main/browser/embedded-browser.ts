@@ -7,6 +7,7 @@ import { BrowserTab, type TabHost } from './browser-tab'
 import { NAVIGATE_TIMEOUT_MS } from './cdp-commands'
 import { SiteApprovals } from './site-approval'
 import { isAllowedNavigation } from './navigation-policy'
+import { resolveBrowserUrl } from './url-utils'
 
 export const MAX_TABS_PER_SESSION = 8
 export const MAX_TABS_TOTAL = 8
@@ -60,10 +61,6 @@ export type HandoffListener = (agentId: string, tabId: number, reason: string) =
 
 function isError(value: TabEntry | BrowserCommandResult): value is Extract<BrowserCommandResult, { ok: false }> {
   return 'ok' in value && !value.ok
-}
-
-function isHttpUrl(url: string): boolean {
-  return /^https?:\/\//i.test(url)
 }
 
 /**
@@ -325,7 +322,7 @@ export class EmbeddedBrowser implements BrowserBackend {
   // ---- user actions from the panel ------------------------------------------
 
   async createUserTab(agentId: string, url?: string): Promise<BrowserTabInfo> {
-    const safe = url != null ? this.requireHttpUrl(url) : null
+    const safe = url != null ? this.resolveAndValidateUrl(url) : null
     const created = this.createTab(agentId, 'user')
     if (isError(created)) throw new Error(created.error)
     // createTab already starts the placement; load only once the view is on screen.
@@ -349,7 +346,7 @@ export class EmbeddedBrowser implements BrowserBackend {
   }
 
   async navigateFromUser(tabId: number, url: string): Promise<void> {
-    const safe = this.requireHttpUrl(url)
+    const safe = this.resolveAndValidateUrl(url)
     const entry = this.requireUserAction(tabId)
     await entry.host.loadUrl(safe)
     this.emitTabsChanged(entry.ownerId)
@@ -370,9 +367,10 @@ export class EmbeddedBrowser implements BrowserBackend {
     return kind === 'console' ? entry.tab.allConsoleLogs(limit) : entry.tab.allNetworkLogs(limit)
   }
 
-  private requireHttpUrl(url: string): string {
-    if (!/^https?:\/\//i.test(url) || !isAllowedNavigation(url, true)) {
-      throw new Error(`invalid url: ${url} (http and https only)`)
+  private resolveAndValidateUrl(rawUrl: string): string {
+    const url = resolveBrowserUrl(rawUrl)
+    if (!isAllowedNavigation(url, true)) {
+      throw new Error(`invalid url: ${rawUrl}`)
     }
     return url
   }
@@ -419,8 +417,9 @@ export class EmbeddedBrowser implements BrowserBackend {
     params: Record<string, unknown>,
     timeoutMs?: number
   ): Promise<BrowserCommandResult> {
-    const url = String(params.url ?? '')
-    if (!isHttpUrl(url)) return { ok: false, error: `invalid url: ${url}` }
+    const rawUrl = String(params.url ?? '')
+    const url = resolveBrowserUrl(rawUrl)
+    if (!isAllowedNavigation(url, true)) return { ok: false, error: `invalid url: ${rawUrl}` }
     let entry = this.entryFor(call.ownerId, params.tabId)
     if (!entry) {
       if (params.tabId != null) return { ok: false, error: `no such tab: ${params.tabId}` }
@@ -433,8 +432,9 @@ export class EmbeddedBrowser implements BrowserBackend {
   }
 
   private async openTab(call: BrowserCall, params: Record<string, unknown>): Promise<BrowserCommandResult> {
-    const url = String(params.url ?? '')
-    if (!isHttpUrl(url)) return { ok: false, error: `invalid url: ${url}` }
+    const rawUrl = String(params.url ?? '')
+    const url = resolveBrowserUrl(rawUrl)
+    if (!isAllowedNavigation(url, true)) return { ok: false, error: `invalid url: ${rawUrl}` }
     const created = this.createTab(call.ownerId, 'agent')
     if (isError(created)) return created
     const result = await created.tab.run('navigate', { url }, call, NAVIGATE_TIMEOUT_MS)
