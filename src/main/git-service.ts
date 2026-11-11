@@ -117,12 +117,36 @@ export class GitService {
 
   static parseStatus(stdout: string): GitStatusDetail {
     let branch: string | null = null
+    let upstream: string | null = null
+    let ahead = 0
+    let behind = 0
     const files: GitFileChange[] = []
     for (const line of stdout.split('\n')) {
       if (line.startsWith('## ')) {
         const rest = line.slice(3)
-        const branchPart = rest.split('...')[0]
-        branch = branchPart === 'HEAD (no branch)' ? null : branchPart
+        if (rest.startsWith('HEAD (no branch)')) {
+          branch = null
+        } else if (rest.startsWith('No commits yet on ')) {
+          branch = rest.slice('No commits yet on '.length).trim() || null
+        } else {
+          // "local...upstream [ahead 2, behind 1]"; the tracking part is optional.
+          const sep = rest.indexOf('...')
+          branch = (sep === -1 ? rest : rest.slice(0, sep)).trim() || null
+          if (sep !== -1) {
+            const [name, info = ''] = rest.slice(sep + 3).split(' [')
+            upstream = name.trim() || null
+            const counts = info.replace(/\]$/, '')
+            if (counts.includes('gone')) {
+              // The remote branch was deleted, so nothing tracks it anymore.
+              upstream = null
+            } else {
+              const a = counts.match(/ahead (\d+)/)
+              const b = counts.match(/behind (\d+)/)
+              ahead = a ? Number(a[1]) : 0
+              behind = b ? Number(b[1]) : 0
+            }
+          }
+        }
         continue
       }
       if (!line.trim()) continue
@@ -148,7 +172,7 @@ export class GitService {
       } else if (xy[0] === 'T' || xy[1] === 'T') status = 'typechange'
       files.push({ path, status, staged, unstaged })
     }
-    return { branch, headOid: null, files }
+    return { branch, headOid: null, upstream, ahead, behind, files }
   }
 
   async getStatusDetail(projectPath: string): Promise<GitStatusDetail | null> {

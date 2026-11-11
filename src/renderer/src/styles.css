@@ -891,6 +891,15 @@ select.input { width: 100%; }
   color: var(--text-strong);
 }
 
+.sb-sync {
+  flex: 0 0 auto;
+  margin-left: 0.15rem;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+.sb-sync.ahead { color: var(--yellow); }
+.sb-sync.behind { color: var(--accent-strong); }
+
 .sb-dirty-badge {
   display: inline-flex;
   align-items: center;
@@ -3933,11 +3942,19 @@ h3 + .browser-section { padding-top: 0; border-top: none; }
 }
 .git-branch-chip {
   display: inline-flex; align-items: center; gap: 0.333333rem; height: 1.666667rem;
-  max-width: 8rem; padding: 0 0.5rem; margin-right: 0.166667rem;
+  max-width: 10rem; padding: 0 0.5rem; margin-right: 0.166667rem;
   background: var(--menu-hover); color: var(--text-dim); font-size: var(--fs-sm);
 }
 .git-branch-chip svg { color: var(--accent-strong); flex: 0 0 auto; }
 .git-branch-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Sync state inside the branch chip: ↑ unpushed, ↓ behind, cloud-off = never pushed. */
+.git-sync-ahead,
+.git-sync-behind {
+  flex: 0 0 auto; font-size: var(--fs-xs); font-variant-numeric: tabular-nums;
+}
+.git-sync-ahead { color: var(--yellow); }
+.git-sync-behind { color: var(--accent-strong); }
+.git-sync-local { flex: 0 0 auto; color: var(--text-faint); }
 
 .git-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 

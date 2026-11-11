@@ -18,15 +18,26 @@ export class GitStatusService {
 
   parse(stdout: string): GitStatus {
     let branch: string | null = null
+    let upstream: string | null = null
+    let ahead = 0
+    let behind = 0
     let dirtyCount = 0
     for (const line of stdout.split('\n')) {
       if (line.startsWith('# branch.head ')) {
         const value = line.slice('# branch.head '.length)
         branch = value === '(detached)' ? null : value
+      } else if (line.startsWith('# branch.upstream ')) {
+        upstream = line.slice('# branch.upstream '.length).trim() || null
+      } else if (line.startsWith('# branch.ab ')) {
+        const m = line.match(/^# branch\.ab \+(\d+) -(\d+)$/)
+        if (m) {
+          ahead = Number(m[1])
+          behind = Number(m[2])
+        }
       } else if (line.length > 0 && !line.startsWith('#')) {
         dirtyCount++
       }
     }
-    return { branch, dirtyCount }
+    return { branch, dirtyCount, upstream, ahead, behind }
   }
 }

@@ -40,7 +40,7 @@ straight to the code.
 | Add workspace | Pick a folder; persisted in `userData/workspaces.json`; no session is created — the project opens on a draft session and its `meow` agent is materialized on the first prompt | `src/main/workspace-store.ts`, `Channels.WorkspaceAdd` |
 | Open workspace | Registers native agents synchronously (so chat mounts instantly), then loads tools/MCP off the critical path | `MainApp.openWorkspace` / `prepareWorkspace` |
 | Session panes | Every session of the active project has a pane and stays mounted; the selected one is shown (inactive ones are hidden, never unmounted) | `SessionPanes.tsx` |
-| Session title | Status dot (spawning/running/idle/exited/stopped/error) and name in the window title bar, with the session's `⋮` menu; branch + dirty count live in the status bar | `SessionTitle.tsx`, `git-status-service.ts` |
+| Session title | Status dot (spawning/running/idle/exited/stopped/error) and name in the window title bar, with the session's `⋮` menu; branch, push state (`↑`/`↓`) and dirty count live in the status bar | `SessionTitle.tsx`, `git-status-service.ts` |
 | Background agents | An agent can be moved to the background and keeps running; listed as rows in the right-hand Tasks panel with the other async work | `Channels.AgentSetBackground`, `processes/TasksPanel.tsx` |
 | Idle / exit alerts | Idle alert after 5 minutes without output; exit alert classified by exit code | `alert-service.ts` |
 | Per-agent logs | Every byte of PTY output appended to `userData/logs/<agentId>.log` | `log-manager.ts` |

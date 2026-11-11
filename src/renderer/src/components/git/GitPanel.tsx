@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, GitBranch, RefreshCw } from 'lucide-react'
+import { AlertTriangle, CloudOff, GitBranch, RefreshCw } from 'lucide-react'
 import type { GitStatusDetail } from '@shared/types'
 import PanelHeader from '../common/PanelHeader'
 import GitChangesView from './GitChangesView'
@@ -17,6 +17,22 @@ type Tab = 'changes' | 'history'
 interface GitError {
   error: string
   command: string
+}
+
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? '' : 's'}`
+}
+
+/** One sentence for the branch chip's tooltip: pushed, unpushed, behind or unpublished. */
+function syncTitle(status: GitStatusDetail): string {
+  const name = status.branch ?? 'HEAD'
+  if (!status.upstream) return `${name} is not published — no upstream branch`
+  if (status.ahead > 0 && status.behind > 0) {
+    return `${plural(status.ahead, 'commit')} not pushed, ${status.behind} behind ${status.upstream}`
+  }
+  if (status.ahead > 0) return `${plural(status.ahead, 'commit')} not pushed to ${status.upstream}`
+  if (status.behind > 0) return `${plural(status.behind, 'commit')} behind ${status.upstream}`
+  return `Up to date with ${status.upstream}`
 }
 
 /**
@@ -74,9 +90,20 @@ export default function GitPanel({ projectPath, full, onToggleFull, onClose }: P
   const actions = (
     <>
       {status?.branch && (
-        <span className="git-branch-chip" title={`Current branch: ${status.branch}`}>
+        <span className="git-branch-chip" title={syncTitle(status)}>
           <GitBranch size={13} aria-hidden="true" />
           <span className="git-branch-name">{status.branch}</span>
+          {status.ahead > 0 && (
+            <span className="git-sync-ahead" title={`${plural(status.ahead, 'commit')} not pushed`}>
+              ↑{status.ahead}
+            </span>
+          )}
+          {status.behind > 0 && (
+            <span className="git-sync-behind" title={`${plural(status.behind, 'commit')} behind`}>
+              ↓{status.behind}
+            </span>
+          )}
+          {!status.upstream && <CloudOff size={12} className="git-sync-local" aria-hidden="true" />}
         </span>
       )}
       <button

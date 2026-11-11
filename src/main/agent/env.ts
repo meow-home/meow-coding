@@ -21,7 +21,8 @@ export async function snapshotEnvironment(cwd: string): Promise<EnvSnapshot> {
     shell: detectShell(),
     cwd,
     date: new Date().toISOString(),
-    git
+    // The prompt only needs the branch and the dirty count; sync state stays in the UI.
+    git: git ? { branch: git.branch, dirtyCount: git.dirtyCount } : null
   }
 }
 

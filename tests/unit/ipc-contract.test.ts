@@ -325,7 +325,10 @@ describe('IPC contract', () => {
   it('types event payloads without runtime error', () => {
     const s: AgentStateEvent = { agentId: 'a1', state: {} as never }
     const gNull: GitStatusEvent = { projectPath: '/p', git: null }
-    const g: GitStatusEvent = { projectPath: '/p', git: { branch: 'main', dirtyCount: 0 } }
+    const g: GitStatusEvent = {
+      projectPath: '/p',
+      git: { branch: 'main', dirtyCount: 0, upstream: 'origin/main', ahead: 1, behind: 0 }
+    }
     const tData: TerminalDataEvent = { id: 'term_1', data: 'hello' }
     const tChanged: TerminalsChangedEvent = { agentId: 'a1', terminals: [] }
     expect(s.agentId).toBe('a1')

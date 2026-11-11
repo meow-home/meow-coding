@@ -22,22 +22,32 @@ function seedWorkspaces(userData: string, project: string): void {
   writeFileSync(path.join(userData, '.sessions-model-reset'), String(Date.now()))
 }
 
-// One commit, then a modified tracked file, a staged file and an untracked file.
-function seedGitRepo(project: string): void {
+const git = (args: string[], cwd: string) => execFileSync('git', args, { cwd, encoding: 'utf8' })
+
+// A pushed repo with one unpushed commit, then a modified tracked file, a staged
+// file and an untracked file in the working tree.
+function seedGitRepo(project: string): { remote: string } {
   mkdirSync(path.join(project, 'src'), { recursive: true })
   writeFileSync(path.join(project, 'src', 'index.ts'), 'export const answer = 42\n')
   writeFileSync(path.join(project, 'committed.txt'), 'one\n')
-  execFileSync('git', ['init', '-q'], { cwd: project })
-  execFileSync('git', ['add', '-A'], { cwd: project })
+  git(['init', '-q', '--initial-branch=main'], project)
+  git(['add', '-A'], project)
   // An isolated identity, never the machine's global git config.
-  execFileSync('git', [
-    '-c', 'user.email=e2e@test', '-c', 'user.name=e2e',
-    'commit', '-q', '-m', 'init commit'
-  ], { cwd: project })
+  git(['-c', 'user.email=e2e@test', '-c', 'user.name=e2e', 'commit', '-q', '-m', 'init commit'], project)
+
+  const remote = mkdtempSync(path.join(tmpdir(), 'meow-remote-'))
+  git(['init', '-q', '--bare', '--initial-branch=main'], remote)
+  git(['remote', 'add', 'origin', remote.replace(/\\/g, '/')], project)
+  git(['push', '-q', '-u', 'origin', 'main'], project)
+
+  // Unpushed commit, then more working-tree changes on top of it.
   writeFileSync(path.join(project, 'committed.txt'), 'two\n')
+  git(['-c', 'user.email=e2e@test', '-c', 'user.name=e2e', 'commit', '-q', '-am', 'second commit'], project)
+  writeFileSync(path.join(project, 'committed.txt'), 'three\n')
   writeFileSync(path.join(project, 'src', 'index.ts'), 'export const answer = 43\n')
-  execFileSync('git', ['add', 'src/index.ts'], { cwd: project })
+  git(['add', 'src/index.ts'], project)
   writeFileSync(path.join(project, 'untracked.txt'), 'new\n')
+  return { remote }
 }
 
 async function launch(userData: string): Promise<{ app: ElectronApplication; window: Page }> {
@@ -61,16 +71,21 @@ test('the Git panel expands a changed file and a commit in place', async () => {
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
   const project = mkdtempSync(path.join(tmpdir(), 'meow-proj-'))
   seedWorkspaces(userData, project)
-  seedGitRepo(project)
+  const { remote } = seedGitRepo(project)
 
   const { app, window } = await launch(userData)
   try {
     await openProject(window)
 
+    // The status bar already reads the unpushed commit before the panel opens.
+    await expect(window.locator('.sb-git .sb-sync.ahead')).toHaveText('↑1')
+
     await window.getByRole('button', { name: 'Toggle Git panel', exact: true }).click()
     const panel = window.locator('.git-panel')
     await expect(panel).toBeVisible()
     await expect(panel.locator('.git-branch-chip')).toBeVisible()
+    await expect(panel.locator('.git-sync-ahead')).toHaveText('↑1')
+    await expect(panel.locator('.git-branch-chip')).toHaveAttribute('title', /1 commit not pushed to origin\/main/)
 
     // The header fits the docked column: tabs, branch chip and the three icon buttons.
     const fits = await panel.locator('.panel-head').evaluate(el => el.scrollWidth <= el.clientWidth + 1)
@@ -95,9 +110,9 @@ test('the Git panel expands a changed file and a commit in place', async () => {
     // A file row expands to its diff right under itself.
     await panel.locator('.git-file-row', { hasText: 'committed.txt' }).click()
     await expect(panel.locator('.git-file-row.open')).toHaveCount(1)
-    await expect(panel.locator('.git-inline-diff .git-diff-line.add .git-diff-text')).toContainText('two')
+    await expect(panel.locator('.git-inline-diff .git-diff-line.add .git-diff-text')).toContainText('three')
 
-    // History: one commit, expanding to its message and changed files.
+    // History: the pushed commit and the unpushed one, expanding to message and files.
     await panel.getByRole('tab', { name: 'History' }).click()
     const commit = panel.locator('.git-commit-row', { hasText: 'init commit' })
     await expect(commit).toBeVisible()
@@ -115,5 +130,6 @@ test('the Git panel expands a changed file and a commit in place', async () => {
     await app.close()
     cleanupDir(userData)
     cleanupDir(project)
+    cleanupDir(remote)
   }
 })

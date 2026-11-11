@@ -47,6 +47,12 @@ export interface WorkspaceSummary {
 export interface GitStatus {
   branch: string | null
   dirtyCount: number
+  /** Tracking branch, e.g. "origin/main"; null when the branch is not published. */
+  upstream: string | null
+  /** Commits the local branch has that the upstream does not. */
+  ahead: number
+  /** Commits the upstream has that the local branch does not. */
+  behind: number
 }
 
 export interface GitBranch {
@@ -65,6 +71,12 @@ export interface GitFileChange {
 export interface GitStatusDetail {
   branch: string | null
   headOid: string | null
+  /** Tracking branch, e.g. "origin/main"; null when the branch is not published. */
+  upstream: string | null
+  /** Commits the local branch has that the upstream does not (unpushed). */
+  ahead: number
+  /** Commits the upstream has that the local branch does not. */
+  behind: number
   files: GitFileChange[]
 }
 

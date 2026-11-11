@@ -15,17 +15,27 @@ describe('GitStatusService.parse', () => {
       '1 M 100644 123 456 789 file.ts',
       '? untracked.txt'
     ].join('\n') + '\n'
-    expect(svc.parse(out)).toEqual({ branch: 'main', dirtyCount: 2 })
+    expect(svc.parse(out)).toEqual({ branch: 'main', dirtyCount: 2, upstream: null, ahead: 0, behind: 0 })
   })
 
   it('ignores branch header lines when counting dirty files', () => {
     const out = '# branch.oid xyz\n# branch.head feat/abc\n'
-    expect(svc.parse(out)).toEqual({ branch: 'feat/abc', dirtyCount: 0 })
+    expect(svc.parse(out)).toEqual({ branch: 'feat/abc', dirtyCount: 0, upstream: null, ahead: 0, behind: 0 })
   })
 
   it('handles detached HEAD as null branch', () => {
     const out = '# branch.oid abc\n# branch.head (detached)\n'
-    expect(svc.parse(out)).toEqual({ branch: null, dirtyCount: 0 })
+    expect(svc.parse(out)).toEqual({ branch: null, dirtyCount: 0, upstream: null, ahead: 0, behind: 0 })
+  })
+
+  it('reads the upstream and ahead/behind counts', () => {
+    const out = [
+      '# branch.oid abc',
+      '# branch.head main',
+      '# branch.upstream origin/main',
+      '# branch.ab +2 -1'
+    ].join('\n') + '\n'
+    expect(svc.parse(out)).toEqual({ branch: 'main', dirtyCount: 0, upstream: 'origin/main', ahead: 2, behind: 1 })
   })
 })
 

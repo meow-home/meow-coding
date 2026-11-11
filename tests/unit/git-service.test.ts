@@ -19,7 +19,7 @@ describe('GitService.parse', () => {
 
   it('parseStatus parses staged, unstaged and untracked with spaces in path', () => {
     const out = [
-      '## feature/abc...origin/feature/abc',
+      '## feature/abc...origin/feature/abc [ahead 2, behind 1]',
       'M  staged.txt',
       ' M unstaged.txt',
       'MM both.txt',
@@ -30,6 +30,7 @@ describe('GitService.parse', () => {
     ].join('\n') + '\n'
     const st = GitService.parseStatus(out)
     expect(st.branch).toBe('feature/abc')
+    expect(st).toMatchObject({ upstream: 'origin/feature/abc', ahead: 2, behind: 1 })
     const byPath = (p: string) => st.files.find(f => f.path === p)!
     expect(byPath('staged.txt')).toMatchObject({ status: 'modified', staged: true, unstaged: false })
     expect(byPath('unstaged.txt')).toMatchObject({ status: 'modified', staged: false, unstaged: true })
@@ -46,6 +47,16 @@ describe('GitService.parse', () => {
     const st = GitService.parseStatus('## HEAD (no branch)\n?? x\n')
     expect(st.branch).toBeNull()
     expect(st.files).toHaveLength(1)
+  })
+
+  it('parseStatus reports an unpublished branch and a brand-new repo', () => {
+    const local = GitService.parseStatus('## main\n')
+    expect(local).toMatchObject({ branch: 'main', upstream: null, ahead: 0, behind: 0 })
+    const fresh = GitService.parseStatus('## No commits yet on main\n')
+    expect(fresh).toMatchObject({ branch: 'main', upstream: null, ahead: 0, behind: 0 })
+    // A deleted upstream ("gone") counts as unpublished rather than up to date.
+    const gone = GitService.parseStatus('## main...origin/main [gone]\n')
+    expect(gone).toMatchObject({ branch: 'main', upstream: null, ahead: 0, behind: 0 })
   })
 
   it('parseCommits splits hash/author/date/subject/body', () => {
@@ -240,6 +251,25 @@ describe('GitService on a real repo', () => {
     expect(st!.files).toContainEqual(expect.objectContaining({ path: 'untracked.txt', status: 'untracked' }))
     expect(st!.files).toContainEqual(expect.objectContaining({ path: 'gone.txt', status: 'deleted', staged: false }))
     expect(st!.files).toContainEqual(expect.objectContaining({ path: 'staged-gone.txt', status: 'deleted', staged: true }))
+  })
+
+  it('getStatusDetail tracks the upstream and the unpushed commit count', async () => {
+    commitFile('a.txt', 'one', 'first')
+    const remote = mkdtempSync(path.join(tmpdir(), 'meow-gitsvc-remote-'))
+    try {
+      git(['init', '-q', '--bare', '--initial-branch=main'], remote)
+      git(['remote', 'add', 'origin', remote])
+      git(['push', '-q', '-u', 'origin', 'main'])
+
+      const synced = await svc.getStatusDetail(dir)
+      expect(synced).toMatchObject({ branch: 'main', upstream: 'origin/main', ahead: 0, behind: 0 })
+
+      commitFile('a.txt', 'two', 'second')
+      const ahead = await svc.getStatusDetail(dir)
+      expect(ahead).toMatchObject({ upstream: 'origin/main', ahead: 1, behind: 0 })
+    } finally {
+      rmSync(remote, { recursive: true, force: true })
+    }
   })
 
   it('getDiff returns working tree diff and cached diff separately', async () => {

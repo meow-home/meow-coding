@@ -8,6 +8,9 @@ function detail(files: Array<Pick<GitFileChange, 'path' | 'status'>>): GitStatus
   return {
     branch: 'main',
     headOid: null,
+    upstream: null,
+    ahead: 0,
+    behind: 0,
     files: files.map(file => ({ ...file, staged: false, unstaged: true }))
   }
 }

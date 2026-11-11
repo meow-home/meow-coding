@@ -31,6 +31,18 @@ interface Props {
   onGitClick?: () => void
 }
 
+/** Tooltip for the git pill: branch, sync state and dirty count in one line. */
+function gitSyncTitle(git: GitStatus): string {
+  const parts = [git.branch || 'HEAD']
+  if (!git.upstream) parts.push('not published (no upstream branch)')
+  else if (git.ahead > 0 && git.behind > 0) parts.push(`${git.ahead} not pushed, ${git.behind} behind ${git.upstream}`)
+  else if (git.ahead > 0) parts.push(`${git.ahead} commit(s) not pushed to ${git.upstream}`)
+  else if (git.behind > 0) parts.push(`${git.behind} commit(s) behind ${git.upstream}`)
+  else parts.push(`up to date with ${git.upstream}`)
+  if (git.dirtyCount > 0) parts.push(`${git.dirtyCount} changed file(s)`)
+  return parts.join(' · ')
+}
+
 export default function StatusBar({
   workspaceName,
   projectPath,
@@ -110,10 +122,16 @@ export default function StatusBar({
           <button
             className="sb-item sb-button sb-git"
             onClick={onGitClick}
-            title="Open Git status & history viewer"
+            title={gitSyncTitle(git)}
           >
             <GitBranch size={13} className="sb-icon" />
             <span className="sb-label sb-mono">{git.branch || 'HEAD'}</span>
+            {git.ahead > 0 && (
+              <span className="sb-sync ahead" title={`${git.ahead} commit(s) not pushed`}>↑{git.ahead}</span>
+            )}
+            {git.behind > 0 && (
+              <span className="sb-sync behind" title={`${git.behind} commit(s) behind the remote`}>↓{git.behind}</span>
+            )}
             {git.dirtyCount > 0 && (
               <span className="sb-dirty-badge" title={`${git.dirtyCount} modified file(s)`}>
                 ● {git.dirtyCount}

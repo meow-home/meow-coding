@@ -121,7 +121,8 @@ handlers and the app lifecycle.
 - `json-store.ts` — `JsonStore<T>` interface + `createJsonStore` (in-memory cache, atomic temp+rename write via `writeFileAtomic`, retries the rename on transient Windows locks then falls back to an in-place write, optional `debounceMs` batching with `flush()`, parse error → `[]` after parking the file as `.corrupt`).
 - `log-manager.ts` — appends each agent's output to `userData/logs/<agentId>.log`.
 - `system-logger.ts` — appends app-wide logs (main/render/agent, INFO/WARN/ERROR) to `userData/logs/<YYYY-MM-DD>-log.txt`, prunes files older than 7 days on startup.
-- `git-status-service.ts` — `git status --porcelain=v2 -b` (5s timeout), parses branch + dirty count.
+- `git-status-service.ts` — `git status --porcelain=v2 -b` (5s timeout), parses branch, dirty count, the
+  upstream (`# branch.upstream`) and the ahead/behind counts (`# branch.ab +N -M`).
 - `alert-service.ts` — emits `idle` after a threshold (default 5 minutes) and `exit` (based on exit code).
 - `notification-service.ts` — native Electron `Notification` for events that need input/done. Throttles
   per (agent × `kind`) — a fresh "needs input" is never suppressed by a recent "done" for the same agent.
