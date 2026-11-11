@@ -419,7 +419,10 @@ no upstream, with the full sentence (upstream name, counts, or "not published") 
 - `GitChangesView.tsx` — two flat groups (`Staged`, `Changes`) of `status letter + name + dimmed
   directory` rows. A click fetches `gitGetDiff(projectPath, path, staged)` and expands the diff under
   the row; only one row is open. A file with staged and unstaged edits appears in both groups and
-  each row shows its own side.
+  each row shows its own side; an untracked file has no index side, so it expands to its whole
+  content rendered as an addition. Untracked files are listed one row per file (the status call asks
+  for `--untracked-files=all`), and `splitChangePath` keeps a trailing slash on the directory part so a
+  collapsed `dir/` entry never renders as a file whose name is the whole path.
 - `GitHistoryView.tsx` — a filter field and a flat commit list (subject, short sha, author, relative
   time, `Load more` in pages of 50). A commit the upstream does not have ends its row with a yellow
   circled up-arrow (`getCommits` marks it from `git rev-list @{upstream}..HEAD`). A click fetches

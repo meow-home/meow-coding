@@ -253,6 +253,34 @@ describe('GitService on a real repo', () => {
     expect(st!.files).toContainEqual(expect.objectContaining({ path: 'staged-gone.txt', status: 'deleted', staged: true }))
   })
 
+  it('getStatusDetail lists the files inside an untracked directory', async () => {
+    commitFile('a.txt', 'one', 'first')
+    mkdirSync(path.join(dir, 'new', 'deep'), { recursive: true })
+    writeFileSync(path.join(dir, 'new', 'deep', 'f.txt'), '1')
+    writeFileSync(path.join(dir, 'new', 'g.txt'), '2')
+
+    const st = await svc.getStatusDetail(dir)
+    const untracked = st!.files.filter(f => f.status === 'untracked').map(f => f.path)
+    expect(untracked.sort()).toEqual(['new/deep/f.txt', 'new/g.txt'])
+  })
+
+  it('getDiff shows an untracked file as an addition', async () => {
+    commitFile('a.txt', 'one', 'first')
+    writeFileSync(path.join(dir, 'fresh.txt'), 'hello')
+
+    const raw = await svc.getDiff(dir, 'fresh.txt', false)
+    expect(raw).toContain('new file mode')
+    expect(raw).toContain('+hello')
+  })
+
+  it('getDiff stays empty for a file with no unstaged change', async () => {
+    commitFile('a.txt', 'one', 'first')
+    writeFileSync(path.join(dir, 'a.txt'), 'two')
+    git(['add', 'a.txt'])
+
+    expect(await svc.getDiff(dir, 'a.txt', false)).toBe('')
+  })
+
   it('getStatusDetail tracks the upstream and the unpushed commit count', async () => {
     commitFile('a.txt', 'one', 'first')
     const remote = mkdtempSync(path.join(tmpdir(), 'meow-gitsvc-remote-'))

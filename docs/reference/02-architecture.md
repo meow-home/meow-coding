@@ -102,8 +102,8 @@ and the tsconfigs.
 
 | File | Role |
 |---|---|
-| `git-status-service.ts` | `git status --porcelain=v2 -b` with a 5s timeout → `{ branch, dirtyCount, upstream, ahead, behind }`. Polled every 5s for the active project. |
-| `git-service.ts` | The richer git surface: branches, create/checkout, stash/pop, discard, status detail (branch, upstream, ahead/behind, files), diff, commits (marked `unpushed` against `@{upstream}`), commit diff, compare, blame, file history. |
+| `git-status-service.ts` | `git status --porcelain=v2 -b --untracked-files=all` with a 5s timeout → `{ branch, dirtyCount, upstream, ahead, behind }`. Polled every 5s for the active project; `dirtyCount` counts files, so an untracked directory contributes one entry per file. |
+| `git-service.ts` | The richer git surface: branches, create/checkout, stash/pop, discard, status detail (branch, upstream, ahead/behind, files — `--untracked-files=all`, so a new directory is listed file by file), diff (an untracked file renders as an addition through `git diff --no-index -- /dev/null <file>`), commits (marked `unpushed` against `@{upstream}`), commit diff, compare, blame, file history. |
 | `file-viewer.ts` | Text/binary detection, content read, open in a viewer window or hand off to the system app. |
 | `dir-lister.ts` | `listDir`, `shouldIgnore`, `isPathInside` (path-escape guard used by the `dir:list` handler). |
 | `file-suggest.ts` | `@`-mention completion: deep basename search, or path drill-down when the prefix contains `/`. Max 20 results. |

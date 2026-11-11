@@ -6,7 +6,7 @@ export class GitStatusService {
     return new Promise(resolve => {
       execFile(
         'git',
-        ['status', '--porcelain=v2', '-b'],
+        ['status', '--porcelain=v2', '-b', '--untracked-files=all'],
         { cwd: projectPath, timeout: 5000, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 * 4 },
         (err, stdout) => {
           if (err) return resolve(null)

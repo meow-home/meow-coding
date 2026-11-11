@@ -177,7 +177,12 @@ export class GitService {
 
   async getStatusDetail(projectPath: string): Promise<GitStatusDetail | null> {
     try {
-      const { stdout } = await this.run(projectPath, ['status', '--porcelain', '-b'])
+      // --untracked-files=all: the default collapses a new directory into one
+      // "dir/" entry, which the panel would list as an unnamed folder instead
+      // of the files inside it.
+      const { stdout } = await this.run(projectPath, [
+        'status', '--porcelain', '-b', '--untracked-files=all'
+      ])
       return GitService.parseStatus(stdout)
     } catch {
       return null
@@ -191,7 +196,33 @@ export class GitService {
     if (staged) args.push('--cached')
     if (file) args.push('--', file)
     const { stdout } = await this.run(projectPath, args)
-    return stdout
+    if (stdout.trim() || !file || staged) return stdout
+    // An untracked file has nothing to diff against the index, so the pane
+    // would stay empty; show its whole content as an addition instead.
+    return this.diffUntracked(projectPath, file)
+  }
+
+  private async diffUntracked(projectPath: string, file: string): Promise<string> {
+    const { stdout: others } = await this.run(projectPath, [
+      'ls-files', '--others', '--exclude-standard', '-z', '--', file
+    ])
+    if (!others.split('\0').includes(file)) return ''
+    return new Promise((resolve, reject) => {
+      execFile(
+        'git',
+        ['diff', '--no-index', '--', '/dev/null', file],
+        { cwd: projectPath, timeout: TIMEOUT_MS, killSignal: 'SIGKILL', maxBuffer: MAX_BUFFER },
+        (err, stdout) => {
+          // --no-index exits 1 whenever the two sides differ, which is the
+          // normal case here; only a spawn/other failure is an error.
+          if (err && (err as { code?: unknown }).code !== 1) {
+            reject(new GitCommandError(`diff --no-index ${file}`, String(err)))
+            return
+          }
+          resolve(stdout)
+        }
+      )
+    })
   }
 
   static parseDiffTree(stdout: string): GitDiffResult {

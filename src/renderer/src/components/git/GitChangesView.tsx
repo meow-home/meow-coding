@@ -23,6 +23,17 @@ const STATUS: Record<GitFileChange['status'], { char: string; label: string; cls
 }
 
 /**
+ * Split a changed path into the file name and the directory it sits in. A
+ * porcelain directory entry ("dir/") keeps its slash on the directory label so
+ * it never renders as a file whose name is the whole path.
+ */
+export function splitChangePath(path: string): { name: string; dir: string } {
+  const trimmed = path.replace(/[\\/]+$/, '')
+  const name = trimmed.split(/[\\/]/).pop() || trimmed
+  return { name, dir: trimmed.slice(0, trimmed.length - name.length) }
+}
+
+/**
  * The Changes tab: the working tree as two flat lists (staged, then unstaged).
  * A file expands in place to its diff; the same path shows up in both lists when
  * it has staged and unstaged edits, and each row shows the diff of its own side.
@@ -92,8 +103,7 @@ export default function GitChangesView({ projectPath, status }: Props) {
         const badge = STATUS[file.status]
         const key = `${stagedGroup ? 'staged' : 'work'}:${file.path}`
         const isOpen = open?.key === key
-        const name = file.path.split(/[\\/]/).pop() || file.path
-        const dir = file.path.slice(0, file.path.length - name.length)
+        const { name, dir } = splitChangePath(file.path)
         return (
           <div key={key}>
             <button
