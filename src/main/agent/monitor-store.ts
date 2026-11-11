@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
+import type { MonitorInfo, MonitorKind, MonitorReason } from '@shared/types'
 import type { BackgroundProcessStore, BgDataEvent, BgExitEvent } from './background-process-store'
 
-export type MonitorReason = 'matched' | 'exited' | 'timeout' | 'succeeded'
+export type { MonitorKind, MonitorReason }
 
 export interface MonitorResolveInfo {
   id: string
@@ -11,8 +12,10 @@ export interface MonitorResolveInfo {
   reason: MonitorReason
   detail: string
   // 'shell' = watching a background shell (targetId is a shell id);
-  // 'poll'  = polling a command (targetId is the command string).
-  kind: 'shell' | 'poll'
+  // 'poll'  = polling a command (targetId is the command string);
+  // 'delegation' = watching a sub-session delegation (targetId is the delegation
+  // id), resolved by the delegation runtime instead of a process.
+  kind: MonitorKind
 }
 export interface MonitorWaitResult { status: 'resolved' | 'pending' | 'aborted'; info?: MonitorResolveInfo; id: string }
 
@@ -26,6 +29,8 @@ export interface MonitorStoreOpts {
   procs: BackgroundProcessStore
   getSessionId: (agentId: string) => string
   onResolve: (info: MonitorResolveInfo) => void
+  /** Fired whenever the watch list changes, so the UI can refresh on push. */
+  onChange?: (agentId: string) => void
   maxPerAgent?: number
 }
 
@@ -34,6 +39,9 @@ interface Entry {
   agentId: string
   sessionId: string
   targetId: string
+  label: string
+  kind: 'shell' | 'delegation'
+  startedAt: number
   untilRegex?: RegExp
   untilExit?: boolean | number
   until: string
@@ -46,12 +54,16 @@ interface Entry {
 
 const DEFAULT_MAX_PER_AGENT = 10
 const DETAIL_CAP = 500
+// Resolved watches stay visible in the task card until dismissed; cap the
+// history so a long session cannot grow it without bound.
+const MAX_HISTORY = 20
 
 export class MonitorStore {
   private entries = new Map<string, Entry>()
   private waiters = new Map<string, Set<(result: MonitorWaitResult) => void>>()
   private consumed = new Set<string>()
   private resolved = new Map<string, MonitorResolveInfo>()
+  private history = new Map<string, { agentId: string; info: MonitorInfo }>()
 
   private key(agentId: string, targetId: string, opts: MonitorStartOpts): string {
     return `${agentId}\0${targetId}\0${opts.untilRegex ?? ''}\0${opts.untilExit === undefined ? 'unset' : String(opts.untilExit)}`
@@ -67,6 +79,7 @@ export class MonitorStore {
     return n
   }
 
+  /** Watching monitors only — the list `monitor.wait` and the agent see. */
   list(agentId: string): { id: string; targetId: string; until: string }[] {
     const out: { id: string; targetId: string; until: string }[] = []
     for (const e of this.entries.values()) {
@@ -75,7 +88,54 @@ export class MonitorStore {
     return out
   }
 
+  /** Watching monitors plus recently resolved ones, for the task card. */
+  snapshot(agentId: string): MonitorInfo[] {
+    const watching: MonitorInfo[] = []
+    for (const e of this.entries.values()) {
+      if (e.agentId !== agentId || e.status !== 'watching') continue
+      watching.push({
+        id: e.id, kind: e.kind, label: e.label, targetId: e.targetId, until: e.until,
+        status: 'watching', startedAt: e.startedAt, sessionId: e.sessionId
+      })
+    }
+    const done = [...this.history.values()]
+      .filter(h => h.agentId === agentId)
+      .map(h => h.info)
+      .reverse()
+    return [...watching.sort((a, b) => a.startedAt - b.startedAt), ...done]
+  }
+
+  /** Stops a watching monitor, or dismisses a resolved one. Returns whether anything changed. */
+  cancel(id: string): boolean {
+    const entry = this.entries.get(id)
+    if (entry) {
+      const agentId = entry.agentId
+      this.teardown(entry)
+      this.opts.onChange?.(agentId)
+      return true
+    }
+    const done = this.history.get(id)
+    if (done) {
+      this.history.delete(id)
+      this.opts.onChange?.(done.agentId)
+      return true
+    }
+    return false
+  }
+
+  private remember(agentId: string, info: MonitorInfo): void {
+    this.history.set(info.id, { agentId, info })
+    while (this.history.size > MAX_HISTORY) {
+      const oldest = this.history.keys().next().value
+      if (oldest === undefined) break
+      this.history.delete(oldest)
+    }
+  }
+
   wasWaitConsumed(id: string): boolean { return this.consumed.delete(id) }
+
+  /** True when `id` is a monitor handle (watching or resolved), not a shell id. */
+  has(id: string): boolean { return this.entries.has(id) || this.resolved.has(id) }
 
   wait(id: string, signal?: AbortSignal, maxWaitMs = 60_000): Promise<MonitorWaitResult> {
     const resolved = this.resolved.get(id)
@@ -127,20 +187,20 @@ export class MonitorStore {
     const id = randomUUID().slice(0, 8)
     const sessionId = this.opts.getSessionId(agentId)
 
-    // Target already gone: resolve immediately as exited.
-    if (target.status === 'exited') {
-      this.publish({ id, agentId, sessionId, targetId, reason: 'exited', detail: `exit code ${target.exitCode}`, kind: 'shell' })
-      return { id, reused: false, pending: false }
-    }
-
     const until = [
       opts.untilRegex ? `/${opts.untilRegex}/` : null,
       opts.untilExit !== undefined ? 'exit' : null,
       opts.timeoutMs ? `${Math.round(opts.timeoutMs / 1000)}s` : null
     ].filter(Boolean).join(' or ')
+
+    // Target already gone: resolve immediately as exited.
+    if (target.status === 'exited') {
+      this.publish({ id, agentId, sessionId, targetId, reason: 'exited', detail: `exit code ${target.exitCode}`, kind: 'shell' }, target.command, until)
+      return { id, reused: false, pending: false }
+    }
     const entry: Entry = {
-      id, agentId, sessionId, targetId, untilRegex, untilExit: opts.untilExit, until,
-      status: 'watching', onData: () => {}, onExit: () => {}, key
+      id, agentId, sessionId, targetId, label: target.command, untilRegex, untilExit: opts.untilExit, until,
+      status: 'watching', kind: 'shell', startedAt: Date.now(), onData: () => {}, onExit: () => {}, key
     }
     entry.onData = (e: BgDataEvent) => {
       if (e.id !== targetId || entry.status !== 'watching' || !entry.untilRegex) return
@@ -169,7 +229,60 @@ export class MonitorStore {
         if (untilRegex.test(line)) { this.resolve(entry, 'matched', line.trim().slice(0, DETAIL_CAP)); break }
       }
     }
+    this.opts.onChange?.(agentId)
     return { id, reused: false, pending: this.entries.has(id) }
+  }
+
+  /**
+   * Registers a monitor for a condition no process reports: it stays watching
+   * until `resolveExternal` is called. Used for session delegation, so a
+   * sub-session can be watched with the same `monitor.wait` / list surface as a
+   * background shell instead of waking the source with a chat message.
+   */
+  registerExternal(input: { agentId: string; targetId: string; until: string; id?: string; sessionId?: string; label?: string }): { id: string; reused: boolean } | { error: string } {
+    const key = this.externalKey(input.agentId, input.targetId)
+    for (const existing of this.entries.values()) {
+      if (existing.status === 'watching' && existing.key === key) return { id: existing.id, reused: true }
+    }
+    if (this.count(input.agentId) >= this.maxPerAgent) {
+      return { error: `monitor: too many monitors (max ${this.maxPerAgent})` }
+    }
+    // Delegation monitors reuse the delegation id so `monitor.wait` can be
+    // addressed with the id the model already has from delegate_session.
+    const id = input.id ?? randomUUID().slice(0, 8)
+    const entry: Entry = {
+      id,
+      agentId: input.agentId,
+      sessionId: input.sessionId ?? this.opts.getSessionId(input.agentId),
+      targetId: input.targetId,
+      label: input.label ?? input.targetId,
+      until: input.until,
+      status: 'watching',
+      kind: 'delegation',
+      startedAt: Date.now(),
+      onData: () => {},
+      onExit: () => {},
+      key
+    }
+    this.entries.set(id, entry)
+    this.opts.onChange?.(input.agentId)
+    return { id, reused: false }
+  }
+
+  /** Resolves a monitor registered with `registerExternal`; false when none is watching. */
+  resolveExternal(agentId: string, targetId: string, reason: MonitorReason, detail: string): boolean {
+    const key = this.externalKey(agentId, targetId)
+    for (const entry of [...this.entries.values()]) {
+      if (entry.status === 'watching' && entry.key === key) {
+        this.resolve(entry, reason, detail)
+        return true
+      }
+    }
+    return false
+  }
+
+  private externalKey(agentId: string, targetId: string): string {
+    return `external\0${agentId}\0${targetId}`
   }
 
   private resolve(entry: Entry, reason: MonitorReason, detail: string): void {
@@ -177,12 +290,19 @@ export class MonitorStore {
     this.teardown(entry)
     const info: MonitorResolveInfo = {
       id: entry.id, agentId: entry.agentId, sessionId: entry.sessionId,
-      targetId: entry.targetId, reason, detail, kind: 'shell'
+      targetId: entry.targetId, reason, detail,
+      kind: entry.kind === 'delegation' ? 'delegation' : 'shell'
     }
-    this.publish(info)
+    this.publish(info, entry.label, entry.until, entry.startedAt)
   }
 
-  private publish(info: MonitorResolveInfo): void {
+  private publish(info: MonitorResolveInfo, label = info.targetId, until = '', startedAt = Date.now()): void {
+    this.remember(info.agentId, {
+      id: info.id, kind: info.kind, label, targetId: info.targetId, until,
+      status: 'resolved', reason: info.reason, detail: info.detail,
+      startedAt, resolvedAt: Date.now(), sessionId: info.sessionId
+    })
+    this.opts.onChange?.(info.agentId)
     this.resolved.set(info.id, info)
     const waiters = this.waiters.get(info.id)
     if (waiters?.size) {
@@ -200,14 +320,17 @@ export class MonitorStore {
 
   private teardown(entry: Entry): void {
     entry.status = 'resolved'
-    this.opts.procs.removeListener('data', entry.onData)
-    this.opts.procs.removeListener('exit', entry.onExit)
+    if (entry.kind === 'shell') {
+      this.opts.procs.removeListener('data', entry.onData)
+      this.opts.procs.removeListener('exit', entry.onExit)
+    }
     if (entry.timer) clearTimeout(entry.timer)
     this.entries.delete(entry.id)
   }
 
   cancelAllForAgent(agentId: string): void {
     for (const e of [...this.entries.values()]) if (e.agentId === agentId) this.teardown(e)
+    this.opts.onChange?.(agentId)
   }
 
   cancelAll(): void {
@@ -230,8 +353,20 @@ export function monitorResolveMessage(info: MonitorResolveInfo): string {
   if (info.kind === 'poll') {
     return `[monitor ${info.id}] command \`${info.targetId}\` — ${head}.`
   }
+  if (info.kind === 'delegation') {
+    return `[delegation ${info.targetId}] finished (${info.reason}: ${info.detail}). ` +
+      `Read the result with delegate_result({ id: "${info.targetId}" }).`
+  }
   return `[monitor ${info.id}] shell ${info.targetId} — ${head}. ` +
     `Read output with bash_output({ id: "${info.targetId}" }).`
+}
+
+/** Wake text for a finished delegation: a fixed instruction, never the delegated
+ *  session's own output — the body is read with `delegate_result` so it reaches
+ *  the model as tool data instead of user instructions. */
+export function delegationWakeInstruction(delegationId: string, reason: string): string {
+  return `A delegated sub-session (${delegationId}) finished (${reason}). ` +
+    `Read its result with delegate_result({ id: "${delegationId}" }) and continue.`
 }
 
 export function handleMonitorResolve(info: MonitorResolveInfo, deps: MonitorResolveDeps): void {

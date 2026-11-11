@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meow — Background tasks card as its own chat item — mockup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      /* Repo tokens (src/renderer/src/styles.css) */
+      --bg: #0a0a0b;
+      --bg-panel: #0f0f11;
+      --bg-raised: #161618;
+      --bg-hover: #1c1c20;
+      --bg-bubble: #161618;
+      --bg-input: #1a1a1d;
+      --text: #ffffff;
+      --text-dim: #b0b0b0;
+      --text-faint: #707076;
+      --text-strong: #e8e8ea;
+      --accent: #007acc;
+      --accent-strong: #1f9cf0;
+      --accent-dim: rgba(31, 156, 240, 0.12);
+      --accent-border: rgba(31, 156, 240, 0.35);
+      --green: #4ade9f;
+      --yellow: #ffb454;
+      --red: #ff5f56;
+      --hairline: rgba(255, 255, 255, 0.10);
+      --hairline-strong: rgba(255, 255, 255, 0.18);
+      --radius-xs: 0.25rem;
+      --radius-sm: 0.333333rem;
+      --radius: 0.5rem;
+      --radius-lg: 0.666667rem;
+      --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+      --shadow-2: 0 12px 32px rgba(0, 0, 0, 0.55);
+      --font-ui: 'Inter', 'Segoe UI Variable', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+    [data-theme='light'] {
+      --bg: #ffffff;
+      --bg-panel: #fafafa;
+      --bg-raised: #f5f5f5;
+      --bg-hover: #eaeaea;
+      --bg-bubble: #f5f5f5;
+      --bg-input: #ffffff;
+      --text: #1e1e1e;
+      --text-dim: #4b4b4b;
+      --text-faint: #8a8a8a;
+      --text-strong: #111111;
+      --green: #16a34a;
+      --yellow: #d97706;
+      --red: #dc2626;
+      --hairline: rgba(0, 0, 0, 0.10);
+      --hairline-strong: rgba(0, 0, 0, 0.18);
+      --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.08);
+      --shadow-2: 0 12px 32px rgba(0, 0, 0, 0.14);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--font-ui); font-size: 14px; line-height: 1.5; }
+    button { font: inherit; color: inherit; }
+
+    /* page chrome */
+    .page { max-width: 1400px; margin: 0 auto; padding: 1.5rem 1.5rem 4rem; }
+    .page-head { display: flex; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .page h1 { font-size: 1.35rem; font-weight: 700; margin: 0 0 0.15rem; letter-spacing: -0.01em; }
+    .page .lede { color: var(--text-dim); margin: 0; max-width: 74ch; font-size: 0.9rem; }
+    .toolbar { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; flex-wrap: wrap; }
+    .toolbar button {
+      background: var(--bg-raised); border: 1px solid var(--hairline);
+      border-radius: var(--radius-sm); padding: 0.35rem 0.7rem; font-size: 0.8rem; cursor: pointer;
+    }
+    .toolbar button:hover { background: var(--bg-hover); }
+    .toolbar button.on { border-color: var(--accent-border); background: var(--accent-dim); color: var(--accent-strong); }
+    .toolbar .kbd { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-faint); }
+
+    /* app frame */
+    .app {
+      display: grid; grid-template-columns: 218px 1fr; height: 700px;
+      border: 1px solid var(--hairline-strong); border-radius: var(--radius-lg);
+      background: var(--bg); overflow: hidden; box-shadow: var(--shadow-2);
+    }
+    .app-body { display: flex; min-width: 0; }
+    .chat-col { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg); }
+    .pane-col { display: none; width: 366px; flex: 0 0 auto; border-left: 1px solid var(--hairline); background: var(--bg-panel); }
+    .app.pane-open .pane-col { display: flex; flex-direction: column; }
+
+    /* sidebar */
+    .side { background: var(--bg-panel); border-right: 1px solid var(--hairline); display: flex; flex-direction: column; min-height: 0; }
+    .side-head { padding: 0.7rem 0.8rem; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); font-weight: 600; border-bottom: 1px solid var(--hairline); }
+    .side-project { padding: 0.5rem 0.6rem 0.15rem; font-size: 0.78rem; color: var(--text-dim); font-weight: 600; }
+    .side-row { display: flex; align-items: center; gap: 0.45rem; padding: 0.38rem 0.6rem; margin: 0 0.3rem; border-radius: var(--radius-sm); font-size: 0.82rem; color: var(--text-dim); }
+    .side-row.active { background: var(--bg-hover); color: var(--text); }
+    .side-row.sub { padding-left: 1.4rem; font-size: 0.78rem; }
+    .side-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); flex: 0 0 auto; }
+    .side-dot.running { background: var(--accent-strong); box-shadow: 0 0 0 2px var(--accent-dim); }
+    .side-dot.done { background: var(--green); }
+    .side-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .side-meta { margin-left: auto; font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-faint); }
+
+    /* chat header */
+    .chat-top { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--hairline); background: var(--bg); flex: 0 0 auto; }
+    .chat-title { font-size: 0.85rem; font-weight: 600; }
+    .chat-sub { font-size: 0.74rem; color: var(--text-faint); }
+    .chat-top .spacer { flex: 1; }
+    .chip { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.2rem 0.5rem; border: 1px solid var(--hairline); border-radius: 999px; font-size: 0.72rem; color: var(--text-dim); background: var(--bg-raised); }
+
+    /* feed = scroll container; the card is a child item of it */
+    .feed { flex: 1; min-height: 0; overflow-y: auto; padding: 0.8rem 1.1rem 1.2rem; display: flex; flex-direction: column; gap: 0.85rem; scrollbar-width: thin; }
+    .msg { max-width: 74%; font-size: 0.86rem; line-height: 1.55; }
+    .msg.user { align-self: flex-end; background: var(--bg-input); border: 1px solid var(--hairline); border-radius: var(--radius-lg); padding: 0.5rem 0.8rem; }
+    .msg.assistant { align-self: flex-start; color: var(--text-strong); }
+    .msg.assistant .who { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); margin-bottom: 0.2rem; font-weight: 600; }
+    .result-note { align-self: flex-start; max-width: 76%; border: 1px solid var(--hairline); border-left: 2px solid var(--green); border-radius: var(--radius); background: var(--bg-bubble); padding: 0.55rem 0.75rem; font-size: 0.83rem; }
+    .result-note .rn-head { display: flex; align-items: center; gap: 0.4rem; font-weight: 600; font-size: 0.8rem; margin-bottom: 0.25rem; }
+    .result-note .rn-body { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-dim); }
+
+    /* step / tool row, to show the card is NOT one of these */
+    .step { align-self: stretch; border-left: 2px solid var(--hairline); padding: 0.1rem 0 0.1rem 0.7rem; color: var(--text-dim); font-size: 0.78rem; font-family: var(--font-mono); }
+    .step .step-tool { color: var(--text-strong); }
+
+    /* ================= TASKS CARD — its own chat item ================= */
+    .tasks-item { align-self: stretch; }
+    .tasks-item.pinned {
+      position: sticky; top: 0; z-index: 3;
+      padding-top: 0.8rem; margin-top: -0.8rem;
+      background: linear-gradient(var(--bg) 78%, transparent);
+    }
+    .tasks-card {
+      border: 1px solid var(--hairline); border-radius: var(--radius-lg);
+      background: var(--bg-raised); box-shadow: var(--shadow-1); overflow: hidden;
+    }
+    .tasks-card.live { border-color: var(--accent-border); box-shadow: 0 0 0 1px var(--accent-dim), var(--shadow-1); }
+    .tc-head { display: flex; align-items: center; gap: 0.55rem; padding: 0.45rem 0.65rem; }
+    .tc-head.click { cursor: pointer; }
+    .tc-head.click:hover { background: var(--bg-hover); }
+    .tc-icon { display: grid; place-items: center; width: 22px; height: 22px; border-radius: var(--radius-sm); background: var(--accent-dim); color: var(--accent-strong); flex: 0 0 auto; font-size: 0.8rem; }
+    .tc-title { font-size: 0.8rem; font-weight: 600; }
+    .tc-summary { font-size: 0.74rem; color: var(--text-faint); font-family: var(--font-mono); }
+    .tc-dots { display: flex; align-items: center; gap: 3px; }
+    .tc-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .tc-dot.run { background: var(--accent-strong); animation: pulse 1.4s ease-in-out infinite; }
+    .tc-dot.ok { background: var(--green); }
+    .tc-dot.warn { background: var(--yellow); }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+    .tc-right { margin-left: auto; display: flex; align-items: center; gap: 0.35rem; }
+    .tc-open { font-size: 0.72rem; color: var(--text-dim); border: 1px solid var(--hairline); background: var(--bg-panel); border-radius: var(--radius-sm); padding: 0.12rem 0.45rem; cursor: pointer; white-space: nowrap; }
+    .tc-open:hover { color: var(--text); border-color: var(--hairline-strong); }
+    .tc-caret { color: var(--text-faint); transition: transform 0.15s ease; }
+    .tasks-card.collapsed .tc-caret { transform: rotate(-90deg); }
+    .tc-rows { border-top: 1px solid var(--hairline); }
+    .tasks-card.collapsed .tc-rows { display: none; }
+    .tc-row { display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.34rem 0.65rem; border: 0; background: transparent; cursor: pointer; text-align: left; border-bottom: 1px solid var(--hairline); }
+    .tc-row:last-child { border-bottom: 0; }
+    .tc-row:hover { background: var(--bg-hover); }
+    .tc-row.selected { background: var(--accent-dim); }
+    .tc-kind { display: grid; place-items: center; width: 18px; color: var(--text-dim); flex: 0 0 auto; }
+    .tc-row.selected .tc-kind { color: var(--accent-strong); }
+    .tc-name { font-size: 0.78rem; color: var(--text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tc-target { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-faint); white-space: nowrap; }
+    .tc-state { margin-left: auto; font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); display: flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+    .tc-state .run { color: var(--accent-strong); }
+    .tc-state .ok { color: var(--green); }
+    .tc-stop { border: 0; background: transparent; color: var(--text-faint); cursor: pointer; padding: 0.1rem 0.2rem; border-radius: var(--radius-xs); }
+    .tc-stop:hover { color: var(--red); background: var(--bg-hover); }
+    .tc-foot { display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.65rem; border-top: 1px solid var(--hairline); color: var(--text-faint); font-size: 0.7rem; }
+    .tc-foot .link { color: var(--accent-strong); cursor: pointer; background: none; border: 0; padding: 0; font-size: 0.7rem; }
+    .tc-foot .link:hover { text-decoration: underline; }
+
+    /* composer stays clean */
+    .composer-wrap { padding: 0.6rem 1rem 0.9rem; flex: 0 0 auto; }
+    .composer { border: 1px solid var(--hairline); border-radius: var(--radius-lg); background: var(--bg-input); padding: 0.55rem 0.75rem; display: flex; align-items: center; gap: 0.5rem; color: var(--text-faint); font-size: 0.82rem; box-shadow: var(--shadow-1); }
+    .composer .send { margin-left: auto; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); display: grid; place-items: center; color: #fff; font-size: 0.7rem; }
+
+    /* ================= PANE ================= */
+    .pane-head { display: flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--hairline); background: var(--bg-panel); overflow-x: auto; }
+    .pane-tab { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.5rem; border: 1px solid transparent; border-radius: var(--radius-sm); font-size: 0.74rem; color: var(--text-dim); background: transparent; cursor: pointer; white-space: nowrap; }
+    .pane-tab:hover { background: var(--bg-hover); color: var(--text); }
+    .pane-tab.active { background: var(--bg-raised); border-color: var(--hairline); color: var(--text); }
+    .pane-head .spacer { flex: 1; }
+    .pane-btn { border: 1px solid var(--hairline); background: var(--bg-raised); color: var(--text-dim); border-radius: var(--radius-sm); padding: 0.12rem 0.4rem; font-size: 0.72rem; cursor: pointer; }
+    .pane-btn:hover { color: var(--text); }
+    .pane-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0.7rem; display: flex; flex-direction: column; gap: 0.7rem; }
+    .mon-list { display: flex; flex-direction: column; gap: 0.35rem; }
+    .mon-item { border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--bg-raised); padding: 0.45rem 0.55rem; cursor: pointer; display: flex; flex-direction: column; gap: 0.2rem; }
+    .mon-item:hover { border-color: var(--hairline-strong); }
+    .mon-item.active { border-color: var(--accent-border); background: var(--accent-dim); }
+    .mon-item-top { display: flex; align-items: center; gap: 0.4rem; }
+    .mon-item-name { font-size: 0.78rem; font-weight: 600; }
+    .mon-item-state { margin-left: auto; font-family: var(--font-mono); font-size: 0.68rem; }
+    .mon-item-sub { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-faint); }
+    .detail { border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--bg-raised); overflow: hidden; }
+    .detail-head { display: flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--hairline); }
+    .detail-title { font-size: 0.8rem; font-weight: 600; }
+    .detail-body { padding: 0.55rem 0.6rem; display: flex; flex-direction: column; gap: 0.45rem; }
+    .kv { display: grid; grid-template-columns: 88px 1fr; gap: 0.4rem; font-size: 0.75rem; }
+    .kv dt { color: var(--text-faint); margin: 0; }
+    .kv dd { margin: 0; font-family: var(--font-mono); color: var(--text-strong); overflow-wrap: anywhere; }
+    .detail-actions { display: flex; gap: 0.35rem; padding: 0 0.6rem 0.55rem; }
+    .btn { border: 1px solid var(--hairline); background: var(--bg-panel); border-radius: var(--radius-sm); padding: 0.22rem 0.5rem; font-size: 0.73rem; cursor: pointer; color: var(--text-dim); }
+    .btn:hover { color: var(--text); border-color: var(--hairline-strong); }
+    .btn.danger:hover { color: var(--red); border-color: var(--red); }
+    .timeline { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.72rem; color: var(--text-dim); }
+    .tl-row { display: flex; gap: 0.45rem; }
+    .tl-time { font-family: var(--font-mono); color: var(--text-faint); flex: 0 0 auto; }
+
+    /* notes */
+    .notes { margin-top: 1.25rem; display: grid; grid-template-columns: 1.1fr 1fr; gap: 1rem; }
+    @media (max-width: 1000px) { .notes { grid-template-columns: 1fr; } }
+    .note-card { border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--bg-panel); padding: 0.75rem 0.9rem; }
+    .note-card h3 { margin: 0 0 0.4rem; font-size: 0.85rem; }
+    .note-card p, .note-card li { font-size: 0.78rem; color: var(--text-dim); }
+    .note-card ul { margin: 0.3rem 0 0; padding-left: 1.1rem; }
+    .note-card code { font-family: var(--font-mono); font-size: 0.72rem; background: var(--bg); border: 1px solid var(--hairline); border-radius: var(--radius-xs); padding: 0 0.25rem; }
+  </style>
+</head>
+<body>
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Background tasks — card là item riêng trong feed</h1>
+      <p class="lede">
+        Card sống như một item độc lập của chat feed (cùng cấp với message / result note), <strong>không</strong>
+        nằm trong step/tool group, <strong>không</strong> ở composer. Nó giữ một <code>id</code> riêng và được update
+        tại chỗ theo push event. Click card hoặc một dòng → mở pane Monitors bên phải.
+      </p>
+    </div>
+    <div class="toolbar">
+      <button id="btnTheme">Light / Dark</button>
+      <button id="btnPin" class="on">Neo: sticky top</button>
+      <button id="btnCollapse">Card: expanded</button>
+      <button id="btnState">State: running</button>
+      <button id="btnPane" class="on">Pane: open</button>
+    </div>
+  </div>
+
+  <div class="app pane-open" id="app">
+    <aside class="side">
+      <div class="side-head">Sessions</div>
+      <div class="side-project">▾ meow-coding</div>
+      <div class="side-row active"><span class="side-dot running"></span><span class="side-name">Fix delegation wake</span><span class="side-meta">now</span></div>
+      <div class="side-row sub"><span class="side-dot running"></span><span class="side-name">wake test 3 (watch)</span><span class="side-meta">8s</span></div>
+      <div class="side-row"><span class="side-dot"></span><span class="side-name">Settings polish</span><span class="side-meta">2h</span></div>
+      <div class="side-row"><span class="side-dot done"></span><span class="side-name">Browser bridge docs</span><span class="side-meta">1d</span></div>
+    </aside>
+
+    <div class="app-body">
+      <main class="chat-col">
+        <div class="chat-top">
+          <span class="chat-title">Fix delegation wake</span>
+          <span class="chat-sub">build</span>
+          <span class="spacer"></span>
+          <span class="chip">⬤ 2 running</span>
+          <span class="chip">1 done</span>
+        </div>
+
+        <div class="feed" id="feed">
+          <!-- ===== CARD AS ITS OWN FEED ITEM ===== -->
+          <section class="tasks-item pinned" id="tasksItem" aria-label="Background tasks">
+            <div class="tasks-card live" id="card">
+              <div class="tc-head click" id="cardHead" role="button" tabindex="0" aria-expanded="true">
+                <span class="tc-icon">◉</span>
+                <span class="tc-title">Background tasks</span>
+                <span class="tc-summary" id="cardSummary">2 running · 1 done</span>
+                <span class="tc-dots" id="cardDots">
+                  <span class="tc-dot run"></span><span class="tc-dot run"></span><span class="tc-dot ok"></span>
+                </span>
+                <span class="tc-right">
+                  <span class="tc-open" id="cardOpen" role="button">Open pane</span>
+                  <span class="tc-caret">▾</span>
+                </span>
+              </div>
+              <div class="tc-rows" id="cardRows">
+                <button class="tc-row selected" data-mon="m1">
+                  <span class="tc-kind">◉</span>
+                  <span class="tc-name">monitor · wake test 3</span>
+                  <span class="tc-target">delegation 4ed5c267</span>
+                  <span class="tc-state"><span class="run">waiting</span> 0:42</span>
+                  <span class="tc-stop" title="Stop watching">✕</span>
+                </button>
+                <button class="tc-row" data-mon="m2">
+                  <span class="tc-kind">▤</span>
+                  <span class="tc-name">bash · npm test</span>
+                  <span class="tc-target">proc cde331b3</span>
+                  <span class="tc-state"><span class="run">running</span> 1:12</span>
+                  <span class="tc-stop" title="Kill process">✕</span>
+                </button>
+                <button class="tc-row" data-mon="m3">
+                  <span class="tc-kind">✦</span>
+                  <span class="tc-name">delegation · wake test 2</span>
+                  <span class="tc-target">completed · 2m ago</span>
+                  <span class="tc-state"><span class="ok">done</span> 0:09</span>
+                  <span class="tc-stop" title="Dismiss">✕</span>
+                </button>
+              </div>
+              <div class="tc-foot" id="cardFoot">
+                <span id="footText">Updates live · không nằm trong step của lượt chạy</span>
+                <button class="link" id="footOpen">Mở pane →</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- messages / steps around it -->
+          <div class="msg user">Chạy test lại đi, tôi đã restart.</div>
+          <div class="step"><span class="step-tool">bash</span> npm test · <span style="color:var(--text-faint)">running</span></div>
+          <div class="msg assistant">
+            <div class="who">Meow</div>
+            Đã chạy: <strong>2124 passed</strong>, typecheck OK. Wake park/drain đúng ở cả hai nhánh.
+          </div>
+          <div class="result-note">
+            <div class="rn-head">🧟 Delegation result — wake test 3 (watch)</div>
+            <div class="rn-body">pong 9+9=18</div>
+          </div>
+          <div class="msg assistant">
+            <div class="who">Meow</div>
+            Kết quả khớp. Đang chờ thêm <strong>npm test</strong> và một delegation nữa chạy nền.
+          </div>
+          <div class="step"><span class="step-tool">delegate_session</span> wake test 3 · <span style="color:var(--text-faint)">completed</span></div>
+          <div class="msg user">Còn gì đang chạy không?</div>
+          <div class="msg assistant">
+            <div class="who">Meow</div>
+            Còn 2 mục trong card ở trên — mình đang chờ chúng xong rồi báo lại.
+          </div>
+          <div class="msg assistant">
+            <div class="who">Meow</div>
+            (Nội dung dài để test sticky — cuộn feed, card vẫn neo trên đầu nếu chọn “sticky top”.)
+          </div>
+          <div class="step"><span class="step-tool">bash</span> git status --porcelain · <span style="color:var(--text-faint)">exit 0</span></div>
+          <div class="msg assistant"><div class="who">Meow</div>19 file dirty, chưa commit.</div>
+          <div class="msg assistant"><div class="who">Meow</div>Chờ quyết định mockup trước khi implement.</div>
+        </div>
+
+        <div class="composer-wrap">
+          <div class="composer">Ask Meow, @file, /command… <span class="send">↑</span></div>
+        </div>
+      </main>
+
+      <aside class="pane-col">
+        <div class="pane-head">
+          <button class="pane-tab active">◉ Monitors (3)</button>
+          <button class="pane-tab">▤ npm test</button>
+          <span class="spacer"></span>
+          <button class="pane-btn">⤢</button>
+          <button class="pane-btn" id="paneClose">✕</button>
+        </div>
+        <div class="pane-body">
+          <div class="mon-list">
+            <div class="mon-item active" data-detail="m1">
+              <div class="mon-item-top"><span class="mon-item-name">monitor · wake test 3</span><span class="mon-item-state" style="color:var(--accent-strong)">waiting</span></div>
+              <div class="mon-item-sub">delegation 4ed5c267 · until “delegation finishes”</div>
+            </div>
+            <div class="mon-item" data-detail="m2">
+              <div class="mon-item-top"><span class="mon-item-name">bash · npm test</span><span class="mon-item-state" style="color:var(--accent-strong)">running</span></div>
+              <div class="mon-item-sub">proc cde331b3 · background shell</div>
+            </div>
+            <div class="mon-item" data-detail="m3">
+              <div class="mon-item-top"><span class="mon-item-name">delegation · wake test 2</span><span class="mon-item-state" style="color:var(--green)">completed</span></div>
+              <div class="mon-item-sub">delegation badd51ac · result delivered</div>
+            </div>
+          </div>
+
+          <div class="detail">
+            <div class="detail-head">
+              <span class="detail-title" id="dTitle">monitor · wake test 3</span>
+              <span class="mon-item-state" id="dState" style="color:var(--accent-strong);margin-left:auto">waiting</span>
+            </div>
+            <div class="detail-body">
+              <dl class="kv">
+                <dt>Kind</dt><dd id="dKind">monitor · delegation</dd>
+                <dt>Target</dt><dd id="dTarget">4ed5c267-a960-4062-9f51-4758683a8253</dd>
+                <dt>Until</dt><dd id="dUntil">delegation finishes</dd>
+                <dt>Started</dt><dd id="dStarted">10:58:04 · 42s ago</dd>
+                <dt>Session</dt><dd id="dSession">7718623c · this session</dd>
+              </dl>
+              <div id="dResultWrap" style="display:none">
+                <div class="kv"><dt>Result</dt><dd id="dResult" style="font-family:var(--font-ui)"></dd></div>
+              </div>
+              <div class="timeline" id="dTimeline"></div>
+            </div>
+            <div class="detail-actions">
+              <button class="btn">Open sub-session</button>
+              <button class="btn danger">Stop watching</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note-card">
+      <h3>Hành vi</h3>
+      <ul>
+        <li>Card là <strong>item riêng</strong> trong feed: có id riêng (vd <code>tasks:&lt;sessionId&gt;</code>), render ngoài mọi step/tool group và ngoài message list của lượt.</li>
+        <li>Update tại chỗ bằng push event (<code>monitorsChanged</code>), không tạo item mới mỗi lần monitor đổi → không làm nhảy vị trí feed.</li>
+        <li><strong>Sticky top</strong> (khuyến nghị): luôn thấy khi cuộn; <strong>inline</strong>: nằm đúng chỗ được chèn, cuộn theo chat.</li>
+        <li>Hết việc: card chuyển “all done” rồi tự ẩn sau ~30s (hoặc bấm ✕ để dismiss ngay).</li>
+        <li>Click header = thu/mở; click dòng = mở pane + chọn mục; ✕ = kill/stop watching/dismiss; footer link = mở pane.</li>
+      </ul>
+    </div>
+    <div class="note-card">
+      <h3>Cần đổi gì trong code</h3>
+      <ul>
+        <li><code>ChatPanel</code> feed item mới: <code>{ kind: 'tasks' }</code> chèn một lần/session, keyed cố định; không đưa vào <code>groupToolCalls</code>.</li>
+        <li><code>MonitorInfo</code> thêm: <code>kind</code>, <code>label</code>, <code>status</code>, <code>startedAt</code>, <code>sessionId</code>, <code>detail</code>.</li>
+        <li>Push event <code>monitorsChanged</code> (main → renderer) thay poll 1.5s của <code>ProcessesOverlay</code>.</li>
+        <li>Component mới: <code>components/chat/BackgroundTasksCard.tsx</code>; pane: tách <code>MonitorsPane</code>, mở rộng <code>ProcessesOverlay</code>.</li>
+        <li>Sticky cần <code>position: sticky; top</code> trong <code>.chat-feed</code> + nền đặc để message không lộ qua.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+  const app = document.getElementById('app')
+  const feed = document.getElementById('feed')
+  const item = document.getElementById('tasksItem')
+  const card = document.getElementById('card')
+  const cardHead = document.getElementById('cardHead')
+  const cardOpen = document.getElementById('cardOpen')
+  const footOpen = document.getElementById('footOpen')
+  const btnPin = document.getElementById('btnPin')
+  const btnCollapse = document.getElementById('btnCollapse')
+  const btnState = document.getElementById('btnState')
+  const btnPane = document.getElementById('btnPane')
+  const btnTheme = document.getElementById('btnTheme')
+  const paneClose = document.getElementById('paneClose')
+  const cardSummary = document.getElementById('cardSummary')
+  const cardDots = document.getElementById('cardDots')
+  const cardRows = document.getElementById('cardRows')
+  const cardFoot = document.getElementById('cardFoot')
+  const footText = document.getElementById('footText')
+
+  const data = {
+    m1: {
+      title: 'monitor · wake test 3', state: 'waiting', color: 'var(--accent-strong)',
+      kind: 'monitor · delegation', target: '4ed5c267-a960-4062-9f51-4758683a8253',
+      until: 'delegation finishes', started: '10:58:04 · 42s ago',
+      session: '7718623c · this session', result: null,
+      timeline: [['10:58:04','monitor registered'],['10:58:04','sub-session started'],['—','waiting for terminal status…']]
+    },
+    m2: {
+      title: 'bash · npm test', state: 'running', color: 'var(--accent-strong)',
+      kind: 'background shell', target: 'cde331b3', until: 'process exits',
+      started: '10:57:41 · 1m 12s ago', session: '7718623c · this session', result: null,
+      timeline: [['10:57:41','spawned'],['10:57:44','2124 passed, 1 skipped'],['—','process still running']]
+    },
+    m3: {
+      title: 'delegation · wake test 2', state: 'completed', color: 'var(--green)',
+      kind: 'delegation', target: 'badd51ac-e7a9-45f4-904f-421af8a03961',
+      until: 'delegation finishes', started: '10:56:19 · 2m ago',
+      session: '7718623c · this session', result: 'pong 7+7=14',
+      timeline: [['10:56:19','queued'],['10:56:19','sub-session started'],['10:56:20','completed'],['10:56:20','result delivered']]
+    }
+  }
+
+  function openPane(monId) {
+    app.classList.add('pane-open')
+    btnPane.classList.add('on')
+    if (monId) selectMon(monId)
+  }
+  function closePane() { app.classList.remove('pane-open'); btnPane.classList.remove('on') }
+
+  function selectMon(monId) {
+    document.querySelectorAll('.mon-item').forEach(el => el.classList.toggle('active', el.dataset.detail === monId))
+    document.querySelectorAll('.tc-row').forEach(el => el.classList.toggle('selected', el.dataset.mon === monId))
+    const d = data[monId]
+    if (!d) return
+    document.getElementById('dTitle').textContent = d.title
+    const st = document.getElementById('dState')
+    st.textContent = d.state; st.style.color = d.color
+    document.getElementById('dKind').textContent = d.kind
+    document.getElementById('dTarget').textContent = d.target
+    document.getElementById('dUntil').textContent = d.until
+    document.getElementById('dStarted').textContent = d.started
+    document.getElementById('dSession').textContent = d.session
+    document.getElementById('dResultWrap').style.display = d.result ? '' : 'none'
+    if (d.result) document.getElementById('dResult').textContent = d.result
+    document.getElementById('dTimeline').innerHTML = d.timeline
+      .map(([t, text]) => `<div class="tl-row"><span class="tl-time">${t}</span><span>${text}</span></div>`).join('')
+  }
+
+  /* ---- card states: running (3 items) / done (all finished) ---- */
+  let cardState = 'running'
+  const rowRunning = [['waiting','0:42'],['running','1:12'],['done','0:09']]
+  const rowDone = [['done','0:51'],['done','1:12'],['done','0:09']]
+  function renderState(state) {
+    cardState = state
+    document.querySelectorAll('.tc-row .tc-state').forEach((el, i) => {
+      const [label, time] = (state === 'running' ? rowRunning : rowDone)[i]
+      el.innerHTML = `<span class="${label === 'done' ? 'ok' : 'run'}">${label}</span> ${time}`
+    })
+    if (state === 'running') {
+      card.classList.add('live')
+      cardSummary.textContent = '2 running · 1 done'
+      cardDots.innerHTML = '<span class="tc-dot run"></span><span class="tc-dot run"></span><span class="tc-dot ok"></span>'
+      cardRows.style.display = ''
+      cardFoot.style.display = ''
+      footText.textContent = 'Updates live · không nằm trong step của lượt chạy'
+      btnState.textContent = 'State: running'
+      btnState.classList.add('on')
+    } else {
+      card.classList.remove('live')
+      cardSummary.textContent = '3 done · 0 running'
+      cardDots.innerHTML = '<span class="tc-dot ok"></span><span class="tc-dot ok"></span><span class="tc-dot ok"></span>'
+      cardRows.style.display = ''
+      cardFoot.style.display = ''
+      footText.textContent = 'Tất cả đã xong · card tự ẩn sau 30s'
+      btnState.textContent = 'State: all done'
+      btnState.classList.remove('on')
+    }
+  }
+
+  cardHead.addEventListener('click', () => {
+    card.classList.toggle('collapsed')
+    const collapsed = card.classList.contains('collapsed')
+    cardHead.setAttribute('aria-expanded', String(!collapsed))
+    btnCollapse.classList.toggle('on', !collapsed)
+    btnCollapse.textContent = collapsed ? 'Card: collapsed' : 'Card: expanded'
+  })
+  cardHead.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cardHead.click() } })
+  cardOpen.addEventListener('click', e => { e.stopPropagation(); openPane() })
+  footOpen.addEventListener('click', () => openPane())
+  document.querySelectorAll('.tc-row').forEach(row => {
+    row.addEventListener('click', e => {
+      if (e.target.classList.contains('tc-stop')) { e.stopPropagation(); return }
+      openPane(row.dataset.mon)
+    })
+  })
+  document.querySelectorAll('.mon-item').forEach(el => el.addEventListener('click', () => selectMon(el.dataset.detail)))
+  btnPane.addEventListener('click', () => { app.classList.contains('pane-open') ? closePane() : openPane() })
+  paneClose.addEventListener('click', closePane)
+  btnCollapse.addEventListener('click', () => cardHead.click())
+  btnState.addEventListener('click', () => renderState(cardState === 'running' ? 'done' : 'running'))
+  btnPin.addEventListener('click', () => {
+    const pinned = item.classList.toggle('pinned')
+    btnPin.classList.toggle('on', pinned)
+    btnPin.textContent = pinned ? 'Neo: sticky top' : 'Neo: inline'
+  })
+  btnTheme.addEventListener('click', () => {
+    const el = document.documentElement
+    el.dataset.theme = el.dataset.theme === 'light' ? '' : 'light'
+  })
+  selectMon('m1')
+</script>
+</body>
+</html>

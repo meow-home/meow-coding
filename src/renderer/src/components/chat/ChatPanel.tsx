@@ -5,6 +5,7 @@ import { DRAFT_SESSION_ID } from '@shared/types'
 import { isExternalPeer } from '@shared/external-api-types'
 import { appendStreamDelta } from '@shared/text'
 import { contextTokens } from '@shared/usage'
+import BackgroundTasksCard from './BackgroundTasksCard'
 import ChatInput from './ChatInput'
 import type { ChatInputHandle } from './ChatInput'
 import type { MeowPetEvent } from './MeowPet'
@@ -235,6 +236,8 @@ interface Props {
   onVariantChange?: (variant: string | undefined) => void
   onSendDraftMessage?: (textAndImages: { text: string; images?: ImageAttachment[] }) => void
   onOpenSubagent?: (item: SubagentOverlayItem) => void
+  /** Opens the Monitors pane (optionally focused on one watch) from the background tasks card. */
+  onOpenTasks?: (monitorId?: string) => void
   /** Known project folders — the footer picker's options while this session is new. */
   projects?: { path: string; name: string }[]
   onSelectProject?: (path: string) => void
@@ -255,7 +258,7 @@ function RetryCountdown({ id, attempt, maxAttempts, delayMs, unbounded }: { id: 
   )
 }
 
-function ChatPanel({ agentId, cwd, gitBranch, mode = 'build', variant, onModeChange, onVariantChange, onSendDraftMessage, onOpenSubagent, projects, onSelectProject, onChooseFolder }: Props) {
+function ChatPanel({ agentId, cwd, gitBranch, mode = 'build', variant, onModeChange, onVariantChange, onSendDraftMessage, onOpenSubagent, onOpenTasks, projects, onSelectProject, onChooseFolder }: Props) {
   const [items, setItems] = useState<FeedItem[]>([])
   const [running, setRunning] = useState(false)
   // One-shot reaction for the composer mascot: a finished turn bounces, a failed one shakes.
@@ -1299,6 +1302,7 @@ if (e.type === 'usage') {
           )
         })}
         {running && <div className="chat-running">Meow is working…</div>}
+        {onOpenTasks && <BackgroundTasksCard agentId={agentId} onOpenPane={onOpenTasks} />}
         {todos.length > 0 && <TodoCard todos={todos} />}
         {pendingPrompt && (
           <div className="chat-prompt" ref={pendingPrompt.promptType === 'permission' ? promptRef : undefined}

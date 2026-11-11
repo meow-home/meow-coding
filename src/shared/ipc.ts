@@ -114,6 +114,8 @@ export const Channels = {
   EventAgentBackground: 'agent:background',
   BackgroundProcsList: 'procs:list',
   MonitorsList: 'procs:monitors',
+  MonitorsCancel: 'procs:monitors-cancel',
+  EventMonitorsChanged: 'procs:monitors-changed',
   BackgroundProcKill: 'procs:kill',
   BackgroundProcSubscribe: 'procs:subscribe',
   BackgroundProcUnsubscribe: 'procs:unsubscribe',
@@ -325,6 +327,9 @@ export interface AgentApi {
   onAgentBackground(cb: (e: { agentId: string; background: boolean }) => void): () => void
   backgroundProcsList(agentId: string): Promise<BackgroundProcInfo[]>
   monitorsList(agentId: string): Promise<MonitorInfo[]>
+  /** Stops a watching monitor, or dismisses a resolved one from the task list. */
+  monitorsCancel(id: string): Promise<void>
+  onMonitorsChanged(cb: (e: { agentId: string }) => void): () => void
   backgroundProcKill(id: string): Promise<void>
   backgroundProcSubscribe(id: string): Promise<{ backlog: string; status: 'running' | 'exited'; exitCode: number | null } | null>
   backgroundProcUnsubscribe(id: string): Promise<void>

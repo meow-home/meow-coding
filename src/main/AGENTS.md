@@ -63,10 +63,14 @@ handlers and the app lifecycle.
   them via `getPendingPrompt` instead of leaving the agent waiting forever. Emits `onPromptStateChange`
   (agent started/stopped waiting on input) and exposes `listPendingPrompts()` for the sidebar "needs input"
   badges; notification clicks call `onActivateAgent(agentId)` so the renderer can jump to the agent's
-  project + session. Registers the `delegate_session` and `delegate_cli` tools per runner (bound to a narrow `deps.delegation`
-  adapter), tracks a fixed `AgentRunContext` + correlated output per in-flight turn (`activeRuns`;
+  project + session. Registers the `delegate_session`, `delegate_result` and `delegate_cli` tools per runner (bound to a narrow `deps.delegation`
+  adapter), registers a delegation monitor under the delegation id at creation (`watchDelegation`, so `monitor({ id, wait: true })`
+  works), tracks a fixed `AgentRunContext` + correlated output per in-flight turn (`activeRuns`;
   `runSessionId(agentId)` routes transcript/usage/todos/artifacts to the fixed run session even if the UI
-  switches session mid-run), exposes the delegation runtime
+  switches session mid-run), delivers delegation results as data (the transcript note keeps the body for the user,
+  `toLlmMessages` reduces it to a `delegate_result` pointer, the wake is a fixed instruction on the pinned source
+  session and only while idle (a wake landing mid-turn is parked and drained when the turn settles) — nothing is queued
+  on the user queue or persisted as a user turn), exposes the delegation runtime
   (`resolveDelegationAgent`/`isBusy`/`runDelegatedTurn`/`appendDelegationResult`/`wakeDelegationSource`;
   a delegated run persists its incoming message deterministically and re-emits it as a `user-message`
   event (only when the store actually wrote it, so recovery cannot duplicate the bubble); `onUserMessage`

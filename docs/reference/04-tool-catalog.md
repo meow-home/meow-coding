@@ -176,7 +176,11 @@ when the next action depends on the condition; the tool waits up to 60 seconds w
 another LLM request. Already-buffered/immediate matches are returned through that tool result and
 do not also add a notification row. If the foreground window ends first, the waiter detaches and a
 later resolution still notifies/wakes through the background path. The default `wait: false`
-registers the watch and lets the turn continue.
+registers the watch and lets the turn continue. With **only `id` and no `until_*` condition** the
+tool waits on an already-registered monitor instead of starting one — that is how a `delegate_session`
+id is watched (`{ id, wait: true }`), since a delegation is monitored from the moment it is created.
+Resolved watches leave the agent-facing list but stay in the UI's background tasks card (last 20, newest first)
+until dismissed there; dismissing only drops the card entry and never touches the watched process.
 
 ### `git`
 
@@ -257,15 +261,30 @@ It runs on the calling session's model unless `model` is passed: the runtime res
 `provider/model` or a name like `opus` against the configured providers and connected accounts, and an
 ambiguous/unknown value fails with the available model refs so the agent can retry precisely. Only a
 user-origin run may delegate (a delegated run can never call `delegate_session`, keeping delegation one
-level deep), and a source may have at most five nonterminal delegations. Returns
+level deep), and a source may have at most five nonterminal delegations. The sub-session runs in the
+background and is **monitored from creation** under the delegation id (see `monitor`), so the source can
+block on it with `monitor({ id, wait: true })`. On terminal status the source transcript gets a
+`### 🧟 Delegation result — <title>` note (the body stays visible to the user), the monitor resolves, and
+an **idle** source is woken with a fixed instruction — the delegated session's text is never replayed as
+a user turn, and the model reads the body with `delegate_result`. Returns
 `Delegation <id> queued in new sub-session "<title>" (<agentId>)`, with the id also carried in
 `metadata.delegationId` so the renderer never parses prose.
+
+### `delegate_result`
+
+`{ id: string }` — reads a delegation's stored record (from `delegations.json`): status, final result or
+error, `resultTruncated`, and touched files. The body reaches the model as **tool output** (data), which
+is why a delegated session can never act as instructions on the source: the transcript note and the wake
+instruction only point here. Refuses an id owned by another session; a nonterminal delegation reports its
+status instead of failing. `delegate_session` / `delegate_cli` results are delivered this way — never as
+a user message.
 
 ### `delegate_cli`
 
 `{ task: string }` — delegates a focused task to the Antigravity CLI (`agy`), which runs it headless in
 the session's project folder with its own tools. It works like `delegate_session`: the task is queued,
-and the result is appended to this session and wakes it. Each call is a fresh Antigravity run with no
+and the terminal result is appended to this session as a note, then read with `delegate_result` (an idle
+source is woken with a fixed instruction). Each call is a fresh Antigravity run with no
 memory of earlier ones, so the task must be self-contained. Only a user-origin run may delegate, and
 the call is refused (nothing queued) when `agy` is not installed or too old. Returns
 `Delegation <id> queued for Antigravity.` with `metadata: { delegationId, cliAgentId }`.

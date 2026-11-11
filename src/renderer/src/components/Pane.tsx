@@ -15,12 +15,13 @@ interface Props {
   onToggleTerminal?: () => void
   onToggleBrowser?: () => void
   onOpenSubagent?: (item: SubagentOverlayItem) => void
+  onOpenTasks?: (monitorId?: string) => void
   projects: { path: string; name: string }[]
   onSelectProject: (path: string) => void
   onChooseFolder: () => void
 }
 
-export default function Pane({ pane, background, active, gitBranch, onFocus, onSendDraftMessage, onToggleTerminal, onToggleBrowser, onOpenSubagent, projects, onSelectProject, onChooseFolder }: Props) {
+export default function Pane({ pane, background, active, gitBranch, onFocus, onSendDraftMessage, onToggleTerminal, onToggleBrowser, onOpenSubagent, onOpenTasks, projects, onSelectProject, onChooseFolder }: Props) {
   const id = pane.agent.id
   const isDraft = id === DRAFT_SESSION_ID
 
@@ -34,6 +35,9 @@ export default function Pane({ pane, background, active, gitBranch, onFocus, onS
   const handleToggleBrowser = useCallback(() => {
     if (!isDraft) onToggleBrowser?.()
   }, [isDraft, onToggleBrowser])
+  const handleOpenTasks = useCallback((monitorId?: string) => {
+    if (!isDraft) onOpenTasks?.(monitorId)
+  }, [isDraft, onOpenTasks])
 
   useEffect(() => {
     if (!active || isDraft || !onToggleTerminal) return
@@ -95,6 +99,7 @@ export default function Pane({ pane, background, active, gitBranch, onFocus, onS
             onVariantChange={handleVariantChange}
             onSendDraftMessage={onSendDraftMessage}
             onOpenSubagent={onOpenSubagent}
+            onOpenTasks={onOpenTasks ? handleOpenTasks : undefined}
             projects={projects}
             onSelectProject={onSelectProject}
             onChooseFolder={onChooseFolder}

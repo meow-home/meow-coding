@@ -26,7 +26,9 @@ export function createDelegateSessionTool(opts: DelegateSessionToolDeps): ToolDe
       'Create a new persistent sub-session in this project for a focused task, in contrast to the ' +
       'isolated ephemeral `task` worker. The sub-session is shown in the sidebar under this session, ' +
       'keeps its own transcript, model, mode, permission rules, hooks, MCP servers and tools, and ' +
-      'returns its result here durably. It runs on this session\'s model unless you pass `model` ' +
+      'runs in the background and is monitored from the moment it is created: when it finishes you are ' +
+      'woken with a note, and the body is read with `delegate_result({ id })` (it is never injected as a ' +
+      'user message). `monitor({ id, wait: true })` blocks on the same handle. It runs on this session\'s model unless you pass `model` ' +
       '(the user asked for a different one); the runtime resolves a model id or a name like "opus" ' +
       'and, when the value is ambiguous or unknown, the error lists the available models so you can ' +
       'retry with one of them. Do NOT edit the scope you delegate before the result returns.',
@@ -67,7 +69,9 @@ export function createDelegateSessionTool(opts: DelegateSessionToolDeps): ToolDe
       }
       const target = record.targetName ? `"${record.targetName}" (${record.targetAgentId})` : record.targetAgentId
       const result: ToolRunResult = {
-        output: `Delegation ${record.id} queued in new sub-session ${target}.`,
+        output: `Delegation ${record.id} queued in new sub-session ${target}. ` +
+          `You are woken when it finishes; read the result with delegate_result({ id: "${record.id}" }) ` +
+          `or block on it with monitor({ id: "${record.id}", wait: true }).`,
         metadata: { delegationId: record.id }
       }
       return result

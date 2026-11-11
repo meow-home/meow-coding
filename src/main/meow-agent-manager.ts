@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
-import type { ChatDelegationMeta, ChatErrorItem, ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, ContextSection, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, NotificationsSettings, PendingPromptInfo, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts, UsageSummary } from '../shared/types'
+import type { ChatDelegationMeta, ChatErrorItem, ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, ContextSection, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, MonitorInfo, NotificationsSettings, PendingPromptInfo, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts, UsageSummary } from '../shared/types'
 import { DRAFT_SESSION_ID, type AgentConfig, type AgentMode, type ArtifactEntry, type CatalogProviderSummary, type Command, type ModelRef, type SubagentType } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, resolveApiKey, settingsToConfig, writeMeowConfig,
@@ -13,7 +13,7 @@ import {
 import { SessionRunner } from './agent/loop'
 import { BackgroundProcessStore, type BgExitInfo, type BgDataEvent, type BgExitEvent } from './agent/background-process-store'
 import { handleBackgroundExit } from './agent/background-exit'
-import { MonitorStore, handleMonitorResolve, type MonitorResolveInfo } from './agent/monitor-store'
+import { MonitorStore, handleMonitorResolve, delegationWakeInstruction, type MonitorResolveInfo } from './agent/monitor-store'
 import { PollMonitorStore } from './agent/poll-monitor-store'
 import { COMPACTION_MARKER, resolveCompactionSettings, usableContextTokens } from './agent/compact'
 import { LimitsService, parseContextLimitFromError } from './agent/limits'
@@ -55,6 +55,7 @@ import { revertTool } from './agent/tools/revert'
 import { createTaskTool } from './agent/tools/task'
 import { createDelegateSessionTool } from './agent/tools/delegate-session'
 import { createDelegateCliTool } from './agent/tools/delegate-cli'
+import { createDelegateResultTool } from './agent/tools/delegate-result'
 import type { ResolvedSubagentModel } from './agent/tools/task'
 import type { AgentRunContext } from './agent/run-context'
 import type { SessionDelegation, TurnEndReason } from '../shared/types'
@@ -124,6 +125,8 @@ export interface MeowAgentManagerDeps {
   onAgentAvailable?: (agentId: string) => void
   onBackgroundChange?: (agentId: string, background: boolean) => void
   onBackgroundProcData?: (e: { id: string; chunk: string }) => void
+  /** A monitor started, resolved, was cancelled or dismissed — refresh the task card. */
+  onMonitorsChanged?: (agentId: string) => void
   onBackgroundProcExit?: (e: { id: string; exitCode: number | null }) => void
   onVariantInvalidated?: (agentId: string) => void
   /** Fired for every user message sent to an agent (typed or slash command). */
@@ -143,6 +146,8 @@ export interface MeowAgentManagerDeps {
     }): Promise<SessionDelegation>
     createCli?(options: { sourceRun: AgentRunContext; task: string }): SessionDelegation
     checkCli?(): Promise<{ ready: boolean; error?: string }>
+    /** Reads a stored delegation for the `delegate_result` tool. */
+    get?(id: string): SessionDelegation | undefined
   }
 }
 
@@ -173,6 +178,11 @@ export class MeowAgentManager {
   // Background subagents outlive the turn that spawned them, so the turn's
   // controller can't stop them. Keyed by agentId -> taskId -> cancel handle.
   private backgroundTasks = new Map<string, Map<string, { sessionId: string; cancel: () => void }>>()
+  // A delegation that finishes while its source is mid-turn cannot wake it
+  // (a wake would be steered into the running turn). It is parked here and
+  // drained when that turn settles, so "you are woken when it finishes" is
+  // never silently dropped.
+  private pendingDelegationWakes = new Map<string, Map<string, { sessionId: string; reason: string }>>()
   private pendingPrompts = new Map<string, {
     agentId: string
     tool?: string
@@ -206,11 +216,13 @@ export class MeowAgentManager {
   private monitors = new MonitorStore({
     procs: this.backgroundProcs,
     getSessionId: (agentId) => this.activeSessionId(agentId),
-    onResolve: (info) => this.onMonitorResolve(info)
+    onResolve: (info) => this.onMonitorResolve(info),
+    onChange: (agentId) => this.deps.onMonitorsChanged?.(agentId)
   })
   private pollMonitors = new PollMonitorStore({
     getSessionId: (agentId) => this.activeSessionId(agentId),
-    onResolve: (info) => this.onMonitorResolve(info)
+    onResolve: (info) => this.onMonitorResolve(info),
+    onChange: (agentId) => this.deps.onMonitorsChanged?.(agentId)
   })
   private procSubscriptions = new Set<string>()
   private queues = new Map<string, QueuedMessage[]>()
@@ -391,40 +403,67 @@ export class MeowAgentManager {
     })
   }
 
+  /**
+   * Wakes the delegating session when a delegated run reaches a terminal status.
+   * The result itself was already appended to the transcript by
+   * `appendDelegationResult`; the wake only carries a fixed instruction that
+   * points at `delegate_result`, so a sub-session's output never enters the
+   * source model as user text, and a busy source is never steered mid-turn (the
+   * appended note shows up on its next step because the prompt is rebuilt from
+   * the transcript).
+   */
   async wakeDelegationSource(input: DelegationResultInput): Promise<void> {
-    const source = this.agents.get(input.sourceAgentId)
-    if (!source) return
-    const isCli = input.targetKind === 'cli'
-    if (this.running.has(input.sourceAgentId)) {
-      // Source is busy: park the wake as a deferred internal entry so it is
-      // never steered into the active turn, and never dropped by the user cap.
-      this.enqueueMessage(
-        input.sourceAgentId,
-        `delegation-wake:${input.delegationId}`,
-        undefined,
-        undefined,
-        {
-          id: input.delegationId,
-          direction: 'result',
-          peerAgentId: input.targetAgentId,
-          peerName: input.targetName,
-          ...(isCli ? { peerKind: input.targetKind } : {})
-        },
-        true,
-        input.delegationId
-      )
+    if (!this.agents.get(input.sourceAgentId)) return
+    // Resolving the delegation monitor (when one is registered) goes through the
+    // monitor path: notification, `monitor.wait` consumption and the idle wake.
+    if (this.monitors.resolveExternal(
+      input.sourceAgentId,
+      input.delegationId,
+      input.status === 'completed' ? 'succeeded' : 'exited',
+      input.status
+    )) return
+    await this.wakeDelegationIdle(input.sourceAgentId, input.sourceSessionId, input.delegationId, input.status)
+  }
+
+  /** Registers a monitor for a fresh delegation so the source can watch the
+   *  sub-session with `monitor.wait` like a background shell. Best-effort: the
+   *  per-agent monitor cap must not fail the delegation itself. */
+  watchDelegation(input: { agentId: string; delegationId: string; sessionId: string; label?: string }): void {
+    this.monitors.registerExternal({
+      agentId: input.agentId,
+      targetId: input.delegationId,
+      until: 'delegation finishes',
+      id: input.delegationId,
+      ...(input.label !== undefined ? { label: input.label } : {}),
+      // Pinned so the wake runs on the delegating session even after a UI switch.
+      sessionId: input.sessionId
+    })
+  }
+
+  private async wakeDelegationIdle(agentId: string, sessionId: string, delegationId: string, reason: string): Promise<void> {
+    if (this.running.has(agentId)) {
+      const parked = this.pendingDelegationWakes.get(agentId) ?? new Map()
+      parked.set(delegationId, { sessionId, reason })
+      this.pendingDelegationWakes.set(agentId, parked)
       return
     }
-    await this.runTurn(input.sourceAgentId, input.result ?? input.error ?? '', {
+    await this.runTurn(agentId, delegationWakeInstruction(delegationId, reason), {
       origin: 'delegation',
-      delegation: {
-        id: input.delegationId,
-        direction: 'result',
-        peerAgentId: input.targetAgentId,
-        peerName: input.targetName,
-        ...(isCli ? { peerKind: input.targetKind } : {})
-      }
+      // The wake always runs on the session that holds the result note, even if
+      // the UI switched to another session in the meantime.
+      sessionId,
+      // Nothing to persist: the result note is already in the transcript.
+      messageAlreadyPersisted: true
     })
+  }
+
+  private async drainPendingDelegationWakes(agentId: string): Promise<void> {
+    const parked = this.pendingDelegationWakes.get(agentId)
+    if (!parked || parked.size === 0) return
+    this.pendingDelegationWakes.delete(agentId)
+    for (const [delegationId, wake] of parked) {
+      await this.wakeDelegationIdle(agentId, wake.sessionId, delegationId, wake.reason)
+    }
   }
 
   async suggestFiles(agentId: string, prefix: string): Promise<FileSuggestion[]> {
@@ -597,8 +636,14 @@ export class MeowAgentManager {
     return this.backgroundProcs.list(agentId)
   }
 
-  monitorsList(agentId: string): { id: string; targetId: string; until: string }[] {
-    return [...this.monitors.list(agentId), ...this.pollMonitors.list(agentId)]
+  monitorsList(agentId: string): MonitorInfo[] {
+    return [...this.monitors.snapshot(agentId), ...this.pollMonitors.snapshot(agentId)]
+  }
+
+  /** Stops a watching monitor, or dismisses a resolved one from the task card. */
+  monitorsCancel(id: string): void {
+    if (this.monitors.cancel(id)) return
+    this.pollMonitors.cancel(id)
   }
 
   killBackgroundProc(id: string): void {
@@ -621,6 +666,12 @@ export class MeowAgentManager {
     // do not also enqueue a synthetic wakeup for the same condition.
     const consumedByWait = this.monitors.wasWaitConsumed(info.id) || this.pollMonitors.wasWaitConsumed(info.id)
     if (consumedByWait) return
+    // A delegation already appended its result note when the run terminated, so
+    // this path only wakes — and never persists an instruction as a user turn.
+    if (info.kind === 'delegation') {
+      void this.wakeDelegationIdle(info.agentId, info.sessionId, info.targetId, info.reason)
+      return
+    }
     handleMonitorResolve(info, {
       appendMessage: (sessionId, text) => this.deps.store.appendMessage(sessionId, {
         id: randomUUID(),
@@ -673,18 +724,15 @@ export class MeowAgentManager {
     })
   }
 
-  private enqueueMessage(agentId: string, text: string, images?: ImageAttachment[], displayText?: string, delegation?: ChatDelegationMeta, deferUntilIdle?: boolean, idOverride?: string): void {
+  private enqueueMessage(agentId: string, text: string, images?: ImageAttachment[], displayText?: string, delegation?: ChatDelegationMeta): void {
     const q = this.queues.get(agentId) ?? []
-    // Deferred delegation-result wakes are internal and must never be rejected
-    // by the user-message queue cap; they are keyed by the deterministic
-    // delegation id so a re-wake is idempotent.
-    if (!deferUntilIdle && q.length >= this.MAX_QUEUE) {
+    if (q.length >= this.MAX_QUEUE) {
       this.emit({ type: 'error', agentId, message: '[meow] Queue is full (max 5 messages). Wait for the current turn to finish or remove a queued message.' })
       return
     }
-    const id = idOverride ?? randomUUID()
+    const id = randomUUID()
     if (q.some(m => m.id === id)) return
-    q.push({ id, text, images, displayText, deferUntilIdle, delegation })
+    q.push({ id, text, images, displayText, delegation })
     this.queues.set(agentId, q)
     this.emitQueue(agentId)
   }
@@ -713,25 +761,17 @@ export class MeowAgentManager {
     await this.drainQueue(agentId)
   }
 
-  /** Returns non-deferred queued steers for the running turn (open-loop
-   *  steering); deferred (delegation wake) entries keep waiting. */
+  /** Returns the queued steers for the running turn (open-loop steering). */
   private takeSteers(agentId: string): QueuedMessage[] {
     const q = this.queues.get(agentId)
     if (!q || q.length === 0) return []
-    const steers: QueuedMessage[] = []
-    const rest: QueuedMessage[] = []
-    for (const m of q) {
-      if (!m.deferUntilIdle) steers.push(m)
-      else rest.push(m)
-    }
-    if (rest.length > 0) this.queues.set(agentId, rest)
-    else this.queues.delete(agentId)
+    this.queues.delete(agentId)
     this.emitQueue(agentId)
-    return steers
+    return q
   }
 
-  /** Pops the oldest direct user input before the oldest deferred result wake,
-   *  so explicit user work always precedes delegated results on the queue. */
+  /** Pops the oldest queued turn. Delegation results never queue: they are
+   *  appended to the transcript and picked up from there. */
   private takeNextQueuedTurn(agentId: string): QueuedMessage | undefined {
     const q = this.queues.get(agentId)
     if (!q || q.length === 0) return undefined
@@ -757,8 +797,11 @@ export class MeowAgentManager {
     if (prev) {
       await prev
       // A concurrent send() grabbed the slot while we waited — queue instead
-      // so the caller's drainQueue picks it up once the current turn ends.
+      // so the caller's drainQueue picks it up once the current turn ends. A
+      // message already in the transcript (delegation wake) needs no queueing:
+      // the active turn rebuilds its prompt from that transcript anyway.
       if (this.running.has(agentId)) {
+        if (options.messageAlreadyPersisted) return undefined
         this.enqueueMessage(agentId, content, options.images, options.displayText, options.delegation)
         return undefined
       }
@@ -776,6 +819,9 @@ export class MeowAgentManager {
     } finally {
       if (this.turnPromises.get(agentId) === turn) this.turnPromises.delete(agentId)
     }
+    // Outside the finally: a wake turn awaits `turnPromises`, so starting one
+    // while the finished turn's promise is still pending would deadlock.
+    void this.drainPendingDelegationWakes(agentId)
     if (run.error) {
       this.emitError(agentId, run.error, true)
       return { runId, reason: 'failed', touchedFiles: [...run.touchedFiles], error: run.error }
@@ -1562,6 +1608,7 @@ ${content}` : content
     if (this.idleCompactTimer) { clearInterval(this.idleCompactTimer); this.idleCompactTimer = null }
     for (const factory of this.agentHooks.values()) void factory().runSessionEnd('exit')
     this.stopAll()
+    this.pendingDelegationWakes.clear()
     this.monitors.cancelAll()
     this.pollMonitors.cancelAll()
     this.backgroundProcs.killAll()
@@ -1808,24 +1855,37 @@ ${content}` : content
       }
     })
     const delegateTool = createDelegateSessionTool({
-      createDelegation: (input) => {
+      createDelegation: async (input) => {
         if (!this.deps.delegation) {
           throw new Error('delegate_session: session delegation is not enabled.')
         }
-        return this.deps.delegation.create(input)
+        const record = await this.deps.delegation.create(input)
+        this.watchDelegation({
+          agentId: record.sourceAgentId, delegationId: record.id, sessionId: record.sourceSessionId, label: record.targetName
+        })
+        return record
       },
       runContext: () => this.activeRunCtx(agent.id)
     })
     const runnerTools = new Map<string, ToolDefinition>([...this.tools])
     runnerTools.set('task', taskTool)
     runnerTools.set('delegate_session', delegateTool)
+    if (this.deps.delegation?.get) {
+      runnerTools.set('delegate_result', createDelegateResultTool({
+        getDelegation: (id) => this.deps.delegation?.get?.(id)
+      }))
+    }
     if (this.deps.delegation?.createCli) {
       const delegateCliTool = createDelegateCliTool({
         createDelegation: (input) => {
           if (!this.deps.delegation?.createCli) {
             throw new Error('delegate_cli: CLI delegation is not enabled.')
           }
-          return Promise.resolve(this.deps.delegation.createCli(input))
+          const record = this.deps.delegation.createCli(input)
+          this.watchDelegation({
+            agentId: record.sourceAgentId, delegationId: record.id, sessionId: record.sourceSessionId, label: record.targetName
+          })
+          return Promise.resolve(record)
         },
         checkCli: this.deps.delegation.checkCli,
         runContext: () => this.activeRunCtx(agent.id)

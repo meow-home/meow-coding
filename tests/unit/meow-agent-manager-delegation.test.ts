@@ -33,6 +33,11 @@ class FakeVault implements Vault {
   mask(secret: string): string { return secret.length <= 8 ? '••••' : `${secret.slice(0, 4)}…${secret.slice(-4)}` }
 }
 
+function messagesOf(store: SessionStore, sessionId: string): { role: string; text: string }[] {
+  const items = store.get(sessionId)?.items ?? []
+  return items.flatMap(i => (i.kind === 'message' ? [{ role: i.message.role, text: i.message.text }] : []))
+}
+
 const MEOW_AGENT: AgentConfig = {
   id: 'a1', name: 'meow', templateId: 'meow', cwd: '/proj', kind: 'native'
 }
@@ -225,8 +230,8 @@ describe('MeowAgentManager delegation runtime', () => {
     expect(match!.delegation?.peerKind).toBe('cli')
   })
 
-  it('wakeDelegationSource drains the source while idle, and defers when busy', async () => {
-    const { manager } = await makeManager()
+  it('wakes an idle source with a fixed instruction and persists no user message', async () => {
+    const { manager, store } = await makeManager()
     const input: DelegationResultInput = {
       delegationId: 'd4',
       sourceAgentId: 'a1',
@@ -243,10 +248,49 @@ describe('MeowAgentManager delegation runtime', () => {
     expect(manager.isBusy('a1')).toBe(true)
     await runPromise
     expect(manager.isBusy('a1')).toBe(false)
+    const userTexts = messagesOf(store, 'src-session-4').filter(m => m.role === 'user').map(m => m.text)
+    // Only the result note: the wake instruction is not a user turn, and the
+    // delegated output is never replayed as one.
+    expect(userTexts).toHaveLength(1)
+    expect(userTexts[0]).toContain('Delegation result')
   })
 
-  it('does not drop a deferred result wake when the user queue is full', async () => {
-    const { manager } = await makeManager({ hangUntilAbort: true })
+  it('parks a wake that lands mid-turn and runs it once the turn settles', async () => {
+    const { manager, store } = await makeManager({ hangUntilAbort: true })
+    const input: DelegationResultInput = {
+      delegationId: 'd-parked',
+      sourceAgentId: 'a1',
+      sourceSessionId: 'src-parked',
+      targetAgentId: 't-agent',
+      targetName: 'target',
+      status: 'completed',
+      result: 'parked result',
+      touchedFiles: []
+    }
+    const longTurn = manager.send('a1', 'long turn')
+    await new Promise(r => setTimeout(r, 20))
+    expect(manager.isBusy('a1')).toBe(true)
+    await manager.appendDelegationResult(input)
+    await manager.wakeDelegationSource(input)
+    // Busy: nothing queued and no user turn written yet.
+    expect(manager.listQueued('a1')).toHaveLength(0)
+    expect(messagesOf(store, 'src-parked').filter(m => m.role === 'user')).toHaveLength(1)
+
+    manager.stop('a1')
+    await longTurn
+    // The parked wake starts its own turn once the long turn settles (the stub
+    // LLM hangs again, so the turn is observable as busy), and it still writes
+    // no user turn.
+    await new Promise(r => setTimeout(r, 40))
+    expect(manager.isBusy('a1')).toBe(true)
+    expect(messagesOf(store, 'src-parked').filter(m => m.role === 'user')).toHaveLength(1)
+    manager.stop('a1')
+    await new Promise(r => setTimeout(r, 40))
+    expect(manager.isBusy('a1')).toBe(false)
+  })
+
+  it('does not queue a wake while the source is busy', async () => {
+    const { manager, store } = await makeManager({ hangUntilAbort: true })
     manager.send('a1', 'long turn')
     await new Promise(r => setTimeout(r, 20))
     expect(manager.isBusy('a1')).toBe(true)
@@ -263,14 +307,41 @@ describe('MeowAgentManager delegation runtime', () => {
       touchedFiles: []
     }
     await manager.appendDelegationResult(input)
-    // This must not be dropped by the cap: it parks as a deferred internal entry.
     await manager.wakeDelegationSource(input)
+    // The wake never parks on the user queue: the note is already in the
+    // transcript and the running turn rebuilds its prompt from there.
     const queued = manager.listQueued('a1')
-    expect(queued.some(q => q.id === 'full-wake')).toBe(true)
-    expect(queued.filter(q => q.id === 'full-wake')).toHaveLength(1)
-    expect(queued.length).toBeGreaterThan(0)
+    expect(queued.map(q => q.text)).toEqual(['queued 0', 'queued 1', 'queued 2', 'queued 3', 'queued 4'])
+    const texts = messagesOf(store, 'src-full').map(m => m.text)
+    expect(texts.some(t => t.includes('delegation-wake'))).toBe(false)
+    expect(texts.some(t => t.includes('Delegation result'))).toBe(true)
     // Do not await the long-running send (it would drain every hung queue item).
     manager.stop('a1')
+  })
+
+  it('wakes through the delegation monitor registered for the delegation id', async () => {
+    const { manager, store } = await makeManager()
+    const input: DelegationResultInput = {
+      delegationId: 'd-mon',
+      sourceAgentId: 'a1',
+      sourceSessionId: 'src-mon',
+      targetAgentId: 't-agent',
+      targetName: 'target',
+      status: 'completed',
+      result: 'monitored',
+      touchedFiles: []
+    }
+    manager.watchDelegation({ agentId: 'a1', delegationId: 'd-mon', sessionId: 'src-mon' })
+    expect(manager.monitorsList('a1').map(m => m.id)).toContain('d-mon')
+    await manager.appendDelegationResult(input)
+    await manager.wakeDelegationSource(input)
+    // The monitor publishes on a microtask; the wake turn starts right after.
+    await new Promise(r => setTimeout(r, 30))
+    expect(manager.isBusy('a1')).toBe(false)
+    // The resolution tears the monitor down (the id stays in the list as history
+    // for the task card) and the wake ran a turn.
+    expect(manager.monitorsList('a1').find(m => m.id === 'd-mon')?.status).toBe('resolved')
+    expect(messagesOf(store, 'src-mon').some(m => m.role === 'assistant')).toBe(true)
   })
 
   it('routes all writes to the fixed run session when the UI session is switched mid-run', async () => {

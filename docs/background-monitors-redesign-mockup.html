@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meow — Background sessions &amp; Monitors as expandable lists — mockup</title>
+  <style>
+    :root {
+      /* Repo tokens (src/renderer/src/styles.css, One Dark Pro) */
+      --bg: #1e2227;
+      --bg-panel: #1e2227;
+      --bg-chat: #23272e;
+      --bg-raised: #2c313a;
+      --bg-hover: #323842;
+      --bg-active: #3a4150;
+      --bg-input: #2c313a;
+      --text: #abb2bf;
+      --text-strong: #d7dae0;
+      --text-dim: #9da5b4;
+      --text-faint: #7f848e;
+      --accent: #4d78cc;
+      --accent-hover: #3f66b0;
+      --accent-strong: #61afef;
+      --accent-dim: rgba(97, 175, 239, 0.15);
+      --accent-border: rgba(97, 175, 239, 0.45);
+      --focus-ring: rgba(97, 175, 239, 0.40);
+      --green: #98c379;
+      --yellow: #e5c07b;
+      --red: #e06c75;
+      --hairline: rgba(255, 255, 255, 0.10);
+      --hairline-strong: rgba(255, 255, 255, 0.18);
+      --radius-xs: 0.25rem;
+      --radius-sm: 0.333rem;
+      --radius: 0.5rem;
+      --radius-lg: 0.666rem;
+      --shadow-2: 0 12px 32px rgba(0, 0, 0, 0.55);
+      --font-ui: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', 'JetBrainsMono Nerd Font Mono', ui-monospace, Consolas, monospace;
+    }
+    [data-theme='light'] {
+      --bg: #ffffff;
+      --bg-panel: #fafafa;
+      --bg-chat: #ffffff;
+      --bg-raised: #f3f3f3;
+      --bg-hover: #eaeaea;
+      --bg-active: #e2e2e2;
+      --bg-input: #ffffff;
+      --text: #1e1e1e;
+      --text-strong: #111111;
+      --text-dim: #4b4b4b;
+      --text-faint: #8a8a8a;
+      --accent: #4d78cc;
+      --accent-hover: #3f66b0;
+      --accent-strong: #2f6fb5;
+      --accent-dim: rgba(77, 120, 204, 0.12);
+      --accent-border: rgba(77, 120, 204, 0.38);
+      --green: #2e7d32;
+      --yellow: #b26a00;
+      --red: #c62828;
+      --hairline: rgba(0, 0, 0, 0.10);
+      --hairline-strong: rgba(0, 0, 0, 0.18);
+      --shadow-2: 0 12px 32px rgba(0, 0, 0, 0.14);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0; background: var(--bg); color: var(--text);
+      font-family: var(--font-ui); font-size: 13px; line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font: inherit; color: inherit; }
+
+    .page { max-width: 1280px; margin: 0 auto; padding: 1.6rem 1.6rem 4rem; }
+    .page-head { display: flex; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.6rem; }
+    .eyebrow { font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
+    .page h1 { font-size: 1.4rem; font-weight: 700; margin: 0.15rem 0 0.35rem; letter-spacing: -0.01em; color: var(--text-strong); }
+    .page .lede { color: var(--text-dim); margin: 0; max-width: 78ch; font-size: 0.88rem; }
+    .page .lede code { font-family: var(--font-mono); font-size: 0.78rem; background: var(--bg-raised); border: 1px solid var(--hairline); border-radius: var(--radius-xs); padding: 0 0.25rem; }
+    .toolbar { display: flex; align-items: center; gap: 0.4rem; margin-left: auto; flex-wrap: wrap; }
+    .toolbar button {
+      background: var(--bg-raised); border: 1px solid var(--hairline); color: var(--text-dim);
+      border-radius: var(--radius-sm); padding: 0.35rem 0.7rem; font-size: 0.76rem; cursor: pointer;
+    }
+    .toolbar button:hover { background: var(--bg-hover); color: var(--text); }
+    .toolbar button.on { border-color: var(--accent-border); background: var(--accent-dim); color: var(--accent-strong); }
+
+    .block { margin-top: 2rem; }
+    .block-head h2 {
+      font-size: 1rem; margin: 0 0 0.2rem; color: var(--text-strong);
+      display: flex; align-items: baseline; gap: 0.5rem;
+    }
+    .block-head h2 .num { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-faint); letter-spacing: 0.08em; }
+    .block-head p { margin: 0 0 0.85rem; color: var(--text-dim); font-size: 0.84rem; max-width: 84ch; }
+    .block-head p b { color: var(--text-strong); font-weight: 600; }
+
+    /* ============ app frame ============ */
+    .frame {
+      display: grid; grid-template-columns: 196px 1fr; height: 560px;
+      border: 1px solid var(--hairline-strong); border-radius: var(--radius-lg);
+      background: var(--bg); overflow: hidden; box-shadow: var(--shadow-2);
+    }
+    .frame.rail-frame { grid-template-columns: 196px 1fr 320px; height: 420px; }
+    .side { background: var(--bg-panel); border-right: 1px solid var(--hairline); display: flex; flex-direction: column; min-height: 0; }
+    .side-head { padding: 0.6rem 0.75rem; font-size: 0.66rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-faint); font-weight: 600; border-bottom: 1px solid var(--hairline); }
+    .side-project { padding: 0.55rem 0.75rem 0.2rem; font-size: 0.75rem; color: var(--text-dim); font-weight: 600; }
+    .side-row { display: flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.55rem; margin: 0 0.35rem; border-radius: var(--radius-sm); font-size: 0.78rem; color: var(--text-dim); }
+    .side-row.active { background: var(--bg-hover); color: var(--text); }
+    .side-row.sub { padding-left: 1.35rem; font-size: 0.74rem; }
+    .side-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); flex: 0 0 auto; }
+    .side-dot.running { background: var(--green); }
+    .side-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .side-meta { margin-left: auto; font-family: var(--font-mono); font-size: 0.64rem; color: var(--text-faint); }
+
+    .stage { display: flex; flex-direction: column; min-width: 0; background: var(--bg-chat); }
+    .pane-mock { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    .pane-head { display: flex; align-items: center; gap: 0.5rem; padding: 0.42rem 0.8rem; border-bottom: 1px solid var(--hairline); background: var(--bg); flex: 0 0 auto; }
+    .pane-title { font-size: 0.82rem; font-weight: 600; color: var(--text-strong); }
+    .chip { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.1rem 0.45rem; border: 1px solid var(--hairline); border-radius: 999px; font-size: 0.68rem; color: var(--text-dim); background: var(--bg-raised); font-family: var(--font-mono); }
+    .feed { flex: 1; min-height: 0; overflow: hidden; padding: 0.9rem 1.1rem; display: flex; flex-direction: column; gap: 0.7rem; }
+    .msg { max-width: 72%; font-size: 0.82rem; line-height: 1.55; color: var(--text); }
+    .msg.user { align-self: flex-end; background: var(--bg-input); border: 1px solid var(--hairline); border-radius: var(--radius-lg); padding: 0.45rem 0.75rem; }
+    .msg.assistant { align-self: flex-start; }
+    .msg .who { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); margin-bottom: 0.15rem; font-weight: 600; font-family: var(--font-mono); }
+    .composer-mock { flex: 0 0 auto; margin: 0 0.9rem 0.7rem; border: 1px solid var(--hairline); border-radius: var(--radius-lg); background: var(--bg-input); padding: 0.45rem 0.7rem; font-size: 0.8rem; color: var(--text-faint); display: flex; align-items: center; }
+    .composer-mock .send { margin-left: auto; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); display: grid; place-items: center; color: #fff; font-size: 0.62rem; }
+
+    /* ============ 1. background dock ============ */
+    .dock { flex: 0 0 auto; border-top: 1px solid var(--hairline); background: var(--bg-panel); }
+    .dock-head {
+      display: flex; align-items: center; gap: 0.45rem; width: 100%;
+      height: 2.15rem; padding: 0 0.7rem; background: none; border: 0; cursor: pointer; text-align: left;
+    }
+    .dock-head:hover { background: var(--bg-hover); }
+    .dock-icon { display: inline-flex; color: var(--text-faint); }
+    .dock.live .dock-icon { color: var(--accent-strong); }
+    .dock-title { font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; color: var(--text-dim); }
+    .dock-count {
+      font-family: var(--font-mono); font-size: 0.64rem; line-height: 1;
+      padding: 0.12rem 0.28rem; border-radius: var(--radius-xs);
+      background: var(--bg-active); color: var(--text-dim);
+    }
+    .dock-summary { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-faint); }
+    .dock-summary .run { color: var(--green); }
+    .dock-summary .stop { color: var(--text-faint); }
+    .dock-dots { display: inline-flex; align-items: center; gap: 0.2rem; }
+    .dock-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-faint); }
+    .dock-dot.running { background: var(--green); animation: pulse 1.7s ease-in-out infinite; }
+    .dock-dot.idle { background: var(--yellow); }
+    .dock-dot.stopped { background: var(--text-faint); }
+    .dock-dot.error { background: var(--red); }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .dock-head .spacer { flex: 1; }
+    .dock-hint { font-size: 0.66rem; color: var(--text-faint); }
+    .dock-caret { display: inline-flex; color: var(--text-faint); transition: transform 0.16s ease; }
+    .dock.open .dock-caret { transform: rotate(180deg); }
+    .dock-body { max-height: 0; overflow: hidden; transition: max-height 0.18s ease; }
+    .dock.open .dock-body { max-height: 22rem; overflow-y: auto; }
+
+    /* shared list row */
+    .row { border-top: 1px solid var(--hairline); }
+    .row-head {
+      display: flex; align-items: center; gap: 0.45rem; width: 100%;
+      padding: 0.36rem 0.7rem; background: none; border: 0; cursor: pointer; text-align: left;
+    }
+    .row-head:hover { background: var(--bg-hover); }
+    .row.open > .row-head { background: var(--bg-hover); }
+    .row.attention > .row-head { box-shadow: inset 2px 0 0 var(--yellow); }
+    .row.error > .row-head { box-shadow: inset 2px 0 0 var(--red); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); flex: 0 0 auto; }
+    .dot.running { background: var(--green); box-shadow: 0 0 0 3px rgba(152, 195, 121, 0.14); animation: pulse 1.7s ease-in-out infinite; }
+    .dot.idle { background: var(--yellow); box-shadow: 0 0 0 3px rgba(229, 192, 123, 0.12); }
+    .dot.stopped { background: var(--text-faint); }
+    .dot.error { background: var(--red); box-shadow: 0 0 0 3px rgba(224, 108, 117, 0.14); }
+    .row-name { font-size: 0.79rem; color: var(--text-strong); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .state {
+      font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.05em; text-transform: uppercase;
+      padding: 0.1rem 0.3rem; border-radius: var(--radius-xs); border: 1px solid var(--hairline);
+      color: var(--text-faint); background: rgba(127, 132, 142, 0.08); white-space: nowrap; flex: 0 0 auto;
+    }
+    .state.running { color: var(--green); border-color: rgba(152, 195, 121, 0.32); background: rgba(152, 195, 121, 0.10); }
+    .state.idle { color: var(--yellow); border-color: rgba(229, 192, 123, 0.32); background: rgba(229, 192, 123, 0.10); }
+    .state.error { color: var(--red); border-color: rgba(224, 108, 117, 0.32); background: rgba(224, 108, 117, 0.10); }
+    .row-meta { margin-left: auto; font-family: var(--font-mono); font-size: 0.66rem; color: var(--text-faint); white-space: nowrap; }
+    .row-caret { display: inline-flex; color: var(--text-faint); transition: transform 0.16s ease; flex: 0 0 auto; }
+    .row.open > .row-head .row-caret { transform: rotate(90deg); color: var(--text-dim); }
+
+    .row-body { display: none; padding: 0.1rem 0.7rem 0.6rem 1.62rem; }
+    .row.open > .row-body { display: block; }
+    .meta-line { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; font-family: var(--font-mono); font-size: 0.66rem; color: var(--text-faint); margin-bottom: 0.4rem; }
+    .meta-line b { color: var(--text-dim); font-weight: 500; }
+    .meta-sep { color: var(--hairline-strong); }
+
+    .preview {
+      position: relative; border: 1px solid var(--hairline); border-radius: var(--radius-sm);
+      background: var(--bg); padding: 0.35rem 0.5rem; display: flex; flex-direction: column; gap: 0.28rem;
+      max-height: 4.9rem; overflow: hidden;
+    }
+    .preview::after {
+      content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1.3rem;
+      background: linear-gradient(transparent, var(--bg));
+    }
+    .msg-row { display: flex; gap: 0.45rem; font-size: 0.72rem; line-height: 1.45; }
+    .msg-role { flex: 0 0 auto; width: 4.4rem; font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); padding-top: 0.1rem; }
+    .msg-role.assistant { color: var(--accent-strong); }
+    .msg-text { color: var(--text); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+    .actions { display: flex; align-items: center; gap: 0.3rem; margin-top: 0.45rem; }
+    .act {
+      display: inline-flex; align-items: center; gap: 0.28rem;
+      border: 1px solid var(--hairline); background: var(--bg-raised); color: var(--text-dim);
+      border-radius: var(--radius-sm); padding: 0.18rem 0.5rem; font-size: 0.71rem; cursor: pointer;
+    }
+    .act:hover { color: var(--text); border-color: var(--hairline-strong); background: var(--bg-hover); }
+    .act.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 500; }
+    .act.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
+    .act.danger { margin-left: auto; color: var(--text-faint); }
+    .act.danger:hover { color: var(--red); border-color: rgba(224, 108, 117, 0.45); background: rgba(224, 108, 117, 0.08); }
+    .act svg { flex: 0 0 auto; }
+
+    /* ============ 2. monitors ============ */
+    .proc-frame { display: grid; grid-template-columns: 1fr 392px; height: 560px; border: 1px solid var(--hairline-strong); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-2); background: var(--bg); }
+    .panel { display: flex; flex-direction: column; min-width: 0; background: var(--bg-panel); border-left: 1px solid var(--hairline); }
+    .panel-tabs { display: flex; align-items: center; gap: 0.2rem; padding: 0.35rem 0.4rem; border-bottom: 1px solid var(--hairline); overflow: hidden; }
+    .tab { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.45rem; border: 1px solid transparent; border-radius: var(--radius-sm); font-size: 0.72rem; color: var(--text-dim); white-space: nowrap; }
+    .tab.active { background: var(--bg-raised); border-color: var(--hairline); color: var(--text-strong); }
+    .tab-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
+    .tab .mono { font-family: var(--font-mono); font-size: 0.66rem; color: var(--text-faint); }
+    .panel-body { flex: 1; min-height: 0; overflow-y: auto; }
+
+    .list-toolbar { display: flex; align-items: center; gap: 0.35rem; padding: 0.45rem 0.7rem 0.35rem; }
+    .filter { border: 1px solid var(--hairline); background: transparent; color: var(--text-faint); border-radius: 999px; padding: 0.1rem 0.45rem; font-size: 0.68rem; cursor: pointer; font-family: var(--font-mono); }
+    .filter.on { border-color: var(--accent-border); background: var(--accent-dim); color: var(--accent-strong); }
+    .list-toolbar .spacer { flex: 1; }
+    .live-tag { font-family: var(--font-mono); font-size: 0.62rem; color: var(--text-faint); display: inline-flex; align-items: center; gap: 0.25rem; }
+    .live-tag .dot { width: 5px; height: 5px; }
+
+    .group { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.7rem 0.28rem; }
+    .group-label { font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
+    .group-count { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-dim); }
+    .group-line { flex: 1; height: 1px; background: var(--hairline); }
+
+    .m-row { border-top: 1px solid var(--hairline); }
+    .m-row:first-of-type { border-top: 0; }
+    .m-row .row-head { padding: 0.34rem 0.7rem; gap: 0.4rem; }
+    .kind { display: inline-flex; color: var(--text-faint); flex: 0 0 auto; }
+    .m-row.open .kind { color: var(--accent-strong); }
+    .m-name { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .m-sub { font-family: var(--font-mono); font-size: 0.62rem; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .m-elapsed { font-family: var(--font-mono); font-size: 0.64rem; color: var(--text-dim); flex: 0 0 auto; }
+    .m-row.open .m-elapsed { color: var(--accent-strong); }
+    .m-body { display: none; padding: 0.15rem 0.7rem 0.65rem 1.62rem; }
+    .m-row.open > .m-body { display: block; }
+    .kv { display: grid; grid-template-columns: 4rem 1fr; gap: 0.18rem 0.5rem; margin: 0 0 0.45rem; font-size: 0.7rem; }
+    .kv dt { color: var(--text-faint); }
+    .kv dd { margin: 0; font-family: var(--font-mono); color: var(--text-dim); overflow-wrap: anywhere; }
+    .result {
+      border-left: 2px solid var(--green); background: rgba(152, 195, 121, 0.07);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 0.3rem 0.5rem;
+      font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-strong); white-space: pre-wrap;
+    }
+    .result.warn { border-color: var(--yellow); background: rgba(229, 192, 123, 0.07); }
+    .result-label { font-family: var(--font-mono); font-size: 0.58rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 0.25rem; }
+    .tail { background: var(--bg); border: 1px solid var(--hairline); border-radius: var(--radius-sm); padding: 0.3rem 0.5rem; font-family: var(--font-mono); font-size: 0.66rem; color: var(--text-dim); white-space: pre; overflow-x: auto; }
+    .tail .dim { color: var(--text-faint); }
+    .empty { display: grid; place-items: center; height: 100%; color: var(--text-faint); font-size: 0.78rem; text-align: center; padding: 1rem; }
+
+    /* ============ notes ============ */
+    .notes { margin-top: 2rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; }
+    @media (max-width: 1020px) { .notes { grid-template-columns: 1fr; } .proc-frame { grid-template-columns: 1fr; } }
+    .note {
+      border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--bg-panel); padding: 0.8rem 0.95rem;
+    }
+    .note.wide { grid-column: 1 / -1; }
+    .note h3 { margin: 0 0 0.4rem; font-size: 0.84rem; color: var(--text-strong); }
+    .note p, .note li { font-size: 0.78rem; color: var(--text-dim); }
+    .note ul { margin: 0.25rem 0 0; padding-left: 1.05rem; }
+    .note li + li { margin-top: 0.18rem; }
+    .note code { font-family: var(--font-mono); font-size: 0.71rem; background: var(--bg); border: 1px solid var(--hairline); border-radius: var(--radius-xs); padding: 0 0.22rem; color: var(--text-dim); }
+    .note table { width: 100%; border-collapse: collapse; font-size: 0.75rem; margin-top: 0.3rem; }
+    .note th { text-align: left; font-weight: 600; color: var(--text-faint); font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.08em; padding: 0.25rem 0.4rem 0.3rem 0; border-bottom: 1px solid var(--hairline); }
+    .note td { padding: 0.28rem 0.4rem 0.28rem 0; border-bottom: 1px solid var(--hairline); color: var(--text-dim); vertical-align: top; }
+    .note td:first-child { white-space: nowrap; }
+    .swatch { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 0.3rem; vertical-align: 1px; }
+    .kbd { font-family: var(--font-mono); font-size: 0.68rem; border: 1px solid var(--hairline-strong); border-bottom-width: 2px; border-radius: var(--radius-xs); padding: 0 0.25rem; color: var(--text-dim); }
+    .anatomy { display: flex; align-items: center; gap: 0.35rem; margin-top: 0.35rem; flex-wrap: wrap; font-family: var(--font-mono); font-size: 0.66rem; color: var(--text-faint); }
+    .anatomy .box { border: 1px dashed var(--hairline-strong); border-radius: var(--radius-xs); padding: 0.15rem 0.35rem; }
+    .anatomy .box.hl { border-style: solid; border-color: var(--accent-border); color: var(--accent-strong); background: var(--accent-dim); }
+
+    /* density switch */
+    body.compact .row-head { padding-top: 0.24rem; padding-bottom: 0.24rem; }
+    body.compact .m-row .row-head { padding-top: 0.22rem; padding-bottom: 0.22rem; }
+    body.compact .dock-head { height: 1.95rem; }
+  </style>
+</head>
+<body>
+<div class="page">
+  <header class="page-head">
+    <div>
+      <div class="eyebrow">Design proposal · Meow desktop</div>
+      <h1>Background sessions &amp; Monitors — one expandable-list pattern</h1>
+      <p class="lede">
+        Both surfaces become the same object: a compact, status-first list where each row is a summary
+        (state · elapsed · one hint) and <b>clicking the row expands it in place</b> to reveal content and the
+        full action set. No horizontal pill strip, no separate detail column — the list keeps its position
+        while a row opens, so nothing jumps and nothing is hidden behind a second pane.
+      </p>
+    </div>
+    <div class="toolbar">
+      <button id="themeBtn">Light / Dark</button>
+      <button id="densityBtn">Density: comfortable</button>
+    </div>
+  </header>
+
+  <!-- ============================================================ 1 -->
+  <section class="block">
+    <div class="block-head">
+      <h2><span class="num">01</span> Background sessions — bottom dock, accordion rows</h2>
+      <p>
+        Replaces the pill strip that currently sits under the panes. Collapsed it is one 2.1rem bar
+        (<b>2 running · 1 stopped</b> + state dots). Expanded it grows upward to at most ~22rem and scrolls;
+        the session panes keep their full width. Click a row to expand it; <b>Open session</b> is an explicit
+        button so a click never steals focus by accident.
+      </p>
+    </div>
+
+    <div class="frame">
+      <aside class="side">
+        <div class="side-head">Sessions</div>
+        <div class="side-project">▾ meow-coding</div>
+        <div class="side-row active"><span class="side-dot running"></span><span class="side-name">Fix delegation wake</span><span class="side-meta">now</span></div>
+        <div class="side-row sub"><span class="side-dot"></span><span class="side-name">wake test 3</span><span class="side-meta">8s</span></div>
+        <div class="side-row"><span class="side-dot"></span><span class="side-name">Settings polish</span><span class="side-meta">2h</span></div>
+        <div class="side-row"><span class="side-dot running"></span><span class="side-name">Browser bridge docs</span><span class="side-meta">12m</span></div>
+      </aside>
+
+      <div class="stage">
+        <div class="pane-mock">
+          <div class="pane-head">
+            <span class="pane-title">Fix delegation wake</span>
+            <span class="chip">build</span>
+            <span class="chip" style="margin-left:auto">◉ 2 running</span>
+          </div>
+          <div class="feed">
+            <div class="msg user"><div class="who">you</div>Wire the delegation wake path through the monitor store.</div>
+            <div class="msg assistant"><div class="who">meow</div>I moved the wake into <code style="font-family:var(--font-mono)">monitor-store</code> and added a test for the resolved-then-wake order. Two background sessions are still working on the follow-ups.</div>
+          </div>
+          <div class="composer-mock">Message meow… <span class="send">↑</span></div>
+        </div>
+
+        <!-- ===== DOCK ===== -->
+        <div class="dock live open" id="dock">
+          <button class="dock-head" id="dockHead" aria-expanded="true" aria-controls="dockBody">
+            <span class="dock-icon" aria-hidden="true">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            </span>
+            <span class="dock-title">Background</span>
+            <span class="dock-count">3</span>
+            <span class="dock-summary"><span class="run">2 running</span> · <span class="stop">1 stopped</span></span>
+            <span class="dock-dots" aria-hidden="true">
+              <span class="dock-dot running"></span><span class="dock-dot idle"></span><span class="dock-dot stopped"></span>
+            </span>
+            <span class="spacer"></span>
+            <span class="dock-hint">click a row for details</span>
+            <span class="dock-caret" aria-hidden="true">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 15l6-6 6 6"/></svg>
+            </span>
+          </button>
+
+          <div class="dock-body" id="dockBody">
+            <!-- row: running, expanded -->
+            <div class="row open" data-row>
+              <button class="row-head" aria-expanded="true">
+                <span class="dot running" aria-hidden="true"></span>
+                <span class="row-name">Browser bridge docs</span>
+                <span class="state running">running</span>
+                <span class="row-meta">active 4s ago</span>
+                <span class="row-caret" aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+                </span>
+              </button>
+              <div class="row-body">
+                <div class="meta-line">
+                  <b>build</b><span class="meta-sep">·</span>claude-sonnet-4-5<span class="meta-sep">·</span>
+                  <span title="E:\Git\GitHub\meow-coding">meow-coding</span><span class="meta-sep">·</span>4ed5c267
+                </div>
+                <div class="preview">
+                  <div class="msg-row">
+                    <span class="msg-role assistant">meow</span>
+                    <span class="msg-text">Updated the bridge section: the WS server binds 127.0.0.1 and the approval gate now rejects an unknown extension id before any command runs.</span>
+                  </div>
+                  <div class="msg-row">
+                    <span class="msg-role">you</span>
+                    <span class="msg-text">Also document the userData path for the unpacked extension.</span>
+                  </div>
+                </div>
+                <div class="actions">
+                  <button class="act primary">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                    Open session
+                  </button>
+                  <button class="act">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+                    Stop
+                  </button>
+                  <button class="act danger">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- row: idle / needs attention -->
+            <div class="row attention" data-row>
+              <button class="row-head" aria-expanded="false">
+                <span class="dot idle" aria-hidden="true"></span>
+                <span class="row-name">Settings polish</span>
+                <span class="state idle">waiting for you</span>
+                <span class="row-meta">2h ago</span>
+                <span class="row-caret" aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+                </span>
+              </button>
+              <div class="row-body">
+                <div class="meta-line">
+                  <b>plan</b><span class="meta-sep">·</span>claude-opus-4-1<span class="meta-sep">·</span>meow-coding<span class="meta-sep">·</span>9f01ab3e
+                </div>
+                <div class="preview">
+                  <div class="msg-row">
+                    <span class="msg-role assistant">meow</span>
+                    <span class="msg-text">Done — the Permissions tab now lists <code style="font-family:var(--font-mono)">task</code> next to <code style="font-family:var(--font-mono)">bash</code>. Restart the app to pick up the new default.</span>
+                  </div>
+                </div>
+                <div class="actions">
+                  <button class="act primary">Open session</button>
+                  <button class="act">Stop</button>
+                  <button class="act danger">Delete</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- row: stopped -->
+            <div class="row" data-row>
+              <button class="row-head" aria-expanded="false">
+                <span class="dot stopped" aria-hidden="true"></span>
+                <span class="row-name">MCP config draft</span>
+                <span class="state">stopped · exit 0</span>
+                <span class="row-meta">stopped 14m ago</span>
+                <span class="row-caret" aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+                </span>
+              </button>
+              <div class="row-body">
+                <div class="meta-line">
+                  <b>build</b><span class="meta-sep">·</span>claude-sonnet-4-5<span class="meta-sep">·</span>meow-coding<span class="meta-sep">·</span>cde331b3
+                </div>
+                <div class="preview">
+                  <div class="msg-row">
+                    <span class="msg-role assistant">meow</span>
+                    <span class="msg-text">Session ended after the config write. Transcript stays available here.</span>
+                  </div>
+                </div>
+                <div class="actions">
+                  <button class="act primary">Open transcript</button>
+                  <button class="act danger">Delete</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="block-head" style="margin-top:1.3rem">
+      <h2><span class="num">01B</span> Alternative placement — right rail</h2>
+      <p>
+        Same rows and same expansion, but the list is a 20rem rail beside the panes instead of a bottom dock.
+        Better when several sessions stay backgrounded for a long time (always visible, no drawer to open);
+        worse on a narrow window, where it competes with the docked Files/Processes panels.
+      </p>
+    </div>
+
+    <div class="frame rail-frame">
+      <aside class="side">
+        <div class="side-head">Sessions</div>
+        <div class="side-project">▾ meow-coding</div>
+        <div class="side-row active"><span class="side-dot running"></span><span class="side-name">Fix delegation wake</span><span class="side-meta">now</span></div>
+        <div class="side-row"><span class="side-dot"></span><span class="side-name">Settings polish</span><span class="side-meta">2h</span></div>
+      </aside>
+      <div class="stage">
+        <div class="pane-mock">
+          <div class="pane-head"><span class="pane-title">Fix delegation wake</span><span class="chip">build</span></div>
+          <div class="feed">
+            <div class="msg user"><div class="who">you</div>Wire the delegation wake path.</div>
+            <div class="msg assistant"><div class="who">meow</div>Done — two background sessions are still running.</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel" style="border-left:1px solid var(--hairline)">
+        <div class="dock-head" style="height:2.15rem;border-bottom:1px solid var(--hairline)">
+          <span class="dock-icon" aria-hidden="true">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          </span>
+          <span class="dock-title">Background</span>
+          <span class="dock-count">2</span>
+          <span class="spacer"></span>
+          <span class="dock-hint">2 running</span>
+        </div>
+        <div style="overflow-y:auto">
+          <div class="row open" data-row>
+            <button class="row-head" aria-expanded="true">
+              <span class="dot running" aria-hidden="true"></span>
+              <span class="row-name">Browser bridge docs</span>
+              <span class="state running">running</span>
+              <span class="row-caret" aria-hidden="true">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+              </span>
+            </button>
+            <div class="row-body">
+              <div class="meta-line"><b>build</b><span class="meta-sep">·</span>sonnet-4-5<span class="meta-sep">·</span>4ed5c267</div>
+              <div class="preview">
+                <div class="msg-row"><span class="msg-role assistant">meow</span><span class="msg-text">The approval gate rejects an unknown extension id before any command runs.</span></div>
+              </div>
+              <div class="actions">
+                <button class="act primary">Open session</button>
+                <button class="act">Stop</button>
+                <button class="act danger">Delete</button>
+              </div>
+            </div>
+          </div>
+          <div class="row" data-row>
+            <button class="row-head" aria-expanded="false">
+              <span class="dot running" aria-hidden="true"></span>
+              <span class="row-name">Terminal dock keys</span>
+              <span class="state running">running</span>
+              <span class="row-caret" aria-hidden="true">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+              </span>
+            </button>
+            <div class="row-body">
+              <div class="meta-line"><b>build</b><span class="meta-sep">·</span>sonnet-4-5<span class="meta-sep">·</span>77b1c9aa</div>
+              <div class="preview">
+                <div class="msg-row"><span class="msg-role assistant">meow</span><span class="msg-text">Ctrl+` toggles the dock; the handler skips xterm's helper textarea.</span></div>
+              </div>
+              <div class="actions">
+                <button class="act primary">Open session</button>
+                <button class="act">Stop</button>
+                <button class="act danger">Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ 2 -->
+  <section class="block">
+    <div class="block-head">
+      <h2><span class="num">02</span> Monitors — accordion instead of master/detail</h2>
+      <p>
+        The current Monitors tab splits the panel into a list and a detail block below it, so a long list
+        squeezes the detail to nothing. Here it is one list, grouped <b>Waiting</b> / <b>Finished</b>, and a row
+        expands to show its facts, its result and its actions. The row that changes state keeps its place —
+        a resolved watch stays under Waiting until the panel is reopened, so nothing jumps under the cursor.
+      </p>
+    </div>
+
+    <div class="proc-frame">
+      <div class="stage">
+        <div class="pane-mock">
+          <div class="pane-head">
+            <span class="pane-title">Fix delegation wake</span>
+            <span class="chip">build</span>
+            <span class="chip" style="margin-left:auto">◉ 2 running · 2 done</span>
+          </div>
+          <div class="feed">
+            <div class="msg assistant"><div class="who">meow</div>I started a test run and I am watching for the wake line. The delegation is still finishing.</div>
+            <div class="msg user"><div class="who">you</div>Ping me when either one lands.</div>
+          </div>
+          <div class="composer-mock">Message meow… <span class="send">↑</span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-tabs">
+          <span class="tab"><span class="tab-dot"></span><span class="mono">npm test</span></span>
+          <span class="tab"><span class="tab-dot"></span><span class="mono">npm run watch</span></span>
+          <span class="tab active">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            Monitors <span class="mono">(4)</span>
+          </span>
+        </div>
+
+        <div class="panel-body">
+          <div class="list-toolbar">
+            <button class="filter on">all 4</button>
+            <button class="filter">waiting 2</button>
+            <button class="filter">done 2</button>
+            <span class="spacer"></span>
+            <span class="live-tag"><span class="dot running"></span>live</span>
+          </div>
+
+          <div class="group">
+            <span class="group-label">Waiting</span><span class="group-count">2</span><span class="group-line"></span>
+          </div>
+
+          <!-- waiting, expanded -->
+          <div class="m-row open" data-row>
+            <button class="row-head" aria-expanded="true">
+              <span class="kind" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 14 15 20 9"/><line x1="4" y1="4" x2="4" y2="20"/></svg>
+              </span>
+              <span style="min-width:0;display:flex;flex-direction:column">
+                <span class="m-name">npm test</span>
+                <span class="m-sub">shell · proc cde331b3</span>
+              </span>
+              <span class="state running" style="margin-left:auto">watching</span>
+              <span class="m-elapsed">2:14</span>
+              <span class="row-caret" aria-hidden="true">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+              </span>
+            </button>
+            <div class="m-body">
+              <dl class="kv">
+                <dt>Until</dt><dd>output matches /PASS|FAIL/</dd>
+                <dt>Started</dt><dd>10:02:31 · 2m 14s ago</dd>
+                <dt>Session</dt><dd>4ed5c267</dd>
+              </dl>
+              <div class="result-label">Latest output</div>
+              <div class="tail"><span class="dim">›</span> vitest run --reporter=dot
+<span class="dim">›</span> RUN  v3.2.4 E:/Git/GitHub/meow-coding
+<span class="dim">›</span> Test Files  118 passed (118)</div>
+              <div class="actions">
+                <button class="act">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+                  Stop watching
+                </button>
+                <button class="act">Open output</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- waiting, collapsed -->
+          <div class="m-row" data-row>
+            <button class="row-head" aria-expanded="false">
+              <span class="kind" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>
+              </span>
+              <span style="min-width:0;display:flex;flex-direction:column">
+                <span class="m-name">wake test 3</span>
+                <span class="m-sub">delegation · 8b21f0d4</span>
+              </span>
+              <span class="state running" style="margin-left:auto">watching</span>
+              <span class="m-elapsed">0:42</span>
+              <span class="row-caret" aria-hidden="true">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+              </span>
+            </button>
+            <div class="m-body">
+              <dl class="kv">
+                <dt>Until</dt><dd>sub-session reports back</dd>
+                <dt>Started</dt><dd>10:04:03 · 42s ago</dd>
+                <dt>Session</dt><dd>8b21f0d4</dd>
+              </dl>
+              <div class="actions">
+                <button class="act">Stop watching</button>
+                <button class="act">Open sub-session</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="group">
+            <span class="group-label">Finished</span><span class="group-count">2</span><span class="group-line"></span>
+          </div>
+
+          <!-- resolved, expanded -->
+          <div class="m-row open" data-row>
+            <button class="row-head" aria-expanded="true">
+              <span class="kind" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 14 15 20 9"/><line x1="4" y1="4" x2="4" y2="20"/></svg>
+              </span>
+              <span style="min-width:0;display:flex;flex-direction:column">
+                <span class="m-name">npm run watch</span>
+                <span class="m-sub">shell · proc 5ba0e117</span>
+              </span>
+              <span class="state" style="margin-left:auto;color:var(--green);border-color:rgba(152,195,121,.32);background:rgba(152,195,121,.10)">matched</span>
+              <span class="m-elapsed">1:05 ago</span>
+              <span class="row-caret" aria-hidden="true">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+              </span>
+            </button>
+            <div class="m-body">
+              <dl class="kv">
+                <dt>Until</dt><dd>output matches /ready in/</dd>
+                <dt>Started</dt><dd>10:00:12</dd>
+                <dt>Finished</dt><dd>10:01:39 · 1m 27s</dd>
+              </dl>
+              <div class="result-label">Result</div>
+              <div class="result">ready in 412 ms — watching for changes</div>
+              <div class="actions">
+                <button class="act">Dismiss</button>
+                <button class="act">Open output</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- timeout, collapsed -->
+          <div class="m-row" data-row>
+            <button class="row-head" aria-expanded="false">
+              <span class="kind" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>
+              </span>
+              <span style="min-width:0;display:flex;flex-direction:column">
+                <span class="m-name">pnpm dev</span>
+                <span class="m-sub">poll · 90s timeout</span>
+              </span>
+              <span class="state" style="margin-left:auto;color:var(--yellow);border-color:rgba(229,192,123,.32);background:rgba(229,192,123,.10)">timeout</span>
+              <span class="m-elapsed">4m ago</span>
+              <span class="row-caret" aria-hidden="true">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+              </span>
+            </button>
+            <div class="m-body">
+              <dl class="kv">
+                <dt>Until</dt><dd>output matches /Local:/</dd>
+                <dt>Started</dt><dd>09:56:02</dd>
+                <dt>Finished</dt><dd>09:57:32 · timeout</dd>
+              </dl>
+              <div class="result-label">Last output</div>
+              <div class="result warn">vite v7.0.4 building for development…</div>
+              <div class="actions">
+                <button class="act">Dismiss</button>
+                <button class="act">Open output</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ notes -->
+  <section class="notes">
+    <div class="note">
+      <h3>Row anatomy — one shape for both lists</h3>
+      <div class="anatomy">
+        <span class="box">state dot</span>
+        <span class="box">label</span>
+        <span class="box hl">state chip</span>
+        <span class="box">elapsed / age</span>
+        <span class="box">caret</span>
+      </div>
+      <p style="margin:0.5rem 0 0">Collapsed: a single 2rem line, everything that changes at a glance. Expanded adds:</p>
+      <ul>
+        <li><b>meta line</b> — mode · model · project · short session id (mono, faint)</li>
+        <li><b>content block</b> — last messages (session) or latest output / result (watch), clamped with a fade</li>
+        <li><b>action row</b> — primary on the left, destructive pushed to the far right</li>
+      </ul>
+    </div>
+
+    <div class="note">
+      <h3>State → treatment</h3>
+      <table>
+        <thead><tr><th>State</th><th>Dot</th><th>Chip</th></tr></thead>
+        <tbody>
+          <tr><td>spawning</td><td><span class="swatch" style="background:var(--accent-strong)"></span></td><td>starting</td></tr>
+          <tr><td>running</td><td><span class="swatch" style="background:var(--green)"></span></td><td>running · active 4s ago</td></tr>
+          <tr><td>idle (turn done)</td><td><span class="swatch" style="background:var(--yellow)"></span></td><td>waiting for you</td></tr>
+          <tr><td>exited / stopped</td><td><span class="swatch" style="background:var(--text-faint)"></span></td><td>stopped · exit 0</td></tr>
+          <tr><td>error</td><td><span class="swatch" style="background:var(--red)"></span></td><td>error</td></tr>
+          <tr><td>watching (monitor)</td><td><span class="swatch" style="background:var(--green)"></span></td><td>watching · 2:14</td></tr>
+          <tr><td>matched / succeeded</td><td><span class="swatch" style="background:var(--green)"></span></td><td>matched</td></tr>
+          <tr><td>timeout</td><td><span class="swatch" style="background:var(--yellow)"></span></td><td>timeout</td></tr>
+        </tbody>
+      </table>
+      <p style="margin:0.5rem 0 0">Only running/watching pulses. An <code>attention</code>/<code>error</code> row also gets a 2px inset bar in yellow/red so a needs-input session is visible with the dock collapsed.</p>
+    </div>
+
+    <div class="note">
+      <h3>Action matrix</h3>
+      <table>
+        <thead><tr><th>Row</th><th>Actions (expanded)</th></tr></thead>
+        <tbody>
+          <tr><td>session · running / idle</td><td>Open session · Stop · Delete</td></tr>
+          <tr><td>session · stopped / exited</td><td>Open transcript · Delete</td></tr>
+          <tr><td>monitor · watching</td><td>Stop watching · Open output (shell) / Open sub-session (delegation)</td></tr>
+          <tr><td>monitor · resolved</td><td>Dismiss · Open output / Open sub-session</td></tr>
+        </tbody>
+      </table>
+      <p style="margin:0.5rem 0 0">Collapsed rows keep no buttons: the strip stays readable and the caret is the only affordance. Delete stays behind the existing <code>ConfirmDialog</code>.</p>
+    </div>
+
+    <div class="note">
+      <h3>Behaviour, motion, a11y</h3>
+      <ul>
+        <li><b>Single-open accordion</b> per list; the open row keeps its id, so a push event never collapses it.</li>
+        <li>Row header is a real <code>&lt;button aria-expanded aria-controls&gt;</code>; the action row is a sibling, never nested inside it.</li>
+        <li>Height animates 160ms ease; caret rotates 90°. <code>prefers-reduced-motion</code> drops both.</li>
+        <li>Elapsed ticks once per second, only while a row is open — collapsed rows show a coarser “2h ago”.</li>
+        <li>Keyboard: <span class="kbd">Tab</span> to a row, <span class="kbd">Enter</span>/<span class="kbd">Space</span> toggles, <span class="kbd">Esc</span> closes the open row before the dock itself.</li>
+        <li>Live regions stay off for the ticker; only state transitions announce (polite) — “npm test matched”.</li>
+      </ul>
+    </div>
+
+    <div class="note wide">
+      <h3>Data mapping — what already exists</h3>
+      <table>
+        <thead><tr><th>Field</th><th>Source</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>name · status · exit code · alert</td><td><code>PaneModel</code> / <code>AgentState</code></td><td>already passed into <code>BackgroundPanel</code>; no change.</td></tr>
+          <tr><td>last activity</td><td><code>AgentState.lastOutputAt</code></td><td>renders as “active 4s ago”.</td></tr>
+          <tr><td>message preview</td><td><code>window.api.listChatMessages(agentId)</code></td><td>fetch the last 2–3 entries once on expand, not on every state push.</td></tr>
+          <tr><td>monitor facts</td><td><code>MonitorInfo</code> (<code>kind · targetId · until · startedAt · resolvedAt · detail · reason</code>)</td><td>everything in the detail block is already there.</td></tr>
+          <tr><td>shell tail</td><td><code>backgroundProcSubscribe(id)</code> → backlog</td><td>subscribe while the row is open, unsubscribe on collapse — same lifecycle the Processes overlay uses today.</td></tr>
+          <tr><td>actions</td><td><code>setAgentBackground</code>, <code>stopChat</code>, <code>removePane</code>, <code>monitorsCancel</code>, <code>backgroundProcKill</code></td><td>no new IPC needed.</td></tr>
+        </tbody>
+      </table>
+      <p style="margin:0.5rem 0 0">
+        Nothing in this proposal requires a new channel. Optional later: a <code>lastMessagePreview</code> field on
+        <code>AgentState</code> would let the collapsed row show one line of context without an extra round-trip.
+      </p>
+    </div>
+
+    <div class="note wide">
+      <h3>Why this beats the two current shapes</h3>
+      <ul>
+        <li><b>Pill strip → dock:</b> the strip has no room for state reasons or content, its three tiny buttons sit on every row, and it scrolls horizontally once there are more than ~3 sessions. The dock gives each row a line, keeps actions one click away, and stays a single bar when idle.</li>
+        <li><b>Master/detail → accordion:</b> in a 22rem-wide panel the detail block is permanently starved; a long list means scrolling two regions. The accordion gives the selected watch the full panel width and the list never needs a second scroll container.</li>
+        <li><b>Same pattern twice</b> means one component (<code>ExpandableList</code> + row slots), one set of states, one set of keyboard rules — and the chat's background-tasks card can reuse the row markup it already has.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<script>
+  const themeBtn = document.getElementById('themeBtn')
+  themeBtn.addEventListener('click', () => {
+    const root = document.documentElement
+    const light = root.getAttribute('data-theme') === 'light'
+    root.setAttribute('data-theme', light ? 'dark' : 'light')
+    themeBtn.classList.toggle('on', !light)
+  })
+
+  const densityBtn = document.getElementById('densityBtn')
+  densityBtn.addEventListener('click', () => {
+    const compact = document.body.classList.toggle('compact')
+    densityBtn.textContent = compact ? 'Density: compact' : 'Density: comfortable'
+    densityBtn.classList.toggle('on', compact)
+  })
+
+  // dock collapse
+  const dock = document.getElementById('dock')
+  const dockHead = document.getElementById('dockHead')
+  dockHead.addEventListener('click', () => {
+    const open = dock.classList.toggle('open')
+    dockHead.setAttribute('aria-expanded', String(open))
+  })
+
+  // single-open accordion per list
+  document.querySelectorAll('[data-row]').forEach(row => {
+    const head = row.querySelector('.row-head')
+    head.addEventListener('click', () => {
+      const list = row.parentElement
+      const wasOpen = row.classList.contains('open')
+      list.querySelectorAll(':scope > [data-row]').forEach(other => {
+        other.classList.remove('open')
+        other.querySelector('.row-head').setAttribute('aria-expanded', 'false')
+      })
+      if (!wasOpen) {
+        row.classList.add('open')
+        head.setAttribute('aria-expanded', 'true')
+      }
+    })
+  })
+
+  // filters (visual only)
+  document.querySelectorAll('.filter').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter').forEach(b => b.classList.remove('on'))
+      btn.classList.add('on')
+    })
+  })
+</script>
+</body>
+</html>

@@ -54,15 +54,25 @@ only writer of `SessionDelegationStore` records.
   moving the record to `waiting_for_input`; answering (`notifyPromptState(false)`) returns it to
   `running`. The terminal transition always starts from the latest nonterminal revision so a prompt
   that straddles the run's end is not lost.
-- **Delivery** — on terminal status the service appends the target's result idempotently, marks
-  `deliveredAt`, then wakes the source (claiming `wakeAt` once via `claimSourceWake`). The result is
-  truncated to 64 KiB (UTF-8‑safe) with `resultTruncated`.
+- **Delivery** — on terminal status the service appends the target's result note idempotently
+  (`delegation-result:<id>`), marks `deliveredAt`, then wakes the source. The result is truncated to
+  64 KiB (UTF-8‑safe) with `resultTruncated`. Delivery is **data, not a prompt**: the transcript keeps
+  the full body for the user, but `toLlmMessages` rewrites a `direction: 'result'` message into a
+  pointer (`[delegation <id>] … read it with delegate_result`), the delegation monitor registered at
+  creation is resolved (so `monitor.wait` can consume it), and the wake is a **fixed instruction**
+  carrying no delegated text. It runs on the pinned source session and only when the source is idle.
+  A wake that lands mid-turn is parked in `pendingDelegationWakes` and drained when that turn settles
+  (outside the turn promise, which the wake turn awaits), so the promise "you are woken when it
+  finishes" is never silently dropped; a source still inside its tool loop also sees the note on its
+  next step, because the prompt is rebuilt from the transcript. Nothing is queued on the user queue
+  and no instruction is persisted as a user turn.
 - **Recovery** — `start()` interrupts in-flight `running`/`waiting_for_input` records (delivering the
   interruption once, never rerunning the target task), redelivers terminal results missing
   `deliveredAt`, repumps queued records, and runs retention cleanup.
-- **Tool** — `MeowAgentManager.register` constructs the `delegate_session` tool bound to a narrow
-  `deps.delegation` adapter (composed in `index.ts`) and tracks a fixed `AgentRunContext` per in-flight
-  turn. `MeowAgentManager.resolveDelegationModel` supplies the sub-session's model: the source's model
+- **Tool** — `MeowAgentManager.register` constructs the `delegate_session` / `delegate_result` tools
+  bound to a narrow `deps.delegation` adapter (composed in `index.ts`) and tracks a fixed
+  `AgentRunContext` per in-flight turn. `watchDelegation` registers the delegation monitor under the
+  delegation id, pinned to the source session. `MeowAgentManager.resolveDelegationModel` supplies the sub-session's model: the source's model
   by default, or a user-requested one resolved through `model-select.ts` against the configured
   providers/accounts (ambiguity is an error listing the candidates).
 
@@ -269,8 +279,8 @@ Notable details:
 | `onFileRead(filePath)` | Returns a `<system-reminder>` block with nearby `AGENTS.md`/`CLAUDE.md` content, deduped across the session |
 | `onArtifact(entry)` | Records a created/edited file for the Artifacts panel |
 | `backgroundProcs` | Store for long-lived background shell processes (`bash run_in_background` / `bash_output` / `kill_shell`) |
-| `monitors` | Store for async watches over background shells (`monitor` tool); absent for subagents |
-| `pollMonitors` | Store for interval command watches (`monitor` command mode); absent for subagents |
+| `monitors` | Store for async watches over background shells (`monitor` tool); absent for subagents. `list()` stays watching-only for the agent, `snapshot()` adds the last 20 resolved watches for the UI's background tasks card, and `cancel()` stops a watch or dismisses a resolved entry without touching the target |
+| `pollMonitors` | Store for interval command watches (`monitor` command mode); absent for subagents. Same `snapshot()`/`cancel()` surface; both stores call `onChange(agentId)` on every change, which main pushes as `procs:monitors-changed` |
 
 4. `await def.run(input, ctx)` → `{ output?, error? }`; thrown errors become `call.error` formatted by `formatToolError` (Error.message / string / JSON, never `[object Object]`).
 5. After the call's batch settles, `finishCall` runs the tool-loop check, attaches any note, appends the tool item in model order, and emits `tool-result`.

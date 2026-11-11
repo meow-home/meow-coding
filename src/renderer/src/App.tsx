@@ -69,7 +69,7 @@ function chatMinWidthPx(): number {
 // `workspace-active` wrapper, so hidden ChatPanels keep streaming events.
 function WorkspaceView({
   runtime, backgrounds, activeSessionByPath, onActiveChange, onRemovePane, onSendDraftMessage, onToggleTerminal, onToggleBrowser, onOpenSubagent,
-  projects, onSelectProject, onChooseFolder
+  onOpenTasks, projects, onSelectProject, onChooseFolder
 }: {
   runtime: WorkspaceRuntime
   backgrounds: Record<string, boolean>
@@ -80,6 +80,7 @@ function WorkspaceView({
   onToggleTerminal: (id: string) => void
   onToggleBrowser: (id: string) => void
   onOpenSubagent: (item: SubagentOverlayItem) => void
+  onOpenTasks: (id: string, monitorId?: string) => void
   projects: { path: string; name: string }[]
   onSelectProject: (path: string) => void
   onChooseFolder: () => void
@@ -121,6 +122,7 @@ function WorkspaceView({
         onToggleTerminal={onToggleTerminal}
         onToggleBrowser={onToggleBrowser}
         onOpenSubagent={onOpenSubagent}
+        onOpenTasks={onOpenTasks}
         projects={projects}
         onSelectProject={onSelectProject}
         onChooseFolder={onChooseFolder}
@@ -242,6 +244,10 @@ export default function App() {
   }, [filesDirty])
   const [processesOpenFor, setProcessesOpenFor] = useState<string | null>(null)
   const [processesFull, setProcessesFull] = useState(false)
+  // A request from the chat's background tasks card to open the Processes panel on
+  // the Monitors tab. `seq` is monotonic so the same monitor id re-focuses.
+  const monitorsFocusSeq = useRef(0)
+  const [monitorsFocus, setMonitorsFocus] = useState<{ monitorId?: string; seq: number } | null>(null)
   const [terminalOpenFor, setTerminalOpenFor] = useState<string | null>(null)
   const [terminalFull, setTerminalFull] = useState(false)
   const handleToggleTerminal = useCallback((agentId: string) => {
@@ -292,12 +298,21 @@ export default function App() {
   // NOT sit inside `.right-panels-container`: that container is positioned (its resizer
   // anchors to it), and a positioned ancestor confines them to the docked column
   // instead of covering the chat pane.
+  const handleOpenTasks = useCallback((agentId: string, monitorId?: string) => {
+    monitorsFocusSeq.current += 1
+    setMonitorsFocus({ monitorId, seq: monitorsFocusSeq.current })
+    setProcessesFull(false)
+    setProcessesOpenFor(agentId)
+  }, [])
+  const handleMonitorsFocusApplied = useCallback(() => setMonitorsFocus(null), [])
   const processesPanel = processesOpenFor ? (
     <ProcessesOverlay
       agentId={processesOpenFor}
       full={processesFull}
       onToggleFull={() => setProcessesFull(v => !v)}
-      onClose={() => setProcessesOpenFor(null)}
+      onClose={() => { setProcessesOpenFor(null); setMonitorsFocus(null) }}
+      focus={monitorsFocus}
+      onFocusApplied={handleMonitorsFocusApplied}
     />
   ) : null
   const terminalPanel = terminalOpenFor ? (
@@ -1040,6 +1055,7 @@ export default function App() {
                   onToggleTerminal={handleToggleTerminal}
                   onToggleBrowser={handleToggleBrowser}
                   onOpenSubagent={handleOpenSubagent}
+                  onOpenTasks={handleOpenTasks}
                   projects={projectOptions}
                   onSelectProject={onNewSession}
                   onChooseFolder={handleChooseFolder}
@@ -1063,6 +1079,7 @@ export default function App() {
                     onToggleTerminal={handleToggleTerminal}
                     onToggleBrowser={handleToggleBrowser}
                     onOpenSubagent={handleOpenSubagent}
+                    onOpenTasks={handleOpenTasks}
                     projects={projectOptions}
                     onSelectProject={onNewSession}
                     onChooseFolder={handleChooseFolder}

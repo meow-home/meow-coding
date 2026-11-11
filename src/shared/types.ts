@@ -322,7 +322,6 @@ export interface QueuedMessage {
   text: string
   displayText?: string
   images?: ImageAttachment[]
-  deferUntilIdle?: boolean
   delegation?: ChatDelegationMeta
 }
 
@@ -617,10 +616,27 @@ export interface BackgroundProcInfo {
   exitCode: number | null
 }
 
+export type MonitorKind = 'shell' | 'poll' | 'delegation'
+export type MonitorStatus = 'watching' | 'resolved'
+export type MonitorReason = 'matched' | 'exited' | 'timeout' | 'succeeded'
+
+/** One row of the background tasks surface: an async watch (shell, polled
+ *  command, or delegation) that is either still waiting or already resolved. */
 export interface MonitorInfo {
   id: string
+  kind: MonitorKind
+  /** Human label of the watched thing: shell command, polled command, sub-session title. */
+  label: string
   targetId: string
   until: string
+  status: MonitorStatus
+  /** Why a resolved monitor stopped watching. */
+  reason?: MonitorReason
+  /** Resolve detail (matched line, exit code, status). */
+  detail?: string
+  startedAt: number
+  resolvedAt?: number
+  sessionId: string
 }
 
 export type TerminalStatus = 'running' | 'exited'

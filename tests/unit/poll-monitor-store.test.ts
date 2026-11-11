@@ -64,6 +64,25 @@ describe('PollMonitorStore', () => {
     expect(store.wasWaitConsumed(started.id)).toBe(false)
   }, 20000)
 
+  it('snapshot() keeps resolved polls in history until dismissed', async () => {
+    const { store } = makeStore()
+    const started = store.start('a1', 'exit 0', dir, { intervalMs: 1000 })
+    if (!('id' in started)) throw new Error('poll monitor did not start')
+    const watching = store.snapshot('a1')
+    expect(watching).toHaveLength(1)
+    expect(watching[0]).toMatchObject({ id: started.id, kind: 'poll', status: 'watching', targetId: 'exit 0' })
+    expect(typeof watching[0].startedAt).toBe('number')
+
+    await waitFor(() => store.snapshot('a1')[0]?.status === 'resolved')
+    const done = store.snapshot('a1')[0]
+    expect(done).toMatchObject({ id: started.id, reason: 'succeeded' })
+    expect(typeof done.resolvedAt).toBe('number')
+
+    expect(store.cancel(started.id)).toBe(true)
+    expect(store.snapshot('a1')).toHaveLength(0)
+    expect(store.cancel(started.id)).toBe(false)
+  }, 20000)
+
   it('errors on invalid regex and enforces the per-agent limit', () => {
     const { store } = makeStore(2)
     expect('error' in store.start('a1', 'exit 1', dir, { untilRegex: '(' })).toBe(true)

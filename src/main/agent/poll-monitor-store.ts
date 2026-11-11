@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import kill from 'tree-kill'
+import type { MonitorInfo } from '@shared/types'
 import { buildShellCommand } from './tools/bash'
 import type { MonitorResolveInfo, MonitorWaitResult } from './monitor-store'
 
@@ -16,6 +17,8 @@ export interface PollMonitorStartOpts {
 export interface PollMonitorStoreOpts {
   getSessionId: (agentId: string) => string
   onResolve: (info: MonitorResolveInfo) => void
+  /** Fired whenever the watch list changes, so the UI can refresh on push. */
+  onChange?: (agentId: string) => void
   maxPerAgent?: number
 }
 
@@ -30,6 +33,7 @@ interface Entry {
   untilCode: number
   until: string
   status: 'watching' | 'resolved'
+  startedAt: number
   polling: boolean
   timer?: ReturnType<typeof setInterval>
   timeoutTimer?: ReturnType<typeof setTimeout>
@@ -42,12 +46,15 @@ const MIN_INTERVAL_MS = 1000
 const DETAIL_CAP = 500
 const MAX_OUTPUT = 64 * 1024
 const POLL_KILL_MS = 30_000
+// Resolved watches stay visible in the task card until dismissed.
+const MAX_HISTORY = 20
 
 export class PollMonitorStore {
   private entries = new Map<string, Entry>()
   private waiters = new Map<string, Set<(result: MonitorWaitResult) => void>>()
   private consumed = new Set<string>()
   private resolved = new Map<string, MonitorResolveInfo>()
+  private history = new Map<string, { agentId: string; info: MonitorInfo }>()
 
   private key(agentId: string, command: string, cwd: string, opts: PollMonitorStartOpts, intervalMs: number): string {
     return `${agentId}\0${command}\0${cwd}\0${opts.untilRegex ?? ''}\0${opts.untilExit === undefined ? 'unset' : String(opts.untilExit)}\0${intervalMs}`
@@ -69,6 +76,41 @@ export class PollMonitorStore {
       if (e.agentId === agentId && e.status === 'watching') out.push({ id: e.id, targetId: e.command, until: e.until })
     }
     return out
+  }
+
+  /** Watching monitors plus recently resolved ones, for the task card. */
+  snapshot(agentId: string): MonitorInfo[] {
+    const watching: MonitorInfo[] = []
+    for (const e of this.entries.values()) {
+      if (e.agentId !== agentId || e.status !== 'watching') continue
+      watching.push({
+        id: e.id, kind: 'poll', label: e.command, targetId: e.command, until: e.until,
+        status: 'watching', startedAt: e.startedAt, sessionId: e.sessionId
+      })
+    }
+    const done = [...this.history.values()]
+      .filter(h => h.agentId === agentId)
+      .map(h => h.info)
+      .reverse()
+    return [...watching.sort((a, b) => a.startedAt - b.startedAt), ...done]
+  }
+
+  /** Stops a watching monitor, or dismisses a resolved one. Returns whether anything changed. */
+  cancel(id: string): boolean {
+    const entry = this.entries.get(id)
+    if (entry) {
+      const agentId = entry.agentId
+      this.teardown(entry)
+      this.opts.onChange?.(agentId)
+      return true
+    }
+    const done = this.history.get(id)
+    if (done) {
+      this.history.delete(id)
+      this.opts.onChange?.(done.agentId)
+      return true
+    }
+    return false
   }
 
   wasWaitConsumed(id: string): boolean { return this.consumed.delete(id) }
@@ -134,7 +176,7 @@ export class PollMonitorStore {
     ].filter(Boolean).join(' or ')
     const entry: Entry = {
       id, agentId, sessionId: this.opts.getSessionId(agentId), command, cwd,
-      untilRegex, checkExit, untilCode, until, status: 'watching', polling: false, key
+      untilRegex, checkExit, untilCode, until, status: 'watching', startedAt: Date.now(), polling: false, key
     }
     entry.timer = setInterval(() => this.poll(entry), intervalMs)
     entry.timer.unref?.()
@@ -144,6 +186,7 @@ export class PollMonitorStore {
       entry.timeoutTimer.unref?.()
     }
     this.entries.set(id, entry)
+    this.opts.onChange?.(agentId)
     this.poll(entry) // immediate first poll
     return { id, reused: false, pending: true }
   }
@@ -187,10 +230,24 @@ export class PollMonitorStore {
       id: entry.id, agentId: entry.agentId, sessionId: entry.sessionId,
       targetId: entry.command, reason, detail, kind: 'poll'
     }
-    this.publish(info)
+    this.publish(info, entry)
   }
 
-  private publish(info: MonitorResolveInfo): void {
+  private publish(info: MonitorResolveInfo, entry?: Entry): void {
+    this.history.set(info.id, {
+      agentId: info.agentId,
+      info: {
+        id: info.id, kind: 'poll', label: entry?.command ?? info.targetId, targetId: info.targetId,
+        until: entry?.until ?? '', status: 'resolved', reason: info.reason, detail: info.detail,
+        startedAt: entry?.startedAt ?? Date.now(), resolvedAt: Date.now(), sessionId: info.sessionId
+      }
+    })
+    while (this.history.size > MAX_HISTORY) {
+      const oldest = this.history.keys().next().value
+      if (oldest === undefined) break
+      this.history.delete(oldest)
+    }
+    this.opts.onChange?.(info.agentId)
     this.resolved.set(info.id, info)
     const waiters = this.waiters.get(info.id)
     if (waiters?.size) {
@@ -215,6 +272,7 @@ export class PollMonitorStore {
 
   cancelAllForAgent(agentId: string): void {
     for (const e of [...this.entries.values()]) if (e.agentId === agentId) this.teardown(e)
+    this.opts.onChange?.(agentId)
   }
 
   cancelAll(): void {

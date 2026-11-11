@@ -237,6 +237,9 @@ const api: AgentApi = {
     subscribe(Channels.EventAgentBackground, cb),
   backgroundProcsList: (agentId: string) => ipcRenderer.invoke(Channels.BackgroundProcsList, agentId),
   monitorsList: (agentId: string) => ipcRenderer.invoke(Channels.MonitorsList, agentId),
+  monitorsCancel: (id: string) => ipcRenderer.invoke(Channels.MonitorsCancel, id),
+  onMonitorsChanged: (cb: (e: { agentId: string }) => void) =>
+    subscribe(Channels.EventMonitorsChanged, cb),
   backgroundProcKill: (id: string) => ipcRenderer.invoke(Channels.BackgroundProcKill, id),
   backgroundProcSubscribe: (id: string) => ipcRenderer.invoke(Channels.BackgroundProcSubscribe, id),
   backgroundProcUnsubscribe: (id: string) => ipcRenderer.invoke(Channels.BackgroundProcUnsubscribe, id),

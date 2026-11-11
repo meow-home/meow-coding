@@ -93,6 +93,7 @@ describe('ProcessesOverlay tabs', () => {
       backgroundProcSubscribe: vi.fn(async () => ({ backlog: 'output of shell', status: 'running' })),
       backgroundProcUnsubscribe: vi.fn(async () => {}),
       backgroundProcKill: kill,
+      monitorsCancel: vi.fn(async () => {}),
       onBackgroundProcData: () => () => {},
       onBackgroundProcExit: () => () => {}
     }
@@ -129,9 +130,13 @@ describe('ProcessesOverlay tabs', () => {
   })
 
   it('opens the monitors tab, and falls to it when there are no shells', async () => {
-    await render([], [{ id: 'm1', targetId: 's9', until: 'exit or 30s' }])
+    await render([], [{
+      id: 'm1', kind: 'shell', label: 'npm run dev', targetId: 's9', until: 'exit or 30s',
+      status: 'watching', startedAt: Date.now(), sessionId: 'sess-1234'
+    }])
     expect(tabIds()).toEqual(['Monitors (1)'])
-    expect(container.querySelector('.processes-monitor-until')?.textContent).toBe('exit or 30s')
+    expect(container.querySelector('.monitors-item-name')?.textContent).toBe('npm run dev')
+    expect(container.querySelector('.monitors-kv')?.textContent).toContain('exit or 30s')
   })
 
   it('shows the empty state with nothing running', async () => {

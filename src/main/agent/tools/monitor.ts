@@ -17,9 +17,11 @@ export const monitorTool: ToolDefinition = {
     'Resolves when a regex matches output (until_regex), the shell exits / a poll succeeds (until_exit; poll defaults to exit 0), ' +
     'or a timeout elapses (timeout_s). Returns immediately; you are notified in the feed when it resolves. ' +
     'Use monitor to wait (e.g. until a server is ready or a command succeeds) instead of polling with bash_output in a loop. ' +
+    'With only `id` and no until_* condition it waits on an already-registered monitor instead — that is how a ' +
+    'delegate_session id is watched (`{ id, wait: true }`), since a delegation is monitored from the moment it is created. ' +
     'Provide exactly one of id or command.',
   schema: z.object({
-    id: z.string().optional().describe('Watch this background shell (from bash run_in_background).'),
+    id: z.string().optional().describe('Watch this background shell (from bash run_in_background), or wait on an already-registered monitor such as a delegation id.'),
     command: z.string().optional().describe('Poll this shell command on an interval instead of watching a shell.'),
     until_regex: z.string().optional().describe('Resolve when output matches this regex.'),
     until_exit: z.union([z.boolean(), z.number()]).optional()
@@ -56,6 +58,19 @@ export const monitorTool: ToolDefinition = {
     }
 
     if (!ctx.monitors) return { error: 'monitor: not available in this context' }
+    if (id && until_regex === undefined && until_exit === undefined && ctx.monitors.has(id)) {
+      // An already-registered monitor (a delegation) has no shell to watch: the
+      // id is the handle itself, so this only waits on its resolution.
+      const waited = await ctx.monitors.wait(id, ctx.signal, wait ? 60_000 : 0)
+      if (waited.status === 'resolved') {
+        const delegation = waited.info?.kind === 'delegation'
+          ? ` Read the result with delegate_result({ id: "${waited.info?.targetId}" }).`
+          : ''
+        return { output: `Monitor ${id} resolved: ${waited.info?.reason} (${waited.info?.detail}).${delegation}` }
+      }
+      if (waited.status === 'aborted') return { output: `Monitor ${id}: wait aborted.` }
+      return { output: `Monitor ${id} is still pending; you'll be woken when it resolves.`, background: true }
+    }
     const res = ctx.monitors.start(ctx.agentId, id!, {
       untilRegex: until_regex,
       untilExit: until_exit,

@@ -71,6 +71,18 @@ export function normalizeToolInput(input: unknown): Record<string, unknown> {
   return {}
 }
 
+// A delegation result stays in the transcript verbatim so the user can read it,
+// but the delegated session's output is untrusted text: replaying it as a user
+// turn lets a sub-session "instruct" the source model. The model therefore sees
+// a pointer and reads the body with the `delegate_result` tool, where it arrives
+// as tool data.
+function llmTextFor(message: ChatMessage): string {
+  const d = message.delegation
+  if (d?.direction !== 'result') return message.text
+  return `[delegation ${d.id}] sub-session "${d.peerName}" finished. ` +
+    `Read the result with delegate_result({ id: "${d.id}" }).`
+}
+
 export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): ModelMessage[] {
   const result: ModelMessage[] = []
   if (opts?.turnContext) result.push({ role: 'user', content: opts.turnContext })
@@ -129,13 +141,14 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
       flush()
       if (item.message.role === 'user') {
         const images = (item.message.images ?? []).filter(img => Boolean(img.dataUrl))
-        const hasText = item.message.text.trim().length > 0
+        const text = llmTextFor(item.message)
+        const hasText = text.trim().length > 0
         if (images.length === 0) {
-          result.push({ role: 'user', content: item.message.text })
+          result.push({ role: 'user', content: text })
         } else {
           const parts: Array<{ type: 'text'; text: string } | { type: 'image'; image: string }> = []
           if (hasText) {
-            parts.push({ type: 'text', text: item.message.text })
+            parts.push({ type: 'text', text })
           }
           for (const img of images) {
             parts.push({ type: 'image', image: img.dataUrl })

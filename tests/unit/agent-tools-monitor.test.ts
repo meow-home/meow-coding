@@ -81,4 +81,16 @@ describe('monitor tool', () => {
     const both = await monitorTool.run({ id: 'x', command: 'y' }, c)
     expect(both.error).toMatch(/exactly one/)
   })
+
+  it('waits on an already-registered delegation monitor by id', async () => {
+    const { ctx: c } = ctx()
+    c.monitors!.registerExternal({ agentId: 'a1', targetId: 'del-9', until: 'delegation finishes', id: 'del-9' })
+    const pending = await monitorTool.run({ id: 'del-9' }, c)
+    expect(pending.background).toBe(true)
+    expect(pending.output).toContain('still pending')
+    c.monitors!.resolveExternal('a1', 'del-9', 'succeeded', 'completed')
+    const done = await monitorTool.run({ id: 'del-9', wait: true }, c)
+    expect(done.output).toContain('resolved')
+    expect(done.output).toContain('delegate_result({ id: "del-9" })')
+  })
 })

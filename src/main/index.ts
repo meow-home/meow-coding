@@ -259,7 +259,8 @@ export class MainApp {
         if (!this.delegationService) throw new Error('session delegation is not enabled.')
         return this.delegationService.createCli(options)
       },
-      checkCli: () => this.antigravity.check()
+      checkCli: () => this.antigravity.check(),
+      get: (id) => this.delegations.get(id)
     },
     // Notification click: focus the window and tell the renderer to switch to
     // the workspace + tab of the agent that needs input.
@@ -291,6 +292,7 @@ export class MainApp {
       win?.webContents.send(Channels.EventAgentBackground, { agentId, background })
     },
     onBackgroundProcData: (e) => { win?.webContents.send(Channels.EventBackgroundProcData, e) },
+    onMonitorsChanged: (agentId) => { win?.webContents.send(Channels.EventMonitorsChanged, { agentId }) },
     onBackgroundProcExit: (e) => { win?.webContents.send(Channels.EventBackgroundProcExit, e) },
     onVariantInvalidated: (agentId) => {
       const ws = this.findWorkspaceByAgent(agentId)
@@ -775,6 +777,7 @@ export class MainApp {
 
   backgroundProcsList(agentId: string) { return this.meowAgent.backgroundProcsList(agentId) }
   monitorsList(agentId: string) { return this.meowAgent.monitorsList(agentId) }
+  monitorsCancel(id: string): void { this.meowAgent.monitorsCancel(id) }
   killBackgroundProc(id: string): void { this.meowAgent.killBackgroundProc(id) }
   subscribeBackgroundProc(id: string) { return this.meowAgent.subscribeBackgroundProc(id) }
   unsubscribeBackgroundProc(id: string): void { this.meowAgent.unsubscribeBackgroundProc(id) }
@@ -1106,6 +1109,7 @@ export function registerIpcHandlers(): void {
     mainApp.setAgentBackground(agentId, background))
   ipcMain.handle(Channels.BackgroundProcsList, (_e, agentId: string) => mainApp.backgroundProcsList(agentId))
   ipcMain.handle(Channels.MonitorsList, (_e, agentId: string) => mainApp.monitorsList(agentId))
+  ipcMain.handle(Channels.MonitorsCancel, (_e, id: string) => mainApp.monitorsCancel(id))
   ipcMain.handle(Channels.BackgroundProcKill, (_e, id: string) => mainApp.killBackgroundProc(id))
   ipcMain.handle(Channels.BackgroundProcSubscribe, (_e, id: string) => mainApp.subscribeBackgroundProc(id))
   ipcMain.handle(Channels.BackgroundProcUnsubscribe, (_e, id: string) => mainApp.unsubscribeBackgroundProc(id))

@@ -53,9 +53,9 @@ export class BackgroundProcessStore extends EventEmitter {
   }
 
   /** Read-only view of a process for observers (monitors), without touching readOffset. */
-  inspect(id: string): { status: 'running' | 'exited'; exitCode: number | null; buffer: string } | undefined {
+  inspect(id: string): { status: 'running' | 'exited'; exitCode: number | null; buffer: string; command: string } | undefined {
     const e = this.entries.get(id)
-    return e ? { status: e.status, exitCode: e.exitCode, buffer: e.buffer } : undefined
+    return e ? { status: e.status, exitCode: e.exitCode, buffer: e.buffer, command: e.command } : undefined
   }
 
   private get maxPerAgent(): number { return this.opts.maxPerAgent ?? DEFAULT_MAX_PER_AGENT }

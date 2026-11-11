@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Activity, Square, Terminal } from 'lucide-react'
 import type { BackgroundProcInfo, MonitorInfo } from '@shared/types'
 import PanelHeader from '../common/PanelHeader'
+import MonitorsPane from './MonitorsPane'
 
 const MONITORS_TAB = 'monitors'
 
@@ -10,12 +11,18 @@ interface Props {
   full: boolean
   onToggleFull: () => void
   onClose: () => void
+  /** A request from the chat's background tasks card to show the Monitors tab,
+   *  optionally focused on one watch. `seq` re-triggers the same id twice. */
+  focus?: { monitorId?: string; seq: number } | null
+  /** Called once a focus request was applied, so the shell can drop it. */
+  onFocusApplied?: () => void
 }
 
-export default function ProcessesOverlay({ agentId, full, onToggleFull, onClose }: Props) {
+export default function ProcessesOverlay({ agentId, full, onToggleFull, onClose, focus, onFocusApplied }: Props) {
   const [shells, setShells] = useState<BackgroundProcInfo[]>([])
   const [monitors, setMonitors] = useState<MonitorInfo[]>([])
   const [selected, setSelected] = useState<string | null>(null)
+  const [monitorId, setMonitorId] = useState<string | null>(null)
   const [output, setOutput] = useState('')
   const outRef = useRef<HTMLPreElement>(null)
   const showingMonitors = selected === MONITORS_TAB
@@ -39,6 +46,13 @@ export default function ProcessesOverlay({ agentId, full, onToggleFull, onClose 
     const t = setInterval(() => void load(), 1500)
     return () => { alive = false; clearInterval(t) }
   }, [agentId])
+
+  useEffect(() => {
+    if (!focus) return
+    setSelected(MONITORS_TAB)
+    setMonitorId(focus.monitorId ?? null)
+    onFocusApplied?.()
+  }, [focus?.seq])
 
   // Stream the selected shell's output.
   useEffect(() => {
@@ -108,15 +122,7 @@ export default function ProcessesOverlay({ agentId, full, onToggleFull, onClose 
       />
       <div className="files-body">
         {showingMonitors ? (
-          <div className="processes-monitors">
-            {monitors.map(m => (
-              <div key={m.id} className="processes-monitor-row" title={`monitor ${m.id}`}>
-                <span className="terminal-tab-dot running" aria-hidden="true" />
-                <span className="processes-monitor-target">{m.targetId}</span>
-                <span className="processes-monitor-until">{m.until}</span>
-              </div>
-            ))}
-          </div>
+          <MonitorsPane monitors={monitors} selectedId={monitorId} onSelect={setMonitorId} />
         ) : (
           <div className="files-main processes-main">
             {selectedShell ? (
