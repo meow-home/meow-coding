@@ -115,6 +115,20 @@ function printResult(task) {
   return TERMINAL.has(task.status) ? EXIT.failed : EXIT.ok
 }
 
+function printModels(models) {
+  if (!models?.length) {
+    process.stdout.write('models: none configured\n')
+    return
+  }
+  const lines = models.map(m => {
+    const account = m.accountLabel ?? m.accountId
+    return `${m.default ? '*' : ' '} ${m.id}${account ? `   (account: ${account})` : ''}`
+  })
+  process.stdout.write(
+    `models:\n${lines.join('\n')}\n\n* = used when --model is omitted. Pass one with --model "<provider>/<model>".\n`
+  )
+}
+
 async function submit(cfg, body, flags) {
   const { task } = await request(cfg, 'POST', '/v1/tasks', body)
   if (flags.noWait) {
@@ -133,13 +147,31 @@ async function main() {
       const planKey = need(flags, 'plan')
       const task = readText(need(flags, 'task-file'))
       const cfg = loadConfig(flags)
-      return submit(cfg, { cwd, planKey, task, ...(flags.title ? { title: flags.title } : {}) }, flags)
+      return submit(cfg, {
+        cwd,
+        planKey,
+        task,
+        ...(flags.title ? { title: flags.title } : {}),
+        ...(flags.model ? { model: flags.model } : {})
+      }, flags)
     }
     case 'send': {
       const sessionId = need(flags, 'session')
       const task = readText(need(flags, 'message-file'))
       const cfg = loadConfig(flags)
-      return submit(cfg, { cwd: process.cwd(), planKey: '', sessionId, task }, flags)
+      return submit(cfg, {
+        cwd: process.cwd(),
+        planKey: '',
+        sessionId,
+        task,
+        ...(flags.model ? { model: flags.model } : {})
+      }, flags)
+    }
+    case 'models': {
+      const cfg = loadConfig(flags)
+      const { models } = await request(cfg, 'GET', '/v1/models')
+      printModels(models)
+      return EXIT.ok
     }
     case 'status': {
       if (!positional[0]) throw new CliError(EXIT.invalid, '[meow] Usage: status <taskId>')
@@ -164,7 +196,7 @@ async function main() {
       return EXIT.ok
     }
     default:
-      throw new CliError(EXIT.invalid, '[meow] Usage: meow-delegate <start|send|status|wait|cancel> ...')
+      throw new CliError(EXIT.invalid, '[meow] Usage: meow-delegate <start|send|models|status|wait|cancel> ...')
   }
 }
 

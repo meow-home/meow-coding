@@ -58,6 +58,25 @@ timeout; you are re-invoked when they exit, so end your turn after starting one.
 7. When the task verifies, move to the next task. When all tasks are done, summarize what Meow
    changed and what you verified.
 
+## Choosing the model
+
+Meow picks the model itself unless the user names one ("let Meow do this with Opus"). When they do,
+list what is available:
+
+```bash
+node "{{CLI_PATH}}" models
+```
+
+One `provider/model` id per line; `*` marks the model Meow uses when `--model` is omitted. Pass an
+id exactly to `start` (`send` also accepts it, switching that session's model):
+
+```bash
+node "{{CLI_PATH}}" start --cwd "<repo root>" --plan "<plan path>" --task-file "<temp file>" --model "anthropic/claude-opus-4-5"
+```
+
+A fuzzy name such as `--model opus` works when exactly one model matches. An ambiguous or unknown
+name exits 4 and lists the candidates — retry with one of them, or ask the user which model to use.
+
 ## If a wait was interrupted
 
 If a `start`/`send` command was killed or timed out before printing its result block, the task is
@@ -72,6 +91,7 @@ node "{{CLI_PATH}}" wait <taskId>
 
 ## Other commands
 
+- `node "{{CLI_PATH}}" models` — the models you may pass to `--model`.
 - `node "{{CLI_PATH}}" status <taskId>` — current status, without waiting.
 - `node "{{CLI_PATH}}" cancel <taskId>` — stop a task.
 

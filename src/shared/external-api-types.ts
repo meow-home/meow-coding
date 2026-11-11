@@ -13,6 +13,20 @@ export interface CreateTaskBody {
   title?: string
   task: string
   sessionId?: string
+  /** Free-form model request ("opus", "provider/model"); absent = the session's own or last used model. */
+  model?: string
+}
+
+/** A model an external client may delegate to. */
+export interface ModelDto {
+  /** "provider/model" — the exact value accepted by `CreateTaskBody.model`. */
+  id: string
+  provider: string
+  model: string
+  accountId?: string
+  accountLabel?: string
+  /** True for the model a task runs on when it names none. */
+  default?: boolean
 }
 
 export interface TaskDto {

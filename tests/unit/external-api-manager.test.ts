@@ -8,6 +8,7 @@ import type { ExternalApiHandler } from '../../src/main/external-api/server'
 
 const handler: ExternalApiHandler = {
   version: () => '1',
+  listModels: async () => [],
   createTask: async () => { throw new Error('unused') },
   getTask: () => undefined,
   cancelTask: async () => { throw new Error('unused') }

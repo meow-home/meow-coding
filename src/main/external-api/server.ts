@@ -1,10 +1,11 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { timingSafeEqual } from 'node:crypto'
-import type { CreateTaskBody, TaskDto } from '../../shared/external-api-types'
+import type { CreateTaskBody, ModelDto, TaskDto } from '../../shared/external-api-types'
 import { ExternalApiError } from './errors'
 
 export interface ExternalApiHandler {
   version(): string
+  listModels(): Promise<ModelDto[]>
   createTask(body: CreateTaskBody): Promise<TaskDto>
   getTask(id: string): TaskDto | undefined
   cancelTask(id: string): Promise<TaskDto>
@@ -73,12 +74,15 @@ function parseCreateBody(raw: string): CreateTaskBody {
   }
   if (b.title !== undefined && typeof b.title !== 'string') throw new ExternalApiError(400, '[meow] title must be a string.')
   if (b.sessionId !== undefined && typeof b.sessionId !== 'string') throw new ExternalApiError(400, '[meow] sessionId must be a string.')
+  if (b.model !== undefined && typeof b.model !== 'string') throw new ExternalApiError(400, '[meow] model must be a string.')
+  const model = typeof b.model === 'string' ? b.model.trim() : ''
   return {
     cwd: b.cwd as string,
     planKey: b.planKey as string,
     task: b.task as string,
     ...(b.title !== undefined ? { title: b.title as string } : {}),
-    ...(b.sessionId !== undefined ? { sessionId: b.sessionId as string } : {})
+    ...(b.sessionId !== undefined ? { sessionId: b.sessionId as string } : {}),
+    ...(model ? { model } : {})
   }
 }
 
@@ -156,6 +160,7 @@ export class ExternalApiServer {
       const parts = url.pathname.split('/').filter(Boolean)
       const { handler } = this.deps
       if (req.method === 'GET' && url.pathname === '/v1/health') return send(res, 200, { version: handler.version() })
+      if (req.method === 'GET' && url.pathname === '/v1/models') return send(res, 200, { models: await handler.listModels() })
       if (req.method === 'POST' && url.pathname === '/v1/tasks') {
         const task = await handler.createTask(parseCreateBody(await readBody(req)))
         return send(res, 200, { task })

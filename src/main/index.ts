@@ -412,7 +412,9 @@ export class MainApp {
     isDirectory: (p) => { try { return statSync(p).isDirectory() } catch { return false } },
     onWorkspaceChanged: (ws) => win?.webContents.send(Channels.EventWorkspaceChanged, { runtime: this.runtimeFor(ws) }),
     version: app.getVersion(),
-    defaultModel: () => this.meowAgent.defaultSessionModel()
+    defaultModel: () => this.meowAgent.defaultSessionModel(),
+    availableModels: () => this.meowAgent.availableModels(),
+    applyModel: (agentId, model) => this.setAgentModel(agentId, model)
   })
   externalApi = new ExternalApiManager({
     config: new ExternalApiConfigFile(path.join(app.getPath('userData'), 'external-api.json')),

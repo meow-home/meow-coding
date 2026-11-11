@@ -350,7 +350,7 @@ Meow session. Built on `src/main/external-api/` (see its `AGENTS.md`) plus the e
 ### Flow
 
 ```
-Claude (desktop) ─ Bash run_in_background ─▶ node meow-delegate.mjs start|send|status|cancel
+Claude (desktop) ─ Bash run_in_background ─▶ node meow-delegate.mjs start|send|models|status|cancel
                                                    │ HTTP 127.0.0.1:<port>, Bearer <token>
                                                    ▼
 Meow main: ExternalApiServer ─▶ ExternalDelegationFacade ─▶ SessionDelegationService
@@ -376,7 +376,8 @@ All routes are under `/v1`, JSON, and require `Authorization: Bearer <token>` (4
 | Route | Behavior |
 |---|---|
 | `GET /v1/health` | `{ version }` |
-| `POST /v1/tasks` | Body `{ cwd, planKey, title?, task, sessionId? }`. With `sessionId` (a target agent id), queues into that existing session. Without it, resolves/creates the per-plan session (`[claude] <title>`, auto-adding the project for `cwd` when missing). A new session starts on the same model as a new draft session — the last used model (`meow.json` `lastUsedModel`), falling back to the default provider when that provider is no longer connected; a reused session keeps its own model. Returns `{ task: TaskDto }`. |
+| `GET /v1/models` | `{ models: ModelDto[] }` — every model the user has configured, so an external model can pick one before delegating. `ModelDto`: `{ id, provider, model, accountId?, accountLabel?, default? }`, where `id` is `provider/model` (the exact value `POST /v1/tasks` accepts) and `default` marks the model a task runs on when it names none. |
+| `POST /v1/tasks` | Body `{ cwd, planKey, title?, task, sessionId?, model? }`. With `sessionId` (a target agent id), queues into that existing session. Without it, resolves/creates the per-plan session (`[claude] <title>`, auto-adding the project for `cwd` when missing). A new session starts on the same model as a new draft session — the last used model (`meow.json` `lastUsedModel`), falling back to the default provider when that provider is no longer connected — unless `model` names one. A reused session keeps its own model unless `model` names a different one. Returns `{ task: TaskDto }`. |
 | `GET /v1/tasks/:id` | `{ task: TaskDto }` |
 | `GET /v1/tasks/:id/wait?timeout=<s>` | Long-polls until the task is terminal, or `timeout` elapses (default 60s, max 120s): `{ done, task }` |
 | `POST /v1/tasks/:id/cancel` | `{ task }` after the cancel is applied; a running task is stopped and the call waits up to 5 s for it to settle, so `task.status` is normally `cancelled` |
@@ -385,6 +386,16 @@ All routes are under `/v1`, JSON, and require `Authorization: Bearer <token>` (4
 resultTruncated?, error?, touchedFiles }`. `sessionId` is the Meow agent id (the UI's "session"); there
 is no separate `agentId` field.
 
+### Choosing the model
+
+`POST /v1/tasks` `model` is a free-form request resolved against the user's configured models exactly
+like `delegate_session`'s `model` argument (`src/main/model-select.ts`): an exact `provider/model`
+wins, then an exact model id, then a fuzzy match — `"opus"` works when one model matches. A name that
+is ambiguous or unknown is a 400 whose message lists the candidates (up to 8), so the external model can
+retry with a precise id. With no `model`, the behavior above applies (new session → last used model,
+reused session → its own model). A requested model is applied through the same path as the UI's model
+picker (`setAgentModel`), so the session shows it in Meow and the queued task runs on it.
+
 ### CLI (`meow-delegate.mjs`)
 
 Plain Node ≥ 18 (global `fetch`, no dependencies), packaged from `resources/external-api/` and copied
@@ -392,12 +403,17 @@ to `userData/bin/meow-delegate.mjs` on every app start; reads `../external-api.j
 own location, so it follows the real `userData` directory.
 
 ```
-node meow-delegate.mjs start  --cwd <dir> --plan <plan.md> [--title <t>] --task-file <f> [--no-wait]
-node meow-delegate.mjs send   --session <id> --message-file <f> [--no-wait]
+node meow-delegate.mjs start  --cwd <dir> --plan <plan.md> [--title <t>] --task-file <f> [--model <m>] [--no-wait]
+node meow-delegate.mjs send   --session <id> --message-file <f> [--model <m>] [--no-wait]
+node meow-delegate.mjs models
 node meow-delegate.mjs status <taskId>
 node meow-delegate.mjs wait   <taskId>
 node meow-delegate.mjs cancel <taskId>
 ```
+
+`models` prints one `provider/model` id per line with `*` on the default (`models: none configured` when
+no provider is set up); `--model` on `start` and `send` forwards a model request, so a fuzzy or unknown
+name fails with exit `4` and the candidates in the error message.
 
 Task text always comes from a file (avoids Windows shell-quoting problems). `start` and `send` wait
 by default, long-polling `/wait`; transient connection failures are retried for 30s, re-reading the
@@ -442,4 +458,5 @@ Settings → External delegation → **Install Claude skill** renders
 `resources/external-api/claude-skill.md` (substituting the CLI's absolute path) to
 `~/.claude/skills/meow-delegate/SKILL.md`. The skill instructs Claude to delegate one plan task at a
 time, wait in the background, verify Meow's work itself (diff + the plan's verification commands), and
-send corrective feedback into the same session (at most 3 rounds before asking the user).
+send corrective feedback into the same session (at most 3 rounds before asking the user). It also tells
+Claude to run `models` and pass `--model` when the user asked for a specific model.

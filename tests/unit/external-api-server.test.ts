@@ -3,7 +3,7 @@ import { createServer } from 'node:net'
 import { Server as HttpServer } from 'node:http'
 import { ExternalApiServer, type ExternalApiHandler } from '../../src/main/external-api/server'
 import { ExternalApiError } from '../../src/main/external-api/errors'
-import type { CreateTaskBody, TaskDto } from '../../src/shared/external-api-types'
+import type { CreateTaskBody, ModelDto, TaskDto } from '../../src/shared/external-api-types'
 
 const TOKEN = 'a'.repeat(64)
 
@@ -14,7 +14,9 @@ function dto(over: Partial<TaskDto> = {}): TaskDto {
 class FakeHandler implements ExternalApiHandler {
   tasks = new Map<string, TaskDto>()
   created: CreateTaskBody[] = []
+  models: ModelDto[] = []
   version() { return '9.9.9' }
+  async listModels() { return this.models }
   async createTask(body: CreateTaskBody) {
     if (body.cwd === '/missing') throw new ExternalApiError(400, '[meow] cwd does not exist')
     this.created.push(body)
@@ -60,6 +62,38 @@ describe('ExternalApiServer', () => {
   it('serves health', async () => {
     const res = await fetch(`${base}/v1/health`, { headers: auth })
     expect(await res.json()).toEqual({ version: '9.9.9' })
+  })
+
+  it('lists the models an external client may delegate to', async () => {
+    handler.models = [
+      { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', model: 'claude-opus-4-5', default: true },
+      { id: 'codex/gpt-5', provider: 'codex', model: 'gpt-5', accountId: 'acc-1' }
+    ]
+    const res = await fetch(`${base}/v1/models`, { headers: auth })
+    expect(res.status).toBe(200)
+    expect((await res.json()).models).toEqual(handler.models)
+  })
+
+  it('passes a requested model through and trims it', async () => {
+    const res = await fetch(`${base}/v1/tasks`, {
+      method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+      body: JSON.stringify({ cwd: '/p', planKey: 'k', task: 'do', model: '  opus  ' })
+    })
+    expect(res.status).toBe(200)
+    expect(handler.created[0].model).toBe('opus')
+  })
+
+  it('omits an empty model and rejects a non-string one', async () => {
+    const empty = await fetch(`${base}/v1/tasks`, {
+      method: 'POST', headers: auth, body: JSON.stringify({ cwd: '/p', planKey: 'k', task: 'do', model: '   ' })
+    })
+    expect(empty.status).toBe(200)
+    expect('model' in handler.created[0]).toBe(false)
+    const bad = await fetch(`${base}/v1/tasks`, {
+      method: 'POST', headers: auth, body: JSON.stringify({ cwd: '/p', planKey: 'k', task: 'do', model: 5 })
+    })
+    expect(bad.status).toBe(400)
+    expect((await bad.json()).error).toMatch(/model/)
   })
 
   it('creates a task', async () => {

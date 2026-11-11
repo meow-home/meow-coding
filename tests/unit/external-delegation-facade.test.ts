@@ -27,10 +27,15 @@ class FakeDelegations {
   getStore() { return { list: (f?: { projectPath?: string }) => this.records.filter(r => !f?.projectPath || r.projectPath === f.projectPath) } }
 }
 
-function setup(existing: Workspace[] = [], defaultModel: () => ModelRef | null = () => null) {
+function setup(
+  existing: Workspace[] = [],
+  defaultModel: () => ModelRef | null = () => null,
+  available: ModelRef[] = []
+) {
   const workspaces = [...existing]
   const ensured: string[] = []
   const changed: string[] = []
+  const applied: { agentId: string; model: ModelRef }[] = []
   const delegations = new FakeDelegations()
   let agentN = 0
   const deps: ExternalDelegationFacadeDeps = {
@@ -48,9 +53,11 @@ function setup(existing: Workspace[] = [], defaultModel: () => ModelRef | null =
     isDirectory: (p) => p !== path.resolve('/missing'),
     onWorkspaceChanged: (ws) => { changed.push(ws.projectPath) },
     version: '1.2.3',
-    defaultModel
+    defaultModel,
+    availableModels: async () => available,
+    applyModel: (agentId, model) => { applied.push({ agentId, model }) }
   }
-  return { facade: new ExternalDelegationFacade(deps), workspaces, ensured, changed, delegations }
+  return { facade: new ExternalDelegationFacade(deps), workspaces, ensured, changed, applied, delegations }
 }
 
 describe('ExternalDelegationFacade', () => {
@@ -88,6 +95,65 @@ describe('ExternalDelegationFacade', () => {
     expect(b.sessionId).toBe(a.sessionId)
     expect(e.workspaces[0].agents).toHaveLength(1)
     expect(e.workspaces[0].agents[0].model).toBe('openai/gpt-4o')
+  })
+
+  it('creates the session on the requested model, fuzzy name resolved', async () => {
+    const e = setup([], () => ({ provider: 'codex', model: 'gpt-5' }), [
+      { provider: 'anthropic', model: 'claude-opus-4-5' },
+      { provider: 'codex', model: 'gpt-5' }
+    ])
+    await e.facade.createTask({ cwd: ROOT, planKey: 'p.md', task: 'T1', model: 'opus' })
+    expect(e.workspaces[0].agents[0].model).toBe('anthropic/claude-opus-4-5')
+    expect(e.applied).toEqual([])
+  })
+
+  it('switches a reused session onto a requested model', async () => {
+    const e = setup([], () => ({ provider: 'codex', model: 'gpt-5' }), [
+      { provider: 'anthropic', model: 'claude-opus-4-5' },
+      { provider: 'codex', model: 'gpt-5', accountId: 'acc-1' }
+    ])
+    const a = await e.facade.createTask({ cwd: ROOT, planKey: 'p.md', task: 'T1' })
+    const b = await e.facade.createTask({ cwd: ROOT, planKey: 'p.md', task: 'T2', model: 'anthropic/claude-opus-4-5' })
+    expect(b.sessionId).toBe(a.sessionId)
+    expect(e.applied).toEqual([{ agentId: a.sessionId, model: { provider: 'anthropic', model: 'claude-opus-4-5' } }])
+  })
+
+  it('does not reapply a model the session already runs', async () => {
+    const e = setup([], () => ({ provider: 'codex', model: 'gpt-5' }), [{ provider: 'codex', model: 'gpt-5' }])
+    const a = await e.facade.createTask({ cwd: ROOT, planKey: 'p.md', task: 'T1' })
+    await e.facade.createTask({ cwd: ROOT, planKey: '', sessionId: a.sessionId, task: 'T2', model: 'codex/gpt-5' })
+    expect(e.applied).toEqual([])
+  })
+
+  it('rejects an unknown or ambiguous model with the candidates and creates nothing', async () => {
+    const e = setup([], () => null, [
+      { provider: 'anthropic', model: 'claude-opus-4-5' },
+      { provider: 'anthropic', model: 'claude-opus-4-1' }
+    ])
+    await expect(e.facade.createTask({ cwd: ROOT, planKey: 'p.md', task: 'T1', model: 'nope' }))
+      .rejects.toMatchObject({ status: 400, message: expect.stringContaining('Available: anthropic/claude-opus-4-5') })
+    await expect(e.facade.createTask({ cwd: ROOT, planKey: 'p.md', task: 'T1', model: 'opus' }))
+      .rejects.toMatchObject({ status: 400, message: expect.stringContaining('is ambiguous') })
+    expect(e.workspaces.flatMap(w => w.agents)).toHaveLength(0)
+    expect(e.ensured).toEqual([])
+  })
+
+  it('lists models with the fallback one marked', async () => {
+    const e = setup([], () => ({ provider: 'codex', model: 'gpt-5', accountId: 'acc-1' }), [
+      { provider: 'anthropic', model: 'claude-opus-4-5' },
+      { provider: 'codex', model: 'gpt-5', accountId: 'acc-1', accountLabel: 'work' }
+    ])
+    expect(await e.facade.listModels()).toEqual([
+      { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', model: 'claude-opus-4-5' },
+      {
+        id: 'codex/gpt-5',
+        provider: 'codex',
+        model: 'gpt-5',
+        accountId: 'acc-1',
+        accountLabel: 'work',
+        default: true
+      }
+    ])
   })
 
   it('uses the title when given', async () => {

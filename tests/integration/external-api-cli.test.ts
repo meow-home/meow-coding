@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { createServer } from 'node:net'
 import path from 'node:path'
 import { ExternalApiServer, type ExternalApiHandler } from '../../src/main/external-api/server'
-import type { CreateTaskBody, TaskDto } from '../../src/shared/external-api-types'
+import type { CreateTaskBody, ModelDto, TaskDto } from '../../src/shared/external-api-types'
 
 const CLI = path.resolve('resources/external-api/meow-delegate.mjs')
 const TOKEN = 'b'.repeat(64)
@@ -25,7 +25,12 @@ class Handler implements ExternalApiHandler {
   final: Partial<TaskDto> = { status: 'completed', result: 'all good', touchedFiles: ['src/a.ts'] }
   bodies: CreateTaskBody[] = []
   task?: TaskDto
+  models: ModelDto[] = [
+    { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', model: 'claude-opus-4-5', default: true },
+    { id: 'codex/gpt-5', provider: 'codex', model: 'gpt-5', accountId: 'acc-1', accountLabel: 'work' }
+  ]
   version() { return '1' }
+  async listModels() { return this.models }
   async createTask(body: CreateTaskBody) {
     this.bodies.push(body)
     this.task = { id: 't1', status: 'running', sessionId: 's1', projectPath: '/p', planKey: 'k', createdAt: 1, touchedFiles: [] }
@@ -66,6 +71,31 @@ describe('meow-delegate CLI', () => {
     expect(r.out).toContain('- src/a.ts')
     expect(r.out).toContain('--- final answer ---\nall good')
     expect(handler.bodies[0]).toEqual({ cwd: path.resolve(dir), planKey: 'docs/plan.md', title: 'P', task: 'Implement task 1' })
+  })
+
+  it('lists the models, marking the default one', async () => {
+    const r = await run(['models', '--config', config])
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('models:')
+    expect(r.out).toContain('* anthropic/claude-opus-4-5')
+    expect(r.out).toContain('  codex/gpt-5   (account: work)')
+    expect(r.out).toContain('--model')
+  })
+
+  it('reports no models instead of an empty list', async () => {
+    handler.models = []
+    const r = await run(['models', '--config', config])
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('models: none configured')
+  })
+
+  it('passes --model on start and send', async () => {
+    await run(['start', '--config', config, '--cwd', dir, '--plan', 'p.md', '--task-file', taskFile, '--model', 'opus'])
+    expect(handler.bodies[0].model).toBe('opus')
+    const msg = path.join(dir, 'msg.md')
+    writeFileSync(msg, 'more')
+    await run(['send', '--config', config, '--session', 's1', '--message-file', msg, '--model', 'codex/gpt-5'])
+    expect(handler.bodies[1]).toMatchObject({ sessionId: 's1', model: 'codex/gpt-5' })
   })
 
   it('prints the task id before waiting so a killed CLI still leaves it', async () => {
