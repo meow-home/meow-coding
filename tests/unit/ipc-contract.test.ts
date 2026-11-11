@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { Channels } from '../../src/shared/ipc'
-import type { AgentApi, BrowserStatusEvent, AgentStateEvent, GitStatusEvent, ChatEvent, TerminalDataEvent, TerminalsChangedEvent, CliAgentsChangedEvent, CliLoginEvent, CliSessionsChangedEvent } from '../../src/shared/ipc'
+import type { AgentApi, BrowserStatusEvent, AgentStateEvent, GitStatusEvent, ChatEvent, TerminalDataEvent, TerminalsChangedEvent } from '../../src/shared/ipc'
 import type { BrowserStatusInfo } from '../../src/shared/browser-types'
-import type { AgentConfig, ChatMessage, CliRunEvent, MeowSettings, TerminalInfo } from '../../src/shared/types'
+import type { AgentConfig, ChatMessage, MeowSettings, TerminalInfo } from '../../src/shared/types'
 
 describe('IPC contract', () => {
   it('defines all channels used by the preload api', () => {
@@ -41,11 +41,7 @@ describe('IPC contract', () => {
       'getExternalApiStatus', 'setExternalApiEnabled', 'regenerateExternalApiToken', 'installClaudeSkill', 'copyExternalApiToken', 'onExternalApiStatus',
       'terminalList', 'terminalCreate', 'terminalAttach', 'terminalDetach', 'terminalWrite', 'terminalResize', 'terminalRename', 'terminalRestart', 'terminalKill', 'onTerminalData', 'onTerminalsChanged',
       'onWorkspaceChanged',
-      'getCliAgentsStatus', 'detectCliRuntime', 'installCliRuntime', 'setCliRuntimePath', 'setCliRuntimeEnabled',
-      'listCliModels', 'addCliAgent', 'renameCliAgent', 'removeCliAgent', 'activateCliAgent', 'setDefaultCliAgent',
-      'cliLoginInput', 'cancelCliLogin', 'createCliSession', 'renameCliSession', 'deleteCliSession',
-      'listCliSessions', 'openCliSessionTerminal', 'getCliTranscript', 'sendCliTask', 'cancelCliTask', 'cancelCliDelegation',
-      'onCliAgentsChanged', 'onCliLogin', 'onCliSessionsChanged', 'onCliRun'
+      'checkCli', 'testCli'
     ]
     const api: AgentApi = {
       listWorkspaces: async () => [],
@@ -208,54 +204,15 @@ describe('IPC contract', () => {
       backgroundProcUnsubscribe: async () => {},
       onBackgroundProcData: () => () => {},
       onBackgroundProcExit: () => () => {},
-      getCliAgentsStatus: async () => ({
-        runtimes: {
-          antigravity: { enabled: true, binaryPath: null },
-          opencode: { enabled: true, binaryPath: null }
-        },
-        agents: []
-      }),
-      detectCliRuntime: async (runtime) => ({
-        runtime,
-        found: false,
+      checkCli: async () => ({
+        installed: false,
         binaryPath: null,
         version: null,
-        valid: false,
-        minVersion: '1.0'
+        minVersion: '1.5.0',
+        ready: false,
+        install: { command: 'bash', args: [] }
       }),
-      installCliRuntime: async () => null,
-      setCliRuntimePath: async () => {},
-      setCliRuntimeEnabled: async () => {},
-      listCliModels: async () => [],
-      addCliAgent: async () => ({ loginId: 'log_1' }),
-      renameCliAgent: async () => {},
-      removeCliAgent: async () => {},
-      activateCliAgent: async () => ({}),
-      setDefaultCliAgent: async () => {},
-      cliLoginInput: async () => {},
-      cancelCliLogin: async () => {},
-      createCliSession: async (agentId, projectPath) => ({
-        id: 'cs_1',
-        agentId,
-        projectPath,
-        cwd: projectPath,
-        title: 'New session',
-        status: 'idle',
-        createdAt: 0,
-        updatedAt: 0
-      }),
-      renameCliSession: async () => {},
-      deleteCliSession: async () => {},
-      listCliSessions: async () => [],
-      openCliSessionTerminal: async () => {},
-      getCliTranscript: async () => [],
-      sendCliTask: async () => {},
-      cancelCliTask: async () => {},
-      cancelCliDelegation: async () => {},
-      onCliAgentsChanged: () => () => {},
-      onCliLogin: () => () => {},
-      onCliSessionsChanged: () => () => {},
-      onCliRun: () => () => {}
+      testCli: async () => ({ ok: false, text: '', durationMs: 0 })
     }
     for (const key of required) {
       expect(typeof api[key]).toBe('function')
@@ -363,32 +320,8 @@ describe('IPC contract', () => {
     expect(Channels.TerminalKill).toBe('terminal:kill')
     expect(Channels.EventTerminalData).toBe('terminal:data')
     expect(Channels.EventTerminalsChanged).toBe('terminal:changed')
-    expect(Channels.CliAgentsStatus).toBe('cli-agents:status')
-    expect(Channels.CliRuntimeDetect).toBe('cli-runtime:detect')
-    expect(Channels.CliRuntimeInstall).toBe('cli-runtime:install')
-    expect(Channels.CliRuntimeSetPath).toBe('cli-runtime:set-path')
-    expect(Channels.CliRuntimeSetEnabled).toBe('cli-runtime:set-enabled')
-    expect(Channels.CliModelsList).toBe('cli-models:list')
-    expect(Channels.CliAgentAdd).toBe('cli-agent:add')
-    expect(Channels.CliAgentRename).toBe('cli-agent:rename')
-    expect(Channels.CliAgentRemove).toBe('cli-agent:remove')
-    expect(Channels.CliAgentActivate).toBe('cli-agent:activate')
-    expect(Channels.CliAgentSetDefault).toBe('cli-agent:set-default')
-    expect(Channels.CliLoginInput).toBe('cli-login:input')
-    expect(Channels.CliLoginCancel).toBe('cli-login:cancel')
-    expect(Channels.CliSessionCreate).toBe('cli-session:create')
-    expect(Channels.CliSessionRename).toBe('cli-session:rename')
-    expect(Channels.CliSessionDelete).toBe('cli-session:delete')
-    expect(Channels.CliSessionsList).toBe('cli-sessions:list')
-    expect(Channels.CliSessionOpenTerminal).toBe('cli-session:open-terminal')
-    expect(Channels.CliTranscriptGet).toBe('cli-transcript:get')
-    expect(Channels.CliTaskSend).toBe('cli-task:send')
-    expect(Channels.CliTaskCancel).toBe('cli-task:cancel')
-    expect(Channels.CliDelegationCancel).toBe('cli-delegation:cancel')
-    expect(Channels.EventCliAgentsChanged).toBe('cli-agents:changed')
-    expect(Channels.EventCliLogin).toBe('cli-login:event')
-    expect(Channels.EventCliSessionsChanged).toBe('cli-sessions:changed')
-    expect(Channels.EventCliRun).toBe('cli-run:event')
+    expect(Channels.CliCheck).toBe('cli:check')
+    expect(Channels.CliTest).toBe('cli:test')
   })
 
   it('types event payloads without runtime error', () => {
@@ -397,19 +330,11 @@ describe('IPC contract', () => {
     const g: GitStatusEvent = { projectPath: '/p', git: { branch: 'main', dirtyCount: 0 } }
     const tData: TerminalDataEvent = { id: 'term_1', data: 'hello' }
     const tChanged: TerminalsChangedEvent = { agentId: 'a1', terminals: [] }
-    const cliAgentsChanged: CliAgentsChangedEvent = { status: undefined }
-    const cliLogin: CliLoginEvent = { loginId: 'l1', chunk: 'url', url: 'https://example.com' }
-    const cliSessionsChanged: CliSessionsChangedEvent = { sessions: [] }
-    const cliRun: CliRunEvent = { sessionId: 'cs_1', item: { kind: 'user', text: 'hi', at: 123 }, status: 'running' }
     expect(s.agentId).toBe('a1')
     expect(g.git.branch).toBe('main')
     expect(gNull.git).toBeNull()
     expect(tData.id).toBe('term_1')
     expect(tChanged.agentId).toBe('a1')
-    expect(cliLogin.loginId).toBe('l1')
-    expect(cliAgentsChanged.status).toBeUndefined()
-    expect(cliSessionsChanged.sessions).toHaveLength(0)
-    expect(cliRun.sessionId).toBe('cs_1')
   })
 
   it('onBrowserStatus delivers the raw BrowserStatusInfo, not a wrapper', () => {

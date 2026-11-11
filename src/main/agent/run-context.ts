@@ -38,5 +38,4 @@ export interface DelegationResultInput {
   error?: string
   touchedFiles: string[]
   targetKind?: 'session' | 'cli'
-  cliSessionId?: string
 }

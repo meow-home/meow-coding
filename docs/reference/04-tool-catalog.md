@@ -62,7 +62,7 @@ in Settings → Permissions.
 | `todowrite` | allow | Maintain the session todo list |
 | `task` | allow | Dispatch a subagent |
 | `delegate_session` | allow | Route a focused task to another persistent session in the same project (plan: ask) |
-| `delegate_cli` | allow | Route a focused task to a CLI worker agent (plan: ask) |
+| `delegate_cli` | allow | Delegate a focused task to the Antigravity CLI (plan: ask) |
 | `revert` | allow | Restore all files changed this session |
 | `skill` | allow | Load a skill into context |
 | `question` | allow | Ask the user an interactive question |
@@ -258,11 +258,12 @@ renderer never parses prose.
 
 ### `delegate_cli`
 
-`{ agent: string, task: string, session_id?: string }` — routes a focused task to a CLI worker agent
-(Antigravity/OpenCode). The task is queued in a CLI session; the result is appended to this session and
-wakes it. The CLI agent has its own tools and permissions; verify the result independently and do not
-edit the delegated scope while it runs. `session_id` is used to send feedback into the same CLI conversation.
-Only a user-origin run may delegate. Returns `Delegation <id> queued for <label>.` with `metadata: { delegationId, cliAgentId }`.
+`{ task: string }` — delegates a focused task to the Antigravity CLI (`agy`), which runs it headless in
+the session's project folder with its own tools. It works like `delegate_session`: the task is queued,
+and the result is appended to this session and wakes it. Each call is a fresh Antigravity run with no
+memory of earlier ones, so the task must be self-contained. Only a user-origin run may delegate, and
+the call is refused (nothing queued) when `agy` is not installed or too old. Returns
+`Delegation <id> queued for Antigravity.` with `metadata: { delegationId, cliAgentId }`.
 
 ### `revert`
 

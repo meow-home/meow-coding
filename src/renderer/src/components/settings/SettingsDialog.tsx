@@ -53,7 +53,7 @@ const TAB_GROUPS: TabGroup[] = [
     title: 'Intelligence',
     items: [
       { id: 'agents', label: 'Sub-agents', icon: Bot },
-      { id: 'cli-agents', label: 'CLI Agents', icon: SquareTerminal },
+      { id: 'cli-agents', label: 'Antigravity CLI', icon: SquareTerminal },
       { id: 'providers', label: 'Providers', icon: Cpu },
       { id: 'mcp', label: 'MCP', icon: Plug }
     ]
@@ -262,7 +262,7 @@ export default function SettingsDialog({ onClose, projectPath, initialTab = 'age
                 onChangeSubagentModels={subagentModels => patch({ subagentModels })}
               />
             )}
-            {tab === 'cli-agents' && <CliAgentsTab projectPath={projectPath} />}
+            {tab === 'cli-agents' && <CliAgentsTab />}
             {draft && tab === 'permissions' && (
               <PermissionsTab permission={draft.permission} onChange={permission => patch({ permission })} />
             )}

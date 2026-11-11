@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildAntigravityArgs,
-  buildOpenCodeArgs,
   DEFAULT_CLI_TASK_TIMEOUT_MS,
   deriveCliPolicy
 } from '../../src/main/cli-agents/policy'
@@ -170,17 +169,11 @@ describe('buildAntigravityArgs', () => {
 
     const args = buildAntigravityArgs({
       task: 'Fix the bug',
-      model: 'gemini-3.8-flash',
-      agent: 'code-fixer',
       policy
     })
 
     expect(args).toContain('--mode')
     expect(args[args.indexOf('--mode') + 1]).toBe('accept-edits')
-    expect(args).toContain('--model')
-    expect(args[args.indexOf('--model') + 1]).toBe('gemini-3.8-flash')
-    expect(args).toContain('--agent')
-    expect(args[args.indexOf('--agent') + 1]).toBe('code-fixer')
 
     const settings = JSON.parse(args[args.indexOf('--settings') + 1])
     expect(settings.permissions.allow).toEqual([
@@ -226,116 +219,5 @@ describe('buildAntigravityArgs', () => {
     expect(args).toContain('--mode')
     expect(args[args.indexOf('--mode') + 1]).toBe('accept-edits')
     expect(args).toContain('--dangerously-skip-permissions')
-  })
-})
-
-describe('buildOpenCodeArgs', () => {
-  it('builds base args for read mode without --auto', () => {
-    const policy: CliPolicy = {
-      mode: 'read',
-      allowCommands: false,
-      allowWrites: false,
-      allowUrl: true,
-      timeoutMs: 1_800_000
-    }
-
-    const args = buildOpenCodeArgs({
-      task: 'Review PR',
-      policy
-    })
-
-    expect(args).toEqual(['run', 'Review PR', '--format', 'json', '--standalone'])
-    expect(args).not.toContain('--auto')
-  })
-
-  it('includes --auto for edit mode when writes are allowed', () => {
-    const policy: CliPolicy = {
-      mode: 'edit',
-      allowCommands: false,
-      allowWrites: true,
-      allowUrl: true,
-      timeoutMs: 1_800_000
-    }
-
-    const args = buildOpenCodeArgs({
-      task: 'Refactor module',
-      policy
-    })
-
-    expect(args).toContain('--auto')
-  })
-
-  it('includes --auto for edit mode when commands are allowed', () => {
-    const policy: CliPolicy = {
-      mode: 'edit',
-      allowCommands: true,
-      allowWrites: false,
-      allowUrl: true,
-      timeoutMs: 1_800_000
-    }
-
-    const args = buildOpenCodeArgs({
-      task: 'Run tests',
-      policy
-    })
-
-    expect(args).toContain('--auto')
-  })
-
-  it('omits --auto in edit mode when neither writes nor commands are allowed', () => {
-    const policy: CliPolicy = {
-      mode: 'edit',
-      allowCommands: false,
-      allowWrites: false,
-      allowUrl: true,
-      timeoutMs: 1_800_000
-    }
-
-    const args = buildOpenCodeArgs({
-      task: 'Inspect code',
-      policy
-    })
-
-    expect(args).not.toContain('--auto')
-  })
-
-  it('includes --auto in full mode', () => {
-    const policy: CliPolicy = {
-      mode: 'full',
-      allowCommands: true,
-      allowWrites: true,
-      allowUrl: true,
-      timeoutMs: 1_800_000
-    }
-
-    const args = buildOpenCodeArgs({
-      task: 'Deploy',
-      policy
-    })
-
-    expect(args).toContain('--auto')
-  })
-
-  it('includes --model and --agent when specified', () => {
-    const policy: CliPolicy = {
-      mode: 'edit',
-      allowCommands: true,
-      allowWrites: true,
-      allowUrl: true,
-      timeoutMs: 1_800_000
-    }
-
-    const args = buildOpenCodeArgs({
-      task: 'Migrate DB',
-      model: 'anthropic/claude-sonnet-5-5',
-      agent: 'db-expert',
-      policy
-    })
-
-    expect(args).toContain('--model')
-    expect(args[args.indexOf('--model') + 1]).toBe('anthropic/claude-sonnet-5-5')
-    expect(args).toContain('--agent')
-    expect(args[args.indexOf('--agent') + 1]).toBe('db-expert')
-    expect(args).toContain('--auto')
   })
 })

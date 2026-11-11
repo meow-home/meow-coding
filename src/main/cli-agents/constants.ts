@@ -1,15 +1,8 @@
-import type { CliRuntimeId } from '../../shared/types'
-
-export const MAX_CONCURRENT: Record<CliRuntimeId, number> = {
-  antigravity: 2,
-  opencode: 3
-}
-
 export const TASK_MAX_BYTES = 32 * 1024 // 32 KiB
 export const RESULT_MAX_BYTES = 64 * 1024 // 64 KiB
 export const STDERR_MAX_BYTES = 16 * 1024 // 16 KiB
 export const DEFAULT_TASK_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
-export const MAX_QUEUED_PER_AGENT = 5
+export const TEST_TIMEOUT_MS = 90 * 1000
 
 export const ENV_ALLOWLIST: readonly string[] = [
   'PATH',

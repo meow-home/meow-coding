@@ -1,27 +1,19 @@
 import type { ChildProcess } from 'node:child_process'
 import { spawn as nodeSpawn } from 'node:child_process'
 import kill from 'tree-kill'
-import type {
-  CliAgent,
-  CliRuntimeId,
-  CliSessionStatus,
-  CliTaskStatus,
-  CliTranscriptItem
-} from '../../shared/types'
+import type { CliTranscriptItem } from '../../shared/types'
 import { buildSpawnCommand } from '../pty-manager'
 import {
   DEFAULT_TASK_TIMEOUT_MS,
   isEnvAllowed,
-  MAX_CONCURRENT,
   RESULT_MAX_BYTES,
   STDERR_MAX_BYTES,
   TASK_MAX_BYTES
 } from './constants'
 import { createAntigravityParser } from './parsers/antigravity'
-import { createOpenCodeParser } from './parsers/opencode'
 import type { CliTerminalResult } from './parsers/types'
 import type { CliPolicy } from './policy'
-import { buildAntigravityArgs, buildOpenCodeArgs } from './policy'
+import { buildAntigravityArgs } from './policy'
 
 export type SpawnFn = (
   command: string,
@@ -39,21 +31,17 @@ export interface CliRunManagerDeps {
   spawn?: SpawnFn
   killTree?: (pid: number) => Promise<void>
   now?: () => number
-  maxConcurrent?: Partial<Record<CliRuntimeId, number>>
+  maxConcurrent?: number
   timeoutMs?: number
-  onEvent?: (sessionId: string, item: CliTranscriptItem) => void
-  onStatus?: (sessionId: string, status: CliSessionStatus) => void
-  resolveBinary?: (runtime: CliRuntimeId, agent: CliAgent) => string | null
+  onEvent?: (runId: string, item: CliTranscriptItem) => void
 }
 
 export interface RunTaskInput {
-  sessionId: string
-  agent: CliAgent
+  runId: string
   task: string
   cwd: string
   policy: CliPolicy
-  binaryPath?: string
-  env?: Record<string, string>
+  binaryPath: string
 }
 
 interface QueuedTask {
@@ -64,9 +52,7 @@ interface QueuedTask {
 }
 
 interface ActiveRun {
-  sessionId: string
-  runtime: CliRuntimeId
-  isGoogle: boolean
+  runId: string
   child: ChildProcess
   pid?: number
   timer?: NodeJS.Timeout
@@ -105,54 +91,17 @@ export function truncateUtf8(text: string, maxBytes: number): string {
   return buf.subarray(0, end).toString('utf8') + '... [truncated]'
 }
 
-export const ALLOWED_INPUT_ENV_KEYS = new Set([
-  'GEMINI_API_KEY',
-  'XDG_DATA_HOME',
-  'OPENCODE_DB',
-  'OPENCODE_CONFIG_CONTENT'
-])
-
+/** Minimal environment for the CLI: only allowlisted variables are inherited. */
 export function buildCliEnv(
-  agent: CliAgent,
-  inputEnv?: Record<string, string>,
   sourceProcessEnv: NodeJS.ProcessEnv = process.env,
   platform: NodeJS.Platform = process.platform
 ): NodeJS.ProcessEnv {
   const resultEnv: Record<string, string> = {}
-
   for (const [key, value] of Object.entries(sourceProcessEnv)) {
     if (value !== undefined && isEnvAllowed(key, platform)) {
       resultEnv[key] = value
     }
   }
-
-  if (inputEnv) {
-    if (agent.kind === 'gemini-key' && inputEnv.GEMINI_API_KEY !== undefined) {
-      resultEnv.GEMINI_API_KEY = inputEnv.GEMINI_API_KEY
-    }
-
-    if (agent.runtime === 'opencode') {
-      if (inputEnv.XDG_DATA_HOME !== undefined) {
-        resultEnv.XDG_DATA_HOME = inputEnv.XDG_DATA_HOME
-      }
-      if (inputEnv.OPENCODE_DB !== undefined) {
-        resultEnv.OPENCODE_DB = inputEnv.OPENCODE_DB
-      }
-      if (inputEnv.OPENCODE_CONFIG_CONTENT !== undefined) {
-        resultEnv.OPENCODE_CONFIG_CONTENT = inputEnv.OPENCODE_CONFIG_CONTENT
-      }
-    }
-  }
-
-  for (const key of Object.keys(resultEnv)) {
-    if (/_API_KEY$/i.test(key)) {
-      if (key.toUpperCase() === 'GEMINI_API_KEY' && agent.kind === 'gemini-key') {
-        continue
-      }
-      delete resultEnv[key]
-    }
-  }
-
   return resultEnv
 }
 
@@ -160,20 +109,16 @@ export class CliRunManager {
   private deps: CliRunManagerDeps
   private killTree: (pid: number) => Promise<void>
   private now: () => number
-  private maxConcurrent: Record<CliRuntimeId, number>
-  private activeSessions = new Set<string>()
+  private maxConcurrent: number
+  private activeIds = new Set<string>()
   private activeRuns = new Map<string, ActiveRun>()
   private queue: QueuedTask[] = []
-  private googleLockHeld = false
 
   constructor(deps: CliRunManagerDeps = {}) {
     this.deps = deps
     this.killTree = deps.killTree ?? defaultKillTree
     this.now = deps.now ?? Date.now
-    this.maxConcurrent = {
-      antigravity: deps.maxConcurrent?.antigravity ?? MAX_CONCURRENT.antigravity,
-      opencode: deps.maxConcurrent?.opencode ?? MAX_CONCURRENT.opencode
-    }
+    this.maxConcurrent = deps.maxConcurrent ?? 1
   }
 
   async runTask(input: RunTaskInput): Promise<CliTerminalResult> {
@@ -183,20 +128,19 @@ export class CliRunManager {
     if (Buffer.byteLength(input.task, 'utf8') > TASK_MAX_BYTES) {
       throw new Error(`Task exceeds maximum size of ${TASK_MAX_BYTES} bytes`)
     }
-    if (this.activeSessions.has(input.sessionId)) {
-      throw new Error(`Session ${input.sessionId} already has an active task`)
+    if (this.activeIds.has(input.runId)) {
+      throw new Error(`Session ${input.runId} already has an active task`)
     }
 
-    const binary = input.binaryPath?.trim() || this.deps.resolveBinary?.(input.agent.runtime, input.agent)
-    if (!binary) {
-      throw new Error(`[meow] Cannot find binary for runtime: ${input.agent.runtime}`)
+    if (!input.binaryPath || !input.binaryPath.trim()) {
+      throw new Error('[meow] Antigravity CLI binary path is missing')
     }
 
-    this.activeSessions.add(input.sessionId)
+    this.activeIds.add(input.runId)
 
     return new Promise<CliTerminalResult>((resolve, reject) => {
       const queuedTask: QueuedTask = {
-        input: { ...input, binaryPath: binary },
+        input,
         resolve,
         reject,
         cancelled: false
@@ -206,26 +150,25 @@ export class CliRunManager {
     })
   }
 
-  cancel(sessionId: string): boolean {
-    const queueIndex = this.queue.findIndex(item => item.input.sessionId === sessionId)
+  cancel(runId: string): boolean {
+    const queueIndex = this.queue.findIndex(item => item.input.runId === runId)
     if (queueIndex !== -1) {
       const [item] = this.queue.splice(queueIndex, 1)
       item.cancelled = true
-      this.activeSessions.delete(sessionId)
+      this.activeIds.delete(runId)
 
-      this.deps.onEvent?.(sessionId, {
+      this.deps.onEvent?.(runId, {
         kind: 'notice',
         level: 'info',
         text: 'Task was cancelled',
         at: this.now()
       })
-      this.deps.onEvent?.(sessionId, {
+      this.deps.onEvent?.(runId, {
         kind: 'result',
         status: 'cancelled',
         text: '',
         at: this.now()
       })
-      this.deps.onStatus?.(sessionId, 'idle')
 
       item.resolve({
         status: 'cancelled',
@@ -235,7 +178,7 @@ export class CliRunManager {
       return true
     }
 
-    const run = this.activeRuns.get(sessionId)
+    const run = this.activeRuns.get(runId)
     if (run) {
       run.cancel().catch(() => {})
       return true
@@ -247,7 +190,7 @@ export class CliRunManager {
   async cancelAll(): Promise<void> {
     const killPromises: Promise<void>[] = []
 
-    const queuedIds = this.queue.map(item => item.input.sessionId)
+    const queuedIds = this.queue.map(item => item.input.runId)
     for (const id of queuedIds) {
       this.cancel(id)
     }
@@ -260,29 +203,12 @@ export class CliRunManager {
     await Promise.all(killPromises)
   }
 
-  activeCount(runtime?: CliRuntimeId): number {
-    if (!runtime) {
-      return this.activeRuns.size
-    }
-    let count = 0
-    for (const run of this.activeRuns.values()) {
-      if (run.runtime === runtime) {
-        count++
-      }
-    }
-    return count
+  activeCount(): number {
+    return this.activeRuns.size
   }
 
-  queuedCount(runtime?: CliRuntimeId): number {
-    let count = 0
-    for (const item of this.queue) {
-      if (!item.cancelled) {
-        if (!runtime || item.input.agent.runtime === runtime) {
-          count++
-        }
-      }
-    }
-    return count
+  queuedCount(): number {
+    return this.queue.filter(item => !item.cancelled).length
   }
 
   private drainQueue(): void {
@@ -294,25 +220,12 @@ export class CliRunManager {
         continue
       }
 
-      const runtime = item.input.agent.runtime
-      const isGoogle = runtime === 'antigravity' && item.input.agent.kind === 'google'
-      const max = this.maxConcurrent[runtime] ?? MAX_CONCURRENT[runtime]
-      const currentActive = this.activeCount(runtime)
-
-      if (currentActive >= max) {
-        continue
-      }
-
-      if (isGoogle && this.googleLockHeld) {
-        continue
+      if (this.activeRuns.size >= this.maxConcurrent) {
+        break
       }
 
       this.queue.splice(i, 1)
       i--
-
-      if (isGoogle) {
-        this.googleLockHeld = true
-      }
 
       this.executeTask(item)
     }
@@ -320,9 +233,7 @@ export class CliRunManager {
 
   private async executeTask(item: QueuedTask): Promise<void> {
     const { input, resolve } = item
-    const sessionId = input.sessionId
-    const runtime = input.agent.runtime
-    const isGoogle = runtime === 'antigravity' && input.agent.kind === 'google'
+    const runId = input.runId
 
     let timer: NodeJS.Timeout | undefined
     let isCancelled = false
@@ -330,32 +241,11 @@ export class CliRunManager {
     let terminalResult: CliTerminalResult | null = null
 
     try {
-      const binary = input.binaryPath!
-
-      let args: string[]
-      if (runtime === 'antigravity') {
-        args = buildAntigravityArgs({
-          task: input.task,
-          model: input.agent.model,
-          policy: input.policy
-        })
-      } else if (runtime === 'opencode') {
-        args = buildOpenCodeArgs({
-          task: input.task,
-          model: input.agent.model,
-          policy: input.policy
-        })
-      } else {
-        throw new Error(`[meow] Unsupported runtime: ${runtime}`)
-      }
-
-      const env = buildCliEnv(input.agent, input.env)
-      const { command: spawnCmd, args: spawnArgs } = buildSpawnCommand(binary, args)
+      const args = buildAntigravityArgs({ task: input.task, policy: input.policy })
+      const env = buildCliEnv()
+      const { command: spawnCmd, args: spawnArgs } = buildSpawnCommand(input.binaryPath, args)
       const isCmdWrap = spawnCmd.toLowerCase() === 'cmd.exe'
-
-      const parser = runtime === 'antigravity'
-        ? createAntigravityParser()
-        : createOpenCodeParser()
+      const parser = createAntigravityParser()
 
       const spawnFn = this.deps.spawn ?? nodeSpawn
       const child = spawnFn(spawnCmd, spawnArgs, {
@@ -368,9 +258,7 @@ export class CliRunManager {
 
       let cancelPromise: Promise<void> | undefined
       const activeRun: ActiveRun = {
-        sessionId,
-        runtime,
-        isGoogle,
+        runId,
         child,
         pid: child.pid,
         cancel: () => {
@@ -385,9 +273,8 @@ export class CliRunManager {
           return cancelPromise
         }
       }
-      this.activeRuns.set(sessionId, activeRun)
+      this.activeRuns.set(runId, activeRun)
 
-      this.deps.onStatus?.(sessionId, 'running')
 
       if (child.stdin) {
         try {
@@ -424,7 +311,7 @@ export class CliRunManager {
               terminalResult = parsed.terminal
             }
             for (const evItem of parsed.items) {
-              this.deps.onEvent?.(sessionId, evItem)
+              this.deps.onEvent?.(runId, evItem)
             }
           }
         })
@@ -469,7 +356,7 @@ export class CliRunManager {
           terminalResult = parsed.terminal
         }
         for (const evItem of parsed.items) {
-          this.deps.onEvent?.(sessionId, evItem)
+          this.deps.onEvent?.(runId, evItem)
         }
         stdoutRemainder = ''
       }
@@ -479,7 +366,7 @@ export class CliRunManager {
           ? `${stderrBuffer.trim()}\n... [stderr truncated]`
           : stderrBuffer.trim()
         const level = exitResult.code === 0 && !exitResult.signal ? 'info' : 'warn'
-        this.deps.onEvent?.(sessionId, {
+        this.deps.onEvent?.(runId, {
           kind: 'notice',
           level,
           text,
@@ -488,13 +375,14 @@ export class CliRunManager {
       }
 
       const finalResult = this.finalizeResult({
-        sessionId,
+        runId,
         terminalResult,
         isCancelled,
         isTimeout,
         exitCode: exitResult.code,
         signal: exitResult.signal,
-        timeoutMs
+        timeoutMs,
+        stderr: stderrBuffer.trim()
       })
 
       resolve(finalResult)
@@ -508,42 +396,38 @@ export class CliRunManager {
         text: '',
         error: errorText
       }
-      this.deps.onEvent?.(sessionId, {
+      this.deps.onEvent?.(runId, {
         kind: 'notice',
         level: 'error',
         text: errorText,
         at: this.now()
       })
-      this.deps.onEvent?.(sessionId, {
+      this.deps.onEvent?.(runId, {
         kind: 'result',
         status: 'failed',
         text: '',
         at: this.now()
       })
-      this.deps.onStatus?.(sessionId, 'failed')
       resolve(errResult)
     } finally {
-      this.activeRuns.delete(sessionId)
-      this.activeSessions.delete(sessionId)
-
-      if (isGoogle) {
-        this.googleLockHeld = false
-      }
+      this.activeRuns.delete(runId)
+      this.activeIds.delete(runId)
 
       this.drainQueue()
     }
   }
 
   private finalizeResult(opts: {
-    sessionId: string
+    runId: string
     terminalResult: CliTerminalResult | null
     isCancelled: boolean
     isTimeout: boolean
     exitCode: number | null
     signal: string | null
     timeoutMs: number
+    stderr: string
   }): CliTerminalResult {
-    const { sessionId, terminalResult, isCancelled, isTimeout, exitCode, signal, timeoutMs } = opts
+    const { runId, terminalResult, isCancelled, isTimeout, exitCode, signal, timeoutMs, stderr } = opts
     let finalResult: CliTerminalResult
 
     if (isCancelled) {
@@ -552,19 +436,18 @@ export class CliRunManager {
         text: '',
         error: 'Task was cancelled'
       }
-      this.deps.onEvent?.(sessionId, {
+      this.deps.onEvent?.(runId, {
         kind: 'notice',
         level: 'info',
         text: 'Task was cancelled',
         at: this.now()
       })
-      this.deps.onEvent?.(sessionId, {
+      this.deps.onEvent?.(runId, {
         kind: 'result',
         status: 'cancelled',
         text: '',
         at: this.now()
       })
-      this.deps.onStatus?.(sessionId, 'idle')
     } else if (isTimeout) {
       const errorText = `Task timed out after ${timeoutMs}ms`
       finalResult = {
@@ -572,52 +455,41 @@ export class CliRunManager {
         text: '',
         error: errorText
       }
-      this.deps.onEvent?.(sessionId, {
+      this.deps.onEvent?.(runId, {
         kind: 'notice',
         level: 'warn',
         text: errorText,
         at: this.now()
       })
-      this.deps.onEvent?.(sessionId, {
+      this.deps.onEvent?.(runId, {
         kind: 'result',
         status: 'timeout',
         text: '',
         at: this.now()
       })
-      this.deps.onStatus?.(sessionId, 'failed')
     } else if (terminalResult) {
       finalResult = { ...terminalResult }
       if (finalResult.text && Buffer.byteLength(finalResult.text, 'utf8') > RESULT_MAX_BYTES) {
         finalResult.text = truncateUtf8(finalResult.text, RESULT_MAX_BYTES)
       }
 
-      let sessionStatus: CliSessionStatus = 'idle'
-      if (finalResult.deniedActions && finalResult.deniedActions.length > 0) {
-        sessionStatus = 'needs-attention'
-      } else if (finalResult.status === 'failed' || finalResult.status === 'timeout') {
-        sessionStatus = 'failed'
-      } else {
-        sessionStatus = 'idle'
-      }
-      this.deps.onStatus?.(sessionId, sessionStatus)
     } else if (exitCode === 0 && !signal) {
       finalResult = {
         status: 'completed',
         text: ''
       }
-      this.deps.onEvent?.(sessionId, {
+      this.deps.onEvent?.(runId, {
         kind: 'notice',
         level: 'info',
         text: 'CLI process exited with code 0 with no terminal event',
         at: this.now()
       })
-      this.deps.onEvent?.(sessionId, {
+      this.deps.onEvent?.(runId, {
         kind: 'result',
         status: 'completed',
         text: '',
         at: this.now()
       })
-      this.deps.onStatus?.(sessionId, 'idle')
     } else {
       const errorText = signal
         ? `CLI process killed with signal ${signal}`
@@ -625,21 +497,21 @@ export class CliRunManager {
       finalResult = {
         status: 'failed',
         text: '',
-        error: errorText
+        error: stderr ? `${errorText}
+${stderr}` : errorText
       }
-      this.deps.onEvent?.(sessionId, {
+      this.deps.onEvent?.(runId, {
         kind: 'notice',
         level: 'error',
         text: errorText,
         at: this.now()
       })
-      this.deps.onEvent?.(sessionId, {
+      this.deps.onEvent?.(runId, {
         kind: 'result',
         status: 'failed',
         text: '',
         at: this.now()
       })
-      this.deps.onStatus?.(sessionId, 'failed')
     }
 
     return finalResult

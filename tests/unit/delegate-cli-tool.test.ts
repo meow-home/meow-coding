@@ -21,8 +21,8 @@ function makeDelegation(overrides: Partial<SessionDelegation> = {}): SessionDele
     projectPath: '/proj',
     sourceAgentId: 'agent-alpha',
     sourceSessionId: 'session-alpha',
-    targetAgentId: 'cli-agent-1',
-    targetSessionId: 'cli-sess-1',
+    targetAgentId: 'antigravity',
+    targetSessionId: 'antigravity',
     task: 'investigate performance bottleneck',
     status: 'queued',
     revision: 1,
@@ -30,7 +30,6 @@ function makeDelegation(overrides: Partial<SessionDelegation> = {}): SessionDele
     createdAt: 1,
     updatedAt: 1,
     targetKind: 'cli',
-    targetCliAgentId: 'cli-agent-1',
     ...overrides
   }
 }
@@ -39,25 +38,19 @@ function baseContext(): ToolContext {
   return { cwd: '/proj', ask: async () => null }
 }
 
-const sampleAgents = [
-  { id: 'agy-google', label: 'Antigravity Google', status: 'ready' },
-  { id: 'oc-default', label: 'OpenCode Default', status: 'ready' },
-  { id: 'oc-needs-login', label: 'OpenCode Custom', status: 'needs-login' }
-]
-
 describe('delegate_cli tool', () => {
-  it('requires a user-origin run context and rejects a delegated-origin run', async () => {
-    const createDelegation = vi.fn(async () => makeDelegation())
-    const tool = createDelegateCliTool({
-      createDelegation,
-      listCliAgents: () => sampleAgents,
-      runContext: () => delegatedRun
-    })
+  it('takes only a task', () => {
+    const tool = createDelegateCliTool({ createDelegation: async () => makeDelegation() })
+    expect(() => tool.schema.parse({ task: 'do it' })).not.toThrow()
+    expect(() => tool.schema.parse({ task: 'do it', agent: 'agy' })).toThrow()
+    expect(() => tool.schema.parse({})).toThrow()
+  })
 
-    const r = await tool.run(
-      { agent: 'agy-google', task: 'refactor code' },
-      baseContext()
-    )
+  it('rejects a delegated-origin run', async () => {
+    const createDelegation = vi.fn(async () => makeDelegation())
+    const tool = createDelegateCliTool({ createDelegation, runContext: () => delegatedRun })
+
+    const r = await tool.run({ task: 'refactor code' }, baseContext())
 
     expect(r.output).toBeUndefined()
     expect(r.error).toBe('delegate_cli: only a user-origin run may delegate work.')
@@ -65,213 +58,72 @@ describe('delegate_cli tool', () => {
   })
 
   it('fails closed when no run context is available', async () => {
-    const tool = createDelegateCliTool({
-      createDelegation: async () => makeDelegation(),
-      listCliAgents: () => sampleAgents
-    })
+    const createDelegation = vi.fn(async () => makeDelegation())
+    const tool = createDelegateCliTool({ createDelegation })
 
-    const r = await tool.run(
-      { agent: 'agy-google', task: 'refactor code' },
-      baseContext()
-    )
+    const r = await tool.run({ task: 'refactor code' }, baseContext())
 
-    expect(r.output).toBeUndefined()
     expect(r.error).toBe('delegate_cli: no run context is available for this invocation.')
+    expect(createDelegation).not.toHaveBeenCalled()
   })
 
-  it('lists available agents in id — label format when the requested agent is unknown', async () => {
+  it('refuses to queue when the Antigravity CLI is not ready and points at Settings', async () => {
+    const createDelegation = vi.fn(async () => makeDelegation())
     const tool = createDelegateCliTool({
-      createDelegation: async () => makeDelegation(),
-      listCliAgents: () => sampleAgents,
+      createDelegation,
+      checkCli: async () => ({ ready: false, error: 'agy was not found' }),
       runContext: () => userRun
     })
 
-    const r = await tool.run(
-      { agent: 'non-existent', task: 'check logs' },
-      baseContext()
-    )
+    const r = await tool.run({ task: 'refactor code' }, baseContext())
 
-    expect(r.output).toBeUndefined()
-    expect(r.error).toContain('unknown CLI agent "non-existent"')
-    expect(r.error).toContain('Available agents:')
-    expect(r.error).toContain('agy-google — Antigravity Google')
-    expect(r.error).toContain('oc-default — OpenCode Default')
-    expect(r.error).toContain('oc-needs-login — OpenCode Custom')
+    expect(r.error).toContain('not ready (agy was not found)')
+    expect(r.error).toContain('Settings > Antigravity CLI')
+    expect(createDelegation).not.toHaveBeenCalled()
   })
 
-  it('handles unknown agent when no CLI agents are available', async () => {
-    const tool = createDelegateCliTool({
-      createDelegation: async () => makeDelegation(),
-      listCliAgents: () => [],
-      runContext: () => userRun
-    })
-
-    const r = await tool.run(
-      { agent: 'agy-google', task: 'check logs' },
-      baseContext()
-    )
-
-    expect(r.error).toContain('unknown CLI agent "agy-google"')
-    expect(r.error).toContain('No CLI agents are available')
-  })
-
-  it('errors when the target CLI agent is not ready', async () => {
-    const tool = createDelegateCliTool({
-      createDelegation: async () => makeDelegation(),
-      listCliAgents: () => sampleAgents,
-      runContext: () => userRun
-    })
-
-    const r = await tool.run(
-      { agent: 'oc-needs-login', task: 'run diagnostics' },
-      baseContext()
-    )
-
-    expect(r.output).toBeUndefined()
-    expect(r.error).toBe('delegate_cli: CLI agent "OpenCode Custom" is not ready (needs-login).')
-  })
-
-  it('resolves agent by exact id', async () => {
+  it('queues the task and returns the delegation id in metadata', async () => {
     const createDelegation = vi.fn(async () => makeDelegation({ id: 'del-1' }))
     const tool = createDelegateCliTool({
       createDelegation,
-      listCliAgents: () => sampleAgents,
+      checkCli: async () => ({ ready: true }),
       runContext: () => userRun
     })
 
-    const r = await tool.run(
-      { agent: 'agy-google', task: 'run audit' },
-      baseContext()
-    )
+    const r = await tool.run({ task: 'refactor code' }, baseContext())
 
+    expect(createDelegation).toHaveBeenCalledWith({ sourceRun: userRun, task: 'refactor code' })
     expect(r.error).toBeUndefined()
-    expect(createDelegation).toHaveBeenCalledWith({
-      sourceRun: userRun,
-      targetCliAgentId: 'agy-google',
-      task: 'run audit',
-      cliSessionId: undefined
-    })
-    expect(r.output).toBe('Delegation del-1 queued for Antigravity Google.')
-    expect(r.metadata).toEqual({ delegationId: 'del-1', cliAgentId: 'agy-google' })
+    expect(r.output).toBe('Delegation del-1 queued for Antigravity.')
+    expect(r.metadata).toEqual({ delegationId: 'del-1', cliAgentId: 'antigravity' })
   })
 
-  it('resolves agent by case-insensitive label', async () => {
-    const createDelegation = vi.fn(async () => makeDelegation({ id: 'del-2' }))
+  it('queues without a readiness check when none is wired', async () => {
     const tool = createDelegateCliTool({
-      createDelegation,
-      listCliAgents: () => sampleAgents,
+      createDelegation: async () => makeDelegation({ id: 'del-2' }),
       runContext: () => userRun
     })
 
-    const r = await tool.run(
-      { agent: 'antigravity google', task: 'run benchmark' },
-      baseContext()
-    )
-
-    expect(r.error).toBeUndefined()
-    expect(createDelegation).toHaveBeenCalledWith({
-      sourceRun: userRun,
-      targetCliAgentId: 'agy-google',
-      task: 'run benchmark',
-      cliSessionId: undefined
-    })
-    expect(r.output).toBe('Delegation del-2 queued for Antigravity Google.')
-    expect(r.metadata).toEqual({ delegationId: 'del-2', cliAgentId: 'agy-google' })
+    const r = await tool.run({ task: 'refactor code' }, baseContext())
+    expect(r.metadata).toEqual({ delegationId: 'del-2', cliAgentId: 'antigravity' })
   })
 
-  it('passes session_id for feedback rounds into the same conversation', async () => {
-    const createDelegation = vi.fn(async () => makeDelegation({ id: 'del-3' }))
+  it('falls back to the tool context run context', async () => {
+    const tool = createDelegateCliTool({ createDelegation: async () => makeDelegation({ id: 'del-3' }) })
+    const r = await tool.run({ task: 'refactor code' }, { ...baseContext(), runContext: userRun })
+    expect(r.output).toContain('del-3')
+  })
+
+  it('returns thrown createDelegation errors as { error }', async () => {
     const tool = createDelegateCliTool({
-      createDelegation,
-      listCliAgents: () => sampleAgents,
+      createDelegation: async () => { throw new Error('[meow] Too many queued delegations') },
       runContext: () => userRun
     })
 
-    const r = await tool.run(
-      { agent: 'oc-default', task: 'fix remaining errors', session_id: 'cli-session-42' },
-      baseContext()
-    )
-
-    expect(r.error).toBeUndefined()
-    expect(createDelegation).toHaveBeenCalledWith({
-      sourceRun: userRun,
-      targetCliAgentId: 'oc-default',
-      task: 'fix remaining errors',
-      cliSessionId: 'cli-session-42'
-    })
-    expect(r.output).toBe('Delegation del-3 queued for OpenCode Default.')
-    expect(r.metadata).toEqual({ delegationId: 'del-3', cliAgentId: 'oc-default' })
+    const r = await tool.run({ task: 'refactor code' }, baseContext())
+    expect(r.error).toBe('delegate_cli: [meow] Too many queued delegations')
   })
 
-  it('returns metadata with delegationId and cliAgentId', async () => {
-    const createDelegation = vi.fn(async () => makeDelegation({ id: 'del-meta-123' }))
-    const tool = createDelegateCliTool({
-      createDelegation,
-      listCliAgents: () => sampleAgents,
-      runContext: () => userRun
-    })
-
-    const r = await tool.run(
-      { agent: 'agy-google', task: 'run tests' },
-      baseContext()
-    )
-
-    expect(r.metadata).toEqual({
-      delegationId: 'del-meta-123',
-      cliAgentId: 'agy-google'
-    })
-  })
-
-  it('catches thrown errors from createDelegation and returns { error }', async () => {
-    const tool = createDelegateCliTool({
-      createDelegation: async () => {
-        throw new Error('Concurrent task quota reached for antigravity')
-      },
-      listCliAgents: () => sampleAgents,
-      runContext: () => userRun
-    })
-
-    const r = await tool.run(
-      { agent: 'agy-google', task: 'do work' },
-      baseContext()
-    )
-
-    expect(r.output).toBeUndefined()
-    expect(r.error).toBe('delegate_cli: Concurrent task quota reached for antigravity')
-  })
-
-  it('uses custom resolveCliAgent when supplied', async () => {
-    const resolveCliAgent = vi.fn((query: string) => {
-      if (query === 'custom-alias') {
-        return { id: 'agy-google', label: 'Antigravity Google', status: 'ready' }
-      }
-      return undefined
-    })
-    const createDelegation = vi.fn(async () => makeDelegation({ id: 'del-custom' }))
-    const tool = createDelegateCliTool({
-      createDelegation,
-      resolveCliAgent,
-      listCliAgents: () => sampleAgents,
-      runContext: () => userRun
-    })
-
-    const r = await tool.run(
-      { agent: 'custom-alias', task: 'custom task' },
-      baseContext()
-    )
-
-    expect(resolveCliAgent).toHaveBeenCalledWith('custom-alias')
-    expect(r.error).toBeUndefined()
-    expect(createDelegation).toHaveBeenCalledWith({
-      sourceRun: userRun,
-      targetCliAgentId: 'agy-google',
-      task: 'custom task',
-      cliSessionId: undefined
-    })
-  })
-})
-
-describe('delegate_cli permission rules', () => {
   it('is allowed by default in build mode', () => {
     expect(DEFAULT_MEOW_CONFIG.permission['delegate_cli']).toBe('allow')
   })

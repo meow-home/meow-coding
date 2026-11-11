@@ -3,8 +3,8 @@ import { Channels } from '../shared/ipc'
 
 ipcRenderer.setMaxListeners(100)
 import type { ArtifactsChangedEvent } from '../shared/ipc'
-import type { ChatEvent, CliAgentKind, CliRunEvent, CliRuntimeId, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, TerminalCreateOptions, TranscriptWindowOpts, UpdaterStatusEvent } from '../shared/types'
-import type { ActivateAgentEvent, AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, BrowserPanelBounds, BrowserPanelFreezeResult, BrowserPanelRequestEvent, BrowserShortcutEvent, BrowserTabsChangedEvent, CliAgentsChangedEvent, CliLoginEvent, CliSessionsChangedEvent, GitStatusEvent, PromptStateEvent, TerminalDataEvent, TerminalsChangedEvent, WindowMaximizedChangeEvent, WorkspaceChangedEvent } from '../shared/ipc'
+import type { ChatEvent, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, TerminalCreateOptions, TranscriptWindowOpts, UpdaterStatusEvent } from '../shared/types'
+import type { ActivateAgentEvent, AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, BrowserPanelBounds, BrowserPanelFreezeResult, BrowserPanelRequestEvent, BrowserShortcutEvent, BrowserTabsChangedEvent, GitStatusEvent, PromptStateEvent, TerminalDataEvent, TerminalsChangedEvent, WindowMaximizedChangeEvent, WorkspaceChangedEvent } from '../shared/ipc'
 import type { BrowserStatusInfo, BrowserTabInfo } from '../shared/browser-types'
 import type { ExternalApiStatus } from '../shared/external-api-types'
 
@@ -260,55 +260,8 @@ const api: AgentApi = {
     subscribe(Channels.EventTerminalData, cb),
   onTerminalsChanged: (cb: (e: TerminalsChangedEvent) => void) =>
     subscribe(Channels.EventTerminalsChanged, cb),
-  getCliAgentsStatus: () => ipcRenderer.invoke(Channels.CliAgentsStatus),
-  detectCliRuntime: (runtime: CliRuntimeId) => ipcRenderer.invoke(Channels.CliRuntimeDetect, runtime),
-  installCliRuntime: (runtime: CliRuntimeId) => ipcRenderer.invoke(Channels.CliRuntimeInstall, runtime),
-  setCliRuntimePath: (runtime: CliRuntimeId, path: string | null) =>
-    ipcRenderer.invoke(Channels.CliRuntimeSetPath, runtime, path),
-  setCliRuntimeEnabled: (runtime: CliRuntimeId, enabled: boolean) =>
-    ipcRenderer.invoke(Channels.CliRuntimeSetEnabled, runtime, enabled),
-  listCliModels: (runtime: CliRuntimeId, agentId?: string) =>
-    ipcRenderer.invoke(Channels.CliModelsList, runtime, agentId),
-  addCliAgent: (runtime: CliRuntimeId, kind: CliAgentKind, provider?: string, secret?: string) =>
-    ipcRenderer.invoke(Channels.CliAgentAdd, runtime, kind, provider, secret),
-  renameCliAgent: (agentId: string, label: string) =>
-    ipcRenderer.invoke(Channels.CliAgentRename, agentId, label),
-  removeCliAgent: (agentId: string) =>
-    ipcRenderer.invoke(Channels.CliAgentRemove, agentId),
-  activateCliAgent: (agentId: string) =>
-    ipcRenderer.invoke(Channels.CliAgentActivate, agentId),
-  setDefaultCliAgent: (agentId: string) =>
-    ipcRenderer.invoke(Channels.CliAgentSetDefault, agentId),
-  cliLoginInput: (loginId: string, data: string) =>
-    ipcRenderer.invoke(Channels.CliLoginInput, loginId, data),
-  cancelCliLogin: (loginId: string) =>
-    ipcRenderer.invoke(Channels.CliLoginCancel, loginId),
-  createCliSession: (agentId: string, projectPath: string) =>
-    ipcRenderer.invoke(Channels.CliSessionCreate, agentId, projectPath),
-  renameCliSession: (sessionId: string, title: string) =>
-    ipcRenderer.invoke(Channels.CliSessionRename, sessionId, title),
-  deleteCliSession: (sessionId: string) =>
-    ipcRenderer.invoke(Channels.CliSessionDelete, sessionId),
-  listCliSessions: (projectPath?: string) =>
-    ipcRenderer.invoke(Channels.CliSessionsList, projectPath),
-  openCliSessionTerminal: (sessionId: string) =>
-    ipcRenderer.invoke(Channels.CliSessionOpenTerminal, sessionId),
-  getCliTranscript: (sessionId: string, limit?: number) =>
-    ipcRenderer.invoke(Channels.CliTranscriptGet, sessionId, limit),
-  sendCliTask: (sessionId: string, text: string) =>
-    ipcRenderer.invoke(Channels.CliTaskSend, sessionId, text),
-  cancelCliTask: (sessionId: string) =>
-    ipcRenderer.invoke(Channels.CliTaskCancel, sessionId),
-  cancelCliDelegation: (delegationId: string) =>
-    ipcRenderer.invoke(Channels.CliDelegationCancel, delegationId),
-  onCliAgentsChanged: (cb: (e: CliAgentsChangedEvent) => void) =>
-    subscribe(Channels.EventCliAgentsChanged, cb),
-  onCliLogin: (cb: (e: CliLoginEvent) => void) =>
-    subscribe(Channels.EventCliLogin, cb),
-  onCliSessionsChanged: (cb: (e: CliSessionsChangedEvent) => void) =>
-    subscribe(Channels.EventCliSessionsChanged, cb),
-  onCliRun: (cb: (e: CliRunEvent) => void) =>
-    subscribe(Channels.EventCliRun, cb)
+  checkCli: () => ipcRenderer.invoke(Channels.CliCheck),
+  testCli: () => ipcRenderer.invoke(Channels.CliTest)
 }
 
 contextBridge.exposeInMainWorld('api', api)

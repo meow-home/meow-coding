@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { afterEach, describe, expect, it } from 'vitest'
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
@@ -8,247 +8,167 @@ import {
   isSemverGte,
   parseSemver
 } from '../../src/main/cli-agents/binary-manager'
-import { CLI_RUNTIMES, getCliRuntime } from '../../src/main/cli-agents/runtimes'
+import { ANTIGRAVITY_CLI } from '../../src/main/cli-agents/runtimes'
 
-describe('CLI Agents — Runtimes Catalog', () => {
-  it('defines static catalog for antigravity and opencode', () => {
-    const agy = getCliRuntime('antigravity')
-    expect(agy.id).toBe('antigravity')
-    expect(agy.label).toBe('Antigravity')
-    expect(agy.defaultBinary).toBe('agy')
-    expect(agy.minVersion).toBe('1.5.0')
-    expect(agy.docsUrl).toContain('antigravity.google')
-    expect(agy.modelsCommand('/bin/agy')).toEqual({ file: '/bin/agy', args: ['models'] })
+const isWin = process.platform === 'win32'
+const binaryName = isWin ? 'agy.cmd' : 'agy'
 
-    const oc = getCliRuntime('opencode')
-    expect(oc.id).toBe('opencode')
-    expect(oc.label).toBe('OpenCode')
-    expect(oc.defaultBinary).toBe('opencode')
-    expect(oc.minVersion).toBe('2.0.0')
-    expect(oc.docsUrl).toContain('opencode.ai')
-    expect(oc.modelsCommand('/bin/opencode')).toEqual({ file: '/bin/opencode', args: ['models'] })
+describe('Antigravity CLI definition', () => {
+  it('describes the agy binary and its minimum version', () => {
+    expect(ANTIGRAVITY_CLI.label).toBe('Antigravity')
+    expect(ANTIGRAVITY_CLI.binaryNames).toContain('agy')
+    expect(ANTIGRAVITY_CLI.minVersion).toBe('1.5.0')
+    expect(ANTIGRAVITY_CLI.docsUrl).toContain('antigravity.google')
   })
 
-  it('provides install command descriptors per platform', () => {
-    const agy = CLI_RUNTIMES.antigravity
-    const agyWin = agy.installCommand('win32')
-    expect(agyWin).not.toBeNull()
-    expect(agyWin?.command).toBe('powershell.exe')
-    expect(agyWin?.args.join(' ')).toContain('install.ps1')
+  it('provides an install command per platform', () => {
+    const win = ANTIGRAVITY_CLI.installCommand('win32')
+    expect(win.command).toBe('powershell.exe')
+    expect(win.args.join(' ')).toContain('install.ps1')
 
-    const agyLinux = agy.installCommand('linux')
-    expect(agyLinux).not.toBeNull()
-    expect(agyLinux?.command).toBe('bash')
-    expect(agyLinux?.args.join(' ')).toContain('install.sh')
-
-    const oc = CLI_RUNTIMES.opencode
-    const ocWin = oc.installCommand('win32')
-    expect(ocWin.command).toBe('cmd.exe')
-    expect(ocWin.args.join(' ')).toContain('npm install -g @opencode/cli')
-
-    const ocMac = oc.installCommand('darwin')
-    expect(ocMac.command).toBe('npm')
-    expect(ocMac.args).toEqual(['install', '-g', '@opencode/cli'])
-  })
-
-  it('throws on unknown runtime id', () => {
-    expect(() => getCliRuntime('unknown' as never)).toThrow('[meow] Unknown CLI runtime')
+    const linux = ANTIGRAVITY_CLI.installCommand('linux')
+    expect(linux.command).toBe('bash')
+    expect(linux.args.join(' ')).toContain('install.sh')
   })
 })
 
-describe('CLI Agents — Semver utilities', () => {
+describe('Semver utilities', () => {
   it('parses semver from various output strings', () => {
     expect(parseSemver('1.5.4')).toBe('1.5.4')
-    expect(parseSemver('v2.2.7')).toBe('2.2.7')
-    expect(parseSemver('agy 1.5.4\n')).toBe('1.5.4')
-    expect(parseSemver('OpenCode v2.0.0 (x64)')).toBe('2.0.0')
-    expect(parseSemver('version 2.0')).toBe('2.0')
+    expect(parseSemver('agy version v1.6.0 (build 12)')).toBe('1.6.0')
+    expect(parseSemver('2.1')).toBe('2.1')
     expect(parseSemver('no version here')).toBeNull()
   })
 
   it('compares semver strings correctly', () => {
-    expect(compareSemver('1.5.4', '1.5.0')).toBe(1)
     expect(compareSemver('1.5.0', '1.5.0')).toBe(0)
-    expect(compareSemver('1.5', '1.5.0')).toBe(0)
+    expect(compareSemver('1.5.1', '1.5.0')).toBe(1)
     expect(compareSemver('1.4.9', '1.5.0')).toBe(-1)
-    expect(compareSemver('2.2.7', '2.0.0')).toBe(1)
-    expect(compareSemver('1.19.5', '2.0.0')).toBe(-1)
+    expect(compareSemver('2.0', '1.9.9')).toBe(1)
   })
 
   it('checks isSemverGte accurately', () => {
-    expect(isSemverGte('1.5.4', '1.5.0')).toBe(true)
     expect(isSemverGte('1.5.0', '1.5.0')).toBe(true)
-    expect(isSemverGte('1.4.9', '1.5.0')).toBe(false)
-    expect(isSemverGte('2.2.7', '2.0.0')).toBe(true)
-    expect(isSemverGte('1.19.5', '2.0.0')).toBe(false)
+    expect(isSemverGte('1.10.0', '1.5.0')).toBe(true)
+    expect(isSemverGte('1.4.0', '1.5.0')).toBe(false)
   })
 })
 
-describe('CLI Agents — Binary Manager', () => {
-  let tmpDir = ''
+describe('CliBinaryManager', () => {
+  const tmpDirs: string[] = []
 
   function createTmp(): string {
-    tmpDir = mkdtempSync(path.join(tmpdir(), 'meow-cli-agent-test-'))
-    return tmpDir
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-cli-bin-'))
+    tmpDirs.push(dir)
+    return dir
   }
 
-  function cleanupTmp(): void {
-    if (tmpDir) {
-      try { rmSync(tmpDir, { recursive: true, force: true }) } catch { /* ignore */ }
-      tmpDir = ''
-    }
+  function envWithBinaryOnPath(): { env: NodeJS.ProcessEnv; binary: string } {
+    const dir = createTmp()
+    const binary = path.join(dir, binaryName)
+    writeFileSync(binary, 'echo 1.5.4')
+    return { env: { PATH: dir, PATHEXT: '.CMD;.EXE' }, binary }
   }
 
-  it('resolves binary from manual path if valid', () => {
-    const dir = createTmp()
-    const fakeBinary = path.join(dir, process.platform === 'win32' ? 'agy.cmd' : 'agy')
-    writeFileSync(fakeBinary, 'echo 1.5.4')
-
-    const manager = new CliBinaryManager({ platform: process.platform })
-    const resolved = manager.resolveBinary('antigravity', fakeBinary)
-    expect(resolved).toBe(fakeBinary)
-
-    cleanupTmp()
+  afterEach(() => {
+    for (const dir of tmpDirs.splice(0)) rmSync(dir, { recursive: true, force: true })
   })
 
-  it('returns null if manual path does not exist', () => {
-    const manager = new CliBinaryManager({ platform: process.platform })
-    const resolved = manager.resolveBinary('antigravity', 'C:\\non-existent-path\\agy.exe')
-    expect(resolved).toBeNull()
+  it('resolves the binary from PATH', () => {
+    const { env, binary } = envWithBinaryOnPath()
+    const manager = new CliBinaryManager({ env })
+    expect(manager.resolveBinary()).toBe(binary)
   })
 
-  it('resolves binary from PATH', () => {
-    const dir = createTmp()
-    const binaryName = process.platform === 'win32' ? 'agy.cmd' : 'agy'
-    const fakeBinary = path.join(dir, binaryName)
-    writeFileSync(fakeBinary, 'echo 1.5.4')
-
-    const manager = new CliBinaryManager({
-      env: { PATH: dir, PATHEXT: '.CMD;.EXE' },
-      platform: process.platform
-    })
-    const resolved = manager.resolveBinary('antigravity')
-    expect(resolved).toBe(fakeBinary)
-
-    cleanupTmp()
-  })
-
-  it('resolves binary from known install directories', () => {
-    const dir = createTmp()
-    const binDir = path.join(dir, 'agy', 'bin')
+  it('resolves the binary from a known install directory', () => {
+    const home = createTmp()
+    const binDir = path.join(home, '.agy', 'bin')
     mkdirSync(binDir, { recursive: true })
-    const fakeBinary = path.join(binDir, 'agy.cmd')
-    writeFileSync(fakeBinary, 'echo 1.5.4')
+    const binary = path.join(binDir, binaryName)
+    writeFileSync(binary, 'echo 1.5.4')
 
     const manager = new CliBinaryManager({
-      env: { LOCALAPPDATA: dir, PATH: '', PATHEXT: '.CMD;.EXE' },
-      platform: 'win32'
+      env: { PATH: '', PATHEXT: '.CMD;.EXE', HOME: home, USERPROFILE: home }
     })
-    const resolved = manager.resolveBinary('antigravity')
-    expect(resolved).toBe(fakeBinary)
-
-    cleanupTmp()
+    expect(manager.resolveBinary()).toBe(binary)
   })
 
-  it('detects a valid runtime with mock command runner', async () => {
-    const dir = createTmp()
-    const fakeBinary = path.join(dir, process.platform === 'win32' ? 'agy.cmd' : 'agy')
-    writeFileSync(fakeBinary, 'echo 1.5.4')
-
+  it('reports a ready install when the version is new enough', async () => {
+    const { env, binary } = envWithBinaryOnPath()
     const manager = new CliBinaryManager({
-      platform: process.platform,
+      env,
       runCommand: async () => ({ stdout: '1.5.4\n', stderr: '', exitCode: 0 })
     })
 
-    const result = await manager.detect('antigravity', fakeBinary)
-    expect(result.found).toBe(true)
-    expect(result.binaryPath).toBe(fakeBinary)
-    expect(result.version).toBe('1.5.4')
-    expect(result.valid).toBe(true)
+    const result = await manager.check()
+    expect(result).toMatchObject({ installed: true, binaryPath: binary, version: '1.5.4', minVersion: '1.5.0', ready: true })
     expect(result.error).toBeUndefined()
-
-    cleanupTmp()
+    expect(result.install.command).toBeTruthy()
   })
 
-  it('detects an outdated runtime as invalid', async () => {
-    const dir = createTmp()
-    const fakeBinary = path.join(dir, process.platform === 'win32' ? 'opencode.cmd' : 'opencode')
-    writeFileSync(fakeBinary, 'echo 1.19.5')
-
+  it('reports an outdated install as not ready', async () => {
+    const { env } = envWithBinaryOnPath()
     const manager = new CliBinaryManager({
-      platform: process.platform,
-      runCommand: async () => ({ stdout: 'opencode 1.19.5\n', stderr: '', exitCode: 0 })
+      env,
+      runCommand: async () => ({ stdout: 'agy 1.4.2\n', stderr: '', exitCode: 0 })
     })
 
-    const result = await manager.detect('opencode', fakeBinary)
-    expect(result.found).toBe(true)
-    expect(result.version).toBe('1.19.5')
-    expect(result.valid).toBe(false)
-    expect(result.error).toContain('lower than required minimum')
-
-    cleanupTmp()
+    const result = await manager.check()
+    expect(result.installed).toBe(true)
+    expect(result.version).toBe('1.4.2')
+    expect(result.ready).toBe(false)
+    expect(result.error).toContain('older than the required 1.5.0')
   })
 
-  it('reports found: false when binary cannot be located', async () => {
+  it('reports not installed, with the install command, when agy cannot be located', async () => {
     const manager = new CliBinaryManager({
       env: { PATH: '', LOCALAPPDATA: '', USERPROFILE: '', HOME: '' },
-      platform: process.platform
+      platform: 'win32'
     })
 
-    const result = await manager.detect('antigravity')
-    expect(result.found).toBe(false)
-    expect(result.valid).toBe(false)
+    const result = await manager.check()
+    expect(result.installed).toBe(false)
+    expect(result.ready).toBe(false)
     expect(result.binaryPath).toBeNull()
     expect(result.error).toContain('not found')
+    expect(result.install.command).toBe('powershell.exe')
+  })
+
+  it('reports an unreadable version as not ready', async () => {
+    const { env } = envWithBinaryOnPath()
+    const manager = new CliBinaryManager({
+      env,
+      runCommand: async () => ({ stdout: 'hello\n', stderr: '', exitCode: 0 })
+    })
+
+    const result = await manager.check()
+    expect(result.installed).toBe(true)
+    expect(result.ready).toBe(false)
+    expect(result.error).toContain('Could not read a version')
   })
 
   it('handles execution failures gracefully', async () => {
-    const dir = createTmp()
-    const fakeBinary = path.join(dir, process.platform === 'win32' ? 'agy.cmd' : 'agy')
-    writeFileSync(fakeBinary, 'echo 1.5.4')
-
+    const { env } = envWithBinaryOnPath()
     const manager = new CliBinaryManager({
-      platform: process.platform,
+      env,
       runCommand: async () => {
         throw new Error('EACCES: permission denied')
       }
     })
 
-    const result = await manager.detect('antigravity', fakeBinary)
-    expect(result.found).toBe(true)
-    expect(result.valid).toBe(false)
-    expect(result.error).toContain('Failed to execute binary')
-
-    cleanupTmp()
+    const result = await manager.check()
+    expect(result.installed).toBe(true)
+    expect(result.ready).toBe(false)
+    expect(result.error).toContain('Failed to run agy')
   })
 
-  it('executes real test fixture script when on windows', async () => {
-    if (process.platform !== 'win32') return
-    const fixturePath = path.resolve(__dirname, '../fixtures/cli-agents/fake-agy.cmd')
-    const manager = new CliBinaryManager({ platform: 'win32' })
-    const result = await manager.detect('antigravity', fixturePath)
-    expect(result.found).toBe(true)
-    expect(result.version).toBe('1.5.4')
-    expect(result.valid).toBe(true)
-  })
-
-  it('executes real test fixture for old opencode script on windows', async () => {
-    if (process.platform !== 'win32') return
-    const fixturePath = path.resolve(__dirname, '../fixtures/cli-agents/fake-opencode-old.cmd')
-    const manager = new CliBinaryManager({ platform: 'win32' })
-    const result = await manager.detect('opencode', fixturePath)
-    expect(result.found).toBe(true)
-    expect(result.version).toBe('1.19.5')
-    expect(result.valid).toBe(false)
-  })
-
-  it('threads injected platform to the command runner', async () => {
+  it('threads the injected platform to the command runner', async () => {
     const dir = createTmp()
-    const fakeBinary = path.join(dir, 'agy')
-    writeFileSync(fakeBinary, 'echo 1.5.4')
+    writeFileSync(path.join(dir, 'agy'), 'echo 1.5.4')
 
     let seenPlatform: NodeJS.Platform | undefined
     const manager = new CliBinaryManager({
+      env: { PATH: dir },
       platform: 'darwin',
       runCommand: async (_file, _args, _env, platform) => {
         seenPlatform = platform
@@ -256,10 +176,23 @@ describe('CLI Agents — Binary Manager', () => {
       }
     })
 
-    const result = await manager.detect('antigravity', fakeBinary)
-    expect(result.found).toBe(true)
+    const result = await manager.check()
+    expect(result.installed).toBe(true)
     expect(seenPlatform).toBe('darwin')
+  })
 
-    cleanupTmp()
+  it('runs a real agy.cmd shim on Windows', async () => {
+    if (!isWin) return
+    const dir = createTmp()
+    copyFileSync(path.resolve(__dirname, '../fixtures/cli-agents/fake-agy.cmd'), path.join(dir, 'agy.cmd'))
+    const { Path: _path, PATH: _PATH, ...rest } = process.env
+    const systemPath = _PATH ?? _path ?? ''
+    const manager = new CliBinaryManager({
+      env: { ...rest, PATH: `${dir}${path.delimiter}${systemPath}`, LOCALAPPDATA: '', USERPROFILE: '' }
+    })
+
+    const result = await manager.check()
+    expect(result.version).toBe('1.5.4')
+    expect(result.ready).toBe(true)
   })
 })

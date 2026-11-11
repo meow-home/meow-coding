@@ -1,12 +1,8 @@
 import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 import { describe, expect, it, vi } from 'vitest'
-import type {
-  CliAgent,
-  CliPolicy,
-  CliSessionStatus,
-  CliTranscriptItem
-} from '../../src/shared/types'
+import type { CliTranscriptItem } from '../../src/shared/types'
+import type { CliPolicy } from '../../src/main/cli-agents/policy'
 import {
   RESULT_MAX_BYTES,
   STDERR_MAX_BYTES,
@@ -26,16 +22,6 @@ function createFakeProcess(pid = 1234) {
   proc.stderr = new PassThrough()
   proc.kill = vi.fn()
   return proc
-}
-
-const baseAgent: CliAgent = {
-  id: 'agy-1',
-  runtime: 'antigravity',
-  kind: 'google',
-  label: 'Antigravity Google',
-  mode: 'edit',
-  status: 'ready',
-  createdAt: 1000
 }
 
 const basePolicy: CliPolicy = {
@@ -86,17 +72,14 @@ describe('CliRunManager', () => {
     })
 
     const events: CliTranscriptItem[] = []
-    const statuses: CliSessionStatus[] = []
 
     const manager = new CliRunManager({
       spawn,
-      onEvent: (_sid, item) => events.push(item),
-      onStatus: (_sid, status) => statuses.push(status)
+      onEvent: (_sid, item) => events.push(item)
     })
 
     const result = await manager.runTask({
-      sessionId: 's-success',
-      agent: baseAgent,
+      runId: 's-success',
       task: 'Run inspection',
       cwd: '/test/dir',
       policy: basePolicy,
@@ -107,7 +90,6 @@ describe('CliRunManager', () => {
     expect(result.text).toBe('All tasks completed')
     expect(result.usage).toEqual({ input: 50, output: 25, total: 75 })
 
-    expect(statuses).toEqual(['running', 'idle'])
 
     const assistantItems = events.filter((e) => e.kind === 'assistant')
     expect(assistantItems.length).toBeGreaterThan(0)
@@ -133,17 +115,14 @@ describe('CliRunManager', () => {
     })
 
     const events: CliTranscriptItem[] = []
-    const statuses: CliSessionStatus[] = []
 
     const manager = new CliRunManager({
       spawn,
-      onEvent: (_sid, item) => events.push(item),
-      onStatus: (_sid, status) => statuses.push(status)
+      onEvent: (_sid, item) => events.push(item)
     })
 
     const result = await manager.runTask({
-      sessionId: 's-no-terminal',
-      agent: baseAgent,
+      runId: 's-no-terminal',
       task: 'Run without result event',
       cwd: '/test/dir',
       policy: basePolicy,
@@ -151,7 +130,6 @@ describe('CliRunManager', () => {
     })
 
     expect(result.status).toBe('completed')
-    expect(statuses).toEqual(['running', 'idle'])
 
     const notices = events.filter((e) => e.kind === 'notice')
     expect(notices.length).toBeGreaterThan(0)
@@ -173,17 +151,14 @@ describe('CliRunManager', () => {
     })
 
     const events: CliTranscriptItem[] = []
-    const statuses: CliSessionStatus[] = []
 
     const manager = new CliRunManager({
       spawn,
-      onEvent: (_sid, item) => events.push(item),
-      onStatus: (_sid, status) => statuses.push(status)
+      onEvent: (_sid, item) => events.push(item)
     })
 
     const result = await manager.runTask({
-      sessionId: 's-fail',
-      agent: baseAgent,
+      runId: 's-fail',
       task: 'Failing command',
       cwd: '/test/dir',
       policy: basePolicy,
@@ -192,7 +167,7 @@ describe('CliRunManager', () => {
 
     expect(result.status).toBe('failed')
     expect(result.error).toContain('code 2')
-    expect(statuses).toEqual(['running', 'failed'])
+    expect(result.error).toContain('Fatal error in CLI command')
 
     const warnNotices = events.filter((e) => e.kind === 'notice' && e.level === 'warn')
     expect(warnNotices.length).toBe(1)
@@ -211,19 +186,16 @@ describe('CliRunManager', () => {
     const spawn = vi.fn().mockReturnValue(proc)
 
     const events: CliTranscriptItem[] = []
-    const statuses: CliSessionStatus[] = []
 
     const manager = new CliRunManager({
       spawn,
       killTree,
       timeoutMs: 25,
-      onEvent: (_sid, item) => events.push(item),
-      onStatus: (_sid, status) => statuses.push(status)
+      onEvent: (_sid, item) => events.push(item)
     })
 
     const result = await manager.runTask({
-      sessionId: 's-timeout',
-      agent: baseAgent,
+      runId: 's-timeout',
       task: 'Hanging command',
       cwd: '/test/dir',
       policy: { ...basePolicy, timeoutMs: 25 },
@@ -232,7 +204,6 @@ describe('CliRunManager', () => {
 
     expect(result.status).toBe('timeout')
     expect(killTree).toHaveBeenCalledWith(1004)
-    expect(statuses).toEqual(['running', 'failed'])
 
     const resultItems = events.filter((e) => e.kind === 'result')
     expect(resultItems.length).toBe(1)
@@ -247,39 +218,35 @@ describe('CliRunManager', () => {
     const spawn = vi.fn().mockReturnValue(proc)
 
     const events: CliTranscriptItem[] = []
-    const statuses: CliSessionStatus[] = []
 
     const manager = new CliRunManager({
       spawn,
       killTree,
-      onEvent: (_sid, item) => events.push(item),
-      onStatus: (_sid, status) => statuses.push(status)
+      onEvent: (_sid, item) => events.push(item)
     })
 
     const runPromise = manager.runTask({
-      sessionId: 's-cancel',
-      agent: baseAgent,
+      runId: 's-cancel',
       task: 'Task to cancel',
       cwd: '/test/dir',
       policy: basePolicy,
       binaryPath: 'agy'
     })
 
-    expect(manager.activeCount('antigravity')).toBe(1)
+    expect(manager.activeCount()).toBe(1)
     const cancelled = manager.cancel('s-cancel')
     expect(cancelled).toBe(true)
 
     const result = await runPromise
     expect(result.status).toBe('cancelled')
     expect(killTree).toHaveBeenCalledWith(1005)
-    expect(statuses).toEqual(['running', 'idle'])
 
     const resultItems = events.filter((e) => e.kind === 'result')
     expect(resultItems.length).toBe(1)
     expect((resultItems[0] as any).status).toBe('cancelled')
   })
 
-  it('per-runtime concurrency queue (two runs, max 1 in the test) and FIFO order', async () => {
+  it('runs one task at a time by default and keeps FIFO order', async () => {
     const proc1 = createFakeProcess(2001)
     const proc2 = createFakeProcess(2002)
 
@@ -291,12 +258,11 @@ describe('CliRunManager', () => {
 
     const manager = new CliRunManager({
       spawn,
-      maxConcurrent: { antigravity: 1 }
+      maxConcurrent: 1
     })
 
     const run1 = manager.runTask({
-      sessionId: 's-c1',
-      agent: baseAgent,
+      runId: 's-c1',
       task: 'Task 1',
       cwd: '/test',
       policy: basePolicy,
@@ -304,16 +270,15 @@ describe('CliRunManager', () => {
     })
 
     const run2 = manager.runTask({
-      sessionId: 's-c2',
-      agent: baseAgent,
+      runId: 's-c2',
       task: 'Task 2',
       cwd: '/test',
       policy: basePolicy,
       binaryPath: 'agy'
     })
 
-    expect(manager.activeCount('antigravity')).toBe(1)
-    expect(manager.queuedCount('antigravity')).toBe(1)
+    expect(manager.activeCount()).toBe(1)
+    expect(manager.queuedCount()).toBe(1)
 
     // Complete run 1
     proc1.stdout.write(
@@ -327,8 +292,8 @@ describe('CliRunManager', () => {
     expect(res1.text).toBe('Task 1 done')
 
     // Run 2 starts
-    expect(manager.activeCount('antigravity')).toBe(1)
-    expect(manager.queuedCount('antigravity')).toBe(0)
+    expect(manager.activeCount()).toBe(1)
+    expect(manager.queuedCount()).toBe(0)
 
     // Complete run 2
     proc2.stdout.write(
@@ -340,164 +305,16 @@ describe('CliRunManager', () => {
     const res2 = await run2
     expect(res2.status).toBe('completed')
     expect(res2.text).toBe('Task 2 done')
-    expect(manager.activeCount('antigravity')).toBe(0)
+    expect(manager.activeCount()).toBe(0)
   })
 
-  it('Antigravity Google serialization (two Google agents, max concurrent 2, still serialized)', async () => {
-    const procG1 = createFakeProcess(3001)
-    const procG2 = createFakeProcess(3002)
-
-    let callCount = 0
-    const spawn = vi.fn().mockImplementation(() => {
-      callCount++
-      return callCount === 1 ? procG1 : procG2
-    })
-
-    const manager = new CliRunManager({
-      spawn,
-      maxConcurrent: { antigravity: 2 }
-    })
-
-    const googleAgent1: CliAgent = { ...baseAgent, id: 'g-1', kind: 'google' }
-    const googleAgent2: CliAgent = { ...baseAgent, id: 'g-2', kind: 'google' }
-
-    const runG1 = manager.runTask({
-      sessionId: 's-g1',
-      agent: googleAgent1,
-      task: 'Task Google 1',
-      cwd: '/test',
-      policy: basePolicy,
-      binaryPath: 'agy'
-    })
-
-    const runG2 = manager.runTask({
-      sessionId: 's-g2',
-      agent: googleAgent2,
-      task: 'Task Google 2',
-      cwd: '/test',
-      policy: basePolicy,
-      binaryPath: 'agy'
-    })
-
-    // Serialized because both are Google agents holding the Google credential lock
-    expect(manager.activeCount('antigravity')).toBe(1)
-    expect(manager.queuedCount('antigravity')).toBe(1)
-
-    procG1.stdout.write(
-      JSON.stringify({ event: 'result', result: { status: 'SUCCESS', response: 'G1 done' } }) + '\n'
-    )
-    procG1.emit('exit', 0, null)
-    await runG1
-
-    expect(manager.activeCount('antigravity')).toBe(1)
-    expect(manager.queuedCount('antigravity')).toBe(0)
-
-    procG2.stdout.write(
-      JSON.stringify({ event: 'result', result: { status: 'SUCCESS', response: 'G2 done' } }) + '\n'
-    )
-    procG2.emit('exit', 0, null)
-    await runG2
-
-    expect(manager.activeCount('antigravity')).toBe(0)
-    expect(manager.queuedCount('antigravity')).toBe(0)
-  })
-
-  it('env allowlist: an inherited OPENAI_API_KEY is stripped; GEMINI_API_KEY from input env is kept for gemini-key', async () => {
-    const origOpenAi = process.env.OPENAI_API_KEY
-    process.env.OPENAI_API_KEY = 'inherited-openai-secret'
-
-    try {
-      let capturedEnv: NodeJS.ProcessEnv | undefined
-      const proc = createFakeProcess(4001)
-      const spawn = vi.fn().mockImplementation((_cmd, _args, opts) => {
-        capturedEnv = opts.env
-        queueMicrotask(() => {
-          proc.emit('exit', 0, null)
-        })
-        return proc
-      })
-
-      const geminiAgent: CliAgent = {
-        ...baseAgent,
-        id: 'gemini-1',
-        kind: 'gemini-key'
-      }
-
-      const manager = new CliRunManager({ spawn })
-      await manager.runTask({
-        sessionId: 's-env-check',
-        agent: geminiAgent,
-        task: 'Test environment variables',
-        cwd: '/test',
-        policy: basePolicy,
-        binaryPath: 'agy',
-        env: {
-          GEMINI_API_KEY: 'injected-gemini-key',
-          ANTHROPIC_API_KEY: 'should-be-stripped'
-        }
-      })
-
-      expect(capturedEnv).toBeDefined()
-      expect(capturedEnv!.OPENAI_API_KEY).toBeUndefined()
-      expect(capturedEnv!.ANTHROPIC_API_KEY).toBeUndefined()
-      expect(capturedEnv!.GEMINI_API_KEY).toBe('injected-gemini-key')
-    } finally {
-      if (origOpenAi === undefined) {
-        delete process.env.OPENAI_API_KEY
-      } else {
-        process.env.OPENAI_API_KEY = origOpenAi
-      }
-    }
-  })
-
-  it('OpenCode profile env (XDG_DATA_HOME, OPENCODE_DB) is passed', async () => {
-    let capturedEnv: NodeJS.ProcessEnv | undefined
-    const proc = createFakeProcess(5001)
-    const spawn = vi.fn().mockImplementation((_cmd, _args, opts) => {
-      capturedEnv = opts.env
-      queueMicrotask(() => {
-        proc.emit('exit', 0, null)
-      })
-      return proc
-    })
-
-    const opencodeAgent: CliAgent = {
-      id: 'oc-1',
-      runtime: 'opencode',
-      kind: 'profile',
-      label: 'OpenCode Work',
-      mode: 'edit',
-      status: 'ready',
-      createdAt: 1000
-    }
-
-    const manager = new CliRunManager({ spawn })
-    await manager.runTask({
-      sessionId: 's-oc-env',
-      agent: opencodeAgent,
-      task: 'Run opencode task',
-      cwd: '/test',
-      policy: basePolicy,
-      binaryPath: 'opencode.cmd',
-      env: {
-        XDG_DATA_HOME: '/custom/profile/data',
-        OPENCODE_DB: '/custom/profile/data/opencode.db'
-      }
-    })
-
-    expect(capturedEnv).toBeDefined()
-    expect(capturedEnv!.XDG_DATA_HOME).toBe('/custom/profile/data')
-    expect(capturedEnv!.OPENCODE_DB).toBe('/custom/profile/data/opencode.db')
-  })
-
-  it('a second runTask for the same session rejects', async () => {
+  it('a second runTask for the same run id rejects', async () => {
     const proc = createFakeProcess(6001)
     const spawn = vi.fn().mockReturnValue(proc)
     const manager = new CliRunManager({ spawn })
 
     const runPromise1 = manager.runTask({
-      sessionId: 'same-session',
-      agent: baseAgent,
+      runId: 'same-session',
       task: 'Task 1',
       cwd: '/test',
       policy: basePolicy,
@@ -506,8 +323,7 @@ describe('CliRunManager', () => {
 
     await expect(
       manager.runTask({
-        sessionId: 'same-session',
-        agent: baseAgent,
+        runId: 'same-session',
         task: 'Task 2',
         cwd: '/test',
         policy: basePolicy,
@@ -526,8 +342,7 @@ describe('CliRunManager', () => {
 
     await expect(
       manager.runTask({
-        sessionId: 's-empty',
-        agent: baseAgent,
+        runId: 's-empty',
         task: '   ',
         cwd: '/test',
         policy: basePolicy
@@ -537,8 +352,7 @@ describe('CliRunManager', () => {
     const oversized = 'x'.repeat(TASK_MAX_BYTES + 1)
     await expect(
       manager.runTask({
-        sessionId: 's-oversized',
-        agent: baseAgent,
+        runId: 's-oversized',
         task: oversized,
         cwd: '/test',
         policy: basePolicy
@@ -552,12 +366,11 @@ describe('CliRunManager', () => {
 
     const manager = new CliRunManager({
       spawn,
-      maxConcurrent: { antigravity: 1 }
+      maxConcurrent: 1
     })
 
     const run1 = manager.runTask({
-      sessionId: 's-run-1',
-      agent: baseAgent,
+      runId: 's-run-1',
       task: 'Task 1',
       cwd: '/test',
       policy: basePolicy,
@@ -565,8 +378,7 @@ describe('CliRunManager', () => {
     })
 
     const run2 = manager.runTask({
-      sessionId: 's-run-2',
-      agent: baseAgent,
+      runId: 's-run-2',
       task: 'Task 2',
       cwd: '/test',
       policy: basePolicy,
@@ -583,8 +395,7 @@ describe('CliRunManager', () => {
 
     // Add another task to queue
     const run3 = manager.runTask({
-      sessionId: 's-run-3',
-      agent: baseAgent,
+      runId: 's-run-3',
       task: 'Task 3',
       cwd: '/test',
       policy: basePolicy,
@@ -599,44 +410,6 @@ describe('CliRunManager', () => {
     const [res1, res3] = await Promise.all([run1, run3])
     expect(res1.status).toBe('cancelled')
     expect(res3.status).toBe('cancelled')
-  })
-
-  it('transitions session status to needs-attention when denied actions are present', async () => {
-    const proc = createFakeProcess(8001)
-    const spawn = vi.fn().mockImplementation(() => {
-      queueMicrotask(() => {
-        proc.stdout.write(
-          JSON.stringify({
-            event: 'result',
-            result: {
-              status: 'SUCCESS',
-              response: 'Partially done',
-              denied_actions: [{ action: 'command', parameters: { CommandLine: 'rm -rf /' } }]
-            }
-          }) + '\n'
-        )
-        proc.emit('exit', 0, null)
-      })
-      return proc
-    })
-
-    const statuses: CliSessionStatus[] = []
-    const manager = new CliRunManager({
-      spawn,
-      onStatus: (_sid, s) => statuses.push(s)
-    })
-
-    const result = await manager.runTask({
-      sessionId: 's-denied',
-      agent: baseAgent,
-      task: 'Task with denials',
-      cwd: '/test',
-      policy: basePolicy,
-      binaryPath: 'agy'
-    })
-
-    expect(result.deniedActions).toEqual(['command(rm -rf /)'])
-    expect(statuses).toEqual(['running', 'needs-attention'])
   })
 
   it('truncates result text and stderr when exceeding byte limits', async () => {
@@ -668,8 +441,7 @@ describe('CliRunManager', () => {
     })
 
     const result = await manager.runTask({
-      sessionId: 's-truncate',
-      agent: baseAgent,
+      runId: 's-truncate',
       task: 'Task with huge output',
       cwd: '/test',
       policy: basePolicy,
@@ -686,43 +458,6 @@ describe('CliRunManager', () => {
     expect(stderrNotice?.level).toBe('info')
   })
 
-  it('passes windowsVerbatimArguments: true when wrapped with cmd.exe on win32 (OpenCode .cmd)', async () => {
-    let capturedOptions: any
-    const proc = createFakeProcess(9901)
-    const spawn = vi.fn().mockImplementation((_cmd, _args, opts) => {
-      capturedOptions = opts
-      queueMicrotask(() => {
-        proc.emit('exit', 0, null)
-      })
-      return proc
-    })
-
-    const manager = new CliRunManager({ spawn })
-    const ocAgent: CliAgent = {
-      id: 'oc-cmd',
-      runtime: 'opencode',
-      kind: 'profile',
-      label: 'OpenCode Cmd',
-      mode: 'edit',
-      status: 'ready',
-      createdAt: 1000
-    }
-
-    await manager.runTask({
-      sessionId: 's-opencode-cmd',
-      agent: ocAgent,
-      task: 'Say "hello world"',
-      cwd: '/test',
-      policy: basePolicy,
-      binaryPath: 'opencode.cmd'
-    })
-
-    expect(capturedOptions).toBeDefined()
-    if (process.platform === 'win32') {
-      expect(capturedOptions.windowsVerbatimArguments).toBe(true)
-    }
-  })
-
   it('passes windowsVerbatimArguments: true when resolved command is cmd.exe', async () => {
     let capturedOptions: any
     const proc = createFakeProcess(9902)
@@ -736,8 +471,7 @@ describe('CliRunManager', () => {
 
     const manager = new CliRunManager({ spawn })
     await manager.runTask({
-      sessionId: 's-cmd-exe',
-      agent: baseAgent,
+      runId: 's-cmd-exe',
       task: 'Say hello',
       cwd: '/test',
       policy: basePolicy,
@@ -760,8 +494,7 @@ describe('CliRunManager', () => {
     })
 
     const runPromise = manager.runTask({
-      sessionId: 's-zero-timeout',
-      agent: baseAgent,
+      runId: 's-zero-timeout',
       task: 'Task with zero timeout',
       cwd: '/test',
       policy: { ...basePolicy, timeoutMs: 0 },
@@ -770,7 +503,7 @@ describe('CliRunManager', () => {
 
     await new Promise((r) => setTimeout(r, 70))
     expect(killTree).not.toHaveBeenCalled()
-    expect(manager.activeCount('antigravity')).toBe(1)
+    expect(manager.activeCount()).toBe(1)
 
     proc.emit('exit', 0, null)
     const result = await runPromise
@@ -794,8 +527,7 @@ describe('CliRunManager', () => {
     })
 
     const runPromise = manager.runTask({
-      sessionId: 's-kill-wait',
-      agent: baseAgent,
+      runId: 's-kill-wait',
       task: 'Task to cancel with slow kill',
       cwd: '/test',
       policy: basePolicy,
@@ -838,8 +570,7 @@ describe('CliRunManager', () => {
     })
 
     await manager.runTask({
-      sessionId: 's-stderr-info',
-      agent: baseAgent,
+      runId: 's-stderr-info',
       task: 'Task with benign stderr',
       cwd: '/test',
       policy: basePolicy,
@@ -854,49 +585,22 @@ describe('CliRunManager', () => {
 })
 
 describe('buildCliEnv', () => {
-  it('preserves allowlisted vars and strips unknown API keys', () => {
-    const srcEnv: NodeJS.ProcessEnv = {
-      PATH: '/usr/bin:/bin',
+  it('keeps allowlisted variables and drops everything else, including API keys', () => {
+    const env = buildCliEnv({
+      PATH: '/usr/bin',
       HOME: '/home/user',
-      USERPROFILE: 'C:\\Users\\user',
-      TMP: '/tmp',
-      LANG: 'en_US.UTF-8',
       LC_ALL: 'en_US.UTF-8',
-      HTTP_PROXY: 'http://proxy.local:8080',
-      OPENAI_API_KEY: 'sk-secret-123',
-      RANDOM_VAR: 'random-val'
-    }
+      OPENAI_API_KEY: 'sk-secret',
+      GEMINI_API_KEY: 'gm-secret',
+      RANDOM_VAR: 'x'
+    }, 'linux')
 
-    const env = buildCliEnv(baseAgent, undefined, srcEnv, 'linux')
-    expect(env.PATH).toBe('/usr/bin:/bin')
-    expect(env.HOME).toBe('/home/user')
-    expect(env.LANG).toBe('en_US.UTF-8')
-    expect(env.LC_ALL).toBe('en_US.UTF-8')
-    expect(env.HTTP_PROXY).toBe('http://proxy.local:8080')
-    expect(env.OPENAI_API_KEY).toBeUndefined()
-    expect(env.RANDOM_VAR).toBeUndefined()
+    expect(env).toEqual({ PATH: '/usr/bin', HOME: '/home/user', LC_ALL: 'en_US.UTF-8' })
   })
 
-  it('drops unexpected keys from inputEnv and only allows the explicit whitelist', () => {
-    const agent: CliAgent = {
-      ...baseAgent,
-      id: 'gemini-1',
-      kind: 'gemini-key'
-    }
-
-    const inputEnv = {
-      GEMINI_API_KEY: 'valid-gemini-key',
-      GITHUB_TOKEN: 'leaked-token',
-      AWS_SECRET_ACCESS_KEY: 'leaked-aws-key',
-      CUSTOM_SECRET: 'leaked-secret'
-    }
-
-    const env = buildCliEnv(agent, inputEnv, { PATH: '/usr/bin' }, 'linux')
-    expect(env.GEMINI_API_KEY).toBe('valid-gemini-key')
-    expect(env.PATH).toBe('/usr/bin')
-    expect(env.GITHUB_TOKEN).toBeUndefined()
-    expect(env.AWS_SECRET_ACCESS_KEY).toBeUndefined()
-    expect(env.CUSTOM_SECRET).toBeUndefined()
+  it('matches allowlisted names case-insensitively on Windows', () => {
+    const env = buildCliEnv({ Path: 'C:\\bin', userprofile: 'C:\\Users\\u', SECRET: 'x' }, 'win32')
+    expect(env).toEqual({ Path: 'C:\\bin', userprofile: 'C:\\Users\\u' })
   })
 })
 

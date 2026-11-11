@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { SessionDelegationStore } from './session-delegation-store'
 import { normalizeProjectPath } from './session-delegation-store'
 import type { SessionDelegation, DelegationStatus } from '../shared/types'
+import { ANTIGRAVITY_AGENT_ID, ANTIGRAVITY_AGENT_NAME } from '../shared/types'
 import type {
   AgentRunContext,
   AgentTurnResult,
@@ -24,18 +25,9 @@ export interface DelegationRuntime {
   appendResult(input: DelegationResultInput): Promise<void>
   wakeSource(input: DelegationResultInput): Promise<void>
   stopRun(agentId: string): void
-  resolveCliAgent(agentId: string): { id: string; label: string } | undefined
-  resolveOrCreateCliSession(input: { projectPath: string; agentId: string; cliSessionId?: string }): { id: string; title: string }
-  runCliTask(input: {
-    delegationId: string
-    sourceAgentId: string
-    sourceName: string
-    targetCliAgentId: string
-    cliSessionId: string
-    task: string
-  }): Promise<AgentTurnResult>
-  stopCliTask(cliSessionId: string): void
-  isCliBusy?(cliSessionId: string): boolean
+  /** Runs one task on the Antigravity CLI in `cwd`; `delegationId` is the handle for `stopCliTask`. */
+  runCliTask(input: { delegationId: string; cwd: string; task: string }): Promise<AgentTurnResult>
+  stopCliTask(delegationId: string): void
 }
 
 export interface CreateDelegationInput {
@@ -46,9 +38,7 @@ export interface CreateDelegationInput {
 
 export interface CreateCliDelegationInput {
   sourceRun: AgentRunContext
-  targetCliAgentId: string
   task: string
-  cliSessionId?: string
 }
 
 export interface CreateExternalDelegationInput {
@@ -199,33 +189,22 @@ export class SessionDelegationService {
     }
     const source = this.runtime.resolveAgent(sourceRun.agentId)
     if (!source) throw new Error(`[meow] Source session does not exist: ${sourceRun.agentId}`)
-    const cliAgent = this.runtime.resolveCliAgent(input.targetCliAgentId)
-    if (!cliAgent) throw new Error(`[meow] CLI agent does not exist: ${input.targetCliAgentId}`)
-
-    const cliSession = this.runtime.resolveOrCreateCliSession({
-      projectPath: source.projectPath,
-      agentId: input.targetCliAgentId,
-      cliSessionId: input.cliSessionId
-    })
-
-    const task = this.validateTask(input.task, input.targetCliAgentId)
+    const task = this.validateTask(input.task, ANTIGRAVITY_AGENT_ID)
 
     const record = this.store.create({
       id: this.id(),
       projectPath: source.projectPath,
       sourceAgentId: sourceRun.agentId,
       sourceSessionId: sourceRun.sessionId,
-      targetAgentId: input.targetCliAgentId,
-      targetSessionId: cliSession.id,
-      targetBusyAtCreation: this.runtime.isCliBusy?.(cliSession.id) ?? false,
+      targetAgentId: ANTIGRAVITY_AGENT_ID,
+      targetSessionId: ANTIGRAVITY_AGENT_ID,
+      targetBusyAtCreation: this.pumping.has(ANTIGRAVITY_AGENT_ID),
       task,
       sourceKind: 'session',
-      targetKind: 'cli',
-      targetCliAgentId: input.targetCliAgentId,
-      targetCliSessionId: cliSession.id
+      targetKind: 'cli'
     })
     this.emit(record)
-    this.notifyAgentAvailable(input.targetCliAgentId)
+    this.notifyAgentAvailable(ANTIGRAVITY_AGENT_ID)
     return record
   }
 
@@ -303,11 +282,6 @@ export class SessionDelegationService {
             if (failed) this.emit(failed)
             continue
           }
-          const cliSessionId = next.targetCliSessionId ?? next.targetSessionId
-          if (this.runtime.isCliBusy?.(cliSessionId)) {
-            await this.waitForAvailable(targetAgentId)
-            continue
-          }
           await this.runQueued(next)
         } else {
           const target = this.runtime.resolveAgent(targetAgentId)
@@ -364,10 +338,7 @@ export class SessionDelegationService {
     if (running.targetKind === 'cli') {
       result = await this.runtime.runCliTask({
         delegationId: running.id,
-        sourceAgentId: running.sourceAgentId,
-        sourceName,
-        targetCliAgentId: running.targetCliAgentId ?? running.targetAgentId,
-        cliSessionId: running.targetCliSessionId ?? running.targetSessionId,
+        cwd: running.projectPath,
         task: running.task
       })
     } else {
@@ -413,26 +384,21 @@ export class SessionDelegationService {
       return
     }
     const isCli = record.targetKind === 'cli'
-    const targetCliAgentId = record.targetCliAgentId ?? record.targetAgentId
-    const targetAgentId = isCli ? targetCliAgentId : record.targetAgentId
     const targetName = isCli
-      ? this.runtime.resolveCliAgent(targetCliAgentId)?.label ?? targetCliAgentId
+      ? ANTIGRAVITY_AGENT_NAME
       : this.runtime.resolveAgent(record.targetAgentId)?.name ?? record.targetAgentId
 
     const input: DelegationResultInput = {
       delegationId: record.id,
       sourceAgentId: record.sourceAgentId,
       sourceSessionId: record.sourceSessionId,
-      targetAgentId,
+      targetAgentId: record.targetAgentId,
       targetName,
       status: statusToReason(record.status),
       ...(record.result !== undefined ? { result: record.result } : {}),
       ...(record.error !== undefined ? { error: record.error } : {}),
       touchedFiles: record.touchedFiles ?? [],
-      ...(isCli ? {
-        targetKind: record.targetKind ?? 'session',
-        cliSessionId: record.targetCliSessionId
-      } : {})
+      ...(isCli ? { targetKind: 'cli' as const } : {})
     }
     // Terminal already persisted before this call. Append the idempotent
     // result message, then mark delivered, then wake the source.
@@ -484,10 +450,7 @@ export class SessionDelegationService {
     if (record.status === 'queued') return this.cancelQueued(id)
     if (record.status === 'running' || record.status === 'waiting_for_input') {
       if (record.targetKind === 'cli') {
-        const cliSessionId = record.targetCliSessionId ?? record.targetSessionId
-        if (cliSessionId) {
-          this.runtime.stopCliTask(cliSessionId)
-        }
+        this.runtime.stopCliTask(record.id)
       } else {
         this.runtime.stopRun(record.targetAgentId)
       }
@@ -501,16 +464,6 @@ export class SessionDelegationService {
       const next = this.store.transition(d.id, d.revision, 'failed', {
         finishedAt: this.now(),
         error: '[meow] Target session was removed.'
-      })
-      if (next) this.emit(next)
-    }
-  }
-
-  async handleCliAgentRemoved(agentId: string): Promise<void> {
-    for (const d of this.store.list({ targetAgentId: agentId }).filter(x => x.status === 'queued' && x.targetKind === 'cli')) {
-      const next = this.store.transition(d.id, d.revision, 'failed', {
-        finishedAt: this.now(),
-        error: '[meow] CLI agent was removed.'
       })
       if (next) this.emit(next)
     }

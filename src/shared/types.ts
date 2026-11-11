@@ -179,7 +179,6 @@ export interface ChatDelegationMeta {
   peerAgentId: string
   peerName: string
   peerKind?: 'session' | 'cli'
-  cliSessionId?: string
 }
 
 export interface SessionDelegation {
@@ -208,8 +207,6 @@ export interface SessionDelegation {
   externalClient?: 'claude'
   planKey?: string
   targetKind?: 'session' | 'cli'
-  targetCliSessionId?: string
-  targetCliAgentId?: string
 }
 
 export type SessionDelegationSummary = SessionDelegation
@@ -635,43 +632,11 @@ export interface TerminalInfo {
 
 export interface TerminalCreateOptions { cwd?: string; command?: string; title?: string }
 
-export type CliRuntimeId = 'antigravity' | 'opencode'
-export type CliAgentKind = 'google' | 'gemini-key' | 'profile'
-export type CliAgentStatus = 'ready' | 'needs-login' | 'quota' | 'disabled'
-export type CliAgentMode = 'read' | 'edit' | 'full'
-export type CliSessionStatus = 'idle' | 'running' | 'needs-attention' | 'failed'
+export const ANTIGRAVITY_AGENT_ID = 'antigravity'
+export const ANTIGRAVITY_AGENT_NAME = 'Antigravity'
+
 export type CliTaskStatus =
   | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout' | 'interrupted'
-
-export interface CliAgent {
-  id: string
-  runtime: CliRuntimeId
-  kind: CliAgentKind
-  label: string
-  email?: string
-  plan?: string
-  provider?: string          // opencode only
-  profileDir?: string        // relative to userData, opencode only
-  model?: string
-  mode: CliAgentMode
-  status: CliAgentStatus
-  active?: boolean           // antigravity google: the machine credential currently points here
-  createdAt: number
-  lastUsedAt?: number
-}
-
-export interface CliSessionMeta {
-  id: string
-  agentId: string
-  projectPath: string
-  cwd: string
-  title: string
-  status: CliSessionStatus
-  cliConversationId?: string
-  createdAt: number
-  updatedAt: number
-  delegatedBy?: { sourceAgentId: string; sourceSessionId: string; delegationId: string }
-}
 
 export type CliTranscriptItem =
   | { kind: 'user'; text: string; at: number }
@@ -681,47 +646,26 @@ export type CliTranscriptItem =
   | { kind: 'result'; status: CliTaskStatus; text: string; usage?: TokenUsage
       touchedFiles?: string[]; deniedActions?: string[]; at: number }
 
-export interface CliRunEvent {
-  sessionId: string
-  item?: CliTranscriptItem
-  status?: CliSessionStatus
-}
-
-export interface CliRuntimeConfig {
-  enabled: boolean
-  binaryPath: string | null
-  version?: string | null
-  maxConcurrent?: number
-}
-
-export interface CliDelegationSettings {
-  allow: boolean
-  maxRounds: number
-  maxNonterminalPerAgent: number
-}
-
-export interface CliAgentsStatus {
-  runtimes: Record<CliRuntimeId, CliRuntimeConfig>
-  agents: CliAgent[]
-  defaultAgentId?: string
-  delegation?: CliDelegationSettings
-}
-
-export interface CliRuntimeDetectResult {
-  runtime: CliRuntimeId
-  found: boolean
-  binaryPath: string | null
-  version: string | null
-  valid: boolean
-  minVersion: string
-  error?: string
-}
-
 export interface CliInstallDescriptor {
-  runtime: CliRuntimeId
   command: string
   args: string[]
   docUrl?: string
 }
 
+/** Whether the local Antigravity CLI (`agy`) can be used for delegation. */
+export interface CliCheckResult {
+  installed: boolean
+  binaryPath: string | null
+  version: string | null
+  minVersion: string
+  ready: boolean
+  error?: string
+  install: CliInstallDescriptor
+}
 
+export interface CliTestResult {
+  ok: boolean
+  text: string
+  error?: string
+  durationMs: number
+}

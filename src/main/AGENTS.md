@@ -7,10 +7,10 @@ handlers and the app lifecycle.
 
 - `index.ts` — `MainApp` coordinates everything: setState, forwards `agent:state`/`git:status` events
   to the renderer; `registerIpcHandlers`; window lifecycle; `before-quit` → `terminals.flush()`,
-  `Promise.allSettled([terminals.stopAll(), pty.stopAll(), cliAgents.cancelAll()])`.
+  `Promise.allSettled([terminals.stopAll(), pty.stopAll(), antigravity.cancelAll()])`.
   Composes `TerminalManager` (`userData/terminals`, dedicated `PtyManager`, `resolveTerminalShell` via `meow.json`)
   and exposes session terminal IPC channels; cleans up terminals on `agent:remove` before workspace removal.
-  Composes `CliAgentsManager` (`cli-agents/`): wires CLI runtimes, profiles, sessions, and runs, registers IPC handlers via `registerCliAgentsIpc`, restores interrupted sessions on ready, and terminates active runs on quit.
+  Composes `AntigravityCli` (`cli-agents/`): readiness check/test IPC via `registerCliAgentsIpc`, runs delegated CLI tasks for the delegation runtime (`runCliTask`/`stopCliTask`), and terminates active runs on quit.
   Composes the delegation runtime: owns the `SessionDelegationStore` (`userData/delegations.json`) +
   `SessionDelegationService`, passes the narrow `delegation` adapter (create/peers) into `MeowAgentManager`,
   starts the service on ready, suspends+flushes on quit, drives `notifyAgentAvailable` on each turn
@@ -90,9 +90,9 @@ handlers and the app lifecycle.
   UTF-8 results to 64 KiB, stores the turn's `endReason` (`max-steps`/`stuck`/`length`/`refusal`, from
   `AgentTurnResult.endReason`, which the manager captures from the run's `done` event; a cut turn with no assistant text is still
   `completed` — only an abort is `cancelled`), recovers on restart (interrupt in-flight, resume queued, redeliver once), and
-  handles agent/project removal (`handleCliAgentRemoved` fails queued CLI delegations). `createCli` targets
-  external CLI agents (`targetKind: 'cli'`, resolves or reuses CLI session, runs via `runtime.runCliTask`, cancels
-  via `runtime.stopCliTask`, delivers result and wakes the source Meow session). `createExternal` (source-less
+  handles agent/project removal. `createCli({ sourceRun, task })` targets
+  the Antigravity CLI (`targetKind: 'cli'`, fixed target id `antigravity` so runs are serial, runs via `runtime.runCliTask` in the source project folder, cancels
+  via `runtime.stopCliTask(delegationId)`, delivers result and wakes the source Meow session). `createExternal` (source-less
   `sourceKind: 'external'` records: no source checks, no result append/wake, only `markDelivered`) and `cancel(id)`
   (queued → cancelled; running → `runtime.stopRun` or `runtime.stopCliTask`, then waits up to 5 s for the terminal status
   and returns the latest record). `validateTaskText` (trim, non-empty, ≤ 32 KiB) is exported for the external facade.
@@ -138,7 +138,7 @@ handlers and the app lifecycle.
   notification is skipped while the window is focused (the renderer shows its own toast).
 - `window-chrome.ts` — `getWindowChromeOptions`: hides the title-bar on Windows/Linux; `applyTitleBarTheme` re-colors the Windows overlay (min/max/close) live when the app theme toggles dark/light. The OS draws those buttons, so `TITLE_BAR_COLORS` is their only color source and must equal the renderer's title bar surface (`.title-bar-right` → `var(--bg-chat)`, the chat surface); `tests/unit/window-chrome.test.ts` parses `styles.css` and fails if the two drift apart.
 - `vault.ts` — encrypted secret store (safeStorage) for provider API keys.
-- `cli-agents/` — CLI agent support (runtimes catalog, binary detection and semver checking, agent and profile stores, vault secrets); see its AGENTS.md.
+- `cli-agents/` — Antigravity CLI as a headless delegation worker (binary check, run manager, stream parser); see its AGENTS.md.
 - `browser/` — backend contract, per-session router (built-in default), built-in backend (`embedded-browser.ts`) with the Electron host (`electron-tab-host.ts`: page + shield views), Chrome backend (BrowserBridge + Chrome launcher), Electron-free tab/command core (`browser-tab.ts` with the control state, lease, site approval and handoff, `cdp-commands.ts` with the sensitive-field refusal, `site-approval.ts`; `isLoopback` lives in `src/shared/loopback.ts`), the panel/IPC surface in `embedded-browser.ts` (one on-screen tab, freeze generation guard, user tab actions), trusted-extension store, snapshot format and snapshot file output.
 - `external-api/` — loopback API + CLI for delegation from Claude Code; see its AGENTS.md.
 
@@ -160,7 +160,7 @@ handlers and the app lifecycle.
   window-chrome, updater, models-catalog, model-variants, notification-service, file-suggest,
   file-watcher, git-status-service, alert-service, atomic-write, json-store, project-encode, log-manager,
   workspace-store, meow-agent-manager, ipc-contract, terminal-shell, terminal-buffer, terminal-store,
-  terminal-manager, cli-binary-manager, cli-agents-store, ...
+  terminal-manager, cli-binary-manager, cli-agents-manager, ...
 - Integration: `tests/integration/pty-manager.test.ts` (real spawn via ConPTY, uses fixture CLI),
   `tests/integration/terminal-manager.test.ts` (session terminal lifecycle via dedicated PTY),
   `agent-stream-overlap.test.ts`, `browser/bridge-flow.test.ts`.

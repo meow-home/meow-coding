@@ -3,13 +3,12 @@ import { createPortal } from 'react-dom'
 import type { BrowserInstallGuideEvent } from '@shared/ipc'
 import type { BrowserStatusInfo } from '@shared/browser-types'
 import type {
-  AgentConfig, AgentState, ArtifactEntry, CliAgent, CliAgentsStatus, CliSessionMeta, ImageAttachment, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
+  AgentConfig, AgentState, ArtifactEntry, ImageAttachment, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from '@shared/types'
 import { DRAFT_SESSION_ID } from '@shared/types'
 import Sidebar from './components/Sidebar'
 import SessionPanes from './components/SessionPanes'
 import BackgroundPanel from './components/BackgroundPanel'
-import CliSessionPane from './components/cli/CliSessionPane'
 import EmptyState from './components/EmptyState'
 import StatusBar from './components/StatusBar'
 import TitleBar from './components/TitleBar'
@@ -145,9 +144,6 @@ export default function App() {
   // so switching back is instant and hidden agents keep streaming into their feed.
   const [runtimes, setRuntimesState] = useState<Record<string, WorkspaceRuntime>>({})
   const [activePath, setActivePathState] = useState<string | null>(null)
-  const [activeCliSessionId, setActiveCliSessionId] = useState<string | null>(null)
-  const [cliAgentsStatus, setCliAgentsStatus] = useState<CliAgentsStatus | null>(null)
-  const [cliSessions, setCliSessions] = useState<CliSessionMeta[]>([])
   // Most recently used at the head; bounds keep-alive memory (LRU eviction).
   const [keepAliveOrder, setKeepAliveOrderState] = useState<string[]>([])
   const [backgrounds, setBackgrounds] = useState<Record<string, boolean>>({})
@@ -455,7 +451,6 @@ export default function App() {
   }, [setRuntimes, setKeepAliveOrder])
 
   const openWorkspace = useCallback(async (path: string) => {
-    setActiveCliSessionId(null)
     const rt = await window.api.openWorkspace(path)
     const list = await window.api.listArtifacts(path)
     setRuntimes(prev => ({ ...prev, [path]: rt }))
@@ -792,7 +787,6 @@ export default function App() {
 
   // Sidebar "+": switches the workspace to draft session state without creating an agent yet.
   const onNewSession = useCallback(async (path: string): Promise<boolean> => {
-    setActiveCliSessionId(null)
     if (activePathRef.current !== path) activate(path)
     setActiveSessionByPath(prev => ({ ...prev, [path]: DRAFT_SESSION_ID }))
     return true
@@ -827,7 +821,6 @@ export default function App() {
   }, [refreshWorkspaces])
 
   const onSelectSession = useCallback((path: string, id: string) => {
-    setActiveCliSessionId(null)
     if (activePathRef.current !== path) activate(path)
     handleWorkspaceActiveChange(path, id)
   }, [activate, handleWorkspaceActiveChange])
@@ -860,84 +853,6 @@ export default function App() {
   const onStopSession = useCallback((id: string) => {
     void window.api.stopChat(id)
   }, [])
-
-  const cliAgents = useMemo(() => cliAgentsStatus?.agents ?? [], [cliAgentsStatus])
-  const activeCliSession = useMemo(
-    () => (activeCliSessionId ? cliSessions.find(s => s.id === activeCliSessionId) ?? null : null),
-    [activeCliSessionId, cliSessions]
-  )
-  const activeCliAgent = useMemo(
-    () => (activeCliSession ? cliAgents.find(a => a.id === activeCliSession.agentId) ?? null : null),
-    [activeCliSession, cliAgents]
-  )
-
-  const refreshCliAgentsStatus = useCallback(async () => {
-    try {
-      const status = await window.api.getCliAgentsStatus()
-      setCliAgentsStatus(status)
-    } catch {
-      // Best effort
-    }
-  }, [])
-
-  const refreshCliSessions = useCallback(async () => {
-    if (!activePath) {
-      setCliSessions([])
-      return
-    }
-    try {
-      const sessions = await window.api.listCliSessions(activePath)
-      setCliSessions(sessions)
-    } catch {
-      // Best effort
-    }
-  }, [activePath])
-
-  useEffect(() => {
-    void refreshCliAgentsStatus()
-    void refreshCliSessions()
-  }, [refreshCliAgentsStatus, refreshCliSessions])
-
-  useEffect(() => {
-    const unsubAgents = window.api.onCliAgentsChanged(() => {
-      void refreshCliAgentsStatus()
-    })
-    const unsubSessions = window.api.onCliSessionsChanged(() => {
-      void refreshCliSessions()
-    })
-    return () => {
-      unsubAgents()
-      unsubSessions()
-    }
-  }, [refreshCliAgentsStatus, refreshCliSessions])
-
-  const handleSelectCliSession = useCallback((path: string, sessionId: string) => {
-    if (activePathRef.current !== path) activate(path)
-    setActiveCliSessionId(sessionId)
-  }, [activate])
-
-  const handleNewCliSession = useCallback(async (agentId: string) => {
-    if (!activePath) return
-    try {
-      const created = await window.api.createCliSession(agentId, activePath)
-      await refreshCliSessions()
-      setActiveCliSessionId(created.id)
-    } catch (err) {
-      console.error(err)
-    }
-  }, [activePath, refreshCliSessions])
-
-  const handleDeleteCliSession = useCallback(async (sessionId: string) => {
-    try {
-      await window.api.deleteCliSession(sessionId)
-    } catch (err) {
-      console.error(err)
-    }
-    if (activeCliSessionId === sessionId) {
-      setActiveCliSessionId(null)
-    }
-    void refreshCliSessions()
-  }, [activeCliSessionId, refreshCliSessions])
 
   // The new session's project picker offers the known projects plus this: pick a
   // folder, add it as a project and start the session there (the flow the removed
@@ -1079,18 +994,6 @@ export default function App() {
             onCheckUpdate={handleCheckUpdate}
             updateChecking={updateChecking}
             onReorder={handleReorderWorkspaces}
-            cliSessions={cliSessions}
-            cliAgents={cliAgents}
-            activeCliSessionId={activeCliSessionId}
-            onSelectCliSession={(path, id) => {
-              handleSelectCliSession(path, id)
-              setSidebarHovered(false)
-            }}
-            onNewCliSession={agentId => {
-              void handleNewCliSession(agentId)
-              setSidebarHovered(false)
-            }}
-            onDeleteCliSession={handleDeleteCliSession}
           />
         </div>
       )}
@@ -1117,12 +1020,6 @@ export default function App() {
             onCheckUpdate={handleCheckUpdate}
             updateChecking={updateChecking}
             onReorder={handleReorderWorkspaces}
-            cliSessions={cliSessions}
-            cliAgents={cliAgents}
-            activeCliSessionId={activeCliSessionId}
-            onSelectCliSession={handleSelectCliSession}
-            onNewCliSession={handleNewCliSession}
-            onDeleteCliSession={handleDeleteCliSession}
           />
         )}
         <main className={((filesOpenFor ? 1 : 0) + (processesOpenFor ? 1 : 0) + (terminalOpenFor ? 1 : 0) + (browserOpenFor ? 1 : 0) + (subagentsShown ? 1 : 0)) > 0 ? 'main files-open' : 'main'}>
@@ -1133,32 +1030,20 @@ export default function App() {
           <div className="main-panes">
             {activePath && runtimes[activePath] && (
               <div className="workspace-active">
-                <div className="workspace-meow-shell" hidden={Boolean(activeCliSession)}>
-                  <WorkspaceView
-                    runtime={runtimes[activePath]}
-                    backgrounds={backgrounds}
-                    activeSessionByPath={activeSessionByPath}
-                    onActiveChange={handleWorkspaceActiveChange}
-                    onRemovePane={handleRemovePane}
-                    onSendDraftMessage={onSendDraftMessage}
-                    onToggleTerminal={handleToggleTerminal}
-                    onToggleBrowser={handleToggleBrowser}
-                    onOpenSubagent={handleOpenSubagent}
-                    projects={projectOptions}
-                    onSelectProject={onNewSession}
-                    onChooseFolder={handleChooseFolder}
-                  />
-                </div>
-                {activeCliSession && (
-                  <CliSessionPane
-                    session={activeCliSession}
-                    agent={activeCliAgent}
-                    onDeleted={() => {
-                      setActiveCliSessionId(null)
-                      void refreshCliSessions()
-                    }}
-                  />
-                )}
+                <WorkspaceView
+                  runtime={runtimes[activePath]}
+                  backgrounds={backgrounds}
+                  activeSessionByPath={activeSessionByPath}
+                  onActiveChange={handleWorkspaceActiveChange}
+                  onRemovePane={handleRemovePane}
+                  onSendDraftMessage={onSendDraftMessage}
+                  onToggleTerminal={handleToggleTerminal}
+                  onToggleBrowser={handleToggleBrowser}
+                  onOpenSubagent={handleOpenSubagent}
+                  projects={projectOptions}
+                  onSelectProject={onNewSession}
+                  onChooseFolder={handleChooseFolder}
+                />
               </div>
             )}
             {/* Hidden projects stay mounted (display:none) so their ChatPanels keep

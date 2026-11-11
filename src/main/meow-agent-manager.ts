@@ -133,9 +133,8 @@ export interface MeowAgentManagerDeps {
   /** Runtime adapter for durable session-to-session delegation (composed in main). */
   delegation?: {
     create(options: { sourceRun: AgentRunContext; targetAgentId: string; task: string }): SessionDelegation
-    createCli?(options: { sourceRun: AgentRunContext; targetCliAgentId: string; task: string; cliSessionId?: string }): SessionDelegation
-    resolveCliAgent?(query: string): { id: string; label: string; status: string } | undefined
-    listCliAgents?(): { id: string; label: string; status: string }[]
+    createCli?(options: { sourceRun: AgentRunContext; task: string }): SessionDelegation
+    checkCli?(): Promise<{ ready: boolean; error?: string }>
     /** Same-project delegatable peers for the turn reminder. */
     peers(agentId: string): SessionPeer[]
   }
@@ -380,7 +379,7 @@ export class MeowAgentManager {
         direction: 'result',
         peerAgentId: input.targetAgentId,
         peerName: input.targetName,
-        ...(isCli ? { peerKind: input.targetKind, cliSessionId: input.cliSessionId } : {})
+        ...(isCli ? { peerKind: input.targetKind } : {})
       },
       createdAt: Date.now()
     })
@@ -403,7 +402,7 @@ export class MeowAgentManager {
           direction: 'result',
           peerAgentId: input.targetAgentId,
           peerName: input.targetName,
-          ...(isCli ? { peerKind: input.targetKind, cliSessionId: input.cliSessionId } : {})
+          ...(isCli ? { peerKind: input.targetKind } : {})
         },
         true,
         input.delegationId
@@ -417,7 +416,7 @@ export class MeowAgentManager {
         direction: 'result',
         peerAgentId: input.targetAgentId,
         peerName: input.targetName,
-        ...(isCli ? { peerKind: input.targetKind, cliSessionId: input.cliSessionId } : {})
+        ...(isCli ? { peerKind: input.targetKind } : {})
       }
     })
   }
@@ -1772,8 +1771,7 @@ ${content}` : content
           }
           return Promise.resolve(this.deps.delegation.createCli(input))
         },
-        resolveCliAgent: (query) => this.deps.delegation?.resolveCliAgent?.(query),
-        listCliAgents: () => this.deps.delegation?.listCliAgents?.() ?? [],
+        checkCli: this.deps.delegation.checkCli,
         runContext: () => this.activeRunCtx(agent.id)
       })
       runnerTools.set('delegate_cli', delegateCliTool)

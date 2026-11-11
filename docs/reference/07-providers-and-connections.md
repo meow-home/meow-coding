@@ -330,11 +330,11 @@ This branch runs **before** the `meow.json` provider lookup, so a connected acco
 no `codex` provider entry exists in the config. From there it is an ordinary OpenAI-compatible
 request.
 
-### CLI agent accounts
+### Antigravity CLI
 
-Antigravity and OpenCode accounts are managed as **CLI agents**, not as provider connections: see
-[8.5 CLI agents](08-integrations.md#85-cli-agents-antigravity--opencode). They have their own
-`cli-agents.json`, vault refs and session store, and they never route Meow's own chat requests.
+The Antigravity CLI is not a provider connection: Meow only delegates tasks to the `agy` already
+installed and signed in on the machine, and stores no account for it. See
+[8.5 Antigravity CLI](08-integrations.md#85-antigravity-cli). It never routes Meow's own chat requests.
 The Codex connection path above is unchanged.
 
 ### Not yet enabled
@@ -342,7 +342,7 @@ The Codex connection path above is unchanged.
 Claude Code and Antigravity OAuth adapters for the **provider connection** path are not shipped in this
 release. The provider/account architecture (`ConnectionProviderId`, `ConnectionStore`,
 `ConnectionsManager`) is already generic enough to take them — `ConnectionProviderId` is currently
-`'codex'` only. (Antigravity/OpenCode as CLI worker agents are covered by 8.5.)
+`'codex'` only. (Antigravity as a CLI delegation worker is covered by 8.5.)
 
 ## 7.7 Cost accounting
 

@@ -30,13 +30,21 @@ class FakeRuntime implements DelegationRuntime {
   stopped: string[] = []
   cancelledRuns = new Set<string>()
 
-  cliAgents = new Map<string, { id: string; label: string }>()
-  cliSessions = new Map<string, { id: string; title: string; projectPath: string; agentId: string; delegatedBy?: boolean }>()
-  cliBusySessions = new Set<string>()
-  cliTasks: { delegationId: string; sourceAgentId: string; sourceName: string; targetCliAgentId: string; cliSessionId: string; task: string }[] = []
+  cliTasks: { delegationId: string; cwd: string; task: string }[] = []
   cliStopped: string[] = []
-  cliRunResults = new Map<string, AgentTurnResult>()
   cliCancelledRuns = new Set<string>()
+  /** While set, every CLI run waits on it, so later delegations stay queued. */
+  cliHold?: { release: () => void; promise: Promise<void> }
+
+  holdCli(): void {
+    let release!: () => void
+    const promise = new Promise<void>(r => { release = r })
+    this.cliHold = { release, promise }
+  }
+  releaseCli(): void {
+    this.cliHold?.release()
+    this.cliHold = undefined
+  }
 
   stopRun(agentId: string): void {
     this.stopped.push(agentId)
@@ -48,12 +56,6 @@ class FakeRuntime implements DelegationRuntime {
 
   add(agentId: string, projectPath = '/p', name?: string) {
     this.agents.set(agentId, { agentId, name: name ?? `Agent ${agentId}`, projectPath, sessionId: `${agentId}-s` })
-  }
-  addCliAgent(id: string, label = `CLI ${id}`) {
-    this.cliAgents.set(id, { id, label })
-  }
-  addCliSession(id: string, agentId: string, projectPath = '/p', title = 'CLI Session', delegatedBy = false) {
-    this.cliSessions.set(id, { id, title, projectPath, agentId, delegatedBy })
   }
   gate(id: string): { release: () => void; promise: Promise<void> } {
     const existing = this.gates.get(id)
@@ -82,54 +84,18 @@ class FakeRuntime implements DelegationRuntime {
   async appendResult(input: DelegationResultInput): Promise<void> { this.results.push(input) }
   async wakeSource(input: DelegationResultInput): Promise<void> { this.wakes.push(input) }
 
-  resolveCliAgent(agentId: string): { id: string; label: string } | undefined {
-    return this.cliAgents.get(agentId)
-  }
-  resolveOrCreateCliSession(input: { projectPath: string; agentId: string; cliSessionId?: string }): { id: string; title: string } {
-    if (input.cliSessionId) {
-      const s = this.cliSessions.get(input.cliSessionId)
-      if (!s) throw new Error(`[meow] CLI session not found: ${input.cliSessionId}`)
-      if (s.projectPath !== input.projectPath) throw new Error('[meow] CLI session belongs to a different project.')
-      return { id: s.id, title: s.title }
-    }
-    const matching = [...this.cliSessions.values()].filter(s => s.projectPath === input.projectPath && s.agentId === input.agentId)
-    if (matching.length > 0) {
-      matching.sort((a, b) => (b.delegatedBy ? 1 : 0) - (a.delegatedBy ? 1 : 0))
-      return { id: matching[0].id, title: matching[0].title }
-    }
-    const created = { id: `clis-${this.cliSessions.size + 1}`, title: 'New CLI session', projectPath: input.projectPath, agentId: input.agentId }
-    this.cliSessions.set(created.id, created)
-    return { id: created.id, title: created.title }
-  }
-  async runCliTask(input: {
-    delegationId: string
-    sourceAgentId: string
-    sourceName: string
-    targetCliAgentId: string
-    cliSessionId: string
-    task: string
-  }): Promise<AgentTurnResult> {
+  async runCliTask(input: { delegationId: string; cwd: string; task: string }): Promise<AgentTurnResult> {
     this.cliTasks.push(input)
-    const preset = this.cliRunResults.get(input.delegationId)
-    if (preset) {
-      await this.gates.get(input.delegationId)?.promise
-      return preset
-    }
-    await this.gates.get(input.delegationId)?.promise
-    if (this.cliCancelledRuns.has(input.cliSessionId) || this.cliCancelledRuns.has(input.delegationId)) {
+    await this.cliHold?.promise
+    if (this.cliCancelledRuns.has(input.delegationId)) {
       return { runId: input.delegationId, reason: 'cancelled', touchedFiles: [] }
     }
     return { runId: input.delegationId, reason: 'completed', finalText: `cli-done-${input.task}`, touchedFiles: [] }
   }
-  stopCliTask(cliSessionId: string): void {
-    this.cliStopped.push(cliSessionId)
-    this.cliCancelledRuns.add(cliSessionId)
-    for (const task of this.cliTasks.filter(t => t.cliSessionId === cliSessionId)) {
-      this.gates.get(task.delegationId)?.release()
-    }
-  }
-  isCliBusy(cliSessionId: string): boolean {
-    return this.cliBusySessions.has(cliSessionId)
+  stopCliTask(delegationId: string): void {
+    this.cliStopped.push(delegationId)
+    this.cliCancelledRuns.add(delegationId)
+    this.releaseCli()
   }
 }
 
@@ -146,8 +112,6 @@ function setup(overrides: { source?: string; target?: string; projectPath?: stri
   const runtime = new FakeRuntime()
   runtime.add(overrides.source ?? 'alpha', overrides.projectPath ?? '/p')
   runtime.add(overrides.target ?? 'beta', overrides.projectPath ?? '/p')
-  runtime.addCliAgent('agy_personal', 'Antigravity · Personal')
-  runtime.addCliAgent('oc_work', 'OpenCode · Anthropic Work')
   // Monotonic clock so created-at ordering is deterministic (two records never
   // share a timestamp, so the store's FIFO tie-break is not exercised by UUID).
   let clock = 1_000_000
@@ -166,7 +130,6 @@ const input = (over: Partial<CreateDelegationInput> = {}): CreateDelegationInput
 
 const cliInput = (over: Partial<CreateCliDelegationInput> = {}): CreateCliDelegationInput => ({
   sourceRun: run(),
-  targetCliAgentId: 'agy_personal',
   task: 'do the cli thing',
   ...over
 })
@@ -486,238 +449,137 @@ describe('SessionDelegationService', () => {
         expect(() => env.service.createCli(cliInput({ sourceRun: run({ origin: 'delegation' }) }))).toThrow(/user/i)
       })
 
-      it('rejects unknown source session', async () => {
+      it('rejects an unknown source session', async () => {
         await env.service.start()
         expect(() => env.service.createCli(cliInput({ sourceRun: run({ agentId: 'nonexistent' }) }))).toThrow(/source session does not exist/i)
       })
 
-      it('rejects unknown CLI agent', async () => {
-        await env.service.start()
-        expect(() => env.service.createCli(cliInput({ targetCliAgentId: 'nonexistent' }))).toThrow(/cli agent does not exist/i)
-      })
-
-      it('rejects blank task and oversized task (>32 KiB)', async () => {
+      it('rejects an empty or oversized task', async () => {
         await env.service.start()
         expect(() => env.service.createCli(cliInput({ task: '   ' }))).toThrow(/empty/i)
         expect(() => env.service.createCli(cliInput({ task: 'x'.repeat(32 * 1024 + 1) }))).toThrow(/KiB/i)
       })
 
-      it('enforces 5 nonterminal delegations cap per CLI agent', async () => {
+      it('caps nonterminal CLI delegations at five', async () => {
         await env.service.start()
-        env.runtime.cliBusySessions.add('busy-s')
-        env.runtime.addCliSession('busy-s', 'agy_personal', '/p')
-        for (let i = 0; i < 5; i++) {
-          env.service.createCli(cliInput({ task: `t${i}`, cliSessionId: 'busy-s' }))
-        }
-        expect(() => env.service.createCli(cliInput({ task: 'overflow', cliSessionId: 'busy-s' }))).toThrow(/Too many queued delegations/i)
+        env.runtime.holdCli()
+        for (let i = 0; i < 5; i++) env.service.createCli(cliInput({ task: `t${i}` }))
+        expect(() => env.service.createCli(cliInput({ task: 'overflow' }))).toThrow(/Too many queued delegations/i)
+        env.runtime.releaseCli()
+        await env.service.flush()
       })
 
-      it('creates record with targetKind cli and correct fields', async () => {
-        await env.service.start()
-        env.runtime.addCliSession('s1', 'agy_personal', '/p')
-        const rec = env.service.createCli(cliInput({ cliSessionId: 's1' }))
-        expect(rec.sourceKind).toBe('session')
+      it('creates a record targeting the Antigravity CLI in the source project', async () => {
+        const rec = env.service.createCli(cliInput())
         expect(rec.targetKind).toBe('cli')
-        expect(rec.targetCliAgentId).toBe('agy_personal')
-        expect(rec.targetCliSessionId).toBe('s1')
-        expect(rec.targetAgentId).toBe('agy_personal')
-        expect(rec.targetSessionId).toBe('s1')
-        expect(rec.targetBusyAtCreation).toBe(false)
+        expect(rec.targetAgentId).toBe('antigravity')
+        expect(rec.projectPath).toBe('/p')
+        expect(rec.sourceAgentId).toBe('alpha')
         expect(rec.status).toBe('queued')
       })
     })
 
-    describe('session resolution and project mismatch', () => {
-      it('reuses cliSessionId when specified', async () => {
-        await env.service.start()
-        env.runtime.addCliSession('s-existing', 'agy_personal', '/p')
-        const rec = env.service.createCli(cliInput({ cliSessionId: 's-existing' }))
-        expect(rec.targetCliSessionId).toBe('s-existing')
-      })
-
-      it('creates or reuses a session when cliSessionId is omitted', async () => {
-        await env.service.start()
-        const rec = env.service.createCli(cliInput())
-        expect(rec.targetCliSessionId).toBeDefined()
-        expect(env.runtime.cliSessions.has(rec.targetCliSessionId!)).toBe(true)
-
-        // Second creation reuses existing session
-        const rec2 = env.service.createCli(cliInput({ task: 'second task' }))
-        expect(rec2.targetCliSessionId).toBe(rec.targetCliSessionId)
-      })
-
-      it('prefers session with delegatedBy if multiple exist', async () => {
-        await env.service.start()
-        env.runtime.addCliSession('s-regular', 'agy_personal', '/p', 'Regular', false)
-        env.runtime.addCliSession('s-delegated', 'agy_personal', '/p', 'Delegated', true)
-        const rec = env.service.createCli(cliInput())
-        expect(rec.targetCliSessionId).toBe('s-delegated')
-      })
-
-      it('throws when specified cliSessionId belongs to a different project', async () => {
-        await env.service.start()
-        env.runtime.addCliSession('s-other-project', 'agy_personal', '/other')
-        expect(() => env.service.createCli(cliInput({ cliSessionId: 's-other-project' }))).toThrow(/different project/i)
-      })
-    })
-
     describe('queued execution and result delivery', () => {
-      it('runs queued CLI task and delivers result to source Meow session', async () => {
+      it('runs the task in the project folder and delivers the result to the source session', async () => {
         await env.service.start()
-        env.runtime.addCliSession('s1', 'agy_personal', '/p')
-        const rec = env.service.createCli(cliInput({ cliSessionId: 's1', task: 'refactor code' }))
+        const rec = env.service.createCli(cliInput({ task: 'refactor code' }))
         await env.service.flush()
 
-        expect(env.runtime.cliTasks).toHaveLength(1)
-        expect(env.runtime.cliTasks[0]).toEqual({
-          delegationId: rec.id,
-          sourceAgentId: 'alpha',
-          sourceName: 'Agent alpha',
-          targetCliAgentId: 'agy_personal',
-          cliSessionId: 's1',
-          task: 'refactor code'
-        })
+        expect(env.runtime.cliTasks).toEqual([{ delegationId: rec.id, cwd: '/p', task: 'refactor code' }])
 
         const terminal = env.service.getStatus(rec.id)
         expect(terminal?.status).toBe('completed')
         expect(terminal?.result).toBe('cli-done-refactor code')
         expect(terminal?.deliveredAt).toBeTypeOf('number')
 
-        // Appends result to source session with target CLI agent name and ID
-        expect(env.runtime.results).toHaveLength(1)
-        expect(env.runtime.results[0]).toEqual({
+        expect(env.runtime.results).toEqual([{
           delegationId: rec.id,
           sourceAgentId: 'alpha',
           sourceSessionId: 'alpha-s',
-          targetAgentId: 'agy_personal',
-          targetName: 'Antigravity · Personal',
+          targetAgentId: 'antigravity',
+          targetName: 'Antigravity',
           status: 'completed',
           result: 'cli-done-refactor code',
           touchedFiles: [],
-          targetKind: 'cli',
-          cliSessionId: 's1'
-        })
+          targetKind: 'cli'
+        }])
 
-        // Wakes the source session
         expect(env.runtime.wakes).toHaveLength(1)
         expect(env.runtime.wakes[0].delegationId).toBe(rec.id)
       })
 
-      it('FIFO executes queued CLI delegations', async () => {
+      it('runs CLI delegations one at a time in FIFO order', async () => {
         await env.service.start()
-        env.runtime.addCliSession('s1', 'agy_personal', '/p')
-        env.runtime.cliBusySessions.add('s1')
-
-        const d1 = env.service.createCli(cliInput({ cliSessionId: 's1', task: 'first' }))
-        const d2 = env.service.createCli(cliInput({ cliSessionId: 's1', task: 'second' }))
-        expect(env.service.getStatus(d1.id)?.status).toBe('queued')
+        env.runtime.holdCli()
+        const d1 = env.service.createCli(cliInput({ task: 'first' }))
+        const d2 = env.service.createCli(cliInput({ task: 'second' }))
+        await ticks()
+        expect(env.service.getStatus(d1.id)?.status).toBe('running')
         expect(env.service.getStatus(d2.id)?.status).toBe('queued')
-        expect(env.runtime.cliTasks).toHaveLength(0)
+        expect(d2.targetBusyAtCreation).toBe(true)
 
-        // Mark available and pump
-        env.runtime.cliBusySessions.delete('s1')
-        env.service.notifyAgentAvailable('agy_personal')
-
-        await until(() => env.service.getStatus(d1.id)?.status === 'completed' && env.service.getStatus(d2.id)?.status === 'completed')
+        env.runtime.releaseCli()
+        await env.service.flush()
+        expect(env.service.getStatus(d2.id)?.status).toBe('completed')
         expect(env.runtime.cliTasks.map(t => t.task)).toEqual(['first', 'second'])
       })
     })
 
-    describe('busy waiting', () => {
-      it('records targetBusyAtCreation true when CLI session is busy', async () => {
-        await env.service.start()
-        env.runtime.addCliSession('s-busy', 'agy_personal', '/p')
-        env.runtime.cliBusySessions.add('s-busy')
-        const rec = env.service.createCli(cliInput({ cliSessionId: 's-busy' }))
-        expect(rec.targetBusyAtCreation).toBe(true)
-      })
-
-      it('waits when CLI session is busy and runs when notified', async () => {
-        await env.service.start()
-        env.runtime.addCliSession('s-busy', 'agy_personal', '/p')
-        env.runtime.cliBusySessions.add('s-busy')
-        const rec = env.service.createCli(cliInput({ cliSessionId: 's-busy' }))
-        await ticks()
-        expect(env.service.getStatus(rec.id)?.status).toBe('queued')
-        expect(env.runtime.cliTasks).toHaveLength(0)
-
-        env.runtime.cliBusySessions.delete('s-busy')
-        env.service.notifyAgentAvailable('agy_personal')
-        await until(() => env.service.getStatus(rec.id)?.status === 'completed')
-        expect(env.runtime.cliTasks).toHaveLength(1)
-      })
-    })
-
     describe('cancel', () => {
-      it('cancels a queued CLI delegation', async () => {
+      it('cancels a queued CLI delegation without running it', async () => {
         await env.service.start()
-        env.runtime.addCliSession('s-busy', 'agy_personal', '/p')
-        env.runtime.cliBusySessions.add('s-busy')
-        const rec = env.service.createCli(cliInput({ cliSessionId: 's-busy' }))
-        const cancelled = await env.service.cancel(rec.id)
+        env.runtime.holdCli()
+        env.service.createCli(cliInput({ task: 'first' }))
+        const queued = env.service.createCli(cliInput({ task: 'second' }))
+        const cancelled = await env.service.cancel(queued.id)
         expect(cancelled.status).toBe('cancelled')
-        expect(env.runtime.cliTasks).toHaveLength(0)
+
+        env.runtime.releaseCli()
+        await env.service.flush()
+        expect(env.runtime.cliTasks.map(t => t.task)).toEqual(['first'])
       })
 
-      it('cancels a running CLI delegation by calling stopCliTask', async () => {
+      it('cancels a running CLI delegation by calling stopCliTask with its id', async () => {
         await env.service.start()
-        env.runtime.addCliSession('s1', 'agy_personal', '/p')
-        env.runtime.cliBusySessions.add('s1')
-        const rec = env.service.createCli(cliInput({ cliSessionId: 's1' }))
-        env.runtime.gate(rec.id)
-        env.runtime.cliBusySessions.delete('s1')
-        env.service.notifyAgentAvailable('agy_personal')
+        env.runtime.holdCli()
+        const rec = env.service.createCli(cliInput())
         expect(await until(() => env.service.getStatus(rec.id)?.status === 'running')).toBe(true)
 
         const cancelled = await env.service.cancel(rec.id)
-        expect(env.runtime.cliStopped).toContain('s1')
+        expect(env.runtime.cliStopped).toEqual([rec.id])
         expect(cancelled.status).toBe('cancelled')
       })
     })
 
     describe('recovery and participant removal', () => {
+      const stored = (id: string) => ({
+        id,
+        projectPath: '/p',
+        sourceAgentId: 'alpha',
+        sourceSessionId: 'alpha-s',
+        targetAgentId: 'antigravity',
+        targetSessionId: 'antigravity',
+        targetBusyAtCreation: false,
+        task: 'stored task',
+        sourceKind: 'session' as const,
+        targetKind: 'cli' as const
+      })
+
       it('interrupts an in-flight CLI run on restart and delivers to source', async () => {
-        env.store.create({
-          id: 'cli-inflight',
-          projectPath: '/p',
-          sourceAgentId: 'alpha',
-          sourceSessionId: 'alpha-s',
-          targetAgentId: 'agy_personal',
-          targetSessionId: 's1',
-          targetBusyAtCreation: false,
-          task: 'inflight task',
-          sourceKind: 'session',
-          targetKind: 'cli',
-          targetCliAgentId: 'agy_personal',
-          targetCliSessionId: 's1'
-        })
+        env.store.create(stored('cli-inflight'))
         env.store.transition('cli-inflight', 1, 'running', { startedAt: 1_000_000 })
 
         await env.service.start()
         expect(env.runtime.cliTasks).toHaveLength(0)
         expect(env.service.getStatus('cli-inflight')?.status).toBe('interrupted')
         expect(env.runtime.results).toHaveLength(1)
-        expect(env.runtime.results[0].targetAgentId).toBe('agy_personal')
+        expect(env.runtime.results[0].targetName).toBe('Antigravity')
         expect(env.runtime.results[0].status).toBe('interrupted')
         expect(env.runtime.wakes).toHaveLength(1)
       })
 
       it('resumes queued CLI work on start', async () => {
-        env.runtime.addCliSession('s1', 'agy_personal', '/p')
-        env.store.create({
-          id: 'cli-q1',
-          projectPath: '/p',
-          sourceAgentId: 'alpha',
-          sourceSessionId: 'alpha-s',
-          targetAgentId: 'agy_personal',
-          targetSessionId: 's1',
-          targetBusyAtCreation: false,
-          task: 'resumed cli task',
-          sourceKind: 'session',
-          targetKind: 'cli',
-          targetCliAgentId: 'agy_personal',
-          targetCliSessionId: 's1'
-        })
+        env.store.create(stored('cli-q1'))
 
         await env.service.start()
         await env.service.flush()
@@ -725,28 +587,16 @@ describe('SessionDelegationService', () => {
         expect(env.service.getStatus('cli-q1')?.status).toBe('completed')
       })
 
-      it('fails queued CLI delegation if source session is removed before run', async () => {
+      it('fails a queued CLI delegation if the source session is removed before it runs', async () => {
         await env.service.start()
-        env.runtime.addCliSession('s-busy', 'agy_personal', '/p')
-        env.runtime.cliBusySessions.add('s-busy')
-        const rec = env.service.createCli(cliInput({ cliSessionId: 's-busy' }))
+        env.runtime.holdCli()
+        env.service.createCli(cliInput({ task: 'first' }))
+        const rec = env.service.createCli(cliInput({ task: 'second' }))
 
-        // Remove source session
         env.runtime.agents.delete('alpha')
-        env.runtime.cliBusySessions.delete('s-busy')
-        env.service.notifyAgentAvailable('agy_personal')
+        env.runtime.releaseCli()
         await until(() => env.service.getStatus(rec.id)?.status === 'failed')
         expect(env.service.getStatus(rec.id)?.error).toMatch(/participant session is no longer available/)
-      })
-
-      it('fails queued CLI delegations when handleCliAgentRemoved is called', async () => {
-        await env.service.start()
-        env.runtime.addCliSession('s-busy', 'agy_personal', '/p')
-        env.runtime.cliBusySessions.add('s-busy')
-        const rec = env.service.createCli(cliInput({ cliSessionId: 's-busy' }))
-        await env.service.handleCliAgentRemoved('agy_personal')
-        expect(env.service.getStatus(rec.id)?.status).toBe('failed')
-        expect(env.service.getStatus(rec.id)?.error).toMatch(/CLI agent was removed/)
       })
     })
   })

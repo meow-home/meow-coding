@@ -1,7 +1,7 @@
-import type { CliAgentMode } from '../../shared/types'
+export type CliMode = 'read' | 'edit' | 'full'
 
 export interface CliPolicy {
-  mode: CliAgentMode
+  mode: CliMode
   allowCommands: boolean
   allowWrites: boolean
   allowUrl: boolean
@@ -11,14 +11,14 @@ export interface CliPolicy {
 export const DEFAULT_CLI_TASK_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 
 /**
- * Derives a CLI policy from an agent mode and Meow's permission map.
+ * Derives a CLI policy from a run mode and Meow's permission map.
  * Meow's permission map is tool-level, not command-level: `bash === 'allow'`
  * means commands may run, and `write`/`edit`/`apply-patch` === 'allow'
  * means writes may run. `read` mode never allows writes or commands.
  * `full` mode allows both. `edit` mode follows the Meow rules.
  */
 export function deriveCliPolicy(
-  mode: CliAgentMode,
+  mode: CliMode,
   meowPermission: Record<string, 'allow' | 'ask' | 'deny'>,
   opts?: { timeoutMs?: number }
 ): CliPolicy {
@@ -63,11 +63,9 @@ export function deriveCliPolicy(
 
 export function buildAntigravityArgs(input: {
   task: string
-  model?: string
-  agent?: string
   policy: CliPolicy
 }): string[] {
-  const { task, model, agent, policy } = input
+  const { task, policy } = input
 
   const allow: string[] = []
   if (policy.mode !== 'read') {
@@ -99,39 +97,8 @@ export function buildAntigravityArgs(input: {
     timeoutDuration
   ]
 
-  if (model && model.trim()) {
-    args.push('--model', model.trim())
-  }
-  if (agent && agent.trim()) {
-    args.push('--agent', agent.trim())
-  }
   if (policy.mode === 'full') {
     args.push('--dangerously-skip-permissions')
-  }
-
-  return args
-}
-
-export function buildOpenCodeArgs(input: {
-  task: string
-  model?: string
-  agent?: string
-  policy: CliPolicy
-}): string[] {
-  const { task, model, agent, policy } = input
-
-  const args: string[] = ['run', task, '--format', 'json', '--standalone']
-
-  if (model && model.trim()) {
-    args.push('--model', model.trim())
-  }
-  if (agent && agent.trim()) {
-    args.push('--agent', agent.trim())
-  }
-
-  const canAuto = policy.mode !== 'read' && (policy.allowWrites || policy.allowCommands)
-  if (canAuto) {
-    args.push('--auto')
   }
 
   return args

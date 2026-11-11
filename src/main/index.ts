@@ -64,7 +64,7 @@ import type { TrustedExtension } from '../shared/browser-types'
 import { ExternalApiConfigFile } from './external-api/config-file'
 import { ExternalApiManager } from './external-api/manager'
 import { ExternalDelegationFacade } from './external-api/facade'
-import { CliAgentsManager } from './cli-agents'
+import { AntigravityCli } from './cli-agents'
 import { registerCliAgentsIpc } from './cli-agents/ipc'
 import { Channels } from '../shared/ipc'
 import { formatLogArg, safeJson } from '../shared/log-helpers'
@@ -261,19 +261,7 @@ export class MainApp {
         if (!this.delegationService) throw new Error('session delegation is not enabled.')
         return this.delegationService.createCli(options)
       },
-      resolveCliAgent: (query) => {
-        const agents = this.cliAgents?.agentStore?.getAgents() ?? []
-        const trimmed = query.trim()
-        const exact = agents.find(a => a.id === trimmed)
-        if (exact) return { id: exact.id, label: exact.label, status: exact.status }
-        const lower = trimmed.toLowerCase()
-        const byLabel = agents.find(a => a.label.toLowerCase() === lower)
-        return byLabel ? { id: byLabel.id, label: byLabel.label, status: byLabel.status } : undefined
-      },
-      listCliAgents: () => {
-        const agents = this.cliAgents?.agentStore?.getAgents() ?? []
-        return agents.map(a => ({ id: a.id, label: a.label, status: a.status }))
-      },
+      checkCli: () => this.antigravity.check(),
       peers: (agentId) => this.delegatePeers(agentId)
     },
     // Notification click: focus the window and tell the renderer to switch to
@@ -338,14 +326,8 @@ export class MainApp {
       })
     }
   })
-  cliAgents = new CliAgentsManager({
-    userDataDir: app.getPath('userData'),
-    vault: this.vault,
-    getPermission: () => this.meowAgent.getSettings().permission,
-    onEvent: (sessionId, item) => this.broadcast(Channels.EventCliRun, { sessionId, item }),
-    onStatus: (sessionId, status) => this.broadcast(Channels.EventCliRun, { sessionId, status }),
-    onAgentsChanged: () => this.broadcast(Channels.EventCliAgentsChanged, { status: this.cliAgents.getStatus() }),
-    onSessionsChanged: () => this.broadcast(Channels.EventCliSessionsChanged, { sessions: this.cliAgents.listSessions() })
+  antigravity = new AntigravityCli({
+    getPermission: () => this.meowAgent.getSettings().permission
   })
   delegations = new SessionDelegationStore(
     createJsonStore<SessionDelegation>(path.join(app.getPath('userData'), 'delegations.json'))
@@ -364,41 +346,9 @@ export class MainApp {
       appendResult: (input) => this.meowAgent.appendDelegationResult(input),
       wakeSource: (input) => this.meowAgent.wakeDelegationSource(input),
       stopRun: (agentId) => this.meowAgent.stop(agentId),
-      resolveCliAgent: (id) => {
-        const a = this.cliAgents.agentStore.getAgent(id)
-        return a ? { id: a.id, label: a.label } : undefined
-      },
-      resolveOrCreateCliSession: (input) => {
-        if (input.cliSessionId) {
-          const existing = this.cliAgents.sessionStore.get(input.cliSessionId)
-          if (!existing) {
-            throw new Error(`[meow] CLI session not found: ${input.cliSessionId}`)
-          }
-          if (normalizeProjectPath(existing.projectPath) !== normalizeProjectPath(input.projectPath)) {
-            throw new Error('[meow] CLI session belongs to a different project.')
-          }
-          return { id: existing.id, title: existing.title }
-        }
-        const sessions = this.cliAgents.listSessions(input.projectPath)
-          .filter(s => s.agentId === input.agentId)
-        if (sessions.length > 0) {
-          const sorted = [...sessions].sort((a, b) => {
-            const aDelegated = a.delegatedBy ? 1 : 0
-            const bDelegated = b.delegatedBy ? 1 : 0
-            if (aDelegated !== bDelegated) return bDelegated - aDelegated
-            const aTime = a.updatedAt ?? a.createdAt
-            const bTime = b.updatedAt ?? b.createdAt
-            return bTime - aTime
-          })
-          const best = sorted[0]
-          return { id: best.id, title: best.title }
-        }
-        const created = this.cliAgents.createSession(input.agentId, input.projectPath)
-        return { id: created.id, title: created.title }
-      },
       runCliTask: async (input) => {
         try {
-          const res = await this.cliAgents.sendTask(input.cliSessionId, input.task)
+          const res = await this.antigravity.runTask({ runId: input.delegationId, task: input.task, cwd: input.cwd })
           return {
             runId: input.delegationId,
             reason: res.status === 'completed' ? 'completed' : res.status === 'cancelled' ? 'cancelled' : 'failed',
@@ -415,10 +365,9 @@ export class MainApp {
           }
         }
       },
-      stopCliTask: (sessionId) => {
-        this.cliAgents.cancelTask(sessionId)
-      },
-      isCliBusy: () => false
+      stopCliTask: (delegationId) => {
+        this.antigravity.cancelTask(delegationId)
+      }
     },
     onChanged: (d) => { if (d.sourceKind === 'external') this.externalApi.notifyChanged(d.id) }
   })
@@ -1306,12 +1255,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.TerminalRestart, (_e, id: string) => mainApp.terminals.restart(id))
   ipcMain.handle(Channels.TerminalKill, (_e, id: string) => mainApp.terminals.kill(id))
 
-  registerCliAgentsIpc({
-    ipcMain,
-    manager: mainApp.cliAgents,
-    log: (msg) => mainApp.systemLogger.log('ERROR', 'main', msg),
-    broadcast: (channel, payload) => mainApp.broadcast(channel, payload)
-  })
+  registerCliAgentsIpc({ ipcMain, cli: mainApp.antigravity })
 }
 
 app.whenReady().then(async () => {
@@ -1399,7 +1343,6 @@ app.whenReady().then(async () => {
     }
   }
   registerIpcHandlers()
-  mainApp.cliAgents.restore()
   createWindow()
   tray = TrayManager.create({
     userDataDir: app.getPath('userData'),
@@ -1442,7 +1385,7 @@ app.on('before-quit', (event) => {
   }).then(() => {
     tray?.dispose()
     tray = null
-    Promise.allSettled([mainApp.terminals.stopAll(), mainApp.pty.stopAll(), mainApp.cliAgents.cancelAll()])
+    Promise.allSettled([mainApp.terminals.stopAll(), mainApp.pty.stopAll(), mainApp.antigravity.cancelAll()])
       .finally(() => app.exit(0))
   })
 })

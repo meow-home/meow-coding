@@ -5,7 +5,7 @@ import type {
   ImageAttachment, LogLevel, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PendingPromptInfo, ProjectSearchHit, PromptResponse,
   StatsSummary, TerminalCreateOptions, TerminalInfo, TodoItem, TranscriptWindow, TranscriptWindowOpts,
   UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary,
-  CliAgent, CliAgentKind, CliAgentsStatus, CliInstallDescriptor, CliRunEvent, CliRuntimeDetectResult, CliRuntimeId, CliSessionMeta, CliTranscriptItem
+  CliCheckResult, CliTestResult
 } from './types'
 import type { BrowserStatusInfo, BrowserTabInfo, TrustedExtension } from './browser-types'
 import type { ExternalApiStatus } from './external-api-types'
@@ -179,32 +179,8 @@ export const Channels = {
   TerminalKill: 'terminal:kill',
   EventTerminalData: 'terminal:data',
   EventTerminalsChanged: 'terminal:changed',
-  CliAgentsStatus: 'cli-agents:status',
-  CliRuntimeDetect: 'cli-runtime:detect',
-  CliRuntimeInstall: 'cli-runtime:install',
-  CliRuntimeSetPath: 'cli-runtime:set-path',
-  CliRuntimeSetEnabled: 'cli-runtime:set-enabled',
-  CliModelsList: 'cli-models:list',
-  CliAgentAdd: 'cli-agent:add',
-  CliAgentRename: 'cli-agent:rename',
-  CliAgentRemove: 'cli-agent:remove',
-  CliAgentActivate: 'cli-agent:activate',
-  CliAgentSetDefault: 'cli-agent:set-default',
-  CliLoginInput: 'cli-login:input',
-  CliLoginCancel: 'cli-login:cancel',
-  CliSessionCreate: 'cli-session:create',
-  CliSessionRename: 'cli-session:rename',
-  CliSessionDelete: 'cli-session:delete',
-  CliSessionsList: 'cli-sessions:list',
-  CliSessionOpenTerminal: 'cli-session:open-terminal',
-  CliTranscriptGet: 'cli-transcript:get',
-  CliTaskSend: 'cli-task:send',
-  CliTaskCancel: 'cli-task:cancel',
-  CliDelegationCancel: 'cli-delegation:cancel',
-  EventCliAgentsChanged: 'cli-agents:changed',
-  EventCliLogin: 'cli-login:event',
-  EventCliSessionsChanged: 'cli-sessions:changed',
-  EventCliRun: 'cli-run:event'
+  CliCheck: 'cli:check',
+  CliTest: 'cli:test'
 } as const
 
 export interface AgentStateEvent { agentId: string; state: AgentState }
@@ -248,20 +224,6 @@ export interface BrowserShortcutEvent {
 export interface ArtifactsChangedEvent {
   projectPath: string
   artifacts: ArtifactEntry[]
-}
-
-export interface CliLoginEvent {
-  loginId: string
-  chunk: string
-  url?: string
-}
-
-export interface CliAgentsChangedEvent {
-  status?: CliAgentsStatus
-}
-
-export interface CliSessionsChangedEvent {
-  sessions?: CliSessionMeta[]
 }
 
 /** One agent in a project currently waiting on a permission/question prompt. */
@@ -456,32 +418,8 @@ export interface AgentApi {
   terminalKill(id: string): Promise<void>
   onTerminalData(cb: (e: TerminalDataEvent) => void): () => void
   onTerminalsChanged(cb: (e: TerminalsChangedEvent) => void): () => void
-  getCliAgentsStatus(): Promise<CliAgentsStatus>
-  detectCliRuntime(runtime: CliRuntimeId): Promise<CliRuntimeDetectResult>
-  installCliRuntime(runtime: CliRuntimeId): Promise<CliInstallDescriptor | null>
-  setCliRuntimePath(runtime: CliRuntimeId, path: string | null): Promise<void>
-  setCliRuntimeEnabled(runtime: CliRuntimeId, enabled: boolean): Promise<void>
-  listCliModels(runtime: CliRuntimeId, agentId?: string): Promise<string[]>
-  addCliAgent(runtime: CliRuntimeId, kind: CliAgentKind, provider?: string, secret?: string): Promise<{ loginId?: string; agent?: CliAgent }>
-  renameCliAgent(agentId: string, label: string): Promise<void>
-  removeCliAgent(agentId: string): Promise<void>
-  activateCliAgent(agentId: string): Promise<{ loginId?: string }>
-  setDefaultCliAgent(agentId: string): Promise<void>
-  cliLoginInput(loginId: string, data: string): Promise<void>
-  cancelCliLogin(loginId: string): Promise<void>
-  createCliSession(agentId: string, projectPath: string): Promise<CliSessionMeta>
-  renameCliSession(sessionId: string, title: string): Promise<void>
-  deleteCliSession(sessionId: string): Promise<void>
-  listCliSessions(projectPath?: string): Promise<CliSessionMeta[]>
-  openCliSessionTerminal(sessionId: string): Promise<void>
-  getCliTranscript(sessionId: string, limit?: number): Promise<CliTranscriptItem[]>
-  sendCliTask(sessionId: string, text: string): Promise<void>
-  cancelCliTask(sessionId: string): Promise<void>
-  cancelCliDelegation(delegationId: string): Promise<void>
-  onCliAgentsChanged(cb: (e: CliAgentsChangedEvent) => void): () => void
-  onCliLogin(cb: (e: CliLoginEvent) => void): () => void
-  onCliSessionsChanged(cb: (e: CliSessionsChangedEvent) => void): () => void
-  onCliRun(cb: (e: CliRunEvent) => void): () => void
+  checkCli(): Promise<CliCheckResult>
+  testCli(): Promise<CliTestResult>
 }
 
 export interface WorkspaceChangedEvent {
