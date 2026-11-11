@@ -59,7 +59,7 @@ describe('right-side panel layout', () => {
     expect(stylesheetRules().some(r => r.selectors.includes('.files-resizer'))).toBe(false)
     for (const file of [
       'components/files/FilesOverlay.tsx',
-      'components/processes/ProcessesOverlay.tsx',
+      'components/processes/TasksPanel.tsx',
       'components/chat/SubagentOverlay.tsx'
     ]) {
       expect(source(file), `${file} renders a second resize handle`).not.toContain('files-resizer')

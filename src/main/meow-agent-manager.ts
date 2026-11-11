@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
-import type { ChatDelegationMeta, ChatErrorItem, ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, ContextSection, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, MonitorInfo, NotificationsSettings, PendingPromptInfo, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts, UsageSummary } from '../shared/types'
+import type { BackgroundProcInfo, ChatDelegationMeta, ChatErrorItem, ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, ContextSection, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, MonitorInfo, NotificationsSettings, PendingPromptInfo, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TranscriptWindow, TranscriptWindowOpts, UsageSummary } from '../shared/types'
 import { DRAFT_SESSION_ID, type AgentConfig, type AgentMode, type ArtifactEntry, type CatalogProviderSummary, type Command, type ModelRef, type SubagentType } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, resolveApiKey, settingsToConfig, writeMeowConfig,
@@ -632,7 +632,7 @@ export class MeowAgentManager {
     this.emitQueue(agentId)
   }
 
-  backgroundProcsList(agentId: string): { id: string; command: string; status: 'running' | 'exited'; exitCode: number | null }[] {
+  backgroundProcsList(agentId: string): BackgroundProcInfo[] {
     return this.backgroundProcs.list(agentId)
   }
 

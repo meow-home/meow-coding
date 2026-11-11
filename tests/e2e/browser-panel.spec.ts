@@ -953,16 +953,16 @@ test('the title bar toggles every panel, and each panel header is its tabs with 
       }
       expect(await window.locator('.pane-header').count()).toBe(0)
 
-      for (const [label, panel] of [
-        ['files', '.files-overlay[aria-label="Files"]'],
-        ['processes', '.processes-overlay'],
-        ['terminal', '.terminal-overlay'],
-        ['browser', '.browser-overlay']
+      for (const [label, panel, head] of [
+        ['files', '.files-overlay[aria-label="Files"]', '.panel-head'],
+        ['tasks', '.tasks-panel', '.tasks-head'],
+        ['terminal', '.terminal-overlay', '.panel-head'],
+        ['browser', '.browser-overlay', '.panel-head']
       ] as const) {
         await tool(label).click()
         await expect(window.locator(panel)).toBeVisible()
         await expect(tool(label)).toHaveClass(/active/)
-        await expect(window.locator(`${panel} .panel-head`)).toHaveCount(1)
+        await expect(window.locator(`${panel} ${head}`)).toHaveCount(1)
         expect(await window.locator(`${panel} .files-head-title`).count()).toBe(0)
         if (label === 'terminal') await expect(window.locator('.terminal-overlay .panel-tab.terminal-tab')).toHaveCount(1, { timeout: 20_000 })
         await shot(`panel-tabs-${label}.png`)

@@ -40,7 +40,7 @@ async function launch(userData: string) {
   return { app, window }
 }
 
-async function openFromToolbar(window: Page, label: 'files' | 'processes'): Promise<void> {
+async function openFromToolbar(window: Page, label: 'files' | 'tasks'): Promise<void> {
   await window.locator(`.title-bar-tools .icon-btn[aria-label="Toggle ${label}"]`).click()
 }
 
@@ -107,19 +107,29 @@ test('expanding a panel covers the pane area, not just the docked column', async
   }
 })
 
-test('expanding the Processes panel covers the pane area too', async () => {
+test('the Tasks panel docks in the right column and maximizes over the pane area', async () => {
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
   const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
   seedWorkspaces(userData, project)
   const { app, window } = await launch(userData)
   try {
-    await openFromToolbar(window, 'processes')
-    await window.locator('.processes-overlay').waitFor()
-    await window.getByRole('button', { name: 'Expand', exact: true }).click()
-    await window.locator('.processes-overlay.full').waitFor()
-
+    await openFromToolbar(window, 'tasks')
+    await window.locator('.tasks-panel').waitFor()
+    // Docked: one cell of the right-hand grid, exactly like the Files panel.
+    await expect(window.locator('.right-panels-grid > .tasks-panel')).toHaveCount(1)
     const main = await rectOf(window, '.main')
-    const full = await rectOf(window, '.processes-overlay.full')
+    const grid = await rectOf(window, '.right-panels-grid')
+    const docked = await rectOf(window, '.tasks-panel')
+    // Same column as the other panels: right-hand side, grid height, grid width
+    // minus its 1px left hairline.
+    expect(docked!.x).toBeGreaterThan(main!.x + main!.w / 2)
+    expect(docked!.h).toBeCloseTo(grid!.h, 0)
+    expect(docked!.w).toBeGreaterThan(grid!.w - 8)
+    await expect(window.locator('.workspace-active')).toBeVisible()
+
+    await window.getByRole('button', { name: 'Maximize', exact: true }).click()
+    await window.locator('.tasks-panel.full').waitFor()
+    const full = await rectOf(window, '.tasks-panel.full')
     expect(full!.x).toBeCloseTo(main!.x, 0)
     expect(full!.w).toBeCloseTo(main!.w, 0)
   } finally {

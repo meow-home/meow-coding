@@ -10,21 +10,21 @@ interface Props {
   subagentsAvailable: boolean
   subagentsOpen: boolean
   terminalOpen: boolean
-  processesOpen: boolean
+  tasksOpen: boolean
   browserOpen: boolean
   browserAgentActive: boolean
   filesOpen: boolean
   onToggleSubagents: () => void
   onToggleTerminal: () => void
-  onToggleProcesses: () => void
+  onToggleTasks: () => void
   onToggleBrowser: () => void
   onToggleFiles: () => void
 }
 
 /** Opens and closes the right-side panels from the title bar. */
 export default function PanelToolbar({
-  projectPath, sessionReady, subagentsAvailable, subagentsOpen, terminalOpen, processesOpen, browserOpen,
-  browserAgentActive, filesOpen, onToggleSubagents, onToggleTerminal, onToggleProcesses, onToggleBrowser, onToggleFiles
+  projectPath, sessionReady, subagentsAvailable, subagentsOpen, terminalOpen, tasksOpen, browserOpen,
+  browserAgentActive, filesOpen, onToggleSubagents, onToggleTerminal, onToggleTasks, onToggleBrowser, onToggleFiles
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const isMac = window.api.platform === 'darwin'
@@ -53,11 +53,11 @@ export default function PanelToolbar({
         <SquareTerminal size={15} aria-hidden="true" />
       </button>
       <button
-        className={`icon-btn ${processesOpen ? 'active' : ''}`}
-        title={sessionReady ? 'Toggle processes' : unavailable}
-        aria-label="Toggle processes"
+        className={`icon-btn ${tasksOpen ? 'active' : ''}`}
+        title={sessionReady ? 'Toggle tasks' : unavailable}
+        aria-label="Toggle tasks"
         disabled={!sessionReady}
-        onClick={onToggleProcesses}
+        onClick={onToggleTasks}
       >
         <Activity size={15} aria-hidden="true" />
       </button>

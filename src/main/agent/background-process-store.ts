@@ -30,6 +30,8 @@ interface Entry {
   agentId: string
   sessionId: string
   command: string
+  cwd: string
+  startedAt: number
   child: ChildProcess
   status: 'running' | 'exited'
   exitCode: number | null
@@ -68,10 +70,12 @@ export class BackgroundProcessStore extends EventEmitter {
     return n
   }
 
-  list(agentId: string): { id: string; command: string; status: 'running' | 'exited'; exitCode: number | null }[] {
-    const out: { id: string; command: string; status: 'running' | 'exited'; exitCode: number | null }[] = []
+  list(agentId: string): { id: string; command: string; cwd: string; startedAt: number; status: 'running' | 'exited'; exitCode: number | null }[] {
+    const out: { id: string; command: string; cwd: string; startedAt: number; status: 'running' | 'exited'; exitCode: number | null }[] = []
     for (const e of this.entries.values()) {
-      if (e.agentId === agentId) out.push({ id: e.id, command: e.command, status: e.status, exitCode: e.exitCode })
+      if (e.agentId === agentId) {
+        out.push({ id: e.id, command: e.command, cwd: e.cwd, startedAt: e.startedAt, status: e.status, exitCode: e.exitCode })
+      }
     }
     return out
   }
@@ -91,7 +95,7 @@ export class BackgroundProcessStore extends EventEmitter {
     })
     const id = randomUUID().slice(0, 8)
     const entry: Entry = {
-      id, agentId, sessionId: this.opts.getSessionId(agentId), command,
+      id, agentId, sessionId: this.opts.getSessionId(agentId), command, cwd: dir, startedAt: Date.now(),
       child, status: 'running', exitCode: null, buffer: '', readOffset: 0, truncatedMarked: false
     }
     this.entries.set(id, entry)

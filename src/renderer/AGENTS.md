@@ -10,7 +10,7 @@ React renderer (no direct Node/Electron access).
 - `src/App.tsx` — state hub: workspaces, the mounted `WorkspaceRuntime` per kept-alive
   project; defines `PaneModel` (agent + state + git) for each pane; owns the active session per
   project path (`activeSessionByPath`, persisted to localStorage `meow.activeSessionByPath`) so
-  switching workspaces restores the previously active session. It also owns the right-side panels container state (Files, Processes, Terminal, Browser, and one Sub-agents panel holding a tab per opened sub-agent, each with the `common/PanelHeader` tabs-in-header, toggled from `PanelToolbar` in the title bar), rendering them in a dynamic multi-panel grid layout (prioritizing rows first, then columns). The Files panel holds unsaved edits in React state, so it renders through one portal whose host node moves between the two slots instead of remounting. An **expanded** (`full`) panel is rendered OUTSIDE that container, as a direct child of `.main` (and excluded from the grid's row/column count): `.full` is `position: absolute` and covers the pane area edge to edge, and `.right-panels-container` is `position: relative` (its resizer anchors to it), so nesting an expanded panel in the container confines it to the docked column instead of covering the pane area — `tests/e2e/right-panels-full.spec.ts` guards the containment. On startup, if no workspace path is
+  switching workspaces restores the previously active session. It also owns the right-side panels container state (Files, Tasks, Terminal, Browser, and one Sub-agents panel holding a tab per opened sub-agent, each with the `common/PanelHeader` tabs-in-header, toggled from `PanelToolbar` in the title bar), rendering them in a dynamic multi-panel grid layout (prioritizing rows first, then columns). The Files panel holds unsaved edits in React state, so it renders through one portal whose host node moves between the two slots instead of remounting. An **expanded** (`full`) panel is rendered OUTSIDE that container, as a direct child of `.main` (and excluded from the grid's row/column count): `.full` is `position: absolute` and covers the pane area edge to edge, and `.right-panels-container` is `position: relative` (its resizer anchors to it), so nesting an expanded panel in the container confines it to the docked column instead of covering the pane area — `tests/e2e/right-panels-full.spec.ts` guards the containment. On startup, if no workspace path is
   active and workspaces exist, automatically opens the first workspace with a draft session (`DRAFT_SESSION_ID`).
   Also tracks `needsInput`
   (project path → agent ids waiting on a permission/question prompt, for the sidebar
@@ -19,11 +19,11 @@ React renderer (no direct Node/Electron access).
 - `src/components/` — `Sidebar` (project list; expand a project to see its session rows with a
   status dot and a per-row rename/stop/delete menu, plus a `+` that creates and activates a
   session; a delegated sub-session is indented under its parent with a branch glyph), `SessionPanes`, `Pane`, `SessionTitle`, `EmptyState`,
-  `StatusBar`, `TitleBar`, `BackgroundPanel`, `UpdateDialog`, `UpdateToast`,
+  `StatusBar`, `TitleBar`, `UpdateDialog`, `UpdateToast`,
   `BrowserDialog`, `InstallGuideDialog`, `browser/` (the built-in browser panel: `BrowserOverlay`, `BrowserToolbar`, `BrowserControlBanner`, `BrowserViewport`, `normalizeUrlInput`), `files/` (the Files panel:
   `FilesOverlay`, `FilesTree`, `file-path`, `tree-filter`, `file-icon`, `git-decorations`, `open-tabs`,
   `line-send-gutter`),
-  `processes/` (the Processes overlay: `ProcessesOverlay`),
+  `processes/` (the Tasks panel: `TasksPanel`),
   `file-content/FileContentView`, `chat/`, `settings/`.
 - `src/styles.css` — One Dark Pro Darker palette (default; chrome `#1e2227`, work area `#23272e`, raised cards/menus `#2c313a`, accent `#4d78cc`/`#61afef`) with a Light+ variant activated via
   `[data-theme="light"]` on `<html>`. All colors use CSS variables so theme switching is a single

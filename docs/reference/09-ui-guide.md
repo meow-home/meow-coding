@@ -35,7 +35,7 @@ main window's theme (see [9.6](#96-theming)).
 ```
 
 Overlays: `SettingsDialog` (centered modal size xl tabbed),
-`BrowserDialog`, `InstallGuideDialog`, `UpdateDialog`, `UpdateToast`, `BackgroundPanel`, `FileContextMenu`.
+`BrowserDialog`, `InstallGuideDialog`, `UpdateDialog`, `UpdateToast`, `FileContextMenu`.
 
 ### Files overlay
 
@@ -83,20 +83,28 @@ the artifact store/IPC remain, but nothing renders it.
 
 Open files are tabs in the panel header and stay mounted while hidden, so switching tabs keeps unsaved edits. Ctrl/Cmd+S saves the active file, and an unsaved file shows a dot after its name. Closing an unsaved tab or the panel asks to discard the edits, whether from the close button, the title bar button or a project switch; keeping them after a switch returns to that project. Escape does not close the panel while anything is unsaved. Expanding the panel keeps tabs, edits and undo, because its React tree stays in one portal and only the DOM node moves. Quitting the app does not ask. The popup file window keeps its Save, Open in VS Code and Copy buttons, since it has no tab or panel menu.
 
-### Processes overlay
+### Tasks panel
 
-The title bar's **Toggle processes** button opens a per-session panel for the active session's agent, with a header tab per background shell, a Kill square on running ones and a `Monitors (n)` tab, mirroring the
-Files overlay's docking: docked in the shared right-side grid, resized through the column splitter,
-`⤢` expands it over the whole pane area, `Esc`/`✕` closes it, and switching projects closes it. Each shell tab carries a status dot, the command and its exit code
-when exited, plus a **Kill** square while it runs. Selecting a shell streams its output live below (the store's
-buffer plus `data`/`exit` events, never consuming the agent's `bash_output` read offset). The `Monitors (n)` tab
-shows the same watches as the chat's background tasks card — `processes/MonitorsPane.tsx` lists them (kind icon,
-label, `waiting`/reason, state colour) and renders the selected one below: kind, target, `until`, start time with
-elapsed, session, and once resolved its finish time and result, with one **Stop watching** / **Dismiss** action
-that calls `monitorsCancel` (stopping a watch never kills the watched process). The lists poll
-`backgroundProcsList`/`monitorsList` every ~1.5s while open; output streaming is subscription-based
-(`backgroundProcSubscribe`/`unsubscribe` + `onBackgroundProcData`/`onBackgroundProcExit`) and only shells the
-panel is watching are forwarded to the renderer.
+The title bar's **Toggle tasks** button opens the session's **Tasks** panel in the right-hand column —
+the same docked slot as Files, Terminal and Sub-agents. It replaces the old Processes overlay (one tab per
+shell plus a `Monitors` tab) and the background-session strip with **one list**: background sessions,
+background shells, polled commands and delegations. Each row is a one-line summary — state dot, kind icon,
+label, `kind · id`, state chip, elapsed/age — grouped `Active` / `Finished`. There are no tabs: the list
+itself is the navigation, so eight shells no longer mean eight tabs.
+
+Clicking a row expands it in place (multi-open) to its facts — mode/model/cwd/session id for a session,
+command/cwd/started/exit for a shell, kind/until/started/session/finished for a watch — then its content:
+the last two messages (`listChatMessages`) for a session, the live output box for a shell
+(`backgroundProcSubscribe` on expand, `backgroundProcUnsubscribe` on collapse — never consuming the
+agent's `bash_output` read offset), or the result line for a resolved watch. The action row follows the
+kind: Open session / Stop / Delete (behind a confirm), Kill process (a labelled button, never a tab ×),
+Stop watching / Dismiss (`monitorsCancel`), and Open session for a delegation watch whose sub-session is
+in the project.
+
+Docked it is a cell of the shared `.right-panels-grid` (the column splitter sets the width), `⤢` expands it
+over the whole pane area like Files, `Esc` closes the open rows first and then the panel, and the lists
+poll `backgroundProcsList`/`monitorsList` every ~1.5s while open. A `focus` prop (`{ monitorId?, seq }`)
+from the chat's background tasks card expands that watch once and reports back through `onFocusApplied`.
 
 ### Background tasks card
 
@@ -107,17 +115,17 @@ starting or resolving never appends a row or moves the reader. The header reads 
 watching, green resolved, yellow on timeout), **Open pane** and a collapse caret; each row shows the kind icon
 (shell/poll/delegation), its label, the target (`proc <id>` or the `until` condition), `waiting <elapsed>` or the
 reason plus how long ago, and a `✕` that calls `monitorsCancel` without opening the pane. A row click opens the
-Processes panel on the `Monitors` tab focused on that watch. The card refetches on the `procs:monitors-changed`
+Tasks panel with that watch expanded. The card refetches on the `procs:monitors-changed`
 push event (plus a 1s tick for the elapsed times) instead of polling, and renders nothing as soon as **no watch is
 running** — it only exists while the session has something in flight. A row that resolves keeps its `completed` /
 `timeout` line only while another watch is still running; once the last one resolves the card disappears, and the
-resolved watch stays reachable in the `Monitors` pane until dismissed.
+resolved watch stays reachable in the Tasks panel until dismissed.
 
 ### Session terminal panel
 
 The session terminal is a right-hand panel (`TerminalOverlay`) hosting interactive shell tabs powered by xterm.js (`TerminalView`) and dedicated `PtyManager` processes in the main process.
 - **Toggle & shortcut**: Toggled via `Ctrl+\`` (`Cmd+\`` on macOS) in the active pane or the Terminal button in the title bar (`PanelToolbar`). `App` owns `terminalOpenFor` (the session the panel shows, or `null`) and `terminalFull`; toggling from another session switches the panel to that session. It is not persisted.
-- **Layout**: Uses the shared panel chrome — `.files-overlay` surface and `common/PanelHeader`: tabs in the header with no title (status dot, exit code, double-click rename, close), `+` new terminal, Restart when the selected tab exited, expand/restore, close. Docked, it joins the shared `.right-panels-grid` next to Files, Processes and Subagent panels (auto rows/columns, shared resizer); expanded (`full`), it overlays the whole pane area like Files. The chat keeps its full height.
+- **Layout**: Uses the shared panel chrome — `.files-overlay` surface and `common/PanelHeader`: tabs in the header with no title (status dot, exit code, double-click rename, close), `+` new terminal, Restart when the selected tab exited, expand/restore, close. Docked, it joins the shared `.right-panels-grid` next to the Files and Subagent panels (auto rows/columns, shared resizer); expanded (`full`), it overlays the whole pane area like Files. The chat keeps its full height.
 - **Mount gating**: Only one terminal panel exists and its xterm is created only for the selected tab, so hidden sessions never allocate xterm instances. Removing the session closes the panel.
 - **Context menu & clipboard**: Right-clicking the terminal view opens a context menu with Copy, Paste, Clear Buffer, and "Send Selection to Chat". "Send Selection to Chat" dispatches a `meow:composer-insert` custom window event containing the formatted selection (```text ... ```), which `ChatInput.tsx` listens for and appends to the composer.
 - **Always dark**: The terminal ignores the app theme. Its colors come from `--terminal-bg` / `--terminal-fg` (defined once on `:root`, never overridden by `[data-theme="light"]`) plus `--font-mono`, read once when the xterm is created. `styles.css` paints `.terminal-overlay-body`, `.xterm` and `.xterm-viewport` with `--terminal-bg`, because `xterm.css` paints the viewport `#000` and it shows below the last row.
@@ -155,19 +163,18 @@ stale value.
 Event subscriptions set up in `App`: `onAgentState`, `onGitStatus`,
 `onAgentBackground`, `onAgentConfig`, `onBrowserStatus`, `onBrowserOpenInstallGuide`,
 `onUpdaterStatus`, `onArtifactsChanged`. Every one returns an unsubscribe function
-that must be called in the effect cleanup. (The Processes overlay subscribes to
-`onBackgroundProcData`/`onBackgroundProcExit` itself, per selected shell, so the app hub does not.)
+that must be called in the effect cleanup. (The Tasks panel subscribes to
+`onBackgroundProcData` itself, per expanded shell row, so the app hub does not.)
 
-## 9.3.1 `App.tsx` — the Processes overlay state
+## 9.3.1 `App.tsx` — the Tasks panel state
 
-Mirrors the Files overlay but keyed by **agent id** (from the title bar's Processes button), not project
-path: `processesOpenFor` (agentId — closed by default, closed on project switch),
-`processesFull` (docked by default) and `processesWidth` (docked width, persisted in
-`localStorage`). Both this overlay and the Files one render in one of two places, chosen by their
-`full` flag: the docked instance shares the right-side grid container next to the panes, while the
-expanded one is a direct child of `.main` so its absolute insets resolve against the pane area and it
-covers the chat pane. Nesting the expanded panel inside the grid container would confine it to the
-docked column (the container is `position: relative` for its resizer).
+The Tasks panel is keyed by **agent id** (the title bar's Tasks button), not project path: `tasksOpenFor`
+(the session whose list is shown, `null` when closed) and `tasksFull` (maximized). Like the Files panel it
+renders in one of two places, chosen by `full`: docked, it is a child of the right-panels grid next to
+Files/Terminal/Browser/Sub-agents; expanded, it is a direct child of `.main` so its absolute insets cover
+the pane area. The background sessions in its rows come from the panel's project runtime
+(`workspace.agents` + the `agents` state + `backgrounds`); opening a row clears that session's background
+flag, switches to it and closes the panel, and deleting it goes through the same pane-removal guard.
 
 Update-dialog policy: `update-available`, `downloaded` and `download-progress` open the dialog **only
 for a manual check** (`manualCheckRef`); `error` and `not-supported` close it; `up-to-date` only opens
@@ -197,7 +204,6 @@ replayed on mount through `getUpdaterStatus`, so a window that loads after the c
 | `Pane.tsx` | One session: `ChatPanel` only — there is no header row, the session identity lives in the title bar; background badge mode |
 | `SessionTitle.tsx` | The active session's identity in the title bar, between the brand and `PanelToolbar`: the status dot (which carries the status as its accessible name — `role="img"` + the status label, with any exit code folded in), the name (ellipsized with the full name on `title`, so a long name never pushes the tools), and the `...` menu (Open Folder / Open in VS Code / Delete session, with a confirm dialog). The `...` button is the shared `.icon-btn`. No status word (the dot already shows it) and no git readout (the status bar owns branch + dirty count) |
 | `EmptyState.tsx` | No-pane hint (differs for "no workspace" vs "workspace open") |
-| `BackgroundPanel.tsx` | Background agents; open/stop |
 | `UpdateToast.tsx` | Bottom-right notice for an update that finished downloading in the background (body opens the update dialog, "Restart now" installs, "Later" dismisses it for that version); paired with the OS notification, which main only sends when the window is not focused |
 | `RightPanel.tsx` | Resizable panel with a fixed header; **both tabs stay mounted** for instant switching (**parked** — nothing renders it since the Files panel took its slot) |
 | `RightPanelTree.tsx` | Lazy directory tree; auto-expands the project root; background refresh (**parked**) |
@@ -206,8 +212,7 @@ replayed on mount through `getUpdaterStatus`, so a window that loads after the c
 | `file-content/FileContentView.tsx` | Toolbar (Raw/Highlighted toggle, Open in VS Code, Copy) + body of a file (CodeMirror editor, rendered markdown, or an image), shared by the popup window and the Files overlay tab. With `hideFileActions` the toolbar is the panel's per-file bar: project-relative path, one Fold all / Unfold all toggle (state kept per open file) and the host's `toolbarActions`; `toolbarHost` portals it into the panel's full-width bar, and an inactive tab renders no toolbar. `extraExtensions` carries the Files panel's send-line gutter; the popup passes none |
 | `files/FilesOverlay.tsx` | The Files panel: the shared panel header with the open-file tabs and maximize/restore/close, a per-file bar (`.files-bar`) spanning the full panel width between the header and `.files-body` — rendered into a host element by the active tab's `FileContentView`, with the project-relative path and the file actions plus Toggle file tree / the `⋮` Files menu (the empty state renders its own bar into the same host, so it does not jump when the first file opens) — the active tab's `FileContentView` on the left and the tree side on the right (drag the `.files-side-resizer` splitter on its left edge — dragging left widens it — ≥ `FILES_SIDE_MIN_WIDTH` 160px while leaving the editor ≥ `FILES_MAIN_MIN_WIDTH` 160px; the width persists in `localStorage` `meow.files.sideWidth` and applies to both modes, double-click resets to the CSS default of 42% docked / 20rem expanded; hiding it persists in `meow.files.treeHidden` and only sets `hidden`, so expanded folders survive); docked on the right with a drag-to-resize left edge, or expanded over the pane area (same mounted instance, so tabs/tree survive the toggle). Both modes are elevated by `--shadow-panel`, whose blur is tuned to fade out inside the panel's 0.333333rem offset from `.main` (expanded mode layers it on top of the `--bg-chat` backdrop ring that hides the pane chrome) |
 | `files/FilesTree.tsx` | Lazily loaded tree of the overlay; lists dotfiles and `node_modules`; `?`-prefixed filter searches file contents and lists `path:line` hits; refreshes on context changes. A directory row is its chevron plus the name (no folder icon) and a file row puts the typed `file-icon` in the same slot; rows are tall rounded pills (`--menu-hover`/`--menu-active`, `--radius`, 1rem indent per level); in a git repository a changed file tints its name and shows its status letter at the row's right edge, a changed directory shows a dot, and the status comes from `git-decorations` (one `gitGetStatusDetail` call per debounce, on mount, on `reloadToken` and on context changes). A row click opens a preview; a file row double click opens permanent |
-| `processes/ProcessesOverlay.tsx` | The Processes overlay (`ProcessesOverlay` default export): per-agent background shells as header tabs (Kill square on running shells) plus a `Monitors (n)` tab delegating to `MonitorsPane`, live streamed output of the selected shell below; reuses the Files overlay's `.files-overlay` layout and CSS variables with `processes-*` classes. Its optional `focus` prop (`{ monitorId?, seq }`, applied once then dropped through `onFocusApplied`) lets the chat's background tasks card open the panel on a specific watch |
-| `processes/MonitorsPane.tsx` | The Monitors tab body: the watch list (kind icon, label, `waiting`/reason) above the selected watch's detail (kind, target, `until`, start + elapsed, session, finish + result once resolved) with one Stop watching / Dismiss button calling `monitorsCancel` |
+| `processes/TasksPanel.tsx` | The Tasks panel (`TasksPanel` default export): a right-hand column panel with **one expandable list** instead of tabs — background sessions, background shells, polled commands and delegations, grouped `Active` / `Finished`. A row is a state dot + kind icon + label + `kind · id` + state chip + elapsed/age; clicking it expands the row in place (multi-open) to facts (mono kv), content (last two messages via `listChatMessages`, the live output box via `backgroundProcSubscribe`/`backgroundProcUnsubscribe`, or the resolved watch's result) and the kind's actions (`Open session`/`Stop`/`Delete` with a confirm, `Kill process`, `Stop watching`/`Dismiss` via `monitorsCancel`, `Open session` for a delegation watch). Its header is a title with count, `x running · y waiting · z finished`, state dots, maximize and close; docked it is a cell of `.right-panels-grid`, maximized (`.full`) it covers the pane area like Files. Polls `backgroundProcsList`/`monitorsList` every ~1.5s; its optional `focus` prop (`{ monitorId?, seq }`, applied once then dropped through `onFocusApplied`) lets the chat's background tasks card expand one watch |
 | `files/line-send-gutter.ts` | `buildSendText` / `languageLabel` / `lineSendGutter`: a gutter before the line numbers with a `+` on the hovered line; sends the line or the selected lines to the composer via `meow:composer-insert`, fenced with a run longer than any backticks in the code |
 | `files/open-tabs.ts` | Pure tab rules over `{ tabs, activeTab }`: `openTab` (single click = preview, double click = permanent, an open file only activates, a preview is replaced in place), `promoteTab`, `togglePinned` (permanent, sorts first), `closeTabs`, `closeAllTabs` (keeps pinned), `activateTab` |
 | `files/file-icon.tsx` | `fileIconKind` / `fileIconFor` / `FileIcon`: a file name → lucide icon + colour class (code, JSON, Markdown, image, styles, config, `.gitignore`, generic); colours are theme tokens in `styles.css` |
@@ -243,7 +248,7 @@ replayed on mount through `getUpdaterStatus`, so a window that loads after the c
 | Component | Responsibility |
 |---|---|
 | `ChatPanel.tsx` | The container: subscribes to chat events, owns feed state (items / todos / queue / pendingPrompt), rAF-batches stream deltas, and merges transcript loads with live rows by stable id. Tool start/result events upsert the same row, and a result recreates a missing start row, so an in-flight transcript-load race cannot hide tool output. At render time the feed map folds **every** `tool` item into a `cluster` row via `clusterToolRows` (a pure helper that walks `items`) — so the agent's back-to-back tool bursts read as one tight group, and even a lone tool call renders as a 1-tool cluster with the same chrome. The helper also drops empty assistant messages (no text / reasoning / images) entirely from the feed; the agent's loop persists these between tool batches, so without that drop otherwise-consecutive tools would scatter across 1-tool clusters on reload. State stays flat, so paging and live upserts are unchanged. Renders feed (`FeedMessage` with hover copy action bar for assistant messages) + composer + context footer. The todo list is a feed row (`TodoCard`) rendered after the transcript rows and right above the pending prompt, so it scrolls with the feed (not sticky): a neutral hairline card headed `Tasks` + `done/total`, one row per todo with a status mark (check / spinner / circle / x); the in-progress task spins and pulses (off under `prefers-reduced-motion`). The header toggles it collapsed, where it keeps naming the active task. It disappears when the list is empty. An incoming delegated message renders as a user bubble with a `delegation` badge and a `From session: <name>` label (`.chat-delegation-label`); the metadata travels on `FeedItem`/`toFeedItem` so a reload reproduces it, and `direction: 'result'` rows stay unlabelled. The permission/question prompt with type badge tag is the **last row of the chat feed** (the meow-chatui `PromptCard` placement), not a composer child: it scrolls with the transcript it interrupts, and a prompt that arrives while the user is reading history is scrolled into view, since the agent stays blocked until it is answered. Answering a `question` prompt also lands the answer in the feed as a user bubble (the loop's `user-message` event, right after the tool row), so the transcript reads as a conversation. The composer is two stacked blocks — the **queued-messages card** (`.chat-queue`, rendered only while the queue is non-empty: a header with the count and a caret that collapses it, then one row per message with always-present send-now / edit / remove actions) directly above the **input card** (`ChatInput`) — plus a one-line **footer** (`chat-footer-project-group` on the left: project folder name and a git branch chip that opens the Git view; `chat-footer-controls` on the right: context readout + `ModePicker`). In a **new session** (the draft, before the first message) the folder name is a `BaseDropdown` project picker — the known projects (current one checked) plus `Choose folder…`, which adds the picked folder as a project and starts the session there; once the session has started its cwd is fixed and the footer shows plain text. Memoized. |
-| `chat/BackgroundTasksCard.tsx` | The chat feed's last item (above the todo list) while the session has watches: `Background tasks` header (`N running · M done`, one dot per watch — pulsing while watching, green resolved, yellow on timeout — Open pane, collapse caret) and one row per watch (kind icon, label, `proc <id>` or the `until`, `waiting <elapsed>` / reason + ago, `✕` → `monitorsCancel`). Inline and stable: it scrolls with the transcript, never appends a row per update, and renders `null` when empty. Refetches on `procs:monitors-changed` with a 1s tick for elapsed times; a row click opens the Processes panel's Monitors tab focused on that watch |
+| `chat/BackgroundTasksCard.tsx` | The chat feed's last item (above the todo list) while the session has watches: `Background tasks` header (`N running · M done`, one dot per watch — pulsing while watching, green resolved, yellow on timeout — Open pane, collapse caret) and one row per watch (kind icon, label, `proc <id>` or the `until`, `waiting <elapsed>` / reason + ago, `✕` → `monitorsCancel`). Inline and stable: it scrolls with the transcript, never appends a row per update, and renders `null` when empty. Refetches on `procs:monitors-changed` with a 1s tick for elapsed times; a row click opens the Tasks panel with that watch expanded |
 | `ChatInput.tsx` | Composer, **one rounded card** with everything inside it: a 36px mascot (`MeowPet`) perched on the card's top border (absolutely positioned, so it costs no layout), an optional edit banner (`.chat-input-editing`), image/mention chips, the auto-growing field (`rows=1`, `field-sizing: content`, capped at 8 lines and then scrolling) and, on its own bottom row (`chat-input-bar`), the `+` add menu, the model picker, then the right group — variant picker + one round 2.25rem button: Send (arrow) at rest, disabled while empty, Stop while a turn runs, and Send again (check, `Save edit`) while a queued message is edited. Enter sends, Shift+Enter inserts a newline, Esc cancels an edit when no menu is open, and Alt+Enter sends the head of the queue now. Placeholder: `Ask anything, @ to mention, / for actions`, or `Processing...` while running. Paste/drop image chips (≤4, ≤5MB), `@` file-mention dropdown + chips, `/` command menu, edit-queued flow. Leaving edit mode without saving (the queued message was removed, or it drained into its own turn) drops the text that edit loaded into the field — the field is uncontrolled, so otherwise that text would sit there and a later Enter would submit it as a brand-new message; anything the user typed after it stays. Memoized, **uncontrolled**. |
 | `useChatScroll.ts` | Feed scroll controller: follow / anchored / manual modes, turn-top anchoring, jump-to-end button. Detach is gesture-driven: only wheel, touch, keyboard nav, or a scrollbar drag leaves follow mode — a `scroll` event observed off the bottom while the DOM itself grows (streamed deltas, `content-visibility` rows resolving their height, history paging) must NOT detach it, so `scrollEventAction()` classifies each scroll event into none/follow/detach instead of trusting the position alone. After the user scrolls away (manual mode) following only resumes at the literal bottom — re-arming from the loose 80px follow zone would make a slight upward nudge on a long, still-streaming turn snap the viewport back down next delta (up/down jitter). Pure geometry helpers live in `chat-scroll-geometry.ts`. |
 | `ToolCallCard.tsx` | One tool call in a compact micro-bar layout (badge, file/command summary, status hairline, expandable diff/output body). Memoized. When `collapseWhileRunning` is true (set by `ToolCluster`), the card never auto-opens — even while the call is `pending` — so a long run of tool steps stays collapsed. Edit-style calls (`edit`, `write`, `apply-patch`) show their `+N −M` line counts (from `diffStats`) in the header. Inside a cluster a step renders as a plain list row (no coloured left rule, no caret, lowercase badge; the ✓/✗ carries status), and a bash row drops the leading `cd <dir> &&` (`stripCdPrefix`; the hover title keeps the full command). |

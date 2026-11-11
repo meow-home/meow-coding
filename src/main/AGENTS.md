@@ -55,7 +55,7 @@ handlers and the app lifecycle.
   `drainQueue`) — routing it through the abort path is what lets the aborted turn's tool results
   settle before the new turn appends its user message. When it ends with the slot free it calls the `onAgentAvailable` dep (wired in `index.ts`
   to `delegationService.notifyAgentAvailable`), since an idle compaction emits no `done`/`error`.
-  Bridges background shells to the renderer for the Processes overlay: owns a `procSubscriptions` set and, on
+  Bridges background shells to the renderer for the Tasks panel: owns a `procSubscriptions` set and, on
   construction, forwards a shell's `data`/`exit` only while it is subscribed (`backgroundProcsList(agentId)`,
   `monitorsList(agentId)`, `killBackgroundProc(id)`, `subscribeBackgroundProc(id)` returning backlog+status,
   `unsubscribeBackgroundProc(id)`), via the `onBackgroundProcData`/`onBackgroundProcExit` deps; cleared on dispose.

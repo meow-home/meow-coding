@@ -4,7 +4,6 @@ import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import PanelHeader from '../../src/renderer/src/components/common/PanelHeader'
-import ProcessesOverlay from '../../src/renderer/src/components/processes/ProcessesOverlay'
 import SubagentOverlay, { type SubagentOverlayItem } from '../../src/renderer/src/components/chat/SubagentOverlay'
 
 ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -80,69 +79,6 @@ describe('PanelHeader', () => {
     render({ tabs: [], activeId: null, onAdd, addLabel: 'New tab' })
     act(() => container.querySelector<HTMLElement>('[aria-label="New tab"]')!.click())
     expect(onAdd).toHaveBeenCalledOnce()
-  })
-})
-
-describe('ProcessesOverlay tabs', () => {
-  const kill = vi.fn(async () => {})
-
-  async function render(shells: unknown[], monitors: unknown[]) {
-    ;(window as unknown as { api: unknown }).api = {
-      backgroundProcsList: vi.fn(async () => shells),
-      monitorsList: vi.fn(async () => monitors),
-      backgroundProcSubscribe: vi.fn(async () => ({ backlog: 'output of shell', status: 'running' })),
-      backgroundProcUnsubscribe: vi.fn(async () => {}),
-      backgroundProcKill: kill,
-      monitorsCancel: vi.fn(async () => {}),
-      onBackgroundProcData: () => () => {},
-      onBackgroundProcExit: () => () => {}
-    }
-    await act(async () => {
-      root.render(createElement(ProcessesOverlay, { agentId: 'a', full: false, onToggleFull: vi.fn(), onClose: vi.fn() }))
-    })
-  }
-
-  beforeEach(() => kill.mockClear())
-
-  it('shows a tab per shell and a monitors tab', async () => {
-    await render(
-      [
-        { id: 's1', command: 'npm run dev', status: 'running' },
-        { id: 's2', command: 'tsc', status: 'exited', exitCode: 0 }
-      ],
-      [{ id: 'm1', targetId: 's1', until: '/READY/' }]
-    )
-    expect(tabIds()).toEqual(['npm run dev', 'tsc (exit 0)', 'Monitors (1)'])
-    expect(container.querySelector('.processes-output')?.textContent).toBe('output of shell')
-  })
-
-  it('kills a running shell from its tab, and an exited one has no such button', async () => {
-    await render(
-      [
-        { id: 's1', command: 'npm run dev', status: 'running' },
-        { id: 's2', command: 'tsc', status: 'exited', exitCode: 1 }
-      ],
-      []
-    )
-    expect(container.querySelector('[aria-label="Kill tsc"]')).toBeNull()
-    await act(async () => container.querySelector<HTMLElement>('[aria-label="Kill npm run dev"]')!.click())
-    expect(kill).toHaveBeenCalledWith('s1')
-  })
-
-  it('opens the monitors tab, and falls to it when there are no shells', async () => {
-    await render([], [{
-      id: 'm1', kind: 'shell', label: 'npm run dev', targetId: 's9', until: 'exit or 30s',
-      status: 'watching', startedAt: Date.now(), sessionId: 'sess-1234'
-    }])
-    expect(tabIds()).toEqual(['Monitors (1)'])
-    expect(container.querySelector('.monitors-item-name')?.textContent).toBe('npm run dev')
-    expect(container.querySelector('.monitors-kv')?.textContent).toContain('exit or 30s')
-  })
-
-  it('shows the empty state with nothing running', async () => {
-    await render([], [])
-    expect(container.querySelector('[role="tablist"]')).toBeNull()
-    expect(container.textContent).toContain('No background processes')
   })
 })
 

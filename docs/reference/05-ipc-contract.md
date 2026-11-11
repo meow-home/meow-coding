@@ -57,7 +57,7 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `FilesImage` | `files:image` | `getFileImage(path): ImageContentResult` — reads raster image files (max 10MB) as base64 data URLs for image preview |
 | `FilesOpenSystem` | `files:open-system` | `openFileWithSystem(path)` — opens a file with the OS default application; rejected unless `path` is inside a registered project |
 | `FilesSuggest` | `files:suggest` | `suggestFiles(agentId, prefix): FileSuggestion[]` — cwd comes from the session's agent; for a draft session (`DRAFT_SESSION_ID`, no backend agent yet) it falls back to the active project path |
-| `BackgroundProcsList` | `procs:list` | `backgroundProcsList(agentId): BackgroundProcInfo[]` — running + exited background shells for the agent, for the Processes overlay |
+| `BackgroundProcsList` | `procs:list` | `backgroundProcsList(agentId): BackgroundProcInfo[]` — running + exited background shells for the agent, for the Tasks panel. Each carries `id`, `command`, `cwd`, `startedAt` (drives the row's elapsed time), `status` and `exitCode` |
 | `MonitorsList` | `procs:monitors` | `monitorsList(agentId): MonitorInfo[]` — the task-card snapshot: watching monitors first (oldest first), then the last 20 resolved ones (newest first). Each carries `kind` (`shell`/`poll`/`delegation`), `label`, `targetId`, `until` (a human summary, e.g. `/READY/ or exit or 30s`), `status`, `reason`/`detail` once resolved, `startedAt`/`resolvedAt` and `sessionId` |
 | `MonitorsCancel` | `procs:monitors-cancel` | `monitorsCancel(id)` — stops a watching monitor (the target keeps running) or dismisses a resolved one from the task-card history |
 | `BackgroundProcKill` | `procs:kill` | `backgroundProcKill(id)` — kills a background shell |

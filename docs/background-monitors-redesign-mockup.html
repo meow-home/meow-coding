@@ -138,7 +138,7 @@
       padding: 0.12rem 0.28rem; border-radius: var(--radius-xs);
       background: var(--bg-active); color: var(--text-dim);
     }
-    .dock-summary { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-faint); }
+    .dock-summary { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-faint); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .dock-summary .run { color: var(--green); }
     .dock-summary .stop { color: var(--text-faint); }
     .dock-dots { display: inline-flex; align-items: center; gap: 0.2rem; }
@@ -170,7 +170,7 @@
     .dot.idle { background: var(--yellow); box-shadow: 0 0 0 3px rgba(229, 192, 123, 0.12); }
     .dot.stopped { background: var(--text-faint); }
     .dot.error { background: var(--red); box-shadow: 0 0 0 3px rgba(224, 108, 117, 0.14); }
-    .row-name { font-size: 0.79rem; color: var(--text-strong); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row-name { flex: 0 1 auto; min-width: 0; font-size: 0.79rem; color: var(--text-strong); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .state {
       font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.05em; text-transform: uppercase;
       padding: 0.1rem 0.3rem; border-radius: var(--radius-xs); border: 1px solid var(--hairline);
@@ -284,6 +284,11 @@
     .anatomy { display: flex; align-items: center; gap: 0.35rem; margin-top: 0.35rem; flex-wrap: wrap; font-family: var(--font-mono); font-size: 0.66rem; color: var(--text-faint); }
     .anatomy .box { border: 1px dashed var(--hairline-strong); border-radius: var(--radius-xs); padding: 0.15rem 0.35rem; }
     .anatomy .box.hl { border-style: solid; border-color: var(--accent-border); color: var(--accent-strong); background: var(--accent-dim); }
+
+    @media (max-width: 900px) {
+      .dock-hint { display: none; }
+      .dock-dots { display: none; }
+    }
 
     /* density switch */
     body.compact .row-head { padding-top: 0.24rem; padding-bottom: 0.24rem; }

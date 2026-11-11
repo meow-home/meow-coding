@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meow — Tasks: one expandable list in the right panel, no tabs — mockup v3</title>
+  <style>
+    :root {
+      /* Repo tokens (src/renderer/src/styles.css, One Dark Pro) */
+      --bg: #1e2227;
+      --bg-panel: #1e2227;
+      --bg-chat: #23272e;
+      --bg-raised: #2c313a;
+      --bg-hover: #323842;
+      --bg-active: #3a4150;
+      --bg-input: #2c313a;
+      --bg-code: #1a1d21;
+      --text: #abb2bf;
+      --text-strong: #d7dae0;
+      --text-dim: #9da5b4;
+      --text-faint: #7f848e;
+      --accent: #4d78cc;
+      --accent-hover: #3f66b0;
+      --accent-strong: #61afef;
+      --accent-dim: rgba(97, 175, 239, 0.15);
+      --accent-border: rgba(97, 175, 239, 0.45);
+      --green: #98c379;
+      --yellow: #e5c07b;
+      --red: #e06c75;
+      --hairline: rgba(255, 255, 255, 0.10);
+      --hairline-strong: rgba(255, 255, 255, 0.18);
+      --radius-xs: 0.25rem;
+      --radius-sm: 0.333rem;
+      --radius: 0.5rem;
+      --radius-lg: 0.666rem;
+      --shadow-2: 0 12px 32px rgba(0, 0, 0, 0.55);
+      --font-ui: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', 'JetBrainsMono Nerd Font Mono', ui-monospace, Consolas, monospace;
+    }
+    [data-theme='light'] {
+      --bg: #ffffff;
+      --bg-panel: #fafafa;
+      --bg-chat: #ffffff;
+      --bg-raised: #f3f3f3;
+      --bg-hover: #ececec;
+      --bg-active: #e3e3e3;
+      --bg-input: #ffffff;
+      --bg-code: #f5f5f5;
+      --text: #1e1e1e;
+      --text-strong: #111111;
+      --text-dim: #4b4b4b;
+      --text-faint: #8a8a8a;
+      --accent: #4d78cc;
+      --accent-hover: #3f66b0;
+      --accent-strong: #2f6fb5;
+      --accent-dim: rgba(77, 120, 204, 0.12);
+      --accent-border: rgba(77, 120, 204, 0.38);
+      --green: #2e7d32;
+      --yellow: #b26a00;
+      --red: #c62828;
+      --hairline: rgba(0, 0, 0, 0.10);
+      --hairline-strong: rgba(0, 0, 0, 0.18);
+      --shadow-2: 0 12px 32px rgba(0, 0, 0, 0.14);
+    }
+    * { box-sizing: border-box; }
+    html { font-size: 14px; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--font-ui); font-size: 0.93rem; line-height: 1.5; }
+    button { font: inherit; color: inherit; }
+
+    .page { max-width: 1280px; margin: 0 auto; padding: 1.6rem 1.6rem 4rem; }
+    .page-head { display: flex; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.2rem; }
+    .eyebrow { font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
+    .page h1 { font-size: 1.35rem; font-weight: 700; margin: 0.15rem 0 0.35rem; letter-spacing: -0.01em; color: var(--text-strong); }
+    .page .lede { color: var(--text-dim); margin: 0; max-width: 84ch; font-size: 0.88rem; }
+    .page .lede b { color: var(--text-strong); font-weight: 600; }
+    .page .lede code { font-family: var(--font-mono); font-size: 0.78rem; background: var(--bg-raised); border: 1px solid var(--hairline); border-radius: var(--radius-xs); padding: 0 0.25rem; }
+    .toolbar { display: flex; align-items: center; gap: 0.4rem; margin-left: auto; flex-wrap: wrap; }
+    .toolbar button {
+      background: var(--bg-raised); border: 1px solid var(--hairline); color: var(--text-dim);
+      border-radius: var(--radius-sm); padding: 0.35rem 0.7rem; font-size: 0.76rem; cursor: pointer;
+    }
+    .toolbar button:hover { background: var(--bg-hover); color: var(--text); }
+    .toolbar button.on { border-color: var(--accent-border); background: var(--accent-dim); color: var(--accent-strong); }
+
+    .block { margin-top: 1.6rem; }
+    .block-head h2 { font-size: 0.98rem; margin: 0 0 0.2rem; color: var(--text-strong); display: flex; align-items: baseline; gap: 0.5rem; }
+    .block-head h2 .num { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-faint); letter-spacing: 0.08em; }
+    .block-head p { margin: 0 0 0.8rem; color: var(--text-dim); font-size: 0.84rem; max-width: 88ch; }
+    .block-head p b { color: var(--text-strong); font-weight: 600; }
+
+    /* ===== before / after ===== */
+    .compare { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0.9rem; align-items: center; margin-bottom: 1.4rem; }
+    .compare .arrow { color: var(--text-faint); font-family: var(--font-mono); }
+    .cmp { border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--bg-panel); padding: 0.6rem 0.7rem; }
+    .cmp-label { font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 0.4rem; }
+    .cmp-note { font-size: 0.72rem; color: var(--text-faint); margin-top: 0.45rem; }
+    .bad-tabs { display: flex; align-items: center; gap: 0.2rem; overflow: hidden; position: relative; height: 1.8rem; }
+    .bad-tabs::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 2.5rem; background: linear-gradient(90deg, transparent, var(--bg-panel)); }
+    .bad-tab { border: 1px solid var(--hairline); background: var(--bg-raised); border-radius: var(--radius-sm); padding: 0.12rem 0.4rem; font-family: var(--font-mono); font-size: 0.66rem; color: var(--text-dim); white-space: nowrap; }
+    .bad-tab.active { border-color: var(--accent-border); background: var(--accent-dim); color: var(--accent-strong); }
+    .good-list { display: flex; flex-direction: column; gap: 0.15rem; }
+    .good-row { display: flex; align-items: center; gap: 0.4rem; font-size: 0.72rem; color: var(--text-dim); }
+    .good-row .bar { width: 3px; height: 0.95rem; border-radius: 2px; background: var(--hairline-strong); }
+    .good-row .bar.run { background: var(--green); }
+    .good-row .bar.wait { background: var(--accent-strong); }
+    .good-row .bar.done { background: var(--text-faint); }
+    .good-row .nm { color: var(--text-strong); font-family: var(--font-mono); font-size: 0.7rem; }
+
+    /* ===== app frame ===== */
+    .appframe {
+      display: grid; grid-template-columns: 196px minmax(0, 1fr) 392px; grid-template-rows: 100%; height: 680px;
+      border: 1px solid var(--hairline-strong); border-radius: var(--radius-lg);
+      background: var(--bg); overflow: hidden; box-shadow: var(--shadow-2);
+    }
+    .side { background: var(--bg-panel); border-right: 1px solid var(--hairline); display: flex; flex-direction: column; min-height: 0; }
+    .side-head { padding: 0.6rem 0.75rem; font-size: 0.66rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-faint); font-weight: 600; border-bottom: 1px solid var(--hairline); }
+    .side-project { padding: 0.55rem 0.75rem 0.2rem; font-size: 0.75rem; color: var(--text-dim); font-weight: 600; }
+    .side-row { display: flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.55rem; margin: 0 0.35rem; border-radius: var(--radius-sm); font-size: 0.78rem; color: var(--text-dim); }
+    .side-row.active { background: var(--bg-hover); color: var(--text); }
+    .side-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); flex: 0 0 auto; }
+    .side-dot.running { background: var(--green); }
+    .side-dot.waiting { background: var(--accent-strong); }
+    .side-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .side-meta { margin-left: auto; font-family: var(--font-mono); font-size: 0.64rem; color: var(--text-faint); }
+
+    .stage { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; background: var(--bg-chat); }
+    .pane-mock { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    .pane-head { display: flex; align-items: center; gap: 0.45rem; padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--hairline); background: var(--bg); flex: 0 0 auto; }
+    .pane-title { font-size: 0.82rem; font-weight: 600; color: var(--text-strong); }
+    .chip { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.1rem 0.45rem; border: 1px solid var(--hairline); border-radius: 999px; font-size: 0.68rem; color: var(--text-dim); background: var(--bg-raised); font-family: var(--font-mono); }
+    .pane-head .spacer { flex: 1; }
+    .pane-btn { display: inline-flex; align-items: center; gap: 0.3rem; border: 1px solid var(--hairline); background: var(--bg-raised); color: var(--text-dim); border-radius: var(--radius-sm); padding: 0.18rem 0.45rem; font-size: 0.72rem; cursor: pointer; }
+    .pane-btn:hover { color: var(--text); border-color: var(--hairline-strong); }
+    .pane-btn.on { border-color: var(--accent-border); background: var(--accent-dim); color: var(--accent-strong); }
+    .pane-btn .badge { font-family: var(--font-mono); font-size: 0.62rem; background: var(--accent); color: #fff; border-radius: 999px; padding: 0 0.28rem; }
+    .feed { flex: 1; min-height: 0; overflow: hidden; padding: 0.9rem 1.1rem; display: flex; flex-direction: column; gap: 0.7rem; }
+    .msg { max-width: 72%; font-size: 0.82rem; line-height: 1.55; color: var(--text); }
+    .msg.user { align-self: flex-end; background: var(--bg-input); border: 1px solid var(--hairline); border-radius: var(--radius-lg); padding: 0.45rem 0.75rem; }
+    .msg.assistant { align-self: flex-start; }
+    .msg .who { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); margin-bottom: 0.15rem; font-weight: 600; font-family: var(--font-mono); }
+    .composer-mock { flex: 0 0 auto; margin: 0 0.9rem 0.7rem; border: 1px solid var(--hairline); border-radius: var(--radius-lg); background: var(--bg-input); padding: 0.45rem 0.7rem; font-size: 0.8rem; color: var(--text-faint); display: flex; align-items: center; }
+    .composer-mock .send { margin-left: auto; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); display: grid; place-items: center; color: #fff; font-size: 0.62rem; }
+
+    /* ===== the sheet ===== */
+    .sheet { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; border-left: 1px solid var(--hairline); background: var(--bg-chat); }
+    .sheet-head { display: flex; align-items: center; gap: 0.45rem; height: 2.35rem; padding: 0 0.55rem 0 0.7rem; flex: 0 0 auto; }
+    .sheet-icon { display: inline-flex; color: var(--text-faint); }
+    .sheet.live .sheet-icon { color: var(--accent-strong); }
+    .sheet-title { font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; color: var(--text-dim); }
+    .sheet-count { font-family: var(--font-mono); font-size: 0.64rem; line-height: 1; padding: 0.12rem 0.28rem; border-radius: var(--radius-xs); background: var(--bg-active); color: var(--text-dim); }
+    .sheet-summary { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-faint); }
+    .sheet-summary .run { color: var(--green); }
+    .sheet-summary .wait { color: var(--accent-strong); }
+    .sheet-dots { display: inline-flex; align-items: center; gap: 0.2rem; }
+    .sheet-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-faint); }
+    .sheet-dot.running { background: var(--green); animation: pulse 1.7s ease-in-out infinite; }
+    .sheet-dot.waiting { background: var(--accent-strong); }
+    .sheet-dot.stopped { background: var(--text-faint); }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .sheet-head .spacer { flex: 1; }
+    .icon-btn { display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; border: 1px solid transparent; background: none; border-radius: var(--radius-sm); color: var(--text-faint); cursor: pointer; }
+    .icon-btn:hover { background: var(--bg-hover); color: var(--text); border-color: var(--hairline); }
+    .sheet-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; border-top: 1px solid var(--hairline); }
+
+    /* ===== list ===== */
+    .group { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.7rem 0.3rem; background: var(--bg-panel); }
+    .group-label { font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
+    .group-count { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-dim); }
+    .group-line { flex: 1; height: 1px; background: var(--hairline); }
+
+    .trow { border-top: 1px solid var(--hairline); }
+    .trow:first-of-type { border-top: 0; }
+    .trow-head {
+      display: flex; align-items: center; gap: 0.45rem; width: 100%;
+      padding: 0.34rem 0.7rem; background: none; border: 0; cursor: pointer; text-align: left;
+      box-shadow: inset 2px 0 0 transparent;
+    }
+    .trow-head:hover { background: var(--bg-hover); }
+    .trow.open > .trow-head { background: var(--bg-raised); box-shadow: inset 2px 0 0 var(--accent-border); }
+    .trow.attention > .trow-head { box-shadow: inset 2px 0 0 var(--yellow); }
+    .trow.error > .trow-head { box-shadow: inset 2px 0 0 var(--red); }
+
+    .tdot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); flex: 0 0 auto; }
+    .tdot.running { background: var(--green); box-shadow: 0 0 0 3px rgba(152, 195, 121, 0.14); animation: pulse 1.7s ease-in-out infinite; }
+    .tdot.waiting { background: var(--accent-strong); box-shadow: 0 0 0 3px var(--accent-dim); }
+    .tdot.attention { background: var(--yellow); box-shadow: 0 0 0 3px rgba(229, 192, 123, 0.14); }
+    .tdot.stopped { background: var(--text-faint); }
+    .tdot.error { background: var(--red); }
+
+    .tkind { display: inline-flex; align-items: center; gap: 0.25rem; flex: 0 0 auto; color: var(--text-faint); }
+    .tlabel { flex: 1 1 auto; min-width: 0; font-size: 0.78rem; color: var(--text-strong); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tlabel .mono { font-family: var(--font-mono); font-size: 0.74rem; }
+    .tsub { font-family: var(--font-mono); font-size: 0.64rem; color: var(--text-faint); white-space: nowrap; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+
+    .state {
+      font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.05em; text-transform: uppercase;
+      padding: 0.1rem 0.3rem; border-radius: var(--radius-xs); border: 1px solid var(--hairline);
+      color: var(--text-faint); background: rgba(127, 132, 142, 0.08); white-space: nowrap; flex: 0 0 auto;
+    }
+    .state.running { color: var(--green); border-color: rgba(152, 195, 121, 0.32); background: rgba(152, 195, 121, 0.10); }
+    .state.waiting { color: var(--accent-strong); border-color: var(--accent-border); background: var(--accent-dim); }
+    .state.attention { color: var(--yellow); border-color: rgba(229, 192, 123, 0.32); background: rgba(229, 192, 123, 0.10); }
+    .state.done { color: var(--green); border-color: rgba(152, 195, 121, 0.24); background: transparent; }
+    .state.timeout { color: var(--yellow); border-color: rgba(229, 192, 123, 0.28); background: transparent; }
+    .state.error { color: var(--red); border-color: rgba(224, 108, 117, 0.32); background: rgba(224, 108, 117, 0.10); }
+
+    .tmeta { font-family: var(--font-mono); font-size: 0.66rem; color: var(--text-faint); white-space: nowrap; flex: 0 0 auto; min-width: 3.1rem; text-align: right; }
+    .trow.open .tmeta { color: var(--text-dim); }
+    .tcaret { display: inline-flex; color: var(--text-faint); transition: transform 0.16s ease; flex: 0 0 auto; }
+    .trow.open > .trow-head .tcaret { transform: rotate(90deg); color: var(--text-dim); }
+
+    .trow-body { display: none; padding: 0.1rem 0.7rem 0.6rem 1.62rem; background: var(--bg-raised); }
+    .trow.open > .trow-body { display: block; }
+
+    .meta-line { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; font-family: var(--font-mono); font-size: 0.66rem; color: var(--text-faint); margin-bottom: 0.4rem; }
+    .meta-line b { color: var(--text-dim); font-weight: 500; }
+    .meta-sep { color: var(--hairline-strong); }
+
+    .kv { display: grid; grid-template-columns: 4.2rem 1fr; gap: 0.16rem 0.5rem; margin: 0 0 0.45rem; font-size: 0.7rem; }
+    .kv dt { color: var(--text-faint); }
+    .kv dd { margin: 0; font-family: var(--font-mono); color: var(--text-dim); overflow-wrap: anywhere; }
+
+    .block-label { display: flex; align-items: center; gap: 0.35rem; font-family: var(--font-mono); font-size: 0.58rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 0.25rem; }
+    .block-label .live { display: inline-flex; align-items: center; gap: 0.2rem; color: var(--accent-strong); }
+    .block-label .spacer { flex: 1; }
+    .block-label .mini { border: 0; background: none; color: var(--text-faint); font-family: var(--font-ui); font-size: 0.66rem; cursor: pointer; padding: 0; }
+    .block-label .mini:hover { color: var(--text); text-decoration: underline; }
+
+    .preview { position: relative; border: 1px solid var(--hairline); border-radius: var(--radius-sm); background: var(--bg); padding: 0.35rem 0.5rem; display: flex; flex-direction: column; gap: 0.28rem; max-height: 4.6rem; overflow: hidden; }
+    .preview::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1.2rem; background: linear-gradient(transparent, var(--bg)); }
+    .msg-row { display: flex; gap: 0.45rem; font-size: 0.72rem; line-height: 1.45; }
+    .msg-role { flex: 0 0 auto; width: 4.2rem; font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); padding-top: 0.1rem; }
+    .msg-role.assistant { color: var(--accent-strong); }
+    .msg-text { color: var(--text); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+    .out { border: 1px solid var(--hairline); border-radius: var(--radius-sm); background: var(--bg-code); padding: 0.35rem 0.5rem; max-height: 9rem; overflow: auto; font-family: var(--font-mono); font-size: 0.68rem; line-height: 1.5; color: var(--text-dim); white-space: pre; }
+    .out .p { color: var(--accent-strong); }
+    .out .ok { color: var(--green); }
+    .out .dim { color: var(--text-faint); }
+
+    .result { border-left: 2px solid var(--green); background: rgba(152, 195, 121, 0.07); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 0.3rem 0.5rem; font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-strong); white-space: pre-wrap; }
+    .result.warn { border-color: var(--yellow); background: rgba(229, 192, 123, 0.07); }
+
+    .actions { display: flex; align-items: center; gap: 0.3rem; margin-top: 0.45rem; }
+    .act { display: inline-flex; align-items: center; gap: 0.28rem; border: 1px solid var(--hairline); background: var(--bg-panel); color: var(--text-dim); border-radius: var(--radius-sm); padding: 0.18rem 0.5rem; font-size: 0.71rem; cursor: pointer; }
+    .act:hover { color: var(--text); border-color: var(--hairline-strong); background: var(--bg-hover); }
+    .act.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 500; }
+    .act.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
+    .act.danger { margin-left: auto; color: var(--text-faint); }
+    .act.danger:hover { color: var(--red); border-color: rgba(224, 108, 117, 0.45); background: rgba(224, 108, 117, 0.08); }
+    .act svg { flex: 0 0 auto; }
+
+    /* ===== notes ===== */
+    .notes { margin-top: 1.8rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; }
+    @media (max-width: 1020px) { .notes { grid-template-columns: 1fr; } .compare { grid-template-columns: 1fr; } }
+    .note { border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--bg-panel); padding: 0.8rem 0.95rem; }
+    .note.wide { grid-column: 1 / -1; }
+    .note h3 { margin: 0 0 0.4rem; font-size: 0.84rem; color: var(--text-strong); }
+    .note p, .note li { font-size: 0.78rem; color: var(--text-dim); }
+    .note ul { margin: 0.25rem 0 0; padding-left: 1.05rem; }
+    .note li + li { margin-top: 0.18rem; }
+    .note code { font-family: var(--font-mono); font-size: 0.71rem; background: var(--bg); border: 1px solid var(--hairline); border-radius: var(--radius-xs); padding: 0 0.22rem; color: var(--text-dim); }
+    .note table { width: 100%; border-collapse: collapse; font-size: 0.75rem; margin-top: 0.3rem; }
+    .note th { text-align: left; font-weight: 600; color: var(--text-faint); font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.08em; padding: 0.25rem 0.4rem 0.3rem 0; border-bottom: 1px solid var(--hairline); }
+    .note td { padding: 0.28rem 0.4rem 0.28rem 0; border-bottom: 1px solid var(--hairline); color: var(--text-dim); vertical-align: top; }
+    .note td:first-child { white-space: nowrap; }
+    .swatch { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 0.3rem; vertical-align: 1px; }
+    .kbd { font-family: var(--font-mono); font-size: 0.68rem; border: 1px solid var(--hairline-strong); border-bottom-width: 2px; border-radius: var(--radius-xs); padding: 0 0.25rem; color: var(--text-dim); }
+  </style>
+</head>
+<body>
+<div class="page">
+  <header class="page-head">
+    <div>
+      <div class="eyebrow">Redesign v3 · Meow desktop</div>
+      <h1>Tasks — one expandable list in the right panel. No tab strip.</h1>
+      <p class="lede">
+        The Processes panel keeps its right-hand slot; the <b>tab strip</b> is what goes away. Background
+        shells, polls, delegations and background sessions all live in <b>one list</b>. A row is a one-line
+        summary (state · name · kind · elapsed); clicking it <b>expands it in place</b> to show the live
+        output, the result, the last messages — and the actions. Maximize still covers the pane area.
+      </p>
+    </div>
+    <div class="toolbar">
+      <button id="themeBtn">Light / Dark</button>
+    </div>
+  </header>
+
+  <!-- before / after -->
+  <div class="compare">
+    <div class="cmp">
+      <div class="cmp-label">Before — one tab per shell</div>
+      <div class="bad-tabs">
+        <span class="bad-tab active">npm test</span>
+        <span class="bad-tab">npm run watch</span>
+        <span class="bad-tab">pnpm dev</span>
+        <span class="bad-tab">vitest -t wake</span>
+        <span class="bad-tab">git status --short</span>
+        <span class="bad-tab">npm run build</span>
+        <span class="bad-tab">tail -f app.log</span>
+        <span class="bad-tab">Monitors (4)</span>
+      </div>
+      <div class="cmp-note">Titles truncate, state is invisible, and the × on a tab kills a process.</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="cmp">
+      <div class="cmp-label">After — one list, grouped by state</div>
+      <div class="good-list">
+        <div class="good-row"><span class="bar run"></span><span class="nm">npm test</span><span style="margin-left:auto;font-family:var(--font-mono);font-size:0.66rem">running 2:14</span></div>
+        <div class="good-row"><span class="bar wait"></span><span class="nm">wake test 3</span><span style="margin-left:auto;font-family:var(--font-mono);font-size:0.66rem">waiting 0:42</span></div>
+        <div class="good-row"><span class="bar done"></span><span class="nm">npm run watch</span><span style="margin-left:auto;font-family:var(--font-mono);font-size:0.66rem">matched</span></div>
+      </div>
+      <div class="cmp-note">Every row keeps its state and its elapsed time; content opens under the row.</div>
+    </div>
+  </div>
+
+  <!-- app -->
+  <section class="block">
+    <div class="block-head">
+      <h2><span class="num">01</span> The right-hand panel — grouped list, rows expand in place</h2>
+      <p>
+        The panel keeps its slot in the right-hand column (same as Files / Terminal) and its <b>Maximize</b>
+        button still expands it over the pane area. Only its contents change: the tab strip is gone and the
+        list scrolls in place, so 8 shells no longer mean 8 tabs plus a Monitors tab.
+      </p>
+    </div>
+
+    <div class="appframe" id="app">
+      <aside class="side">
+        <div class="side-head">Sessions</div>
+        <div class="side-project">▾ meow-coding</div>
+        <div class="side-row active"><span class="side-dot running"></span><span class="side-name">Fix delegation wake</span><span class="side-meta">now</span></div>
+        <div class="side-row"><span class="side-dot waiting"></span><span class="side-name">Browser bridge docs</span><span class="side-meta">bg</span></div>
+        <div class="side-row"><span class="side-dot"></span><span class="side-name">Settings polish</span><span class="side-meta">2h</span></div>
+      </aside>
+
+      <div class="stage">
+        <div class="pane-mock">
+          <div class="pane-head">
+            <span class="pane-title">Fix delegation wake</span>
+            <span class="chip">build</span>
+            <span class="spacer"></span>
+            <button class="pane-btn on">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              Tasks <span class="badge">4</span>
+            </button>
+          </div>
+          <div class="feed">
+            <div class="msg user"><div class="who">you</div>Start the test run and ping me when the wake lands.</div>
+            <div class="msg assistant"><div class="who">meow</div>Running <code style="font-family:var(--font-mono)">npm test</code> in the background and watching the delegation. Both are in <b>Tasks</b> below — click a row to see its output.</div>
+          </div>
+          <div class="composer-mock">Message meow… <span class="send">↑</span></div>
+        </div>
+
+      </div>
+
+      <section class="sheet live open" id="sheet" aria-label="Tasks">
+          <div class="sheet-head">
+            <span class="sheet-icon" aria-hidden="true">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            </span>
+            <span class="sheet-title">Tasks</span>
+            <span class="sheet-count">6</span>
+            <span class="sheet-summary"><span class="run">2 running</span> · <span class="wait">2 waiting</span> · 2 finished</span>
+            <span class="sheet-dots" aria-hidden="true">
+              <span class="sheet-dot running"></span><span class="sheet-dot running"></span>
+              <span class="sheet-dot waiting"></span><span class="sheet-dot waiting"></span>
+              <span class="sheet-dot stopped"></span><span class="sheet-dot stopped"></span>
+            </span>
+            <span class="spacer"></span>
+            <button class="icon-btn" title="Close" aria-label="Close tasks">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+          </div>
+
+          <div class="sheet-body" id="sheetBody">
+            <div class="group"><span class="group-label">Active</span><span class="group-count">4</span><span class="group-line"></span></div>
+
+            <!-- session, running, expanded -->
+            <div class="trow open" data-row>
+              <button class="trow-head" aria-expanded="true">
+                <span class="tdot running" aria-hidden="true"></span>
+                <span class="tkind" aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                </span>
+                <span class="tlabel">Browser bridge docs</span>
+                <span class="tsub">session</span>
+                <span class="state running">running</span>
+                <span class="tmeta">4s</span>
+                <span class="tcaret" aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+                </span>
+              </button>
+              <div class="trow-body">
+                <div class="meta-line"><b>build</b><span class="meta-sep">·</span>claude-sonnet-4-5<span class="meta-sep">·</span>meow-coding<span class="meta-sep">·</span>4ed5c267</div>
+                <div class="block-label">Last messages</div>
+                <div class="preview">
+                  <div class="msg-row">
+                    <span class="msg-role assistant">meow</span>
+                    <span class="msg-text">Updated the bridge section: the WS server binds 127.0.0.1 and the approval gate rejects an unknown extension id before any command runs.</span>
+                  </div>
+                  <div class="msg-row">
+                    <span class="msg-role">you</span>
+                    <span class="msg-text">Also document the userData path for the unpacked extension.</span>
+                  </div>
+                </div>
+                <div class="actions">
+                  <button class="act primary">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                    Open session
+                  </button>
+                  <button class="act">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+                    Stop
+                  </button>
+                  <button class="act danger">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- shell, running, collapsed -->
+            <div class="trow" data-row>
+              <button class="trow-head" aria-expanded="false">
+                <span class="tdot running" aria-hidden="true"></span>
+                <span class="tkind" aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 14 15 20 9"/><line x1="4" y1="4" x2="4" y2="20"/></svg>
+                </span>
+                <span class="tlabel"><span class="mono">npm test</span></span>
+                <span class="tsub">shell · cde331b3</span>
+                <span class="state running">running</span>
+                <span class="tmeta">2:14</span>
+                <span class="tcaret" aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+                </span>
+              </button>
+              <div class="trow-body">
+                <dl class="kv">
+                  <dt>Command</dt><dd>npm test</dd>
+                  <dt>CWD</dt><dd>E:\Git\GitHub\meow-coding</dd>
+                  <dt>PID</dt><dd>18432</dd>
+                </dl>
+                <div class="block-label">
+                  Output
+                  <span class="live"><span class="tdot running" style="width:5px;height:5px"></span>live</span>
+                  <span class="spacer"></span>
+                  <button class="mini">Copy</button>
+                </div>
+                <div class="out"><span class="p">›</span> vitest run --reporter=dot
+<span class="p">›</span> RUN  v3.2.4 E:/Git/GitHub/meow-coding
+
+ <span class="ok">✓</span> src/main/agent/monitor-store.test.ts (12 tests)
+ <span class="ok">✓</span> src/main/agent/poll-monitor-store.test.ts (9 tests)
+ <span class="dim">… 118 test files</span></div>
+                <div class="actions">
+                  <button class="act">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+                    Kill process
+                  </button>
+                  <button class="act danger">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- delegation, waiting -->
+            <div class="trow" data-row>
+              <button class="trow-head" aria-expanded="false">
+                <span class="tdot waiting" aria-hidden="true"></span>
+                <span class="tkind" aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>
+                </span>
+                <span class="tlabel">wake test 3</span>
+                <span class="tsub">delegation · 8b21f0d4</span>
+                <span class="state waiting">waiting</span>
+                <span class="tmeta">0:42</span>
+                <span class="tcaret" aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+                </span>
+              </button>
+              <div class="trow-body">
+                <dl class="kv">
+                  <dt>Until</dt><dd>sub-session reports back</dd>
+                  <dt>Started</dt><dd>10:04:03 · 42s ago</dd>
+                  <dt>Session</dt><dd>8b21f0d4</dd>
+                </dl>
+                <div class="actions">
+                  <button class="act">Stop watching</button>
+                  <button class="act">Open sub-session</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- session, idle -->
+            <div class="trow attention" data-row>
+              <button class="trow-head" aria-expanded="false">
+                <span class="tdot attention" aria-hidden="true"></span>
+                <span class="tkind" aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                </span>
+                <span class="tlabel">Settings polish</span>
+                <span class="tsub">session</span>
+                <span class="state attention">waiting for you</span>
+                <span class="tmeta">2h</span>
+                <span class="tcaret" aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+                </span>
+              </button>
+              <div class="trow-body">
+                <div class="meta-line"><b>plan</b><span class="meta-sep">·</span>claude-opus-4-1<span class="meta-sep">·</span>meow-coding<span class="meta-sep">·</span>9f01ab3e</div>
+                <div class="block-label">Last messages</div>
+                <div class="preview">
+                  <div class="msg-row">
+                    <span class="msg-role assistant">meow</span>
+                    <span class="msg-text">Done — the Permissions tab lists task next to bash. Restart the app to pick up the new default.</span>
+                  </div>
+                </div>
+                <div class="actions">
+                  <button class="act primary">Open session</button>
+                  <button class="act">Stop</button>
+                  <button class="act danger">Delete</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="group"><span class="group-label">Finished</span><span class="group-count">2</span><span class="group-line"></span></div>
+
+            <!-- shell, matched, collapsed -->
+            <div class="trow" data-row>
+              <button class="trow-head" aria-expanded="false">
+                <span class="tdot stopped" aria-hidden="true"></span>
+                <span class="tkind" aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 14 15 20 9"/><line x1="4" y1="4" x2="4" y2="20"/></svg>
+                </span>
+                <span class="tlabel"><span class="mono">npm run watch</span></span>
+                <span class="tsub">shell · 5ba0e117</span>
+                <span class="state done">matched</span>
+                <span class="tmeta">1m ago</span>
+                <span class="tcaret" aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+                </span>
+              </button>
+              <div class="trow-body">
+                <dl class="kv">
+                  <dt>Watched</dt><dd>output matches /ready in/</dd>
+                  <dt>Exit</dt><dd>0 · 1m 27s</dd>
+                </dl>
+                <div class="block-label">Result</div>
+                <div class="result">ready in 412 ms — watching for changes</div>
+                <div class="block-label" style="margin-top:0.45rem">Last output</div>
+                <div class="out"><span class="p">›</span> vite v7.0.4 dev server running at:
+<span class="p">›</span>   <span class="ok">Local:</span>   http://localhost:5173/
+<span class="dim">… 41 lines</span></div>
+                <div class="actions">
+                  <button class="act">Copy output</button>
+                  <button class="act danger">Dismiss</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- session, stopped -->
+            <div class="trow" data-row>
+              <button class="trow-head" aria-expanded="false">
+                <span class="tdot stopped" aria-hidden="true"></span>
+                <span class="tkind" aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                </span>
+                <span class="tlabel">MCP config draft</span>
+                <span class="tsub">session</span>
+                <span class="state">stopped · exit 0</span>
+                <span class="tmeta">14m ago</span>
+                <span class="tcaret" aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+                </span>
+              </button>
+              <div class="trow-body">
+                <div class="meta-line"><b>build</b><span class="meta-sep">·</span>claude-sonnet-4-5<span class="meta-sep">·</span>meow-coding<span class="meta-sep">·</span>cde331b3</div>
+                <div class="block-label">Last messages</div>
+                <div class="preview">
+                  <div class="msg-row">
+                    <span class="msg-role assistant">meow</span>
+                    <span class="msg-text">Session ended after the config write. The transcript stays available here.</span>
+                  </div>
+                </div>
+                <div class="actions">
+                  <button class="act primary">Open transcript</button>
+                  <button class="act danger">Delete</button>
+                </div>
+              </div>
+            </div>
+          </div>
+      </section>
+    </div>
+  </section>
+
+  <!-- notes -->
+  <section class="notes">
+    <div class="note">
+      <h3>Row anatomy</h3>
+      <ul>
+        <li><b>state dot</b> — green running, blue waiting, yellow needs-you, grey finished, red error</li>
+        <li><b>kind icon</b> — session · shell · poll · delegation (one glyph each)</li>
+        <li><b>label</b> — session name, or the command in mono</li>
+        <li><b>sub-label</b> — kind + short id / cwd</li>
+        <li><b>state chip</b> — the exact state, not just a colour</li>
+        <li><b>elapsed</b> — live while active, “1m ago” once finished</li>
+      </ul>
+      <p style="margin:0.5rem 0 0">Expanded body: facts (mono kv) → content (output / result / last messages) → actions. Content is clamped; long output scrolls inside its own box so the row never grows past ~9rem.</p>
+    </div>
+
+    <div class="note">
+      <h3>State → treatment</h3>
+      <table>
+        <thead><tr><th>State</th><th>Dot</th><th>Chip</th></tr></thead>
+        <tbody>
+          <tr><td>session running</td><td><span class="swatch" style="background:var(--green)"></span></td><td>running</td></tr>
+          <tr><td>session idle</td><td><span class="swatch" style="background:var(--yellow)"></span></td><td>waiting for you</td></tr>
+          <tr><td>session stopped</td><td><span class="swatch" style="background:var(--text-faint)"></span></td><td>stopped · exit 0</td></tr>
+          <tr><td>shell running</td><td><span class="swatch" style="background:var(--green)"></span></td><td>running</td></tr>
+          <tr><td>monitor waiting</td><td><span class="swatch" style="background:var(--accent-strong)"></span></td><td>waiting</td></tr>
+          <tr><td>monitor matched</td><td><span class="swatch" style="background:var(--text-faint)"></span></td><td>matched</td></tr>
+          <tr><td>monitor timeout</td><td><span class="swatch" style="background:var(--yellow)"></span></td><td>timeout</td></tr>
+          <tr><td>error</td><td><span class="swatch" style="background:var(--red)"></span></td><td>error</td></tr>
+        </tbody>
+      </table>
+      <p style="margin:0.5rem 0 0">Only live rows pulse. A needs-you row keeps a yellow inset bar, so it is visible from the chat behind the panel.</p>
+    </div>
+
+    <div class="note">
+      <h3>Actions per kind</h3>
+      <table>
+        <thead><tr><th>Row</th><th>Actions</th></tr></thead>
+        <tbody>
+          <tr><td>session · active</td><td>Open session · Stop · Delete</td></tr>
+          <tr><td>session · stopped</td><td>Open transcript · Delete</td></tr>
+          <tr><td>shell · running</td><td>Kill process · Copy output · Delete</td></tr>
+          <tr><td>shell · exited</td><td>Copy output · Dismiss</td></tr>
+          <tr><td>poll / delegation · waiting</td><td>Stop watching · Open sub-session</td></tr>
+          <tr><td>monitor · resolved</td><td>Dismiss · Open sub-session</td></tr>
+        </tbody>
+      </table>
+      <p style="margin:0.5rem 0 0">Destructive actions sit at the far right and never look like the old tab ×. Kill is labelled “Kill process”, not an icon alone.</p>
+    </div>
+
+    <div class="note">
+      <h3>Behaviour</h3>
+      <ul>
+        <li><b>Multi-open</b>: two shells can be compared side by side; the list scrolls, not the pane.</li>
+        <li>Expansion is keyed by row id, so a push event or a re-sort never collapses what you opened.</li>
+        <li>Rows keep their position while expanded — a watch resolving does not move the row under the cursor.</li>
+        <li>Live output subscribes on expand, unsubscribes on collapse (same lifecycle the overlay uses today).</li>
+        <li>Elapsed ticks once per second; finished rows show a coarse age instead.</li>
+        <li>Header is a <code>&lt;button aria-expanded aria-controls&gt;</code>; the action row is a sibling, never nested.</li>
+        <li><span class="kbd">Tab</span> rows, <span class="kbd">Enter</span>/<span class="kbd">Space</span> toggles, <span class="kbd">Esc</span> closes the open row, then the panel.</li>
+      </ul>
+    </div>
+
+    <div class="note wide">
+      <h3>What this replaces in the code</h3>
+      <table>
+        <thead><tr><th>Today</th><th>After</th></tr></thead>
+        <tbody>
+          <tr><td><code>ProcessesOverlay.tsx</code> — <code>PanelHeader</code> tabs, one per shell, plus a Monitors tab</td><td><code>TasksPanel.tsx</code> — right-hand panel, header + grouped list; no <code>PanelHeader</code> tabs</td></tr>
+          <tr><td><code>MonitorsPane.tsx</code> — list + separate detail block</td><td>merged into the list as rows; the detail block becomes the expanded body</td></tr>
+          <tr><td><code>BackgroundPanel.tsx</code> — horizontal pill strip under the panes</td><td>gone: background sessions are rows of the same list</td></tr>
+          <tr><td><code>BackgroundTasksCard.tsx</code> — a second, different rendering of the same data</td><td>stays in the feed, but reuses the row component and opens the panel on click</td></tr>
+        </tbody>
+      </table>
+      <p style="margin:0.5rem 0 0">
+        Data and IPC are unchanged: <code>backgroundProcsList</code> + <code>monitorsList</code> + the pane's
+        <code>AgentState</code> feed the rows; <code>backgroundProcSubscribe</code> feeds the output box;
+        <code>backgroundProcKill</code>, <code>monitorsCancel</code>, <code>setAgentBackground</code>,
+        <code>stopChat</code>, <code>removePane</code> are the actions. No new channel needed.
+      </p>
+    </div>
+  </section>
+</div>
+
+<script>
+  const themeBtn = document.getElementById('themeBtn')
+  themeBtn.addEventListener('click', () => {
+    const root = document.documentElement
+    const light = root.getAttribute('data-theme') === 'light'
+    root.setAttribute('data-theme', light ? 'dark' : 'light')
+    themeBtn.classList.toggle('on', !light)
+  })
+
+  document.querySelectorAll('[data-row]').forEach(row => {
+    const head = row.querySelector('.trow-head')
+    head.addEventListener('click', () => {
+      const open = row.classList.toggle('open')
+      head.setAttribute('aria-expanded', String(open))
+    })
+  })
+</script>
+</body>
+</html>

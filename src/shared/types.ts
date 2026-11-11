@@ -612,6 +612,10 @@ export interface NotificationsSettings {
 export interface BackgroundProcInfo {
   id: string
   command: string
+  /** Working directory the shell was started in (shown in the Tasks list). */
+  cwd: string
+  /** Epoch ms the shell was spawned; drives the row's elapsed time. */
+  startedAt: number
   status: 'running' | 'exited'
   exitCode: number | null
 }
