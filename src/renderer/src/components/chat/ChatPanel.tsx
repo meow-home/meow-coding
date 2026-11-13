@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { AlertCircle, ArrowRight, Check, ChevronDown, ChevronRight, Copy, Folder, FolderPlus, GitBranch, Pencil, RotateCw, Trash2, X } from 'lucide-react'
+import { AlertCircle, ArrowRight, Check, ChevronDown, ChevronRight, ChevronUp, Copy, Folder, FolderPlus, GitBranch, Pencil, RotateCw, Trash2, X } from 'lucide-react'
 import type { AgentMode, ChatDelegationMeta, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ContextSection, ImageAttachment, QuestionOption, QueuedMessage, TodoItem, ToolCallData } from '@shared/types'
 import { DRAFT_SESSION_ID } from '@shared/types'
 import { isExternalPeer } from '@shared/external-api-types'
@@ -127,14 +127,14 @@ function MentionText({ text, commands }: { text: string; commands: Command[] }) 
   const rest = slash !== null ? text.slice(slash.length) : text
   const parts = rest.split(MENTION_SPLIT_RE)
   return (
-    <div className="chat-text">
+    <>
       {slash && <span className="chat-slash">{slash}</span>}
       {parts.map((part, i) =>
         part.startsWith('@')
           ? <span key={i} className="chat-mention">{part}</span>
           : part
       )}
-    </div>
+    </>
   )
 }
 
@@ -154,6 +154,9 @@ const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, c
   onRunCommand?: (command: string) => void
 }) {
   const [copied, setCopied] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+
+  const isLongUserMsg = role === 'user' && (text.split('\n').length > 6 || text.length > 350)
 
   const handleCopy = useCallback(() => {
     if (!text) return
@@ -219,7 +222,33 @@ const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, c
               ))}
             </div>
           )}
-          {text.trim() !== '' && <MentionText text={text} commands={commands} />}
+          {text.trim() !== '' && (
+            <div className="chat-text">
+              <div className={`chat-text-body${isLongUserMsg && !expanded ? ' collapsed' : ''}`}>
+                <MentionText text={text} commands={commands} />
+              </div>
+              {isLongUserMsg && (
+                <div className="chat-msg-footer">
+                  <button
+                    type="button"
+                    className="chat-msg-toggle-btn"
+                    onClick={() => setExpanded(!expanded)}
+                    aria-expanded={expanded}
+                  >
+                    {expanded ? (
+                      <>
+                        <ChevronUp size={14} /> Thu gọn
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown size={14} /> Xem thêm
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>
