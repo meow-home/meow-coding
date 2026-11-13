@@ -524,4 +524,24 @@ describe('MeowAgentManager delegation runtime', () => {
     const second = await manager.runDelegatedTurn({ ...base, delegationId: 'e2', task: 'second task' })
     expect(second?.finalText).toBeUndefined()
   })
+
+  it('delegates a sub-session turn and receives "Xin chào" as final text', async () => {
+    const { manager, store } = await makeManager({
+      partsQueue: [
+        [{ kind: 'text', text: 'Xin chào' }, { kind: 'finish' }]
+      ]
+    })
+    const result = await manager.runDelegatedTurn({
+      delegationId: 'del-xin-chao',
+      sourceAgentId: 'src-agent',
+      sourceName: 'src',
+      targetAgentId: 'a1',
+      targetSessionId: 'sub-session-xin-chao',
+      task: 'say hello'
+    })
+    expect(result.reason).toBe('completed')
+    expect(result.finalText).toBe('Xin chào')
+    const session = store.get('sub-session-xin-chao')
+    expect(session).toBeDefined()
+  })
 })
