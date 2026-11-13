@@ -359,11 +359,11 @@ export default function Sidebar({
                       title={parent ? `Sub-session of ${parent.name}` : undefined}
                       onClick={() => onSelectSession(ws.projectPath, s.id)}
                     >
-                      <span className={`session-dot session-status-${status}`} aria-label={status} />
                       {s.parentAgentId && (
                         <CornerDownRight className="session-sub-icon" size={12} aria-hidden="true" />
                       )}
                       <span className="session-name">{s.name}</span>
+                      <span className={`session-dot session-status-${status}`} aria-label={status} />
                       <SessionRowMenu
                         running={running}
                         onRename={name => onRenameSession(ws.projectPath, s.id, name)}
